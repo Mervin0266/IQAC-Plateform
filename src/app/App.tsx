@@ -1,0 +1,126 @@
+import React, { useState } from 'react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { LoginPage } from './components/LoginPage';
+import { PublicWebsite } from './components/PublicWebsite';
+import { DashboardPage } from './components/DashboardPage';
+import { AchievementsPage } from './components/AchievementsPage';
+import { CourseFilesPage } from './components/CourseFilesPage';
+import { PlaceholderPage } from './components/PlaceholderPage';
+import { StrategicPlanPage } from './components/StrategicPlanPage';
+import { DepartmentTrackingPage } from './components/DepartmentTrackingPage';
+import { UserRolesPage } from './components/UserRolesPage';
+import { RankingPage } from './components/RankingPage';
+import { ResearchInnovationPage } from './components/ResearchInnovationPage';
+import { IncubationsPage } from './components/IncubationsPage';
+import { IndustryConnectsPage } from './components/IndustryConnectsPage';
+import { ConsultancyProjectsPage } from './components/ConsultancyProjectsPage';
+import { InternationalInteractionsPage } from './components/InternationalInteractionsPage';
+import { CentreExcellencePage } from './components/CentreExcellencePage';
+import { InfrastructureFacilitiesPage } from './components/InfrastructureFacilitiesPage';
+import { PlacementsInternshipsPage } from './components/PlacementsInternshipsPage';
+import { hasPageAccess } from './config/permissions';
+
+function AppContent() {
+  const { user, isAuthenticated } = useAuth();
+  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [showLogin, setShowLogin] = useState(false);
+
+  // If not authenticated and not explicitly showing login, show public website
+  if (!isAuthenticated || !user) {
+    if (showLogin) {
+      return <LoginPage onBack={() => setShowLogin(false)} />;
+    }
+    return <PublicWebsite onLoginClick={() => setShowLogin(true)} />;
+  }
+
+  // Check if user has access to current page
+  if (!hasPageAccess(user.role, currentPage)) {
+    setCurrentPage('dashboard'); // Redirect to dashboard if no access
+  }
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'dashboard':
+        return <DashboardPage onNavigate={setCurrentPage} />;
+      case 'achievements':
+        return <AchievementsPage onNavigate={setCurrentPage} />;
+      case 'course-files':
+        return <CourseFilesPage onNavigate={setCurrentPage} />;
+      case 'ranking':
+        return <RankingPage onNavigate={setCurrentPage} />;
+      case 'research-innovation':
+        return <ResearchInnovationPage onNavigate={setCurrentPage} />;
+      case 'incubations':
+        return <IncubationsPage onNavigate={setCurrentPage} />;
+      case 'industry-connects':
+        return <IndustryConnectsPage onNavigate={setCurrentPage} />;
+      case 'consultancy-projects':
+        return <ConsultancyProjectsPage onNavigate={setCurrentPage} />;
+      case 'international-interactions':
+        return <InternationalInteractionsPage onNavigate={setCurrentPage} />;
+      case 'centre-excellence':
+        return <CentreExcellencePage onNavigate={setCurrentPage} />;
+      case 'infrastructure-facilities':
+        return <InfrastructureFacilitiesPage onNavigate={setCurrentPage} />;
+      case 'placements-internships':
+        return <PlacementsInternshipsPage onNavigate={setCurrentPage} />;
+      case 'strategic-plan':
+        return <StrategicPlanPage onNavigate={setCurrentPage} />;
+      case 'strategic-plan-civil-engineering':
+        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="civil-engineering" />;
+      case 'strategic-plan-electronics-communication-engineering':
+        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="electronics-communication-engineering" />;
+      case 'strategic-plan-electrical-electronics-engineering':
+        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="electrical-electronics-engineering" />;
+      case 'strategic-plan-mechanical-automobile-engineering':
+        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="mechanical-automobile-engineering" />;
+      case 'strategic-plan-computer-science-engineering':
+        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="computer-science-engineering" />;
+      case 'strategic-plan-science-humanities-engineering':
+        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="science-humanities-engineering" />;
+      case 'strategic-plan-school-architecture':
+        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="school-architecture" />;
+      case 'strategic-plan-ai-data-science':
+        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="ai-data-science" />;
+      case 'naac-accreditation':
+        return <PlaceholderPage 
+          title="NAAC Accreditation" 
+          description="Manage NAAC accreditation processes, documentation, and assessment criteria."
+          onNavigate={setCurrentPage}
+          currentPage={currentPage}
+        />;
+      case 'nba-tracking':
+        return <PlaceholderPage 
+          title="NBA Tracking" 
+          description="Track NBA accreditation progress, requirements, and compliance status."
+          onNavigate={setCurrentPage}
+          currentPage={currentPage}
+        />;
+      case 'event-logs':
+        return <PlaceholderPage 
+          title="Event Logs and Report" 
+          description="View system events, activity logs, and generate comprehensive reports."
+          onNavigate={setCurrentPage}
+          currentPage={currentPage}
+        />;
+      case 'user-roles':
+        return <UserRolesPage onNavigate={setCurrentPage} />;
+      default:
+        return <DashboardPage onNavigate={setCurrentPage} />;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {renderPage()}
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
