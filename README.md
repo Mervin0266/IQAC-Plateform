@@ -1,3 +1,6 @@
+The site is availablle on 
+https://jot-motto-19374998.figma.site
+
 
   # IQAC Platform Page Content Planning
 
