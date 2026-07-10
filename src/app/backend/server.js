@@ -10,8 +10,16 @@ const { sequelize, testConnection } = require('./config/database');
 const app = express();
 
 // CORS
+const clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/$/, '') : null;
+const clientUrlWithSlash = clientUrl ? `${clientUrl}/` : null;
+
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173', process.env.CLIENT_URL].filter(Boolean),
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    clientUrl,
+    clientUrlWithSlash
+  ].filter(Boolean),
   credentials: true
 }));
 
