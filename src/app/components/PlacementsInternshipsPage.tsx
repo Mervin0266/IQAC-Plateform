@@ -75,12 +75,18 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
   const totalPlaced = dbPlacementsOnly.length;
   const totalOffers = placements.length;
   
-  const avgPkgVal = totalPlaced > 0 
-    ? dbPlacementsOnly.reduce((sum, p) => sum + parseFloat(p.package || 0), 0) / totalPlaced 
+  const validPlacements = dbPlacementsOnly.filter((p: any) => parseFloat(p.package || 0) > 0);
+  
+  const avgPkgVal = validPlacements.length > 0 
+    ? validPlacements.reduce((sum, p) => sum + parseFloat(p.package || 0), 0) / validPlacements.length 
     : 0;
   
-  const highestPkgVal = totalPlaced > 0 
-    ? dbPlacementsOnly.reduce((max, p) => Math.max(max, parseFloat(p.package || 0)), 0) 
+  const highestPkgVal = validPlacements.length > 0 
+    ? validPlacements.reduce((max, p) => Math.max(max, parseFloat(p.package || 0)), 0) 
+    : 0;
+
+  const lowestPkgVal = validPlacements.length > 0 
+    ? validPlacements.reduce((min, p) => Math.min(min, parseFloat(p.package || 0)), Infinity) 
     : 0;
 
   const placementStats = {
@@ -88,6 +94,7 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
     placementRate: totalPlaced > 0 ? 100 : 0,
     averagePackage: formatLPA(avgPkgVal),
     highestPackage: formatLPA(highestPkgVal),
+    lowestPackage: formatLPA(lowestPkgVal === Infinity ? 0 : lowestPkgVal),
     companiesVisited: Array.from(new Set(placements.map(p => p.company))).length,
     totalOffers
   };
@@ -110,8 +117,11 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
   const departmentPlacements = Object.keys(deptPlacementsMap).map(dept => {
     const dbItems = deptPlacementsMap[dept];
     const dbPlacedCount = dbItems.length;
-    const dbAvg = dbItems.reduce((sum, p) => sum + parseFloat(p.package || 0), 0) / dbPlacedCount;
-    const dbMax = dbItems.reduce((max, p) => Math.max(max, parseFloat(p.package || 0)), 0);
+    
+    const validDeptPackages = dbItems.map(p => parseFloat(p.package || 0)).filter(pkg => pkg > 0);
+    const dbAvg = validDeptPackages.length > 0 ? validDeptPackages.reduce((sum, val) => sum + val, 0) / validDeptPackages.length : 0;
+    const dbMax = validDeptPackages.length > 0 ? Math.max(...validDeptPackages) : 0;
+    const dbMin = validDeptPackages.length > 0 ? Math.min(...validDeptPackages) : 0;
     
     return {
       department: dept,
@@ -120,6 +130,7 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
       placementRate: 100,
       averagePackage: formatLPA(dbAvg),
       highestPackage: formatLPA(dbMax),
+      lowestPackage: formatLPA(dbMin),
       topRecruiters: Array.from(new Set(dbItems.map(p => p.company))).slice(0, 5)
     };
   });
@@ -334,46 +345,136 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
             {/* Placements Tab */}
             <TabsContent value="placements" className="space-y-6">
               {/* Overall Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card className="border-l-4 border-l-green-500">
-                  <CardHeader className="pb-3">
+                  <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardDescription className="text-xs">Total Placed</CardDescription>
-                      <Users className="w-5 h-5 text-green-600" />
+                      <Users className="w-4 h-4 text-green-600" />
                     </div>
-                    <CardTitle className="text-3xl font-bold text-green-600">{placementStats.totalPlaced}</CardTitle>
+                    <CardTitle className="text-2xl font-bold text-green-600">{placementStats.totalPlaced}</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">Placement Rate: {placementStats.placementRate}%</p>
+                  <CardContent className="pb-3 text-[10px] text-gray-500">
+                    Placement Rate: {placementStats.placementRate}%
                   </CardContent>
                 </Card>
 
                 <Card className="border-l-4 border-l-blue-500">
-                  <CardHeader className="pb-3">
+                  <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardDescription className="text-xs">Average Package</CardDescription>
-                      <DollarSign className="w-5 h-5 text-blue-600" />
+                      <DollarSign className="w-4 h-4 text-blue-600" />
                     </div>
-                    <CardTitle className="text-3xl font-bold text-blue-600">{placementStats.averagePackage}</CardTitle>
+                    <CardTitle className="text-2xl font-bold text-blue-600">{placementStats.averagePackage}</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">Highest: {placementStats.highestPackage}</p>
+                  <CardContent className="pb-3 text-[10px] text-gray-500">
+                    Across all departments
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-teal-500">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardDescription className="text-xs">Highest Package</CardDescription>
+                      <TrendingUp className="w-4 h-4 text-teal-600" />
+                    </div>
+                    <CardTitle className="text-2xl font-bold text-teal-600">{placementStats.highestPackage}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pb-3 text-[10px] text-gray-500">
+                    Maximum offer secured
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-orange-500">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardDescription className="text-xs">Lowest Package</CardDescription>
+                      <Award className="w-4 h-4 text-orange-600" />
+                    </div>
+                    <CardTitle className="text-2xl font-bold text-orange-600">{placementStats.lowestPackage}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pb-3 text-[10px] text-gray-500">
+                    Minimum offer secured
                   </CardContent>
                 </Card>
 
                 <Card className="border-l-4 border-l-purple-500">
-                  <CardHeader className="pb-3">
+                  <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardDescription className="text-xs">Companies Visited</CardDescription>
-                      <Building2 className="w-5 h-5 text-purple-600" />
+                      <Building2 className="w-4 h-4 text-purple-600" />
                     </div>
-                    <CardTitle className="text-3xl font-bold text-purple-600">{placementStats.companiesVisited}</CardTitle>
+                    <CardTitle className="text-2xl font-bold text-purple-600">{placementStats.companiesVisited}</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">Total Offers: {placementStats.totalOffers}</p>
+                  <CardContent className="pb-3 text-[10px] text-gray-500">
+                    Total Offers: {placementStats.totalOffers}
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Department-wise Placement Performance Analytics */}
+              <Card className="border border-gray-200">
+                <CardHeader className="bg-gray-50 bg-opacity-50 border-b border-gray-150">
+                  <CardTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-teal-700" />
+                    <span>Departmental Placement Performance</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-gray-500">
+                    Detailed analysis of package distributions (Highest, Lowest, Average) and placement rates across departments
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {departmentPlacements.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 text-xs font-medium">
+                      No placement records available to generate departmental analytics.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {departmentPlacements.map((dept, index) => (
+                        <Card key={index} className="border border-gray-100 hover:shadow-sm transition-shadow">
+                          <CardHeader className="pb-2 bg-gray-50 bg-opacity-30">
+                            <CardTitle className="text-sm font-semibold text-gray-800">{dept.department}</CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-4 space-y-4">
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div className="bg-blue-50 bg-opacity-50 p-2 rounded-lg">
+                                <p className="text-[10px] text-gray-500">Avg Package</p>
+                                <p className="text-sm font-bold text-blue-700">{dept.averagePackage}</p>
+                              </div>
+                              <div className="bg-green-50 bg-opacity-50 p-2 rounded-lg">
+                                <p className="text-[10px] text-gray-500">Highest</p>
+                                <p className="text-sm font-bold text-green-700">{dept.highestPackage}</p>
+                              </div>
+                              <div className="bg-orange-50 bg-opacity-50 p-2 rounded-lg">
+                                <p className="text-[10px] text-gray-500">Lowest</p>
+                                <p className="text-sm font-bold text-orange-700">{dept.lowestPackage}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between items-center text-xs text-gray-600 border-t border-b border-gray-100 py-2">
+                              <div>
+                                <span className="font-semibold text-gray-800">{dept.placed}</span> Placed
+                              </div>
+                              <div className="text-teal-700 font-semibold">
+                                Rate: {dept.placementRate}%
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-[10px] text-gray-500 mb-1.5 font-medium">Top Employers:</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {dept.topRecruiters.map((company, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-[9px] px-2 py-0.5">{company}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Placement Records Table with Filters, Sort & Pagination */}
               <Card className="border border-gray-200">
