@@ -439,14 +439,14 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     setUploadErrorsList([]);
 
     const endpoint = isFaculty
-      ? 'http://localhost:5000/api/faculty/bulk'
+      ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty/bulk`
       : isPlacement
-        ? 'http://localhost:5000/api/placements/bulk'
+        ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/placements/bulk`
         : isStudent
-          ? 'http://localhost:5000/api/students/bulk'
+          ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students/bulk`
           : isDepartment
-            ? 'http://localhost:5000/api/departments/bulk'
-            : 'http://localhost:5000/api/achievements/bulk';
+            ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departments/bulk`
+            : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements/bulk`;
 
     const bodyPayload = isFaculty
       ? { faculty: previewData }

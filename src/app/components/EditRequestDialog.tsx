@@ -36,7 +36,7 @@ export function EditRequestDialog({
     setError('');
 
     try {
-      const response = await fetch('http://localhost:5000/api/edit-requests', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/edit-requests`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

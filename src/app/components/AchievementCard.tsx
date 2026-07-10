@@ -123,7 +123,7 @@ export function AchievementCard({ achievement, onEdit, onDelete, onRequestEdit, 
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/achievements/${achievement.id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements/${achievement.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -24,7 +24,7 @@ export function ResearchInnovationPage({ onNavigate, isPublicView = false }: Res
       if (!user?.token) return;
       setLoading(true);
       try {
-        const response = await fetch('http://localhost:5000/api/patents', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/patents`, {
           headers: {
             'Authorization': `Bearer ${user.token}`
           }

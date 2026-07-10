@@ -132,8 +132,8 @@ export function AchievementDialog({
 
     try {
       const url = isEditMode
-        ? `http://localhost:5000/api/achievements/${achievementToEdit.id}`
-        : 'http://localhost:5000/api/achievements';
+        ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements/${achievementToEdit.id}`
+        : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements`;
       
       const method = isEditMode ? 'PUT' : 'POST';
 

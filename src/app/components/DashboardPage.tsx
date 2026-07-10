@@ -67,7 +67,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     setLoading(true);
     try {
       // 1. Fetch achievements
-      const resAchievements = await fetch('http://localhost:5000/api/achievements', {
+      const resAchievements = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements`, {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       if (resAchievements.status === 401) {
@@ -77,7 +77,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       const achievementsData = await resAchievements.json();
 
       // 2. Fetch documents (annual reports)
-      const resDocs = await fetch('http://localhost:5000/api/documents', {
+      const resDocs = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/documents`, {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       if (resDocs.status === 401) {
@@ -87,7 +87,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       const docsData = await resDocs.json();
 
       // 3. Fetch strategic plans
-      const resPlans = await fetch('http://localhost:5000/api/strategic-plans', {
+      const resPlans = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/strategic-plans`, {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       if (resPlans.status === 401) {
@@ -121,7 +121,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
       // 4. Fetch placements
       try {
-        const resPlacements = await fetch('http://localhost:5000/api/placements', {
+        const resPlacements = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/placements`, {
           headers: { 'Authorization': `Bearer ${user.token}` }
         });
         if (resPlacements.ok) {

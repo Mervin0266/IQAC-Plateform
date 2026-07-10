@@ -79,7 +79,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     if (!user?.token) return;
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/faculty', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty`, {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       if (response.status === 401) {
@@ -212,7 +212,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     e.preventDefault();
     try {
       if (user?.token) {
-        const res = await fetch('http://localhost:5000/api/faculty', {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -245,7 +245,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     if (!editingFaculty) return;
     try {
       if (user?.token && editingFaculty.id && !editingFaculty.id.startsWith('FAC')) {
-        await fetch(`http://localhost:5000/api/faculty/${editingFaculty.id}`, {
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty/${editingFaculty.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -266,7 +266,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     if (window.confirm('Are you sure you want to remove this faculty record?')) {
       try {
         if (user?.token && !id.startsWith('FAC')) {
-          await fetch(`http://localhost:5000/api/faculty/${id}`, {
+          await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${user.token}` }
           });

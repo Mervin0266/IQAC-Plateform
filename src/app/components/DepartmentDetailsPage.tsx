@@ -72,7 +72,7 @@ export function DepartmentDetailsPage({ onNavigate }: DepartmentDetailsPageProps
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('http://localhost:5000/api/departments', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departments`, {
         headers: {
           'Authorization': `Bearer ${user?.token}`
         }
@@ -98,7 +98,7 @@ export function DepartmentDetailsPage({ onNavigate }: DepartmentDetailsPageProps
     e.preventDefault();
     setError('');
     try {
-      const response = await fetch('http://localhost:5000/api/departments', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,7 +136,7 @@ export function DepartmentDetailsPage({ onNavigate }: DepartmentDetailsPageProps
     if (!editingDept) return;
     setError('');
     try {
-      const response = await fetch(`http://localhost:5000/api/departments/${editingDept.id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departments/${editingDept.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -162,7 +162,7 @@ export function DepartmentDetailsPage({ onNavigate }: DepartmentDetailsPageProps
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this department?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/departments/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departments/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${user?.token}`

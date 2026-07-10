@@ -69,7 +69,7 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('http://localhost:5000/api/users', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users`, {
         headers: {
           'Authorization': `Bearer ${user.token}`
         }
@@ -142,8 +142,8 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
 
     try {
       const url = formMode === 'create'
-        ? 'http://localhost:5000/api/users'
-        : `http://localhost:5000/api/users/${selectedUser?.id}`;
+        ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users`
+        : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/${selectedUser?.id}`;
       
       const method = formMode === 'create' ? 'POST' : 'PUT';
 
@@ -191,7 +191,7 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
       return;
     }
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${user?.token}`

@@ -35,7 +35,7 @@ export function DocumentCard({ document, onRefresh }: DocumentCardProps) {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/documents/${document.id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/documents/${document.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${user.token}`

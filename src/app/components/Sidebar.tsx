@@ -51,7 +51,7 @@ export function Sidebar({
   const fetchNotifications = async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch('http://localhost:5000/api/notifications', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/notifications`, {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       const data = await res.json();
@@ -74,7 +74,7 @@ export function Sidebar({
   const markAsRead = async (id: string) => {
     if (!user?.token) return;
     try {
-      await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/notifications/${id}/read`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${user.token}` }
       });

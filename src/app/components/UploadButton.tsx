@@ -102,7 +102,7 @@ export function UploadButton({ activeTab, onRefresh }: UploadButtonProps) {
     };
 
     try {
-      const response = await fetch('http://localhost:5000/api/documents', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/documents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

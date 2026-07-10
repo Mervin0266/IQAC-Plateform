@@ -69,7 +69,7 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
         queryParams.append('year', yr);
       }
       const queryString = queryParams.toString();
-      const url = `http://localhost:5000/api/achievements${queryString ? `?${queryString}` : ''}`;
+      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements${queryString ? `?${queryString}` : ''}`;
       
       const response = await fetch(url, {
         headers: {
@@ -120,7 +120,7 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/achievements/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${user.token}`

@@ -64,7 +64,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
     if (!user?.token) return;
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/students', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students`, {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       if (response.status === 401) {
@@ -169,7 +169,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
     e.preventDefault();
     try {
       if (user?.token) {
-        const res = await fetch('http://localhost:5000/api/students', {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -202,7 +202,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
     if (!editingStudent) return;
     try {
       if (user?.token && editingStudent.id && !editingStudent.id.startsWith('STD')) {
-        await fetch(`http://localhost:5000/api/students/${editingStudent.id}`, {
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students/${editingStudent.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -223,7 +223,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
     if (window.confirm('Are you sure you want to delete this student record?')) {
       try {
         if (user?.token && !id.startsWith('STD')) {
-          await fetch(`http://localhost:5000/api/students/${id}`, {
+          await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${user.token}` }
           });
