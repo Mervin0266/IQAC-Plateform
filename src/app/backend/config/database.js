@@ -1,7 +1,11 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-const isProduction = process.env.NODE_ENV === 'production';
+const hasExternalDb = process.env.DATABASE_URL && 
+  !process.env.DATABASE_URL.includes('localhost') && 
+  !process.env.DATABASE_URL.includes('127.0.0.1');
+
+const isProduction = process.env.NODE_ENV === 'production' || hasExternalDb;
 
 const dialectOptions = isProduction
   ? {
