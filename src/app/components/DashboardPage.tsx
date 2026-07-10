@@ -42,7 +42,9 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     facultyAchievements: 85,
     annualReports: 15
   });
-  const [placementView, setPlacementView] = useState<'departmentwise' | 'overall'>('departmentwise');
+  const [placementView, setPlacementView] = useState<'departmentwise' | 'overall' | 'single-department'>('departmentwise');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [rawPlacements, setRawPlacements] = useState<any[]>([]);
   const [placementDeptData, setPlacementDeptData] = useState<any[]>([
     { department: 'CSE', placed: 172, total: 180, rate: 95.6, avgPackage: 12.5 },
     { department: 'ECE', placed: 142, total: 150, rate: 94.7, avgPackage: 9.8 },
@@ -319,6 +321,143 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     return null;
   };
 
+  // List of unique departments from database
+  const departmentsList = React.useMemo(() => {
+    return Array.from(
+      new Set(rawPlacements.map((p: any) => p.department).filter(Boolean))
+    ).sort();
+  }, [rawPlacements]);
+
+  useEffect(() => {
+    if (departmentsList.length > 0 && !selectedDepartment) {
+      setSelectedDepartment(departmentsList[0]);
+    }
+  }, [departmentsList, selectedDepartment]);
+
+  const computedOverallData = React.useMemo(() => {
+    const batchMap: Record<string, { placed: number; offers: number; sumPkg: number; countPkg: number }> = {};
+    rawPlacements.forEach((p: any) => {
+      const batch = p.batch || 'Other';
+      if (!batchMap[batch]) {
+        batchMap[batch] = { placed: 0, offers: 0, sumPkg: 0, countPkg: 0 };
+      }
+      batchMap[batch].offers += 1;
+      if (p.placementType === 'placement') {
+        batchMap[batch].placed += 1;
+        const pkg = parseFloat(p.package || 0);
+        if (pkg > 0) {
+          batchMap[batch].sumPkg += pkg;
+          batchMap[batch].countPkg += 1;
+        }
+      }
+    });
+    
+    return Object.entries(batchMap)
+      .map(([batch, val]) => ({
+        batch,
+        placed: val.placed,
+        offers: val.offers,
+        avgPackage: val.countPkg > 0 ? parseFloat((val.sumPkg / val.countPkg).toFixed(1)) : 0
+      }))
+      .sort((a, b) => a.batch.localeCompare(b.batch));
+  }, [rawPlacements]);
+
+  const computedDeptData = React.useMemo(() => {
+    const deptMap: Record<string, { placed: number; total: number; sumPkg: number; countPkg: number }> = {};
+    rawPlacements.forEach((p: any) => {
+      const dept = p.department || 'Other';
+      if (!deptMap[dept]) {
+        deptMap[dept] = { placed: 0, total: 0, sumPkg: 0, countPkg: 0 };
+      }
+      deptMap[dept].total += 1;
+      if (p.placementType === 'placement') {
+        deptMap[dept].placed += 1;
+        const pkg = parseFloat(p.package || 0);
+        if (pkg > 0) {
+          deptMap[dept].sumPkg += pkg;
+          deptMap[dept].countPkg += 1;
+        }
+      }
+    });
+
+    const shortNames: Record<string, string> = {
+      'Computer Science and Engineering': 'CSE',
+      'Civil Engineering': 'Civil Eng',
+      'Electrical Engineering': 'EEE',
+      'Electronics and Communication Engineering': 'ECE',
+      'Mechanical Engineering': 'Mech',
+      'Artificial Intelligence and Data Science': 'AI & DS'
+    };
+
+    return Object.entries(deptMap).map(([dept, val]) => ({
+      department: shortNames[dept] || (dept.length > 10 ? dept.substring(0, 10) + '...' : dept),
+      fullDepartment: dept,
+      placed: val.placed,
+      total: Math.max(val.total, val.placed),
+      rate: Math.round((val.placed / Math.max(val.total, 1)) * 100),
+      avgPackage: val.countPkg > 0 ? parseFloat((val.sumPkg / val.countPkg).toFixed(1)) : 0
+    }));
+  }, [rawPlacements]);
+
+  const singleDeptData = React.useMemo(() => {
+    if (!selectedDepartment) return null;
+    const deptPlacements = rawPlacements.filter((p: any) => p.department === selectedDepartment);
+    const placedOnly = deptPlacements.filter((p: any) => p.placementType === 'placement');
+    const internsOnly = deptPlacements.filter((p: any) => p.placementType === 'internship');
+
+    // Top Employers
+    const companyMap: Record<string, number> = {};
+    deptPlacements.forEach((p: any) => {
+      const c = p.company || 'Unknown';
+      companyMap[c] = (companyMap[c] || 0) + 1;
+    });
+    const topEmployers = Object.entries(companyMap)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    // Package Salary Tier Distribution
+    let tier1 = 0; // < 5 LPA
+    let tier2 = 0; // 5-10 LPA
+    let tier3 = 0; // 10-15 LPA
+    let tier4 = 0; // > 15 LPA
+
+    placedOnly.forEach((p: any) => {
+      const pkg = parseFloat(p.package || 0);
+      if (pkg > 0) {
+        if (pkg < 5) tier1++;
+        else if (pkg >= 5 && pkg < 10) tier2++;
+        else if (pkg >= 10 && pkg < 15) tier3++;
+        else tier4++;
+      }
+    });
+
+    const salaryDistribution = [
+      { name: '< 5 LPA', value: tier1, fill: '#ef4444' },
+      { name: '5-10 LPA', value: tier2, fill: '#3b82f6' },
+      { name: '10-15 LPA', value: tier3, fill: '#10b981' },
+      { name: '> 15 LPA', value: tier4, fill: '#8b5cf6' }
+    ].filter(item => item.value > 0);
+
+    const packages = placedOnly.map((p: any) => parseFloat(p.package || 0)).filter((pkg: number) => pkg > 0);
+    const highestPackage = packages.length > 0 ? Math.max(...packages) : 0;
+    const lowestPackage = packages.length > 0 ? Math.min(...packages) : 0;
+    const avgPackage = packages.length > 0 ? parseFloat((packages.reduce((sum: number, val: number) => sum + val, 0) / packages.length).toFixed(1)) : 0;
+
+    return {
+      totalPlaced: placedOnly.length,
+      totalInterns: internsOnly.length,
+      highestPackage,
+      lowestPackage,
+      avgPackage,
+      topEmployers,
+      salaryDistribution
+    };
+  }, [rawPlacements, selectedDepartment]);
+
+  const deptData = rawPlacements.length > 0 ? computedDeptData : placementDeptData;
+  const overallData = rawPlacements.length > 0 ? computedOverallData : placementOverallData;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar currentPage="dashboard" onNavigate={onNavigate} />
@@ -479,104 +618,290 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
               {/* Placement Analytics Graph */}
               <Card className="p-6 bg-gradient-to-br from-white to-amber-50">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4">
                   <div>
                     <p className="text-sm text-gray-600 font-medium">Placement Statistics</p>
                     <p className="text-2xl font-semibold text-gray-900">
-                      {placementView === 'departmentwise' ? 'Departmentwise View' : '1,245 Total Placed'}
+                      {placementView === 'departmentwise' && 'Departmentwise Analytics'}
+                      {placementView === 'overall' && 'Overall Trends (Batchwise)'}
+                      {placementView === 'single-department' && `${selectedDepartment || 'Department'} Details`}
                     </p>
                     <p className="text-xs text-green-600 font-medium mt-0.5">
-                      {placementView === 'departmentwise' ? '93.5% Overall Placement Rate' : '+8.2% Growth vs Last Batch'}
+                      {placementView === 'departmentwise' && `${deptData.length} Departments Tracked`}
+                      {placementView === 'overall' && `${overallData.reduce((sum, item) => sum + item.placed, 0).toLocaleString()} Total Placed`}
+                      {placementView === 'single-department' && 'Granular Salary & Recruiting Analysis'}
                     </p>
                   </div>
 
-                  {/* Options Toggle for Viewing Departmentwise and Overall */}
-                  <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200 self-start sm:self-center">
-                    <button
-                      type="button"
-                      onClick={() => setPlacementView('departmentwise')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        placementView === 'departmentwise'
-                          ? 'bg-blue-600 text-white shadow-sm font-semibold'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
-                      }`}
-                    >
-                      Departmentwise
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPlacementView('overall')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        placementView === 'overall'
-                          ? 'bg-blue-600 text-white shadow-sm font-semibold'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
-                      }`}
-                    >
-                      Overall
-                    </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Department Dropdown (shown only in Single Department view) */}
+                    {placementView === 'single-department' && (
+                      <select
+                        value={selectedDepartment}
+                        onChange={(e) => setSelectedDepartment(e.target.value)}
+                        className="px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium max-w-[200px]"
+                      >
+                        {(rawPlacements.length > 0
+                          ? departmentsList
+                          : [
+                              'Computer Science and Engineering',
+                              'Electronics and Communication Engineering',
+                              'Electrical Engineering',
+                              'Mechanical Engineering',
+                              'Civil Engineering',
+                              'Artificial Intelligence and Data Science'
+                            ]
+                        ).map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {/* Options Toggle for Views */}
+                    <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setPlacementView('departmentwise')}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                          placementView === 'departmentwise'
+                            ? 'bg-blue-600 text-white shadow-sm font-semibold'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                        }`}
+                      >
+                        Departmentwise
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPlacementView('overall')}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                          placementView === 'overall'
+                            ? 'bg-blue-600 text-white shadow-sm font-semibold'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                        }`}
+                      >
+                        Overall
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPlacementView('single-department')}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                          placementView === 'single-department'
+                            ? 'bg-blue-600 text-white shadow-sm font-semibold'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                        }`}
+                      >
+                        By Department
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="w-full h-[280px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    {placementView === 'departmentwise' ? (
-                      <BarChart data={placementDeptData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="department" tick={{ fontSize: 11, fill: '#4B5563' }} />
-                        <YAxis tick={{ fontSize: 11, fill: '#4B5563' }} />
-                        <Tooltip content={<PlacementTooltip view="departmentwise" />} />
-                        <Bar dataKey="placed" name="Placed Students" fill="#2f4692" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="total" name="Total Students" fill="#a0bbf5" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    ) : (
-                      <AreaChart data={placementOverallData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="colorPlacedBatch" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#2f4692" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#2f4692" stopOpacity={0.1} />
-                          </linearGradient>
-                          <linearGradient id="colorOffersBatch" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#5a7bd4" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#5a7bd4" stopOpacity={0.1} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="batch" tick={{ fontSize: 11, fill: '#4B5563' }} />
-                        <YAxis tick={{ fontSize: 11, fill: '#4B5563' }} />
-                        <Tooltip content={<PlacementTooltip view="overall" />} />
-                        <Area type="monotone" dataKey="placed" name="Placed Students" stroke="#2f4692" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPlacedBatch)" />
-                        <Area type="monotone" dataKey="offers" name="Total Offers" stroke="#5a7bd4" strokeWidth={2} fillOpacity={1} fill="url(#colorOffersBatch)" />
-                      </AreaChart>
-                    )}
-                  </ResponsiveContainer>
-                </div>
+                {placementView === 'single-department' ? (
+                  <div className="space-y-6">
+                    {/* Key stats row */}
+                    {(() => {
+                      const activeSingleDept = rawPlacements.length > 0 ? (singleDeptData || {
+                        totalPlaced: 172,
+                        totalInterns: 145,
+                        highestPackage: 32.5,
+                        lowestPackage: 4.5,
+                        avgPackage: 12.5,
+                        topEmployers: [],
+                        salaryDistribution: []
+                      }) : {
+                        totalPlaced: 172,
+                        totalInterns: 145,
+                        highestPackage: 32.5,
+                        lowestPackage: 4.5,
+                        avgPackage: 12.5,
+                        topEmployers: [],
+                        salaryDistribution: []
+                      };
 
-                {/* Legend summary below chart */}
-                <div className="flex items-center justify-center space-x-6 mt-3 pt-3 border-t border-gray-100 text-xs">
-                  {placementView === 'departmentwise' ? (
-                    <>
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 rounded bg-[#2f4692] mr-2" />
-                        <span className="text-gray-600">Placed Students</span>
-                      </div>
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 rounded bg-[#a0bbf5] mr-2" />
-                        <span className="text-gray-600">Total Students</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 rounded bg-[#2f4692] mr-2" />
-                        <span className="text-gray-600">Placed Students</span>
-                      </div>
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 rounded bg-[#5a7bd4] mr-2" />
-                        <span className="text-gray-600">Total Offers</span>
-                      </div>
-                    </>
-                  )}
-                </div>
+                      return (
+                        <>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-sm text-center">
+                              <p className="text-[10px] text-gray-500 font-medium uppercase">Placed Students</p>
+                              <p className="text-lg font-bold text-blue-600 mt-1">{activeSingleDept.totalPlaced}</p>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-sm text-center">
+                              <p className="text-[10px] text-gray-500 font-medium uppercase">Total Interns</p>
+                              <p className="text-lg font-bold text-orange-600 mt-1">{activeSingleDept.totalInterns}</p>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-sm text-center">
+                              <p className="text-[10px] text-gray-500 font-medium uppercase">Avg Package</p>
+                              <p className="text-lg font-bold text-green-600 mt-1">
+                                {activeSingleDept.avgPackage > 0 ? `${activeSingleDept.avgPackage} LPA` : 'N/A'}
+                              </p>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-sm text-center">
+                              <p className="text-[10px] text-gray-500 font-medium uppercase">Highest Package</p>
+                              <p className="text-lg font-bold text-teal-600 mt-1">
+                                {activeSingleDept.highestPackage > 0 ? `${activeSingleDept.highestPackage} LPA` : 'N/A'}
+                              </p>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-sm text-center col-span-2 md:col-span-1">
+                              <p className="text-[10px] text-gray-500 font-medium uppercase">Lowest Package</p>
+                              <p className="text-lg font-bold text-purple-600 mt-1">
+                                {activeSingleDept.lowestPackage > 0 ? `${activeSingleDept.lowestPackage} LPA` : 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Left: Top Recruiters */}
+                            <div className="bg-white p-4 rounded-lg border border-gray-150 shadow-sm">
+                              <p className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wider">Top Recruiter Counts</p>
+                              <div className="h-[200px]">
+                                {(rawPlacements.length > 0 ? (singleDeptData?.topEmployers || []) : [
+                                  { name: 'Google', count: 18 },
+                                  { name: 'Microsoft', count: 12 },
+                                  { name: 'Amazon', count: 15 },
+                                  { name: 'TCS', count: 45 },
+                                  { name: 'Wipro', count: 32 }
+                                ]).length === 0 ? (
+                                  <div className="h-full flex items-center justify-center text-xs text-gray-500 font-medium">
+                                    No recruitment counts available
+                                  </div>
+                                ) : (
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                      layout="vertical"
+                                      data={rawPlacements.length > 0 ? (singleDeptData?.topEmployers || []) : [
+                                        { name: 'Google', count: 18 },
+                                        { name: 'Microsoft', count: 12 },
+                                        { name: 'Amazon', count: 15 },
+                                        { name: 'TCS', count: 45 },
+                                        { name: 'Wipro', count: 32 }
+                                      ]}
+                                      margin={{ top: 5, right: 15, left: 10, bottom: 5 }}
+                                    >
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                                      <XAxis type="number" tick={{ fontSize: 9 }} />
+                                      <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 9 }} />
+                                      <Tooltip />
+                                      <Bar dataKey="count" fill="#2f4692" radius={[0, 4, 4, 0]} name="Hired Students" />
+                                    </BarChart>
+                                  </ResponsiveContainer>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Right: Salary distribution */}
+                            <div className="bg-white p-4 rounded-lg border border-gray-150 shadow-sm">
+                              <p className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wider">Salary Distribution Tiers</p>
+                              <div className="h-[200px]">
+                                {(rawPlacements.length > 0 ? (singleDeptData?.salaryDistribution || []) : [
+                                  { name: '< 5 LPA', value: 20, fill: '#ef4444' },
+                                  { name: '5-10 LPA', value: 85, fill: '#3b82f6' },
+                                  { name: '10-15 LPA', value: 45, fill: '#10b981' },
+                                  { name: '> 15 LPA', value: 22, fill: '#8b5cf6' }
+                                ]).length === 0 ? (
+                                  <div className="h-full flex items-center justify-center text-xs text-gray-500 font-medium">
+                                    No package records available
+                                  </div>
+                                ) : (
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                      data={rawPlacements.length > 0 ? (singleDeptData?.salaryDistribution || []) : [
+                                        { name: '< 5 LPA', value: 20, fill: '#ef4444' },
+                                        { name: '5-10 LPA', value: 85, fill: '#3b82f6' },
+                                        { name: '10-15 LPA', value: 45, fill: '#10b981' },
+                                        { name: '> 15 LPA', value: 22, fill: '#8b5cf6' }
+                                      ]}
+                                      margin={{ top: 5, right: 10, left: -20, bottom: 5 }}
+                                    >
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                      <XAxis dataKey="name" tick={{ fontSize: 9 }} />
+                                      <YAxis tick={{ fontSize: 9 }} />
+                                      <Tooltip />
+                                      <Bar dataKey="value" name="Students" radius={[4, 4, 0, 0]}>
+                                        {(rawPlacements.length > 0 ? (singleDeptData?.salaryDistribution || []) : [
+                                          { name: '< 5 LPA', value: 20, fill: '#ef4444' },
+                                          { name: '5-10 LPA', value: 85, fill: '#3b82f6' },
+                                          { name: '10-15 LPA', value: 45, fill: '#10b981' },
+                                          { name: '> 15 LPA', value: 22, fill: '#8b5cf6' }
+                                        ]).map((entry: any, index: number) => (
+                                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                                        ))}
+                                      </Bar>
+                                    </BarChart>
+                                  </ResponsiveContainer>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-full h-[280px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        {placementView === 'departmentwise' ? (
+                          <BarChart data={deptData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis dataKey="department" tick={{ fontSize: 11, fill: '#4B5563' }} />
+                            <YAxis tick={{ fontSize: 11, fill: '#4B5563' }} />
+                            <Tooltip content={<PlacementTooltip view="departmentwise" />} />
+                            <Bar dataKey="placed" name="Placed Students" fill="#2f4692" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="total" name="Total Students" fill="#a0bbf5" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        ) : (
+                          <AreaChart data={overallData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="colorPlacedBatch" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#2f4692" stopOpacity={0.8} />
+                                <stop offset="95%" stopColor="#2f4692" stopOpacity={0.1} />
+                              </linearGradient>
+                              <linearGradient id="colorOffersBatch" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#5a7bd4" stopOpacity={0.8} />
+                                <stop offset="95%" stopColor="#5a7bd4" stopOpacity={0.1} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis dataKey="batch" tick={{ fontSize: 11, fill: '#4B5563' }} />
+                            <YAxis tick={{ fontSize: 11, fill: '#4B5563' }} />
+                            <Tooltip content={<PlacementTooltip view="overall" />} />
+                            <Area type="monotone" dataKey="placed" name="Placed Students" stroke="#2f4692" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPlacedBatch)" />
+                            <Area type="monotone" dataKey="offers" name="Total Offers" stroke="#5a7bd4" strokeWidth={2} fillOpacity={1} fill="url(#colorOffersBatch)" />
+                          </AreaChart>
+                        )}
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Legend summary below chart */}
+                    <div className="flex items-center justify-center space-x-6 mt-3 pt-3 border-t border-gray-100 text-xs">
+                      {placementView === 'departmentwise' ? (
+                        <>
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 rounded bg-[#2f4692] mr-2" />
+                            <span className="text-gray-600">Placed Students</span>
+                          </div>
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 rounded bg-[#a0bbf5] mr-2" />
+                            <span className="text-gray-600">Total Students</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 rounded bg-[#2f4692] mr-2" />
+                            <span className="text-gray-600">Placed Students</span>
+                          </div>
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 rounded bg-[#5a7bd4] mr-2" />
+                            <span className="text-gray-600">Total Offers</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
               </Card>
             </div>
           </div>
