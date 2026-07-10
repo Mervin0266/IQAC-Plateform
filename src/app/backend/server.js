@@ -91,9 +91,9 @@ const startServer = async () => {
     // Test database connection
     await testConnection();
     
-    // Sync database (in production, use migrations)
-    await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
-    console.log('✓ Database synchronized');
+    // Auto-seed database if empty (great for Render Free tier)
+    const autoSeed = require('./config/autoSeed');
+    await autoSeed(sequelize);
     
     // Start server
     app.listen(PORT, () => {
