@@ -58,9 +58,10 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
     fetchPlacements();
   }, [user]);
 
-  const formatLPA = (rupees: number) => {
-    if (!rupees) return '0 LPA';
-    return `${(rupees / 100000).toFixed(1).replace('\.0', '')} LPA`;
+  const formatLPA = (val: number) => {
+    if (!val) return '0 LPA';
+    const lpa = val > 1000 ? val / 100000 : val;
+    return `${lpa.toFixed(1).replace('\.0', '')} LPA`;
   };
 
   const formatStipend = (val: number) => {
