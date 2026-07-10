@@ -142,36 +142,7 @@ const initDatabase = async () => {
     ]);
     console.log('✓ Sample patents created');
 
-    // Create sample placements
-    const placements = await Placement.bulkCreate([
-      {
-        studentName: 'Rahul Verma',
-        studentId: 'CSE20001',
-        department: 'Computer Science and Engineering',
-        batch: '2020-2024',
-        company: 'Google India',
-        role: 'Software Engineer',
-        package: 4500000,
-        placementType: 'placement',
-        placementDate: '2024-02-15',
-        location: 'Bangalore',
-        createdBy: adminUser.id
-      },
-      {
-        studentName: 'Priya Patel',
-        studentId: 'ECE20015',
-        department: 'Electronics and Communication Engineering',
-        batch: '2020-2024',
-        company: 'Intel Corporation',
-        role: 'Hardware Engineer',
-        package: 3200000,
-        placementType: 'placement',
-        placementDate: '2024-02-20',
-        location: 'Bangalore',
-        createdBy: adminUser.id
-      }
-    ]);
-    console.log('✓ Sample placements created');
+
 
     // Create sample strategic plans
     const strategicPlans = await StrategicPlan.bulkCreate([

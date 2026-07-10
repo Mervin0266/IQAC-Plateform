@@ -58,203 +58,83 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
     fetchPlacements();
   }, [user]);
 
-  // Overall Stats (Mock Base)
-  const mockPlacementStats = {
-    totalPlaced: 1245,
-    placementRate: 92.5,
-    averagePackage: '8.5 LPA',
-    highestPackage: '45 LPA',
-    companiesVisited: 186,
-    totalOffers: 1456,
+  const formatLPA = (rupees: number) => {
+    if (!rupees) return '0 LPA';
+    return `${(rupees / 100000).toFixed(1).replace('\.0', '')} LPA`;
   };
 
-  // Department-wise Placement Data (Mock Base)
-  const mockDepartmentPlacements = [
-    {
-      department: 'Computer Science and Engineering',
-      totalStudents: 180,
-      placed: 172,
-      placementRate: 95.6,
-      averagePackage: '12.5 LPA',
-      highestPackage: '45 LPA',
-      topRecruiters: ['Google', 'Microsoft', 'Amazon', 'Infosys', 'TCS'],
-    },
-    {
-      department: 'Electronics and Communication Engineering',
-      totalStudents: 150,
-      placed: 142,
-      placementRate: 94.7,
-      averagePackage: '9.8 LPA',
-      highestPackage: '32 LPA',
-      topRecruiters: ['Intel', 'Qualcomm', 'Samsung', 'Bosch', 'Wipro'],
-    },
-    {
-      department: 'Electrical and Electronics Engineering',
-      totalStudents: 120,
-      placed: 110,
-      placementRate: 91.7,
-      averagePackage: '8.5 LPA',
-      highestPackage: '28 LPA',
-      topRecruiters: ['Siemens', 'ABB', 'L&T', 'Schneider', 'Honeywell'],
-    },
-    {
-      department: 'Mechanical and Automobile Engineering',
-      totalStudents: 140,
-      placed: 125,
-      placementRate: 89.3,
-      averagePackage: '7.8 LPA',
-      highestPackage: '25 LPA',
-      topRecruiters: ['Tata Motors', 'Mahindra', 'Bosch', 'Ashok Leyland', 'Cummins'],
-    },
-    {
-      department: 'Civil Engineering',
-      totalStudents: 110,
-      placed: 98,
-      placementRate: 89.1,
-      averagePackage: '6.5 LPA',
-      highestPackage: '18 LPA',
-      topRecruiters: ['L&T', 'Shapoorji Pallonji', 'Gammon India', 'NCC', 'AFCONS'],
-    },
-    {
-      department: 'Artificial Intelligence and Data Science',
-      totalStudents: 90,
-      placed: 87,
-      placementRate: 96.7,
-      averagePackage: '13.2 LPA',
-      highestPackage: '42 LPA',
-      topRecruiters: ['Google', 'Amazon', 'Flipkart', 'Oracle', 'SAP'],
-    },
-  ];
+  const formatStipend = (val: number) => {
+    if (!val) return '0';
+    return Math.round(val).toLocaleString('en-IN');
+  };
 
-  // Department-wise Internships (Mock Base)
-  const mockDepartmentInternships = [
-    {
-      department: 'Computer Science and Engineering',
-      interns: 165,
-      averageStipend: '22,000',
-      topCompanies: ['Microsoft', 'Google', 'Amazon', 'Adobe'],
-    },
-    {
-      department: 'Electronics and Communication Engineering',
-      interns: 138,
-      averageStipend: '18,000',
-      topCompanies: ['Texas Instruments', 'Intel', 'Qualcomm', 'Samsung'],
-    },
-    {
-      department: 'Electrical and Electronics Engineering',
-      interns: 112,
-      averageStipend: '16,000',
-      topCompanies: ['Siemens', 'ABB', 'Schneider', 'GE'],
-    },
-    {
-      department: 'Mechanical and Automobile Engineering',
-      interns: 128,
-      averageStipend: '15,000',
-      topCompanies: ['Tata Motors', 'Mahindra', 'Bosch', 'Cummins'],
-    },
-    {
-      department: 'Artificial Intelligence and Data Science',
-      interns: 82,
-      averageStipend: '25,000',
-      topCompanies: ['Google', 'Amazon', 'Flipkart', 'Oracle'],
-    },
-  ];
-
-  const hasDbPlacements = placements && placements.length > 0;
+  const dbPlacementsOnly = placements.filter((p: any) => p.placementType === 'placement');
+  const dbInternshipsOnly = placements.filter((p: any) => p.placementType === 'internship');
   
-  let placementStats = mockPlacementStats;
-  let departmentPlacements = mockDepartmentPlacements;
-  let departmentInternships = mockDepartmentInternships;
+  const totalPlaced = dbPlacementsOnly.length;
+  const totalOffers = placements.length;
+  
+  const avgPkgVal = totalPlaced > 0 
+    ? dbPlacementsOnly.reduce((sum, p) => sum + parseFloat(p.package || 0), 0) / totalPlaced 
+    : 0;
+  
+  const highestPkgVal = totalPlaced > 0 
+    ? dbPlacementsOnly.reduce((max, p) => Math.max(max, parseFloat(p.package || 0)), 0) 
+    : 0;
 
-  if (hasDbPlacements) {
-    const dbPlacementsOnly = placements.filter((p: any) => p.placementType === 'placement');
-    const dbInternshipsOnly = placements.filter((p: any) => p.placementType === 'internship');
-    
-    const dbTotalPlaced = dbPlacementsOnly.length;
-    const dbTotalOffers = placements.length;
-    
-    const dbAvgPkgVal = dbTotalPlaced > 0 
-      ? dbPlacementsOnly.reduce((sum, p) => sum + parseFloat(p.package || 0), 0) / dbTotalPlaced 
-      : 0;
-    
-    const dbHighestPkgVal = dbTotalPlaced > 0 
-      ? dbPlacementsOnly.reduce((max, p) => Math.max(max, parseFloat(p.package || 0)), 0) 
-      : 0;
+  const placementStats = {
+    totalPlaced,
+    placementRate: totalPlaced > 0 ? 100 : 0,
+    averagePackage: formatLPA(avgPkgVal),
+    highestPackage: formatLPA(highestPkgVal),
+    companiesVisited: Array.from(new Set(placements.map(p => p.company))).length,
+    totalOffers
+  };
 
-    const formatLPA = (rupees: number) => {
-      if (!rupees) return '0 LPA';
-      return `${(rupees / 100000).toFixed(1).replace('\.0', '')} LPA`;
+  // Group database records by normalized department name
+  const deptPlacementsMap: Record<string, any[]> = {};
+  const deptInternshipsMap: Record<string, any[]> = {};
+
+  placements.forEach((p: any) => {
+    const deptName = p.department;
+    if (p.placementType === 'placement') {
+      if (!deptPlacementsMap[deptName]) deptPlacementsMap[deptName] = [];
+      deptPlacementsMap[deptName].push(p);
+    } else {
+      if (!deptInternshipsMap[deptName]) deptInternshipsMap[deptName] = [];
+      deptInternshipsMap[deptName].push(p);
+    }
+  });
+
+  const departmentPlacements = Object.keys(deptPlacementsMap).map(dept => {
+    const dbItems = deptPlacementsMap[dept];
+    const dbPlacedCount = dbItems.length;
+    const dbAvg = dbItems.reduce((sum, p) => sum + parseFloat(p.package || 0), 0) / dbPlacedCount;
+    const dbMax = dbItems.reduce((max, p) => Math.max(max, parseFloat(p.package || 0)), 0);
+    
+    return {
+      department: dept,
+      totalStudents: dbPlacedCount,
+      placed: dbPlacedCount,
+      placementRate: 100,
+      averagePackage: formatLPA(dbAvg),
+      highestPackage: formatLPA(dbMax),
+      topRecruiters: Array.from(new Set(dbItems.map(p => p.company))).slice(0, 5)
     };
+  });
 
-    placementStats = {
-      totalPlaced: dbTotalPlaced || mockPlacementStats.totalPlaced,
-      placementRate: dbTotalPlaced > 0 ? Math.round((dbTotalPlaced / (dbTotalPlaced + 10)) * 1000) / 10 : mockPlacementStats.placementRate,
-      averagePackage: dbTotalPlaced > 0 ? formatLPA(dbAvgPkgVal) : mockPlacementStats.averagePackage,
-      highestPackage: dbTotalPlaced > 0 ? formatLPA(dbHighestPkgVal) : mockPlacementStats.highestPackage,
-      companiesVisited: Array.from(new Set(placements.map(p => p.company))).length || mockPlacementStats.companiesVisited,
-      totalOffers: dbTotalOffers || mockPlacementStats.totalOffers
+  const departmentInternships = Object.keys(deptInternshipsMap).map(dept => {
+    const dbItems = deptInternshipsMap[dept];
+    const stipends = dbItems.map(p => parseFloat(p.package || p.stipend || p.package_amount || 0)).filter(s => s > 0);
+    const avgStipendVal = stipends.length > 0 ? stipends.reduce((sum, s) => sum + s, 0) / stipends.length : 0;
+    
+    return {
+      department: dept,
+      interns: dbItems.length,
+      averageStipend: formatStipend(avgStipendVal),
+      topCompanies: Array.from(new Set(dbItems.map(p => p.company))).slice(0, 5)
     };
-
-    // Group database records by normalized department name
-    const deptPlacementsMap: Record<string, any[]> = {};
-    const deptInternshipsMap: Record<string, any[]> = {};
-
-    placements.forEach((p: any) => {
-      const deptName = p.department;
-      if (p.placementType === 'placement') {
-        if (!deptPlacementsMap[deptName]) deptPlacementsMap[deptName] = [];
-        deptPlacementsMap[deptName].push(p);
-      } else {
-        if (!deptInternshipsMap[deptName]) deptInternshipsMap[deptName] = [];
-        deptInternshipsMap[deptName].push(p);
-      }
-    });
-
-    // Merge database results with defaults
-    departmentPlacements = mockDepartmentPlacements.map(orig => {
-      const matchKey = Object.keys(deptPlacementsMap).find(k => 
-        k.toLowerCase().replace(/[^a-z0-9]/g, '').includes(orig.department.toLowerCase().replace(/[^a-z0-9]/g, '')) || 
-        orig.department.toLowerCase().replace(/[^a-z0-9]/g, '').includes(k.toLowerCase().replace(/[^a-z0-9]/g, ''))
-      );
-      
-      if (matchKey) {
-        const dbItems = deptPlacementsMap[matchKey];
-        const dbPlacedCount = dbItems.length;
-        const dbAvg = dbItems.reduce((sum, p) => sum + parseFloat(p.package || 0), 0) / dbPlacedCount;
-        const dbMax = dbItems.reduce((max, p) => Math.max(max, parseFloat(p.package || 0)), 0);
-        
-        const combinedRecruiters = Array.from(new Set([...dbItems.map(p => p.company), ...orig.topRecruiters]));
-
-        return {
-          ...orig,
-          placed: orig.placed + dbPlacedCount,
-          totalStudents: orig.totalStudents + dbPlacedCount,
-          placementRate: Math.round(((orig.placed + dbPlacedCount) / (orig.totalStudents + dbPlacedCount)) * 1000) / 10,
-          averagePackage: formatLPA(dbAvg),
-          highestPackage: formatLPA(dbMax),
-          topRecruiters: combinedRecruiters.slice(0, 5)
-        };
-      }
-      return orig;
-    });
-
-    departmentInternships = mockDepartmentInternships.map(orig => {
-      const matchKey = Object.keys(deptInternshipsMap).find(k => 
-        k.toLowerCase().replace(/[^a-z0-9]/g, '').includes(orig.department.toLowerCase().replace(/[^a-z0-9]/g, '')) || 
-        orig.department.toLowerCase().replace(/[^a-z0-9]/g, '').includes(k.toLowerCase().replace(/[^a-z0-9]/g, ''))
-      );
-      
-      if (matchKey) {
-        const dbItems = deptInternshipsMap[matchKey];
-        return {
-          ...orig,
-          interns: orig.interns + dbItems.length,
-          topCompanies: Array.from(new Set([...dbItems.map(p => p.company), ...orig.topCompanies])).slice(0, 5)
-        };
-      }
-      return orig;
-    });
-  }
+  });
 
   // Get all unique batches and courses from placements data to populate filters
   const uniqueBatches = Array.from(new Set(placements.map((p: any) => p.batch))).filter(Boolean).sort();
