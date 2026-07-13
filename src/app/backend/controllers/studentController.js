@@ -1,5 +1,20 @@
 const { Student } = require('../models');
 
+/**
+ * Normalize a student record before DB write.
+ * Fills in a placeholder email if none is provided, preventing NOT NULL
+ * constraint violations on the `email` column (which may be NOT NULL in the
+ * database from an earlier schema version).
+ */
+const normalizeStudentRecord = (record) => {
+  const normalized = { ...record };
+  if (!normalized.email || normalized.email === 'NIL' || normalized.email.trim() === '') {
+    const regNo = (normalized.registerNumber || 'student').toString().trim();
+    normalized.email = `${regNo}@students.christuniversity.in`;
+  }
+  return normalized;
+};
+
 // @desc    Get all students
 // @route   GET /api/students
 // @access  Private
@@ -27,7 +42,7 @@ exports.getStudents = async (req, res) => {
 // @access  Private
 exports.createStudent = async (req, res) => {
   try {
-    const student = await Student.create(req.body);
+    const student = await Student.create(normalizeStudentRecord(req.body));
     res.status(201).json({
       success: true,
       data: student
@@ -53,7 +68,7 @@ exports.updateStudent = async (req, res) => {
         message: 'Student record not found'
       });
     }
-    await student.update(req.body);
+    await student.update(normalizeStudentRecord(req.body));
     res.json({
       success: true,
       data: student
@@ -110,7 +125,7 @@ exports.bulkCreateStudent = async (req, res) => {
     const created = [];
 
     for (let i = 0; i < studentList.length; i++) {
-      const record = studentList[i];
+      const record = normalizeStudentRecord(studentList[i]);
       try {
         const existing = await Student.findOne({
           where: { registerNumber: record.registerNumber }
