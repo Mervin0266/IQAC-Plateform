@@ -57,7 +57,7 @@ const Student = sequelize.define('Student', {
     allowNull: true
   },
   status: {
-    type: DataTypes.ENUM('Active', 'Graduated', 'On Leave'),
+    type: DataTypes.STRING,
     defaultValue: 'Active'
   },
   guardianName: {

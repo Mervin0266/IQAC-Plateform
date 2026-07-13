@@ -2,8 +2,8 @@ const { User, Achievement, ResearchMetric } = require('../models');
 
 const autoSeed = async (sequelize) => {
   try {
-    // Sync the database schema (create tables if they don't exist)
-    await sequelize.sync({ force: false });
+    // Sync the database schema (create tables and add missing columns if they don't exist)
+    await sequelize.sync({ force: false, alter: { drop: false } });
     console.log('✓ Database schema synchronized');
 
     // Check if users already exist in the database

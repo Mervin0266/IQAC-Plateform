@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Upload, X } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Input } from './ui/input';
@@ -150,6 +150,9 @@ export function UploadButton({ activeTab, onRefresh }: UploadButtonProps) {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Upload New {getDocumentTypeLabel()}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Upload a new {getDocumentTypeLabel()} document to the system.
+            </DialogDescription>
           </DialogHeader>
           
           <form onSubmit={handleSubmit} className="space-y-4">

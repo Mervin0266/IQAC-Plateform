@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info } from 'lucide-react';
@@ -514,6 +514,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             <FileSpreadsheet className="w-5 h-5 text-teal-700" />
             <span>Bulk Upload {uploadTypeLabel} (CSV)</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Upload {uploadTypeLabel} records in bulk via a CSV file.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-3 text-xs">
