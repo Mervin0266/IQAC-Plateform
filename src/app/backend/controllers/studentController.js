@@ -1,17 +1,38 @@
 const { Student } = require('../models');
 
 /**
- * Normalize a student record before DB write.
- * Fills in a placeholder email if none is provided, preventing NOT NULL
- * constraint violations on the `email` column (which may be NOT NULL in the
- * database from an earlier schema version).
+ * Normalize a student record before any DB write.
+ *
+ * The live PostgreSQL database may have been originally created with NOT NULL
+ * constraints on columns that the current Sequelize model marks as allowNull: true.
+ * Rather than running manual ALTER TABLE migrations, we provide safe 'N/A' fallbacks
+ * for every nullable string/text field so no constraint violation can occur.
  */
 const normalizeStudentRecord = (record) => {
   const normalized = { ...record };
-  if (!normalized.email || normalized.email === 'NIL' || normalized.email.trim() === '') {
+
+  // Auto-generate placeholder email from register number (email is required by DB)
+  if (!normalized.email || !normalized.email.trim() || normalized.email === 'NIL') {
     const regNo = (normalized.registerNumber || 'student').toString().trim();
     normalized.email = `${regNo}@students.christuniversity.in`;
   }
+
+  // Provide 'N/A' fallback for every other nullable string / text field
+  const nullableStringFields = [
+    'phone', 'course', 'department', 'previousSchool', 'bloodGroup', 'batch',
+    'guardianName', 'guardianPhone', 'address', 'className', 'applicationNo',
+    'mobileNo', 'nationality', 'caste', 'currentCity', 'currentState',
+    'permanentCity', 'permanentState', 'parentMobileNo', 'handicapped',
+    'handicappedDescription', 'campus', 'disability'
+  ];
+
+  for (const field of nullableStringFields) {
+    if (normalized[field] === undefined || normalized[field] === null ||
+        normalized[field] === '' || normalized[field] === 'NIL') {
+      normalized[field] = 'N/A';
+    }
+  }
+
   return normalized;
 };
 
