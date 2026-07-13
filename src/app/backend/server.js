@@ -34,8 +34,8 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // Body parser
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Logging
 if (process.env.NODE_ENV === 'development') {
@@ -55,6 +55,7 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/students', require('./routes/students'));
 app.use('/api/faculty', require('./routes/faculty'));
 app.use('/api/departments', require('./routes/departments'));
+app.use('/api/research-metrics', require('./routes/researchMetrics'));
 
 // Health check
 app.get('/health', (req, res) => {

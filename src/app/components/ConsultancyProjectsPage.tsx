@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 interface ConsultancyProjectsPageProps {
   onNavigate: (page: string) => void;
   isPublicView?: boolean;
+  hideSidebar?: boolean;
 }
 
-export function ConsultancyProjectsPage({ onNavigate, isPublicView = false }: ConsultancyProjectsPageProps) {
+export function ConsultancyProjectsPage({ onNavigate, isPublicView = false, hideSidebar = false }: ConsultancyProjectsPageProps) {
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
 
@@ -234,17 +235,19 @@ export function ConsultancyProjectsPage({ onNavigate, isPublicView = false }: Co
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar currentPage="consultancy-projects" onNavigate={onNavigate} />
-      <main className="ml-64 p-8">
-        <div className="p-6">
+    <div className={hideSidebar ? "" : "min-h-screen bg-gray-50"}>
+      {!hideSidebar && <Sidebar currentPage="consultancy-projects" onNavigate={onNavigate} />}
+      <main className={hideSidebar ? 'p-0' : 'ml-64 p-8'}>
+        <div className={hideSidebar ? "" : "p-6"}>
           {/* Page Title */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-medium text-gray-900 mb-2">Consultancy Projects</h1>
-            <p className="text-gray-600">
-              Track consultancy projects, industry partnerships, and collaborative research
-            </p>
-          </div>
+          {!hideSidebar && (
+            <div className="mb-8">
+              <h1 className="text-2xl font-medium text-gray-900 mb-2">Consultancy Projects</h1>
+              <p className="text-gray-600">
+                Track consultancy projects, industry partnerships, and collaborative research
+              </p>
+            </div>
+          )}
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

@@ -10,9 +10,10 @@ import { useAuth } from '../contexts/AuthContext';
 interface ResearchInnovationPageProps {
   onNavigate: (page: string) => void;
   isPublicView?: boolean;
+  hideSidebar?: boolean;
 }
 
-export function ResearchInnovationPage({ onNavigate, isPublicView = false }: ResearchInnovationPageProps) {
+export function ResearchInnovationPage({ onNavigate, isPublicView = false, hideSidebar = false }: ResearchInnovationPageProps) {
   const { user, logout } = useAuth();
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
@@ -316,17 +317,19 @@ export function ResearchInnovationPage({ onNavigate, isPublicView = false }: Res
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {!isPublicView && <Sidebar currentPage="research-innovation" onNavigate={onNavigate} />}
-      <main className={isPublicView ? 'p-8' : 'ml-64 p-8'}>
-        <div className="p-6">
+    <div className={hideSidebar ? "" : "min-h-screen bg-gray-50"}>
+      {!isPublicView && !hideSidebar && <Sidebar currentPage="research-innovation" onNavigate={onNavigate} />}
+      <main className={isPublicView || hideSidebar ? 'p-0' : 'ml-64 p-8'}>
+        <div className={hideSidebar ? "" : "p-6"}>
           {/* Page Title */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-medium text-gray-900 mb-2">Research and Innovation</h1>
-            <p className="text-gray-600">
-              Track research projects, publications, patents, and innovation initiatives
-            </p>
-          </div>
+          {!hideSidebar && (
+            <div className="mb-8">
+              <h1 className="text-2xl font-medium text-gray-900 mb-2">Research and Innovation</h1>
+              <p className="text-gray-600">
+                Track research projects, publications, patents, and innovation initiatives
+              </p>
+            </div>
+          )}
 
           {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">

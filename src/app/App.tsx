@@ -15,6 +15,7 @@ import { ResearchInnovationPage } from './components/ResearchInnovationPage';
 import { IncubationsPage } from './components/IncubationsPage';
 import { IndustryConnectsPage } from './components/IndustryConnectsPage';
 import { ConsultancyProjectsPage } from './components/ConsultancyProjectsPage';
+import { ResearchPage } from './components/ResearchPage';
 import { InternationalInteractionsPage } from './components/InternationalInteractionsPage';
 import { CentreExcellencePage } from './components/CentreExcellencePage';
 import { InfrastructureFacilitiesPage } from './components/InfrastructureFacilitiesPage';
@@ -62,28 +63,16 @@ function AppContent() {
       case 'the-world-ranking':
       case 'qs-india-ranking':
         return <RankingPage onNavigate={setCurrentPage} />;
-      case 'research-innovation':
-        return <ResearchInnovationPage onNavigate={setCurrentPage} />;
+      case 'research-metrics':
       case 'publications':
-        return <PlaceholderPage 
-          title="Publications" 
-          description="Manage and track research publications, journal papers, and academic articles."
-          onNavigate={setCurrentPage}
-          currentPage={currentPage}
-        />;
+      case 'research-innovation':
       case 'sponsored-research':
-        return <PlaceholderPage 
-          title="Sponsored Research" 
-          description="Track sponsored research projects, funding bodies, grants, and project milestones."
-          onNavigate={setCurrentPage}
-          currentPage={currentPage}
-        />;
+      case 'consultancy-projects':
+        return <ResearchPage onNavigate={setCurrentPage} currentPage={currentPage} />;
       case 'incubations':
         return <IncubationsPage onNavigate={setCurrentPage} />;
       case 'industry-connects':
         return <IndustryConnectsPage onNavigate={setCurrentPage} />;
-      case 'consultancy-projects':
-        return <ConsultancyProjectsPage onNavigate={setCurrentPage} />;
       case 'international-interactions':
         return <InternationalInteractionsPage onNavigate={setCurrentPage} />;
       case 'centre-excellence':

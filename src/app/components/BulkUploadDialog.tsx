@@ -80,32 +80,31 @@ const DEPARTMENT_REQUIRED = [
 ];
 
 const STUDENT_HEADERS = [
-  'Register Number',
-  'Name',
-  'Email',
-  'Phone',
-  'Course',
-  'Department',
-  'Previous School',
+  'Register No',
+  'Student Name',
+  'Class Name',
+  'Application No',
   'Gender',
-  'Date of Birth',
-  'Blood Group',
-  'Batch',
-  'Admission Date',
-  'Guardian Name',
-  'Guardian Phone',
-  'Address'
+  'Date Of Birth',
+  'Mobile No',
+  'Nationality',
+  'Caste',
+  'Current City',
+  'Current State',
+  'Permanent City',
+  'Permanent State',
+  'Parent Mobile No',
+  'Handicapped',
+  'Handicapped Description',
+  'Campus',
+  'Disability: (YES/NO)',
+  'Department',
+  'Batch'
 ];
 
 const STUDENT_REQUIRED = [
-  'Register Number',
-  'Name',
-  'Email',
-  'Phone',
-  'Course',
-  'Department',
-  'Previous School',
-  'Batch'
+  'Register No',
+  'Student Name'
 ];
 
 // ---- Faculty CSV column definitions ----
@@ -173,8 +172,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isStudent) {
       csvContent =
         STUDENT_HEADERS.join(',') + '\n' +
-        `"2310101","John Doe","john.doe@gmail.com","9876543210","B.Tech Computer Science and Engineering","Computer Science and Engineering","St. Mary's School",Male,2002-04-12,O+,2022 - 2026,2022-08-01,"Robert Doe","9876543211","123 Main St, Bangalore"\n` +
-        `"2310102","Jane Smith","jane.smith@gmail.com","9876543212","B.Tech Computer Science and Engineering","Computer Science and Engineering","Green Valley School",Female,2003-09-25,A+,2022 - 2026,2022-08-01,"Mary Smith","9876543213","456 Oak Rd, Bangalore"`;
+        `"2310101","John Doe","3A B.Tech CSE","APP12345","Male",2002-04-12,"9876543210","Indian","General","Bengaluru","Karnataka","Bengaluru","Karnataka","9876543211","NO","NIL","Kengeri Campus","NO","Computer Science and Engineering","2022 - 2026"\n` +
+        `"2310102","Jane Smith","5C B.Tech ECE","APP12346","Female",2003-09-25,"9876543212","Indian","General","Bengaluru","Karnataka","Mysuru","Karnataka","9876543213","NO","NIL","Kengeri Campus","NO","Electronics and Communication Engineering","2022 - 2026"`;
     } else if (isDepartment) {
       csvContent =
         DEPARTMENT_HEADERS.join(',') + '\n' +
@@ -196,7 +195,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', isFaculty ? 'faculty_bulk_template.csv' : isPlacement ? 'placements_bulk_template.csv' : 'achievements_bulk_template.csv');
+    link.setAttribute('download', isFaculty ? 'faculty_bulk_template.csv' : isPlacement ? 'placements_bulk_template.csv' : 'students_bulk_template.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -353,21 +352,30 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           } else if (isStudent) {
             // Map CSV headers to student backend field names
             switch (header) {
-              case 'Register Number':  record['registerNumber'] = val || 'NIL'; break;
-              case 'Name':             record['name'] = val || 'NIL'; break;
-              case 'Email':            record['email'] = val || 'NIL'; break;
-              case 'Phone':            record['phone'] = val || 'NIL'; break;
-              case 'Course':           record['course'] = val || 'NIL'; break;
-              case 'Department':       record['department'] = val || 'NIL'; break;
-              case 'Previous School':  record['previousSchool'] = val || 'NIL'; break;
-              case 'Gender':           record['gender'] = normalizeGender(val) || 'Male'; break;
-              case 'Date of Birth':    record['dob'] = formatDateToISO(val); break;
-              case 'Blood Group':      record['bloodGroup'] = val || 'NIL'; break;
-              case 'Batch':            record['batch'] = val || 'NIL'; break;
-              case 'Admission Date':   record['admissionDate'] = formatDateToISO(val); break;
-              case 'Guardian Name':    record['guardianName'] = val || 'NIL'; break;
-              case 'Guardian Phone':   record['guardianPhone'] = val || 'NIL'; break;
-              case 'Address':          record['address'] = val || 'NIL'; break;
+              case 'Register No':              record['registerNumber'] = val || 'NIL'; break;
+              case 'Student Name':             record['name'] = val || 'NIL'; break;
+              case 'Class Name':               record['className'] = val || 'NIL'; record['course'] = val || 'NIL'; break;
+              case 'Application No':           record['applicationNo'] = val || 'NIL'; break;
+              case 'Gender':                   record['gender'] = normalizeGender(val) || 'Male'; break;
+              case 'Date Of Birth':            record['dob'] = formatDateToISO(val); break;
+              case 'Mobile No':                record['mobileNo'] = val || 'NIL'; record['phone'] = val || 'NIL'; break;
+              case 'Nationality':              record['nationality'] = val || 'NIL'; break;
+              case 'Caste':                    record['caste'] = val || 'NIL'; break;
+              case 'Current City':             record['currentCity'] = val || 'NIL'; break;
+              case 'Current State':            record['currentState'] = val || 'NIL'; break;
+              case 'Permanent City':           record['permanentCity'] = val || 'NIL'; break;
+              case 'Permanent State':          record['permanentState'] = val || 'NIL'; break;
+              case 'Parent Mobile No':         record['parentMobileNo'] = val || 'NIL'; record['guardianPhone'] = val || 'NIL'; break;
+              case 'Handicapped':              record['handicapped'] = val || 'NIL'; break;
+              case 'Handicapped Description':  record['handicappedDescription'] = val || 'NIL'; break;
+              case 'Campus':                   record['campus'] = val || 'NIL'; break;
+              case 'Disability: (YES/NO)':     record['disability'] = val || 'NIL'; break;
+              case 'Department':               record['department'] = val || 'NIL'; break;
+              case 'Batch':                    record['batch'] = val || 'NIL'; break;
+              case 'S. No.':
+              case 'S.No':
+              case 'S.No.':
+                break; // Ignore serial number column
               default: record[header] = val;
             }
           } else if (isDepartment) {
@@ -520,9 +528,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                    EmpId**, Name**, Designation**, Department**, Gender, Date of birth, PanCard No, Date Of Joining, Previous Teaching Experince Years, Previous Teaching Experince Months, Previous Industry Experince Years, Previous Industry Experince Months, Qualification Level, Highest Qualification, Experience in CU - Years, Experience in CU - Months
                  </p>
                ) : isStudent ? (
-                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[10px]">
-                   Register Number**, Name**, Email**, Phone**, Course**, Department**, Previous School**, Gender, Date of Birth, Blood Group, Batch**, Admission Date, Guardian Name, Guardian Phone, Address
-                 </p>
+                  <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[10px]">
+                    Register No**, Student Name**, Class Name, Application No, Gender, Date Of Birth, Mobile No, Nationality, Caste, Current City, Current State, Permanent City, Permanent State, Parent Mobile No, Handicapped, Handicapped Description, Campus, Disability: (YES/NO), Department, Batch
+                  </p>
                ) : isDepartment ? (
                  <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
                    Code**, Name**, HOD Name, HOD Email, Established Year, Phone, Description
@@ -656,18 +664,17 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200 font-semibold">
                           <th className="py-2 px-3 whitespace-nowrap">Preview No</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Reg Number</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Name</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Email</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Phone</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Course</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Department</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Prev School</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Reg No</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Student Name</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Class Name</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Application No</th>
                           <th className="py-2 px-3 whitespace-nowrap">Gender</th>
                           <th className="py-2 px-3 whitespace-nowrap">Date of Birth</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Blood Group</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Mobile No</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Disability</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Campus</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Department</th>
                           <th className="py-2 px-3 whitespace-nowrap">Batch</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Admission Date</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 bg-white">
@@ -676,16 +683,15 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                             <td className="py-2 px-3 font-mono">{idx + 1}</td>
                             <td className="py-2 px-3 font-mono font-semibold">{row.registerNumber}</td>
                             <td className="py-2 px-3 font-semibold text-gray-900 truncate max-w-[130px]" title={row.name}>{row.name}</td>
-                            <td className="py-2 px-3 whitespace-nowrap">{row.email}</td>
-                            <td className="py-2 px-3 font-mono">{row.phone}</td>
-                            <td className="py-2 px-3 truncate max-w-[120px]" title={row.course}>{row.course}</td>
-                            <td className="py-2 px-3 truncate max-w-[120px]" title={row.department}>{row.department}</td>
-                            <td className="py-2 px-3 truncate max-w-[120px]" title={row.previousSchool}>{row.previousSchool}</td>
+                            <td className="py-2 px-3 whitespace-nowrap">{row.className || '-'}</td>
+                            <td className="py-2 px-3 font-mono">{row.applicationNo || '-'}</td>
                             <td className="py-2 px-3">{row.gender || '-'}</td>
                             <td className="py-2 px-3 font-mono whitespace-nowrap">{row.dob || '-'}</td>
-                            <td className="py-2 px-3">{row.bloodGroup || '-'}</td>
-                            <td className="py-2 px-3 font-mono">{row.batch}</td>
-                            <td className="py-2 px-3 font-mono whitespace-nowrap">{row.admissionDate || '-'}</td>
+                            <td className="py-2 px-3 font-mono">{row.mobileNo || '-'}</td>
+                            <td className="py-2 px-3">{row.disability || '-'}</td>
+                            <td className="py-2 px-3 truncate max-w-[120px]" title={row.campus}>{row.campus || '-'}</td>
+                            <td className="py-2 px-3 truncate max-w-[120px]" title={row.department}>{row.department || '-'}</td>
+                            <td className="py-2 px-3 font-mono">{row.batch || '-'}</td>
                           </tr>
                         ))}
                       </tbody>

@@ -98,6 +98,7 @@ export function Sidebar({
           label: "Research",
           key: "research",
           children: [
+            { label: "Research Metrics Grid", key: "research-metrics" },
             { label: "Publications", key: "publications" },
             { label: "Patents", key: "research-innovation" },
             { label: "Sponsored Research", key: "sponsored-research" },

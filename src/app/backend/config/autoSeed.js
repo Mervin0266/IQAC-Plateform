@@ -1,4 +1,4 @@
-const { User, Achievement } = require('../models');
+const { User, Achievement, ResearchMetric } = require('../models');
 
 const autoSeed = async (sequelize) => {
   try {
@@ -115,6 +115,185 @@ const autoSeed = async (sequelize) => {
       }
     ]);
     console.log('✓ Sample achievements created');
+
+    // Create pre-seeded Research Metrics
+    await ResearchMetric.bulkCreate([
+      // AY 2024-2025 (Yearly breakdown from Screenshot 1)
+      {
+        academicYear: '2024-2025',
+        periodType: 'yearly',
+        periodValue: 'AY 2024-25',
+        department: 'Civil Engineering',
+        books: 0, chapters: 1, scopusJournals: 13, nationalJournals: 0, internationalJournals: 14, citations: 127,
+        patentsIndian: 1, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 8,
+        consultancyCount: 1, consultancyAmount: 10000.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2024-2025',
+        periodType: 'yearly',
+        periodValue: 'AY 2024-25',
+        department: 'Computer Science and Engineering',
+        books: 6, chapters: 71, scopusJournals: 77, nationalJournals: 0, internationalJournals: 77, citations: 70,
+        patentsIndian: 7, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 106,
+        consultancyCount: 4, consultancyAmount: 1560408.00, seedMoneyCount: 10, seedMoneyAmount: 1624168.00, externalProjectsCount: 6, externalProjectsAmount: 4411660.00
+      },
+      {
+        academicYear: '2024-2025',
+        periodType: 'yearly',
+        periodValue: 'AY 2024-25',
+        department: 'Electronics and Communication Engineering',
+        books: 3, chapters: 9, scopusJournals: 16, nationalJournals: 0, internationalJournals: 16, citations: 35,
+        patentsIndian: 9, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 44,
+        consultancyCount: 29, consultancyAmount: 793140.00, seedMoneyCount: 9, seedMoneyAmount: 1792510.00, externalProjectsCount: 4, externalProjectsAmount: 2313431.00
+      },
+      {
+        academicYear: '2024-2025',
+        periodType: 'yearly',
+        periodValue: 'AY 2024-25',
+        department: 'Electrical and Electronics Engineering',
+        books: 1, chapters: 1, scopusJournals: 15, nationalJournals: 2, internationalJournals: 15, citations: 207,
+        patentsIndian: 4, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 11,
+        consultancyCount: 1, consultancyAmount: 600000.00, seedMoneyCount: 3, seedMoneyAmount: 839000.00, externalProjectsCount: 2, externalProjectsAmount: 6135000.00
+      },
+      {
+        academicYear: '2024-2025',
+        periodType: 'yearly',
+        periodValue: 'AY 2024-25',
+        department: 'Mechanical Engineering',
+        books: 7, chapters: 3, scopusJournals: 26, nationalJournals: 2, internationalJournals: 26, citations: 36,
+        patentsIndian: 22, patentsInternational: 0, conferencesNational: 3, conferencesInternational: 24,
+        consultancyCount: 7, consultancyAmount: 103000.00, seedMoneyCount: 8, seedMoneyAmount: 2308000.00, externalProjectsCount: 3, externalProjectsAmount: 3200000.00
+      },
+      {
+        academicYear: '2024-2025',
+        periodType: 'yearly',
+        periodValue: 'AY 2024-25',
+        department: 'Sciences and Humanities',
+        books: 3, chapters: 9, scopusJournals: 47, nationalJournals: 0, internationalJournals: 47, citations: 94,
+        patentsIndian: 4, patentsInternational: 0, conferencesNational: 2, conferencesInternational: 15,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 2, seedMoneyAmount: 600000.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2024-2025',
+        periodType: 'yearly',
+        periodValue: 'AY 2024-25',
+        department: 'School of Architecture',
+        books: 0, chapters: 7, scopusJournals: 2, nationalJournals: 0, internationalJournals: 5, citations: 7,
+        patentsIndian: 15, patentsInternational: 0, conferencesNational: 10, conferencesInternational: 20,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 2, externalProjectsAmount: 4996500.00
+      },
+
+      // AY 2025-2026 Monthly Breakdown for AIML & Data Science (from Screenshot 2)
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'June - 2025',
+        department: 'AIML & Data Science',
+        books: 1, chapters: 11, scopusJournals: 2, nationalJournals: 0, internationalJournals: 2, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'July - 2025',
+        department: 'AIML & Data Science',
+        books: 3, chapters: 5, scopusJournals: 2, nationalJournals: 0, internationalJournals: 2, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 2,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'August - 2025',
+        department: 'AIML & Data Science',
+        books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'September - 2025',
+        department: 'AIML & Data Science',
+        books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'October - 2025',
+        department: 'AIML & Data Science',
+        books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'November - 2025',
+        department: 'AIML & Data Science',
+        books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'December - 2025',
+        department: 'AIML & Data Science',
+        books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'January - 2026',
+        department: 'AIML & Data Science',
+        books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'February - 2026',
+        department: 'AIML & Data Science',
+        books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'March - 2026',
+        department: 'AIML & Data Science',
+        books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'April - 2026',
+        department: 'AIML & Data Science',
+        books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      },
+      {
+        academicYear: '2025-2026',
+        periodType: 'monthly',
+        periodValue: 'May - 2026',
+        department: 'AIML & Data Science',
+        books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
+        patentsIndian: 0, patentsInternational: 0, conferencesNational: 0, conferencesInternational: 0,
+        consultancyCount: 0, consultancyAmount: 0.00, seedMoneyCount: 0, seedMoneyAmount: 0.00, externalProjectsCount: 0, externalProjectsAmount: 0.00
+      }
+    ]);
+    console.log('✓ Pre-seeded research summary metrics created');
 
     console.log('✓ Automatic database seeding completed successfully!');
   } catch (error) {

@@ -10,6 +10,7 @@ const Notification = require('./Notification');
 const Student = require('./Student');
 const Faculty = require('./Faculty');
 const Department = require('./Department');
+const ResearchMetric = require('./ResearchMetric');
 
 // Define associations
 User.hasMany(Achievement, { foreignKey: 'createdBy', as: 'achievements' });
@@ -48,5 +49,6 @@ module.exports = {
   Notification,
   Student,
   Faculty,
-  Department
+  Department,
+  ResearchMetric
 };
