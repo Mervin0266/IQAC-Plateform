@@ -113,11 +113,16 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
   });
 
   const departments = [
-    'Civil Engineering',
+    'CSE',
     'Computer Science and Engineering',
-    'Electrical and Electronics Engineering',
+    'ECE',
     'Electronics and Communication Engineering',
+    'EEE',
+    'Electrical and Electronics Engineering',
+    'MECH',
     'Mechanical Engineering',
+    'CIVIL',
+    'Civil Engineering',
     'Sciences and Humanities',
     'School of Architecture',
     'AIML & Data Science'

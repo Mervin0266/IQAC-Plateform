@@ -201,11 +201,20 @@ export function ResearchInnovationPage({ onNavigate, isPublicView = false, hideS
   const patentsCommercialized = filterPatents(finalCommercialized);
 
   const departments = [
-    'Civil Engineering',
+    'CSE',
+    'Computer Science and Engineering',
     'Computer Science',
-    'Electrical Engineering',
+    'ECE',
     'Electronics',
+    'Electronics and Communication Engineering',
+    'EEE',
+    'Electrical Engineering',
+    'MECH',
     'Mechanical Engineering',
+    'CIVIL',
+    'Civil Engineering',
+    'AI & DS',
+    'Artificial Intelligence and Data Science'
   ];
 
   const totalRevenueNumber = patentsCommercialized.reduce((sum, p) => {
