@@ -124,7 +124,24 @@ export function ConsultancyProjectsPage({
     return acc;
   }, {} as Record<string, { count: number; revenue: number }>);
 
-  const departments = Object.keys(departmentMap);
+  const activeDepartmentsCount = Object.keys(departmentMap).length;
+  const STANDARD_DEPARTMENTS = [
+    'CSE',
+    'Computer Science and Engineering',
+    'ECE',
+    'Electronics and Communication Engineering',
+    'EEE',
+    'Electrical Engineering',
+    'MECH',
+    'Mechanical Engineering',
+    'CIVIL',
+    'Civil Engineering',
+    'AI & DS',
+    'Artificial Intelligence and Data Science',
+    'IT',
+    'Information Technology'
+  ];
+  const departments = Array.from(new Set([...STANDARD_DEPARTMENTS, ...Object.keys(departmentMap)])).filter(Boolean).sort();
 
   const handleOpenForm = (project?: ConsultancyProject) => {
     if (project) {
@@ -231,7 +248,7 @@ export function ConsultancyProjectsPage({
             <Card className="border-l-4 border-l-teal-500">
               <CardHeader>
                 <CardDescription className="text-xs">Departments</CardDescription>
-                <CardTitle className="text-3xl font-bold text-teal-600">{departments.length}</CardTitle>
+                <CardTitle className="text-3xl font-bold text-teal-600">{activeDepartmentsCount}</CardTitle>
               </CardHeader>
             </Card>
           </div>
@@ -345,7 +362,7 @@ export function ConsultancyProjectsPage({
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-gray-900">{departments.length}</div>
+                <div className="text-3xl font-bold text-gray-900">{activeDepartmentsCount}</div>
                 <p className="text-xs text-gray-500 mt-1">Departments involved</p>
               </CardContent>
             </Card>
@@ -599,7 +616,23 @@ export function ConsultancyProjectsPage({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-sm font-medium mb-1.5 block">
+                    Department
+                  </Label>
+                  <Select value={formData.department} onValueChange={v => setFormData(f => ({ ...f, department: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map(d => (
+                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div>
                   <Label className="text-sm font-medium mb-1.5 block">
                     Academic Year <span className="text-red-500">*</span>
