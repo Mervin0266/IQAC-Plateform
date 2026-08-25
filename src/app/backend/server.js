@@ -9,18 +9,49 @@ const { sequelize, testConnection } = require('./config/database');
 
 const app = express();
 
-// CORS
-const clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/$/, '') : null;
-const clientUrlWithSlash = clientUrl ? `${clientUrl}/` : null;
+// CORS Configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000'
+];
+
+if (process.env.CLIENT_URL) {
+  process.env.CLIENT_URL.split(',').forEach(url => {
+    const cleaned = url.trim().replace(/\/$/, '');
+    if (cleaned) {
+      allowedOrigins.push(cleaned);
+    }
+  });
+}
 
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    clientUrl,
-    clientUrlWithSlash
-  ].filter(Boolean),
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, postman)
+    if (!origin) return callback(null, true);
+    
+    // Check direct match
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Allow all Vercel deployments (*.vercel.app)
+    if (/\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    // Allow all Render deployments (*.onrender.com)
+    if (/\.onrender\.com$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
 
 // Security middleware
