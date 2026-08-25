@@ -22,6 +22,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { BulkUploadDialog } from './BulkUploadDialog';
+import { DepartmentLineageTrends } from './DepartmentLineageTrends';
 
 interface Department {
   id: string;
@@ -285,7 +286,7 @@ export function DepartmentDetailsPage({ onNavigate }: DepartmentDetailsPageProps
               className="border-gray-300 text-gray-700 hover:bg-gray-100 flex items-center gap-2"
             >
               <Upload className="w-4 h-4" />
-              <span className="hidden sm:inline">Upload CSV</span>
+              <span className="hidden sm:inline">Upload CSV / Excel</span>
             </Button>
             <Button 
               onClick={() => setIsAddModalOpen(true)}
@@ -330,6 +331,11 @@ export function DepartmentDetailsPage({ onNavigate }: DepartmentDetailsPageProps
             <p className="text-3xl font-bold text-purple-700">{recentEstd}</p>
             <div className="text-xs text-gray-400 mt-2">Most recently founded</div>
           </Card>
+        </div>
+
+        {/* Temporal Lineage & Bifurcation Analytics */}
+        <div className="mb-8">
+          <DepartmentLineageTrends />
         </div>
 
         {/* Filters and Search */}

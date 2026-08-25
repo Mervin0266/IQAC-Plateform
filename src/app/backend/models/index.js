@@ -11,6 +11,10 @@ const Student = require('./Student');
 const Faculty = require('./Faculty');
 const Department = require('./Department');
 const ResearchMetric = require('./ResearchMetric');
+const ConsultancyProject = require('./ConsultancyProject');
+const AccreditationFramework = require('./AccreditationFramework');
+const AccreditationParameter = require('./AccreditationParameter');
+const ParameterDataSubmission = require('./ParameterDataSubmission');
 
 // Define associations
 User.hasMany(Achievement, { foreignKey: 'createdBy', as: 'achievements' });
@@ -37,6 +41,32 @@ EditRequest.belongsTo(Achievement, { foreignKey: 'achievementId', as: 'achieveme
 User.hasMany(Notification, { foreignKey: 'recipientId', as: 'notifications' });
 Notification.belongsTo(User, { foreignKey: 'recipientId', as: 'recipient' });
 
+User.hasMany(ConsultancyProject, { foreignKey: 'createdBy', as: 'consultancyProjects' });
+ConsultancyProject.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+
+const UserDepartmentHistory = require('./UserDepartmentHistory');
+const DepartmentLineage = require('./DepartmentLineage');
+
+// Accreditation & Parameter Master Associations
+AccreditationFramework.hasMany(AccreditationParameter, { foreignKey: 'frameworkId', as: 'parameters', onDelete: 'CASCADE' });
+AccreditationParameter.belongsTo(AccreditationFramework, { foreignKey: 'frameworkId', as: 'framework' });
+
+AccreditationParameter.hasMany(ParameterDataSubmission, { foreignKey: 'parameterId', as: 'submissions', onDelete: 'CASCADE' });
+ParameterDataSubmission.belongsTo(AccreditationParameter, { foreignKey: 'parameterId', as: 'parameter' });
+
+User.hasMany(AccreditationFramework, { foreignKey: 'createdBy', as: 'createdFrameworks' });
+AccreditationFramework.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+
+User.hasMany(ParameterDataSubmission, { foreignKey: 'submittedBy', as: 'parameterSubmissions' });
+ParameterDataSubmission.belongsTo(User, { foreignKey: 'submittedBy', as: 'submitter' });
+
+Document.hasMany(ParameterDataSubmission, { foreignKey: 'evidenceDocumentId', as: 'parameterSubmissions' });
+ParameterDataSubmission.belongsTo(Document, { foreignKey: 'evidenceDocumentId', as: 'evidenceDocument' });
+
+// Temporal History & Lineage Associations
+User.hasMany(UserDepartmentHistory, { foreignKey: 'userId', as: 'departmentHistories' });
+UserDepartmentHistory.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
 module.exports = {
   User,
   Achievement,
@@ -50,5 +80,11 @@ module.exports = {
   Student,
   Faculty,
   Department,
-  ResearchMetric
+  ResearchMetric,
+  ConsultancyProject,
+  AccreditationFramework,
+  AccreditationParameter,
+  ParameterDataSubmission,
+  UserDepartmentHistory,
+  DepartmentLineage
 };

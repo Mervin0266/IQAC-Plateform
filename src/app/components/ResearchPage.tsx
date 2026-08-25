@@ -635,7 +635,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                   className="flex items-center gap-2 border-gray-200 text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
                 >
                   <Upload className="w-4 h-4" />
-                  <span>Bulk Upload</span>
+                  <span>Bulk Upload (CSV/Excel)</span>
                 </Button>
                 
                 <Button 
@@ -1457,7 +1457,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
 
             {/* TAB CONTENT: CONSULTANCY */}
             <TabsContent value="consultancy" className="outline-none">
-              <ConsultancyProjectsPage hideSidebar={true} onNavigate={onNavigate} />
+              <ConsultancyProjectsPage hideSidebar={true} onNavigate={onNavigate} token={user?.token || ''} userRole={user?.role || 'faculty'} />
             </TabsContent>
           </Tabs>
 

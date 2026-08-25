@@ -287,7 +287,7 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
                 className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 flex items-center space-x-2 shadow-sm rounded-lg"
               >
                 <Upload className="w-4 h-4" />
-                <span>Bulk Upload (CSV)</span>
+                <span>Bulk Upload (CSV/Excel)</span>
               </Button>
             )}
           </div>

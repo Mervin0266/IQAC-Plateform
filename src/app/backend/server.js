@@ -56,6 +56,9 @@ app.use('/api/students', require('./routes/students'));
 app.use('/api/faculty', require('./routes/faculty'));
 app.use('/api/departments', require('./routes/departments'));
 app.use('/api/research-metrics', require('./routes/researchMetrics'));
+app.use('/api/consultancy-projects', require('./routes/consultancyProjects'));
+app.use('/api/parameter-master', require('./routes/parameterMaster'));
+app.use('/api/department-lineage', require('./routes/departmentLineage'));
 
 // Health check
 app.get('/health', (req, res) => {

@@ -172,9 +172,21 @@ export const ROLE_PERMISSIONS = {
 
 export function hasPageAccess(role: UserRole, page: string): boolean {
   if (!ROLE_PERMISSIONS[role]) return false;
-  // Check if page is a department tracking page
+
+  // Check grouped page access for strategic plans
   if (page.startsWith('strategic-plan-')) {
     return ROLE_PERMISSIONS[role].pages.includes('strategic-plan');
+  }
+
+  // Allow ranking submenu access for roles that can access the main ranking section
+  const rankingSubPages = [
+    'nirf-ranking',
+    'india-today-ranking',
+    'the-world-ranking',
+    'qs-india-ranking',
+  ];
+  if (rankingSubPages.includes(page)) {
+    return ROLE_PERMISSIONS[role].pages.includes('ranking');
   }
   
   return ROLE_PERMISSIONS[role].pages.includes(page);

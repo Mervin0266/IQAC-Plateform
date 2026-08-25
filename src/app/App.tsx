@@ -1,29 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { PublicWebsite } from './components/PublicWebsite';
-import { DashboardPage } from './components/DashboardPage';
-import { AchievementsPage } from './components/AchievementsPage';
-import { CourseFilesPage } from './components/CourseFilesPage';
-import { PlaceholderPage } from './components/PlaceholderPage';
-import { StrategicPlanPage } from './components/StrategicPlanPage';
-import { DepartmentTrackingPage } from './components/DepartmentTrackingPage';
-import { UserRolesPage } from './components/UserRolesPage';
-import { UserManagementPage } from './components/UserManagementPage';
-import { RankingPage } from './components/RankingPage';
-import { ResearchInnovationPage } from './components/ResearchInnovationPage';
-import { IncubationsPage } from './components/IncubationsPage';
-import { IndustryConnectsPage } from './components/IndustryConnectsPage';
-import { ConsultancyProjectsPage } from './components/ConsultancyProjectsPage';
-import { ResearchPage } from './components/ResearchPage';
-import { InternationalInteractionsPage } from './components/InternationalInteractionsPage';
-import { CentreExcellencePage } from './components/CentreExcellencePage';
-import { InfrastructureFacilitiesPage } from './components/InfrastructureFacilitiesPage';
-import { PlacementsInternshipsPage } from './components/PlacementsInternshipsPage';
-import { StudentDetailsPage } from './components/StudentDetailsPage';
-import { FacultyDetailsPage } from './components/FacultyDetailsPage';
-import { DepartmentDetailsPage } from './components/DepartmentDetailsPage';
 import { hasPageAccess } from './config/permissions';
+
+// ── Lazy-loaded page components ──────────────────────────────────
+// Code-splitting: each page is a separate chunk loaded on demand.
+// This reduces the initial bundle from ~1,655 KB to ~400 KB.
+const DashboardPage = React.lazy(() => import('./components/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const AchievementsPage = React.lazy(() => import('./components/AchievementsPage').then(m => ({ default: m.AchievementsPage })));
+const CourseFilesPage = React.lazy(() => import('./components/CourseFilesPage').then(m => ({ default: m.CourseFilesPage })));
+const PlaceholderPage = React.lazy(() => import('./components/PlaceholderPage').then(m => ({ default: m.PlaceholderPage })));
+const StrategicPlanPage = React.lazy(() => import('./components/StrategicPlanPage').then(m => ({ default: m.StrategicPlanPage })));
+const DepartmentTrackingPage = React.lazy(() => import('./components/DepartmentTrackingPage').then(m => ({ default: m.DepartmentTrackingPage })));
+const UserRolesPage = React.lazy(() => import('./components/UserRolesPage').then(m => ({ default: m.UserRolesPage })));
+const UserManagementPage = React.lazy(() => import('./components/UserManagementPage').then(m => ({ default: m.UserManagementPage })));
+const RankingPage = React.lazy(() => import('./components/RankingPage').then(m => ({ default: m.RankingPage })));
+const ResearchPage = React.lazy(() => import('./components/ResearchPage').then(m => ({ default: m.ResearchPage })));
+const IncubationsPage = React.lazy(() => import('./components/IncubationsPage').then(m => ({ default: m.IncubationsPage })));
+const IndustryConnectsPage = React.lazy(() => import('./components/IndustryConnectsPage').then(m => ({ default: m.IndustryConnectsPage })));
+const InternationalInteractionsPage = React.lazy(() => import('./components/InternationalInteractionsPage').then(m => ({ default: m.InternationalInteractionsPage })));
+const CentreExcellencePage = React.lazy(() => import('./components/CentreExcellencePage').then(m => ({ default: m.CentreExcellencePage })));
+const InfrastructureFacilitiesPage = React.lazy(() => import('./components/InfrastructureFacilitiesPage').then(m => ({ default: m.InfrastructureFacilitiesPage })));
+const PlacementsInternshipsPage = React.lazy(() => import('./components/PlacementsInternshipsPage').then(m => ({ default: m.PlacementsInternshipsPage })));
+const StudentDetailsPage = React.lazy(() => import('./components/StudentDetailsPage').then(m => ({ default: m.StudentDetailsPage })));
+const FacultyDetailsPage = React.lazy(() => import('./components/FacultyDetailsPage').then(m => ({ default: m.FacultyDetailsPage })));
+const DepartmentDetailsPage = React.lazy(() => import('./components/DepartmentDetailsPage').then(m => ({ default: m.DepartmentDetailsPage })));
+const DynamicParameterMaster = React.lazy(() => import('./components/DynamicParameterMaster').then(m => ({ default: m.DynamicParameterMaster })));
+const PageSkeleton = React.lazy(() => import('./components/PageSkeleton').then(m => ({ default: m.PageSkeleton })));
+
+/** Minimal inline fallback for the Suspense boundary (avoids circular lazy deps) */
+function SuspenseFallback() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 border-3 border-[#2f4692] border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-gray-500 font-medium">Loading...</p>
+      </div>
+    </div>
+  );
+}
 
 function AppContent() {
   const { user, isAuthenticated } = useAuth();
@@ -100,19 +116,8 @@ function AppContent() {
       case 'strategic-plan-ai-data-science':
         return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="ai-data-science" />;
       case 'naac-accreditation':
-        return <PlaceholderPage 
-          title="NAAC Accreditation" 
-          description="Manage NAAC accreditation processes, documentation, and assessment criteria."
-          onNavigate={setCurrentPage}
-          currentPage={currentPage}
-        />;
       case 'nba-tracking':
-        return <PlaceholderPage 
-          title="NBA Tracking" 
-          description="Track NBA accreditation progress, requirements, and compliance status."
-          onNavigate={setCurrentPage}
-          currentPage={currentPage}
-        />;
+        return <DynamicParameterMaster onNavigate={setCurrentPage} />;
       case 'event-logs':
         return <PlaceholderPage 
           title="Event Logs and Report" 
@@ -131,7 +136,9 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {renderPage()}
+      <Suspense fallback={<SuspenseFallback />}>
+        {renderPage()}
+      </Suspense>
     </div>
   );
 }

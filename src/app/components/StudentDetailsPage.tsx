@@ -358,7 +358,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                 className="border-gray-300 text-gray-700 hover:bg-gray-100 flex items-center gap-2"
               >
                 <Upload className="w-4 h-4" />
-                <span className="hidden sm:inline">Upload CSV</span>
+                <span className="hidden sm:inline">Upload CSV / Excel</span>
               </Button>
               <Button 
                 onClick={() => { resetForm(); setIsAddModalOpen(true); }}

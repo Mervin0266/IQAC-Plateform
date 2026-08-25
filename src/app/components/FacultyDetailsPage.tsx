@@ -358,7 +358,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                 className="border-teal-600 text-teal-700 hover:bg-teal-50 flex items-center gap-2"
               >
                 <Upload className="w-4 h-4" />
-                Upload CSV
+                Upload CSV / Excel
               </Button>
               <Button
                 onClick={() => { resetForm(); setIsAddModalOpen(true); }}

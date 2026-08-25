@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info } from 'lucide-react';
 
 const formatDateToISO = (dateStr: string): string | null => {
@@ -61,8 +63,24 @@ interface BulkUploadDialogProps {
   onClose: () => void;
   token: string;
   onSuccess: () => void;
-  uploadType?: 'achievements' | 'placements' | 'faculty' | 'students' | 'departments';
+  uploadType?: 'achievements' | 'placements' | 'faculty' | 'students' | 'departments' | 'consultancy';
 }
+
+const CONSULTANCY_HEADERS = [
+  'S. No.',
+  'Name of the Teacher Consultant',
+  'Name of Consultancy Project',
+  'Consulting/Sponsoring Agency with Contact Details',
+  'Year',
+  'Revenue Generated (INR in Lakhs)'
+];
+
+const CONSULTANCY_REQUIRED = [
+  'Name of the Teacher Consultant',
+  'Name of Consultancy Project',
+  'Consulting/Sponsoring Agency with Contact Details',
+  'Year'
+];
 
 const DEPARTMENT_HEADERS = [
   'Code',
@@ -139,10 +157,15 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const [successMsg, setSuccessMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Department selection for consultancy
+  const FIXED_DEPARTMENTS = ['CSE', 'ECE', 'EEE', 'CIVIL', 'MECH'];
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+
   const isPlacement = uploadType === 'placements';
   const isFaculty = uploadType === 'faculty';
   const isStudent = uploadType === 'students';
   const isDepartment = uploadType === 'departments';
+  const isConsultancy = uploadType === 'consultancy';
 
   const resetState = () => {
     setFile(null);
@@ -151,6 +174,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     setUploadError('');
     setUploadErrorsList([]);
     setSuccessMsg('');
+    setSelectedDepartment('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -163,50 +187,119 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
 
   const handleDownloadTemplate = () => {
     let csvContent = '';
+    let fileName = 'bulk_template.csv';
 
-    if (isFaculty) {
+    if (isConsultancy) {
+      csvContent =
+        CONSULTANCY_HEADERS.join(',') + '\n' +
+        `1,"Dr. Rajesh Kumar","Smart City Infrastructure Planning","Bangalore Smart City Corporation, Contact: info@bscc.gov.in, Ph: 080-12345678","2024-25",25.00\n` +
+        `2,"Dr. Deepa Singh","AI-Powered Customer Analytics Platform","RetailMax Solutions Pvt. Ltd., Contact: projects@retailmax.in, Ph: 080-87654321","2023-24",18.50`;
+      fileName = 'consultancy_bulk_template.csv';
+    } else if (isFaculty) {
       csvContent =
         FACULTY_HEADERS.join(',') + '\n' +
         `EMP001,"Dr. Rajesh Kumar",Professor,"Computer Science and Engineering",Male,1980-05-15,ABCPK1234D,2010-07-01,5,6,3,0,PhD,"Ph.D. in Computer Science",13,6\n` +
         `EMP002,"Ms. Priya Sharma","Assistant Professor","Electronics and Communication Engineering",Female,1990-03-22,XYZPS5678E,2018-08-01,2,0,0,0,PG,"M.Tech in VLSI",5,11`;
+      fileName = 'faculty_bulk_template.csv';
     } else if (isStudent) {
       csvContent =
         STUDENT_HEADERS.join(',') + '\n' +
         `"2310101","John Doe","3A B.Tech CSE","APP12345","Male",2002-04-12,"9876543210","Indian","General","Bengaluru","Karnataka","Bengaluru","Karnataka","9876543211","NO","NIL","Kengeri Campus","NO","Computer Science and Engineering","2022 - 2026"\n` +
         `"2310102","Jane Smith","5C B.Tech ECE","APP12346","Female",2003-09-25,"9876543212","Indian","General","Bengaluru","Karnataka","Mysuru","Karnataka","9876543213","NO","NIL","Kengeri Campus","NO","Electronics and Communication Engineering","2022 - 2026"`;
+      fileName = 'students_bulk_template.csv';
     } else if (isDepartment) {
       csvContent =
         DEPARTMENT_HEADERS.join(',') + '\n' +
         `CSE,"Computer Science and Engineering","Dr. Rajesh Kumar","hod.cse@christuniversity.in",2005,"080-1234567","Focus on Software Development, AI, and Cloud Computing."\n` +
         `ECE,"Electronics and Communication Engineering","Dr. Priya Sharma","hod.ece@christuniversity.in",2006,"080-1234568","Focus on Signal Processing, VLSI Design, and Embedded Systems."`;
+      fileName = 'departments_bulk_template.csv';
     } else if (isPlacement) {
       csvContent =
         "Register Number,Name,AY (Academic Year),Department,Course,Company,Package\n" +
         "\"2310101\",\"Amit Sharma\",\"2023-24\",\"Computer Science and Engineering\",\"B.Tech CSE\",\"Google\",12.50\n" +
         "\"2310102\",\"Neha Gupta\",\"2023-24\",\"Electronics and Communication Engineering\",\"B.Tech ECE\",\"Samsung\",800000";
+      fileName = 'placements_bulk_template.csv';
     } else {
       csvContent =
         "title,category,date,year,description,subcategory,achieverType,rank,score,organization,location,participants,impact,status\n" +
         "\"Deep Learning CSE Journal Paper\",research,2024-05-15,2024-2025,\"Published paper in IEEE Access\",Journal,faculty,,,\"IEEE\",\"Online\",\"Dr. Rajesh Kumar, Dr. Priya Sharma\",\"International\",submitted\n" +
         "\"National Tech Fest 1st Place\",awards,2024-02-10,2023-2024,\"Won gold medal in smart hackathon\",Hackathon,student,1st,10.00,\"SRM University\",\"Chennai\",\"Rahul Kumar, Sneha Patel\",\"National\",approved";
+      fileName = 'achievements_bulk_template.csv';
     }
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', isFaculty ? 'faculty_bulk_template.csv' : isPlacement ? 'placements_bulk_template.csv' : 'students_bulk_template.csv');
+    link.setAttribute('download', fileName);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDownloadExcelTemplate = () => {
+    let headers: string[] = [];
+    let sampleRows: any[][] = [];
+    let fileName = 'bulk_template.xlsx';
+
+    if (isConsultancy) {
+      headers = CONSULTANCY_HEADERS;
+      sampleRows = [
+        ['1', 'Dr. Rajesh Kumar', 'Smart City Infrastructure Planning', 'Bangalore Smart City Corporation, Contact: info@bscc.gov.in, Ph: 080-12345678', '2024-25', 25.00],
+        ['2', 'Dr. Deepa Singh', 'AI-Powered Customer Analytics Platform', 'RetailMax Solutions Pvt. Ltd., Contact: projects@retailmax.in, Ph: 080-87654321', '2023-24', 18.50]
+      ];
+      fileName = 'consultancy_bulk_template.xlsx';
+    } else if (isFaculty) {
+      headers = FACULTY_HEADERS;
+      sampleRows = [
+        ['EMP001', 'Dr. Rajesh Kumar', 'Professor', 'Computer Science and Engineering', 'Male', '1980-05-15', 'ABCPK1234D', '2010-07-01', '5', '6', '3', '0', 'PhD', 'Ph.D. in Computer Science', '13', '6'],
+        ['EMP002', 'Ms. Priya Sharma', 'Assistant Professor', 'Electronics and Communication Engineering', 'Female', '1990-03-22', 'XYZPS5678E', '2018-08-01', '2', '0', '0', '0', 'PG', 'M.Tech in VLSI', '5', '11']
+      ];
+      fileName = 'faculty_bulk_template.xlsx';
+    } else if (isStudent) {
+      headers = STUDENT_HEADERS;
+      sampleRows = [
+        ['2310101', 'John Doe', '3A B.Tech CSE', 'APP12345', 'Male', '2002-04-12', '9876543210', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Bengaluru', 'Karnataka', '9876543211', 'NO', 'NIL', 'Kengeri Campus', 'NO', 'Computer Science and Engineering', '2022 - 2026'],
+        ['2310102', 'Jane Smith', '5C B.Tech ECE', 'APP12346', 'Female', '2003-09-25', '9876543212', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Mysuru', 'Karnataka', '9876543213', 'NO', 'NIL', 'Kengeri Campus', 'NO', 'Electronics and Communication Engineering', '2022 - 2026']
+      ];
+      fileName = 'students_bulk_template.xlsx';
+    } else if (isDepartment) {
+      headers = DEPARTMENT_HEADERS;
+      sampleRows = [
+        ['CSE', 'Computer Science and Engineering', 'Dr. Rajesh Kumar', 'hod.cse@christuniversity.in', 2005, '080-1234567', 'Focus on Software Development, AI, and Cloud Computing.'],
+        ['ECE', 'Electronics and Communication Engineering', 'Dr. Priya Sharma', 'hod.ece@christuniversity.in', 2006, '080-1234568', 'Focus on Signal Processing, VLSI Design, and Embedded Systems.']
+      ];
+      fileName = 'departments_bulk_template.xlsx';
+    } else if (isPlacement) {
+      headers = ['Register Number', 'Name', 'AY (Academic Year)', 'Department', 'Course', 'Company', 'Package'];
+      sampleRows = [
+        ['2310101', 'Amit Sharma', '2023-24', 'Computer Science and Engineering', 'B.Tech CSE', 'Google', 12.50],
+        ['2310102', 'Neha Gupta', '2023-24', 'Electronics and Communication Engineering', 'B.Tech ECE', 'Samsung', 800000]
+      ];
+      fileName = 'placements_bulk_template.xlsx';
+    } else {
+      headers = ['title', 'category', 'date', 'year', 'description', 'subcategory', 'achieverType', 'rank', 'score', 'organization', 'location', 'participants', 'impact', 'status'];
+      sampleRows = [
+        ['Deep Learning CSE Journal Paper', 'research', '2024-05-15', '2024-2025', 'Published paper in IEEE Access', 'Journal', 'faculty', '', '', 'IEEE', 'Online', 'Dr. Rajesh Kumar, Dr. Priya Sharma', 'International', 'submitted'],
+        ['National Tech Fest 1st Place', 'awards', '2024-02-10', '2023-2024', 'Won gold medal in smart hackathon', 'Hackathon', 'student', '1st', 10.00, 'SRM University', 'Chennai', 'Rahul Kumar, Sneha Patel', 'National', 'approved']
+      ];
+      fileName = 'achievements_bulk_template.xlsx';
+    }
+
+    const wsData = [headers, ...sampleRows];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, fileName);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    if (!selectedFile.name.endsWith('.csv')) {
-      setParseError('Please upload a valid CSV file.');
+    const fileName = selectedFile.name.toLowerCase();
+    if (!fileName.endsWith('.csv') && !fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+      setParseError('Please upload a valid CSV or Excel file (.csv, .xls, .xlsx).');
       return;
     }
 
@@ -217,10 +310,46 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      parseCSV(text);
+      const result = event.target?.result;
+      if (!result) {
+        setParseError('Unable to read the selected file.');
+        return;
+      }
+
+      if (fileName.endsWith('.csv')) {
+        parseCSV(result as string);
+      } else {
+        parseExcel(result as ArrayBuffer);
+      }
     };
-    reader.readAsText(selectedFile);
+
+    if (fileName.endsWith('.csv')) {
+      reader.readAsText(selectedFile);
+    } else {
+      reader.readAsArrayBuffer(selectedFile);
+    }
+  };
+
+  const parseExcel = (data: ArrayBuffer) => {
+    try {
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) {
+        setParseError('Excel file contains no sheets.');
+        return;
+      }
+
+      const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheetName]);
+      if (!csv || csv.trim().length === 0) {
+        setParseError('The selected Excel sheet is empty.');
+        return;
+      }
+
+      parseCSV(csv);
+    } catch (error) {
+      console.error('Excel parse error:', error);
+      setParseError('Unable to parse the Excel file. Please ensure it is a valid .xls or .xlsx spreadsheet.');
+    }
   };
 
   const parseCSV = (text: string) => {
@@ -293,7 +422,18 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
 
     // Required fields check
     let missing: string[] = [];
-    if (isFaculty) {
+    if (isConsultancy) {
+      const lowerHeaders = headers.map(h => h.toLowerCase().trim());
+      const reqConsultancy = [
+        { name: 'Name of the Teacher Consultant', match: 'teacher consultant' },
+        { name: 'Name of Consultancy Project', match: 'consultancy project' },
+        { name: 'Consulting/Sponsoring Agency with Contact Details', match: 'sponsoring agency' },
+        { name: 'Year', match: 'year' }
+      ];
+      missing = reqConsultancy
+        .filter(req => !lowerHeaders.some(lh => lh.includes(req.match)))
+        .map(req => req.name);
+    } else if (isFaculty) {
       missing = FACULTY_REQUIRED.filter(field => !headers.includes(field));
     } else if (isStudent) {
       missing = STUDENT_REQUIRED.filter(field => !headers.includes(field));
@@ -328,7 +468,24 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       headers.forEach((header, index) => {
         if (rowValues[index] !== undefined) {
           const val = rowValues[index];
-          if (isFaculty) {
+          if (isConsultancy) {
+            const lowerHeader = header.toLowerCase().trim();
+            if (lowerHeader.includes('s. no') || lowerHeader.includes('s.no')) {
+              // Ignore serial number column
+            } else if (lowerHeader.includes('teacher consultant')) {
+              record['teacherConsultant'] = val || '';
+            } else if (lowerHeader.includes('consultancy project')) {
+              record['projectName'] = val || '';
+            } else if (lowerHeader.includes('sponsoring agency') || lowerHeader.includes('consulting/sponsoring')) {
+              record['sponsoringAgency'] = val || '';
+            } else if (lowerHeader === 'year') {
+              record['year'] = val || '';
+            } else if (lowerHeader.includes('revenue')) {
+              record['revenueInLakhs'] = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+            } else {
+              record[header] = val;
+            }
+          } else if (isFaculty) {
             // Map CSV headers to backend field names
             switch (header) {
               case 'EmpId':            record['employeeId'] = val || 'NIL'; break;
@@ -427,7 +584,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
 
     if (records.length === 0) {
       setParseError(
-        isFaculty ? 'No faculty rows detected in the CSV file.'
+        isConsultancy ? 'No consultancy project rows detected in the CSV file.'
+        : isFaculty ? 'No faculty rows detected in the CSV file.'
         : isStudent ? 'No student rows detected in the CSV file.'
         : isDepartment ? 'No department rows detected in the CSV file.'
         : isPlacement ? 'No placement rows detected in the CSV file.'
@@ -442,29 +600,45 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const handleUploadSubmit = async () => {
     if (previewData.length === 0) return;
 
+    // For consultancy, ensure department is selected
+    if (isConsultancy && !selectedDepartment) {
+      setUploadError('Please select a department before uploading.');
+      return;
+    }
+
     setLoading(true);
     setUploadError('');
     setUploadErrorsList([]);
 
-    const endpoint = isFaculty
-      ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty/bulk`
-      : isPlacement
-        ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/placements/bulk`
-        : isStudent
-          ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students/bulk`
-          : isDepartment
-            ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departments/bulk`
-            : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements/bulk`;
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const endpoint = isConsultancy
+      ? `${baseUrl}/api/consultancy-projects/bulk`
+      : isFaculty
+        ? `${baseUrl}/api/faculty/bulk`
+        : isPlacement
+          ? `${baseUrl}/api/placements/bulk`
+          : isStudent
+            ? `${baseUrl}/api/students/bulk`
+            : isDepartment
+              ? `${baseUrl}/api/departments/bulk`
+              : `${baseUrl}/api/achievements/bulk`;
 
-    const bodyPayload = isFaculty
-      ? { faculty: previewData }
-      : isPlacement
-        ? { placements: previewData }
-        : isStudent
-          ? { students: previewData }
-          : isDepartment
-            ? { departments: previewData }
-            : { achievements: previewData };
+    // For consultancy, add the selected department to each record
+    const dataWithDepartment = isConsultancy
+      ? previewData.map(record => ({ ...record, department: selectedDepartment }))
+      : previewData;
+
+    const bodyPayload = isConsultancy
+      ? { consultancyProjects: dataWithDepartment }
+      : isFaculty
+        ? { faculty: previewData }
+        : isPlacement
+          ? { placements: previewData }
+          : isStudent
+            ? { students: previewData }
+            : isDepartment
+              ? { departments: previewData }
+              : { achievements: previewData };
 
     try {
       const response = await fetch(endpoint, {
@@ -504,7 +678,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     }
   };
 
-  const uploadTypeLabel = isFaculty ? 'Faculty Details' : isStudent ? 'Student Details' : isDepartment ? 'Department Details' : isPlacement ? 'Placements & Internships' : 'Achievements';
+  const uploadTypeLabel = isConsultancy ? 'Consultancy Projects (NIRF)' : isFaculty ? 'Faculty Details' : isStudent ? 'Student Details' : isDepartment ? 'Department Details' : isPlacement ? 'Placements & Internships' : 'Achievements';
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -512,10 +686,10 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         <DialogHeader>
           <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5 text-teal-700" />
-            <span>Bulk Upload {uploadTypeLabel} (CSV)</span>
+            <span>Bulk Upload {uploadTypeLabel} (CSV / Excel)</span>
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Upload {uploadTypeLabel} records in bulk via a CSV file.
+            Upload {uploadTypeLabel} records in bulk via a CSV or Excel file.
           </DialogDescription>
         </DialogHeader>
 
@@ -524,11 +698,15 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg flex gap-3 leading-normal">
             <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="font-semibold">CSV Formatting Guidelines:</p>
-              <p>Your CSV file columns must map to the headers list below. The required fields are marked with **.</p>
-               {isFaculty ? (
+              <p className="font-semibold">CSV / Excel Formatting Guidelines:</p>
+               <p>Your CSV or Excel file columns must map to the headers list below. The required fields are marked with **.</p>
+               {isConsultancy ? (
+                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
+                    S. No., Name of the Teacher Consultant**, Name of Consultancy Project**, Consulting/Sponsoring Agency with Contact Details**, Year**, Revenue Generated (INR in Lakhs)
+                 </p>
+               ) : isFaculty ? (
                  <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all">
-                   EmpId**, Name**, Designation**, Department**, Gender, Date of birth, PanCard No, Date Of Joining, Previous Teaching Experince Years, Previous Teaching Experince Months, Previous Industry Experince Years, Previous Industry Experince Months, Qualification Level, Highest Qualification, Experience in CU - Years, Experience in CU - Months
+                    EmpId**, Name**, Designation**, Department**, Gender, Date of birth, PanCard No, Date Of Joining, Previous Teaching Experince Years, Previous Teaching Experince Months, Previous Industry Experince Years, Previous Industry Experince Months, Qualification Level, Highest Qualification, Experience in CU - Years, Experience in CU - Months
                  </p>
                ) : isStudent ? (
                   <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[10px]">
@@ -536,37 +714,69 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   </p>
                ) : isDepartment ? (
                  <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
-                   Code**, Name**, HOD Name, HOD Email, Established Year, Phone, Description
+                    Code**, Name**, HOD Name, HOD Email, Established Year, Phone, Description
                  </p>
                ) : isPlacement ? (
                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all">
-                  Register Number**, Name**, AY (Academic Year)**, Department**, Course, Company**, Package**
+                   Register Number**, Name**, AY (Academic Year)**, Department**, Course, Company**, Package**
                 </p>
               ) : (
                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all">
-                  title**, category**, date**, year**, description, subcategory, achieverType, rank, score, organization, location, participants, impact, status
+                   title**, category**, date**, year**, description, subcategory, achieverType, rank, score, organization, location, participants, impact, status
                 </p>
               )}
-              <button
-                type="button"
-                onClick={handleDownloadTemplate}
-                className="text-blue-700 hover:text-blue-900 font-semibold underline mt-2 block"
-              >
-                Download Sample Template CSV
-              </button>
+              <div className="flex gap-4 mt-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleDownloadTemplate}
+                  className="text-blue-700 hover:text-blue-900 font-semibold underline block"
+                >
+                  Download Sample CSV Template
+                </button>
+                <span className="text-gray-400 hidden sm:inline">|</span>
+                <button
+                  type="button"
+                  onClick={handleDownloadExcelTemplate}
+                  className="text-blue-700 hover:text-blue-900 font-semibold underline block"
+                >
+                  Download Sample Excel (.xlsx) Template
+                </button>
+              </div>
             </div>
           </div>
 
+          {/* Department Selection for Consultancy */}
+          {isConsultancy && (
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+              <Label className="text-sm font-semibold text-amber-900 mb-2 block">
+                Select Department <span className="text-red-500">*</span>
+              </Label>
+              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Choose a department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FIXED_DEPARTMENTS.map(dept => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-amber-700 mt-1.5">
+                All uploaded consultancy records will be assigned to the selected department.
+              </p>
+            </div>
+          )}
+
           {/* Upload Drop Zone */}
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition-colors text-center relative cursor-pointer">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".csv"
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-              disabled={loading}
-            />
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition-colors text-center relative cursor-pointer">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".csv,.xls,.xlsx"
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                disabled={loading}
+              />
             <UploadCloud className="w-10 h-10 text-gray-400 mx-auto mb-2" />
             {file ? (
               <div>
@@ -575,8 +785,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               </div>
             ) : (
               <div>
-                <p className="font-semibold text-gray-700">Drag & drop your CSV file here, or click to browse</p>
-                <p className="text-[10px] text-gray-400 mt-1">Upload files ending with .csv format only</p>
+                <p className="font-semibold text-gray-700">Drag & drop your CSV or Excel file here, or click to browse</p>
+                <p className="text-[10px] text-gray-400 mt-1">Upload files ending with .csv, .xls, or .xlsx format</p>
               </div>
             )}
           </div>
@@ -616,7 +826,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           {previewData.length > 0 && !parseError && (
             <div className="space-y-1.5">
               <p className="font-semibold text-gray-700 flex items-center justify-between">
-                <span>CSV Records Preview ({previewData.length} records detected)</span>
+                <span>Records Preview ({previewData.length} records detected)</span>
                 <span className="text-[10px] text-gray-400 font-normal">Previewing up to 5 records</span>
               </p>
               <div className="overflow-x-auto border border-gray-200 rounded">
@@ -722,6 +932,31 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                             <td className="py-2 px-3 text-gray-600 truncate max-w-[150px]" title={row.hodEmail}>{row.hodEmail || '-'}</td>
                             <td className="py-2 px-3 font-mono text-center">{row.establishedYear || '-'}</td>
                             <td className="py-2 px-3 font-mono text-center">{row.phone || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </>
+                  ) : isConsultancy ? (
+                    <>
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200 font-semibold">
+                          <th className="py-2 px-3 whitespace-nowrap">S. No.</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Teacher Consultant</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Project Name</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Agency</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Year</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Revenue (₹ Lakhs)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {previewData.slice(0, 5).map((row, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="py-2 px-3 font-mono">{idx + 1}</td>
+                            <td className="py-2 px-3 font-semibold text-gray-900 truncate max-w-[150px]" title={row.teacherConsultant}>{row.teacherConsultant}</td>
+                            <td className="py-2 px-3 truncate max-w-[150px]" title={row.projectName}>{row.projectName}</td>
+                            <td className="py-2 px-3 truncate max-w-[150px]" title={row.sponsoringAgency}>{row.sponsoringAgency}</td>
+                            <td className="py-2 px-3 font-mono">{row.year}</td>
+                            <td className="py-2 px-3 font-mono font-semibold text-green-700">{row.revenueInLakhs}</td>
                           </tr>
                         ))}
                       </tbody>
