@@ -121,17 +121,47 @@ export function useAcademicHierarchy() {
     return map;
   }, [departments]);
 
+const DEFAULT_DEPARTMENTS = [
+  'AI and Data Science Engineering',
+  'Computer Science and Engineering',
+  'Electronics and Communication Engineering',
+  'Civil Engineering',
+  'Electrical and Electronics Engineering',
+  'Mechanical and Automobile Engineering',
+  'Sciences and Humanities (Engineering)'
+];
+
+const DEFAULT_CAMPUSES = [
+  'Kengeri Campus',
+  'Central Campus',
+  'Bannerghatta Road Campus',
+  'Yeshwanthpur Campus',
+  'Delhi NCR Campus',
+  'Lavasa Campus'
+];
+
+const DEFAULT_SCHOOLS = [
+  'School of Engineering and Technology',
+  'School of Sciences',
+  'School of Commerce, Finance and Accountancy',
+  'School of Business and Management',
+  'School of Law'
+];
+
   // Dropdown list options
   const departmentList = useMemo(() => {
-    return departments.map((d) => d.name);
+    const list = departments.map((d) => d.name);
+    return list.length > 0 ? Array.from(new Set(list)) : DEFAULT_DEPARTMENTS;
   }, [departments]);
 
   const campusList = useMemo(() => {
-    return campuses.map((c) => c.name);
+    const list = campuses.map((c) => c.name);
+    return list.length > 0 ? Array.from(new Set(list)) : DEFAULT_CAMPUSES;
   }, [campuses]);
 
   const schoolList = useMemo(() => {
-    return schools.map((s) => s.name);
+    const list = schools.map((s) => s.name);
+    return list.length > 0 ? Array.from(new Set(list)) : DEFAULT_SCHOOLS;
   }, [schools]);
 
   const programLevelList = useMemo(() => {

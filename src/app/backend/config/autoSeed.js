@@ -16,14 +16,14 @@ const autoSeed = async (sequelize) => {
       // Ignore if table/constraint not present
     }
 
-    // Check if users already exist in the database
-    const userCount = await User.count();
-    if (userCount > 0) {
-      console.log('✓ Database already contains users. Skipping auto-seeding.');
+    // Check if basic academic hierarchy (Departments) already exists in the database
+    const deptCount = await Department.count();
+    if (deptCount > 0) {
+      console.log('✓ Database already contains academic hierarchy/departments.');
       return;
     }
 
-    console.log('Database is empty. Starting automatic database seeding...');
+    console.log('Departments table is empty. Starting automatic database seeding...');
 
     // 1. Create Campus
     const kengeriCampus = await Campus.create({
