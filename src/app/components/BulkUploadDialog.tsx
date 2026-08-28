@@ -859,9 +859,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         ...(isConsultancy ? { department: selectedDepartment } : {})
       };
 
+      const dateKeys = ['dateOfBirth', 'dateOfJoining', 'dob', 'admissionDate', 'eventDate', 'placementDate', 'date'];
       Object.keys(item).forEach(k => {
-        if (item[k] === undefined || item[k] === null || item[k] === '' || String(item[k]).trim() === '') {
-          item[k] = 'NIL';
+        if (dateKeys.includes(k)) {
+          if (!item[k] || String(item[k]).toLowerCase() === 'nil' || String(item[k]).toLowerCase() === 'n/a' || String(item[k]).toLowerCase() === 'invalid date' || String(item[k]).trim() === '') {
+            item[k] = null;
+          }
+        } else {
+          if (item[k] === undefined || item[k] === null || item[k] === '' || String(item[k]).trim() === '') {
+            item[k] = 'NIL';
+          }
         }
       });
 

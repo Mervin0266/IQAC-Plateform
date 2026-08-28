@@ -73,18 +73,46 @@ exports.bulkCreateFaculty = async (req, res) => {
     const created = [];
 
     for (let i = 0; i < facultyList.length; i++) {
-      const record = { ...facultyList[i] };
-      Object.keys(record).forEach(k => {
-        if (k !== 'sNo' && (record[k] === undefined || record[k] === null || record[k] === '' || record[k] === 'N/A' || String(record[k]).trim() === '')) {
-          record[k] = 'NIL';
+      const raw = facultyList[i];
+      const record = { ...raw };
+
+      // Sanitize Date fields: dateOfBirth, dateOfJoining
+      ['dateOfBirth', 'dateOfJoining'].forEach(df => {
+        const val = record[df];
+        if (!val || String(val).toLowerCase() === 'nil' || String(val).toLowerCase() === 'n/a' || String(val).toLowerCase() === 'invalid date' || String(val).trim() === '') {
+          record[df] = null;
+        } else {
+          const d = new Date(val);
+          if (isNaN(d.getTime())) {
+            record[df] = null;
+          } else {
+            record[df] = d.toISOString().split('T')[0];
+          }
         }
       });
+
+      // Sanitize ENUM fields: gender, status
+      if (!record.gender || !['Male', 'Female', 'Other'].includes(String(record.gender).trim())) {
+        record.gender = 'Male';
+      }
+      if (!record.status || !['Active', 'On Sabbatical', 'Relieved'].includes(String(record.status).trim())) {
+        record.status = 'Active';
+      }
+
+      // Fallback string fields to 'NIL'
+      Object.keys(record).forEach(k => {
+        if (!['sNo', 'dateOfBirth', 'dateOfJoining'].includes(k)) {
+          if (record[k] === undefined || record[k] === null || record[k] === '' || record[k] === 'N/A' || String(record[k]).trim() === '') {
+            record[k] = 'NIL';
+          }
+        }
+      });
+
       try {
         const existing = await Faculty.findOne({
           where: { employeeId: record.employeeId }
         });
         if (existing) {
-          // If existing record has no sNo, assign it now
           if (existing.sNo === null || existing.sNo === undefined) {
             record.sNo = nextSNo++;
           } else {
@@ -100,7 +128,10 @@ exports.bulkCreateFaculty = async (req, res) => {
           created.push(fac);
         }
       } catch (err) {
-        errors.push(`Row ${i + 1} (${record.employeeId || 'unknown'}): ${err.message}`);
+        const detail = err.errors && Array.isArray(err.errors)
+          ? err.errors.map(e => e.message || e.path).join(', ')
+          : (err.message || 'Validation error');
+        errors.push(`Row ${i + 1} (${record.employeeId || 'unknown'}): ${detail}`);
       }
     }
 
