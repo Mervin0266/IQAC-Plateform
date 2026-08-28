@@ -9,6 +9,7 @@ import React from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getRoleDisplayName } from '../../config/permissions';
+import { ClearDatabaseButton } from '../ClearDatabaseButton';
 
 interface DashboardHeaderProps {
   loading: boolean;
@@ -40,6 +41,9 @@ export function DashboardHeader({ loading, onRefresh }: DashboardHeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        {user?.role === 'admin' && (
+          <ClearDatabaseButton onSuccess={onRefresh} />
+        )}
         {loading && (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-full border border-blue-100">
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
