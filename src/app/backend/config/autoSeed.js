@@ -6,6 +6,16 @@ const autoSeed = async (sequelize) => {
     await sequelize.sync({ force: false, alter: { drop: false } });
     console.log('✓ Database schema synchronized');
 
+    // Drop legacy unique constraint on students(registerNumber) if present in DB
+    try {
+      await sequelize.query('ALTER TABLE "students" DROP CONSTRAINT IF EXISTS "students_registerNumber_key" CASCADE;');
+      await sequelize.query('ALTER TABLE "students" DROP CONSTRAINT IF EXISTS "students_register_number_key" CASCADE;');
+      await sequelize.query('DROP INDEX IF EXISTS "students_register_number_key";');
+      await sequelize.query('DROP INDEX IF EXISTS "students_registerNumber_key";');
+    } catch (e) {
+      // Ignore if table/constraint not present
+    }
+
     // Check if users already exist in the database
     const userCount = await User.count();
     if (userCount > 0) {

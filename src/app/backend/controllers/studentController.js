@@ -303,6 +303,15 @@ exports.bulkCreateStudent = async (req, res) => {
     const errors = [];
     const created = [];
 
+    // Drop legacy constraint if present in DB
+    try {
+      const { sequelize } = require('../config/database');
+      await sequelize.query('ALTER TABLE "students" DROP CONSTRAINT IF EXISTS "students_registerNumber_key" CASCADE;').catch(() => {});
+      await sequelize.query('ALTER TABLE "students" DROP CONSTRAINT IF EXISTS "students_register_number_key" CASCADE;').catch(() => {});
+      await sequelize.query('DROP INDEX IF EXISTS "students_register_number_key";').catch(() => {});
+      await sequelize.query('DROP INDEX IF EXISTS "students_registerNumber_key";').catch(() => {});
+    } catch (e) {}
+
     for (let i = 0; i < studentList.length; i++) {
       const rawRecord = studentList[i];
       if (!rawRecord || !rawRecord.registerNumber) continue;
@@ -323,8 +332,19 @@ exports.bulkCreateStudent = async (req, res) => {
           await existingYearRecord.update(normalized);
           created.push(existingYearRecord);
         } else {
-          const std = await Student.create(normalized);
-          created.push(std);
+          try {
+            const std = await Student.create(normalized);
+            created.push(std);
+          } catch (createErr) {
+            // Fallback: If duplicate register number exists, update existing record
+            const existingAnyRecord = await Student.findOne({ where: { registerNumber: regNo } });
+            if (existingAnyRecord) {
+              await existingAnyRecord.update(normalized);
+              created.push(existingAnyRecord);
+            } else {
+              throw createErr;
+            }
+          }
         }
       } catch (err) {
         const detail = err.errors && Array.isArray(err.errors)
