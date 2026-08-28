@@ -5,7 +5,8 @@ const {
   createStudent,
   bulkCreateStudent,
   updateStudent,
-  deleteStudent
+  deleteStudent,
+  lookupStudentByRegNo
 } = require('../controllers/studentController');
 const { auth, authorize } = require('../middleware/auth');
 
@@ -17,6 +18,8 @@ router.route('/')
 
 router.route('/bulk')
   .post(authorize('admin', 'coordinator', 'hod'), bulkCreateStudent);
+
+router.get('/lookup/:regNo', lookupStudentByRegNo);
 
 router.route('/:id')
   .put(authorize('admin', 'coordinator', 'hod'), updateStudent)

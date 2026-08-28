@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { BulkUploadDialog } from './BulkUploadDialog';
+import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 
 interface StudentDetailsPageProps {
   onNavigate: (page: string) => void;
@@ -41,6 +42,10 @@ export interface Student {
   phone?: string;
   course?: string;
   department?: string;
+  school?: string;
+  campus?: string;
+  programLevel?: string;
+  academicYear?: string;
   previousSchool?: string;
   gender: string;
   dob?: string;
@@ -63,7 +68,6 @@ export interface Student {
   parentMobileNo?: string;
   handicapped?: string;
   handicappedDescription?: string;
-  campus?: string;
   disability?: string;
 }
 
@@ -103,6 +107,8 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
   // Filters & Search State
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('All');
+  const [academicYearFilter, setAcademicYearFilter] = useState('All');
+  const [programLevelFilter, setProgramLevelFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [sortBy, setSortBy] = useState<string>('registerNumber-asc');
 
@@ -112,19 +118,33 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
+  // Academic Hierarchy hook
+  const { 
+    campusList, 
+    schoolList, 
+    departmentList: departmentsList, 
+    programLevelList,
+    getProgramLevelsForDepartment, 
+    getCoursesByDeptAndLevel 
+  } = useAcademicHierarchy();
+
   // Form State
   const [formData, setFormData] = useState<Omit<Student, 'id'>>({
     registerNumber: '',
     name: '',
     email: '',
     phone: '',
-    course: 'B.Tech Computer Science and Engineering',
+    course: 'BTech in Computer Science and Engineering',
     department: 'Computer Science and Engineering',
+    school: 'School of Engineering and Technology',
+    campus: 'Kengeri Campus',
+    programLevel: 'UG',
+    academicYear: '2024-2025',
     previousSchool: '',
     gender: 'Male',
     dob: '',
     bloodGroup: 'O+',
-    batch: '2022 - 2026',
+    batch: '2024 - 2028',
     admissionDate: '',
     status: 'Active',
     guardianName: '',
@@ -142,19 +162,8 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
     parentMobileNo: '',
     handicapped: 'NO',
     handicappedDescription: 'NIL',
-    campus: 'Kengeri Campus',
     disability: 'NO'
   });
-
-  const departmentsList = [
-    'Computer Science and Engineering',
-    'Artificial Intelligence and Data Science',
-    'Electronics and Communication Engineering',
-    'Electrical and Electronics Engineering',
-    'Mechanical and Automobile Engineering',
-    'Civil Engineering',
-    'Sciences & Humanities'
-  ];
 
   // Filtered Students
   const filteredStudents = students
@@ -163,14 +172,16 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
         student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.registerNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (student.previousSchool && student.previousSchool.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (student.course && student.course.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (student.className && student.className.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (student.campus && student.campus.toLowerCase().includes(searchTerm.toLowerCase()));
 
       const matchesDept = departmentFilter === 'All' || student.department === departmentFilter;
+      const matchesYear = academicYearFilter === 'All' || student.academicYear === academicYearFilter;
+      const matchesLevel = programLevelFilter === 'All' || student.programLevel === programLevelFilter;
       const matchesStatus = statusFilter === 'All' || student.status === statusFilter;
 
-      return matchesSearch && matchesDept && matchesStatus;
+      return matchesSearch && matchesDept && matchesYear && matchesLevel && matchesStatus;
     })
     .sort((a, b) => {
       const [field, order] = sortBy.split('-');
@@ -190,9 +201,66 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       return 0;
     });
 
+  // Dynamic program level breakdown counts for filtered set
+  const programLevelCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredStudents.forEach(s => {
+      const level = s.programLevel || 'UG';
+      counts[level] = (counts[level] || 0) + 1;
+    });
+    return counts;
+  }, [filteredStudents]);
+
+  const [autofillNotice, setAutofillNotice] = useState('');
+
+  const lookupAndAutofillByRegNo = async (regNo: string) => {
+    if (!regNo || regNo.trim().length < 3) return;
+    const cleanReg = regNo.trim();
+
+    // 1. Check local state for any record with matching registerNumber
+    const localMatch = students.find(s => s.registerNumber.toLowerCase() === cleanReg.toLowerCase());
+    let matchedData: Partial<Student> | null = localMatch ? { ...localMatch } : null;
+
+    // 2. Also call backend lookup API
+    if (user?.token) {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students/lookup/${encodeURIComponent(cleanReg)}`, {
+          headers: { 'Authorization': `Bearer ${user.token}` }
+        });
+        const apiRes = await res.json();
+        if (apiRes.success && apiRes.data) {
+          matchedData = { ...matchedData, ...apiRes.data };
+        }
+      } catch (err) {
+        console.error('Lookup API error:', err);
+      }
+    }
+
+    if (matchedData && Object.keys(matchedData).length > 0) {
+      setFormData(prev => {
+        const updated = { ...prev };
+        (Object.keys(matchedData!) as (keyof Student)[]).forEach(k => {
+          if (k !== 'id' && k !== 'academicYear') {
+            const val = matchedData![k];
+            if (val && val !== 'N/A' && val !== 'NIL') {
+              (updated as any)[k] = val;
+            }
+          }
+        });
+        return updated;
+      });
+      setAutofillNotice(`Found existing record for Reg No "${cleanReg}". Known student details auto-mapped across academic years.`);
+      setTimeout(() => setAutofillNotice(''), 5000);
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    if (name === 'registerNumber') {
+      lookupAndAutofillByRegNo(value);
+    }
   };
 
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -352,75 +420,86 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Export CSV</span>
               </Button>
-              <Button 
-                onClick={() => setIsBulkUploadOpen(true)}
-                variant="outline"
-                className="border-gray-300 text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-              >
-                <Upload className="w-4 h-4" />
-                <span className="hidden sm:inline">Upload CSV / Excel</span>
-              </Button>
-              <Button 
-                onClick={() => { resetForm(); setIsAddModalOpen(true); }}
-                className="bg-[#2f4692] hover:bg-[#243a7a] text-white flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add Student
-              </Button>
+              {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
+                <>
+                  <Button 
+                    onClick={() => setIsBulkUploadOpen(true)}
+                    variant="outline"
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span className="hidden sm:inline">Upload CSV / Excel</span>
+                  </Button>
+                  <Button 
+                    onClick={() => { resetForm(); setIsAddModalOpen(true); }}
+                    className="bg-[#2f4692] hover:bg-[#243a7a] text-white flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Student
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-white border-blue-100 shadow-sm">
+            <Card className="bg-white border border-gray-100 border-l-4 border-l-blue-600 shadow-sm hover:shadow-md transition-all duration-300">
               <CardContent className="p-4 flex items-center space-x-4">
                 <div className="p-3 bg-blue-50 rounded-lg text-[#2f4692]">
                   <Users className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 font-medium">Total Registered Students</p>
-                  <p className="text-2xl font-bold text-gray-900">{students.length}</p>
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Students</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-0.5">{filteredStudents.length}</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-white border-green-100 shadow-sm">
+            <Card className="bg-white border border-gray-100 border-l-4 border-l-indigo-600 shadow-sm hover:shadow-md transition-all duration-300">
+              <CardContent className="p-4 flex flex-col justify-center h-full min-h-[76px]">
+                <div className="flex items-center space-x-2 mb-1">
+                  <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600">
+                    <GraduationCap className="w-4 h-4" />
+                  </div>
+                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Program Levels</p>
+                </div>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {Object.entries(programLevelCounts).map(([lvl, count]) => (
+                    <span key={lvl} className="inline-flex items-center text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+                      {lvl}: <span className="font-bold ml-1">{count}</span>
+                    </span>
+                  ))}
+                  {Object.keys(programLevelCounts).length === 0 && (
+                    <p className="text-[10px] text-gray-400 italic">No levels</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border border-gray-100 border-l-4 border-l-emerald-600 shadow-sm hover:shadow-md transition-all duration-300">
               <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-green-50 rounded-lg text-green-600">
+                <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
                   <UserCheck className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 font-medium">Active Enrolled</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {students.filter(s => s.status === 'Active').length}
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Active Enrolled</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-0.5">
+                    {filteredStudents.filter(s => s.status === 'Active').length}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-white border-purple-100 shadow-sm">
+            <Card className="bg-white border border-gray-100 border-l-4 border-l-amber-500 shadow-sm hover:shadow-md transition-all duration-300">
               <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-purple-50 rounded-lg text-purple-600">
+                <div className="p-3 bg-amber-50 rounded-lg text-amber-600">
                   <Building2 className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 font-medium">Departments Covered</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {Array.from(new Set(students.map(s => s.department))).length}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white border-amber-100 shadow-sm">
-              <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-amber-50 rounded-lg text-amber-600">
-                  <School className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Previous Schools Tracked</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {Array.from(new Set(students.map(s => s.previousSchool))).length}
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Departments Covered</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-0.5">
+                    {Array.from(new Set(filteredStudents.map(s => s.department).filter(Boolean))).length}
                   </p>
                 </div>
               </CardContent>
@@ -428,22 +507,34 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
           </div>
 
           {/* Search & Filter Bar */}
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
             <div className="relative flex-1 w-full">
               <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <Input
-                placeholder="Search student name, register no, email, or school..."
+                placeholder="Search student name, register no, department, class..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="pl-9 pr-4 text-sm w-full"
               />
             </div>
 
-            <div className="flex items-center space-x-3 w-full md:w-auto">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <span>Department:</span>
-              </div>
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <select
+                value={academicYearFilter}
+                onChange={e => setAcademicYearFilter(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-1.5 text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+              >
+                <option value="All">All Academic Years</option>
+                <option value="2020-2021">AY 2020-2021</option>
+                <option value="2021-2022">AY 2021-2022</option>
+                <option value="2022-2023">AY 2022-2023</option>
+                <option value="2023-2024">AY 2023-2024</option>
+                <option value="2024-2025">AY 2024-2025</option>
+                <option value="2025-2026">AY 2025-2026</option>
+                <option value="2026-2027">AY 2026-2027</option>
+                <option value="2027-2028">AY 2027-2028</option>
+              </select>
+
               <select
                 value={departmentFilter}
                 onChange={e => setDepartmentFilter(e.target.value)}
@@ -456,14 +547,14 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
               </select>
 
               <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
+                value={programLevelFilter}
+                onChange={e => setProgramLevelFilter(e.target.value)}
                 className="border border-gray-300 rounded-md px-3 py-1.5 text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="All">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Graduated">Graduated</option>
-                <option value="On Leave">On Leave</option>
+                <option value="All">All Levels</option>
+                <option value="UG">UG</option>
+                <option value="PG">PG</option>
+                <option value="PhD">PhD</option>
               </select>
 
               <select
@@ -471,14 +562,10 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                 onChange={e => setSortBy(e.target.value)}
                 className="border border-gray-300 rounded-md px-3 py-1.5 text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-blue-800"
               >
-                <option value="registerNumber-asc">Reg Number (Ascending)</option>
-                <option value="registerNumber-desc">Reg Number (Descending)</option>
+                <option value="registerNumber-asc">Reg No (Ascending)</option>
+                <option value="registerNumber-desc">Reg No (Descending)</option>
                 <option value="name-asc">Name (A-Z)</option>
                 <option value="name-desc">Name (Z-A)</option>
-                <option value="batch-asc">Batch (Oldest First)</option>
-                <option value="batch-desc">Batch (Newest First)</option>
-                <option value="admissionDate-asc">Admission Date (Oldest First)</option>
-                <option value="admissionDate-desc">Admission Date (Newest First)</option>
               </select>
             </div>
           </div>
@@ -489,21 +576,20 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
               <table className="w-full text-left text-sm text-gray-700">
                 <thead className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase">
                   <tr>
-                    <th className="px-4 py-3">Register No</th>
-                    <th className="px-4 py-3">Student Name & Class</th>
+                    <th className="px-4 py-3">Reg No</th>
+                    <th className="px-4 py-3">Student Name</th>
+                    <th className="px-4 py-3">Academic Year</th>
                     <th className="px-4 py-3">Department</th>
-                    <th className="px-4 py-3">Campus</th>
-                    <th className="px-4 py-3">Batch</th>
-                    <th className="px-4 py-3">Disability</th>
-                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Class</th>
+                    <th className="px-4 py-3 text-center">Program Level</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredStudents.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">
-                        No student records found matching search filters.
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">
+                        No student records found matching search & filter criteria.
                       </td>
                     </tr>
                   ) : (
@@ -512,40 +598,29 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                         <td className="px-4 py-3 font-medium text-gray-900 font-mono text-xs">
                           {student.registerNumber}
                         </td>
-                        <td className="px-4 py-3">
-                          <p className="font-semibold text-gray-900">{student.name}</p>
-                          <div className="flex items-center space-x-3 text-xs text-gray-500 mt-0.5">
-                            <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-medium">{student.className || 'No Class'}</span>
-                            <span>App No: {student.applicationNo || '-'}</span>
-                          </div>
+                        <td className="px-4 py-3 font-semibold text-gray-900">
+                          {student.name}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-medium text-indigo-700">
+                          <span className="bg-indigo-50 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-indigo-100">
+                            {student.academicYear || '2024-2025'}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-700">
                           {student.department || '-'}
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-700">
-                          {student.campus || '-'}
+                        <td className="px-4 py-3 text-xs font-medium text-gray-800">
+                          {student.className || '-'}
                         </td>
-                        <td className="px-4 py-3 text-xs font-mono text-gray-600">
-                          {student.batch || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-xs">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-medium inline-block ${
-                            student.disability === 'YES' || student.handicapped === 'YES'
-                              ? 'bg-rose-100 text-rose-700'
-                              : 'bg-gray-100 text-gray-600'
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-block px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide ${
+                            student.programLevel === 'PG'
+                              ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                              : student.programLevel === 'PhD'
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                              : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
                           }`}>
-                            Disability: {student.disability || 'NO'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2.5 py-1 rounded-full text-[11px] font-medium inline-block ${
-                            student.status === 'Active'
-                              ? 'bg-green-100 text-green-700'
-                              : student.status === 'Graduated'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {student.status}
+                            {student.programLevel || 'UG'}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right space-x-2">
@@ -556,20 +631,24 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => setEditingStudent(student)}
-                            className="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
-                            title="Edit Details"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(student.id)}
-                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                            title="Delete Student"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
+                            <>
+                              <button
+                                onClick={() => setEditingStudent(student)}
+                                className="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
+                                title="Edit Details"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(student.id)}
+                                className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                title="Delete Student"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -592,23 +671,97 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
               <X className="w-5 h-5" />
             </button>
 
-            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-[#2f4692]" /> Add New Student Record
-            </h2>
+            {autofillNotice && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-lg flex items-center gap-2 text-xs mb-4">
+                <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>{autofillNotice}</span>
+              </div>
+            )}
 
             <form onSubmit={handleAddSubmit} className="space-y-6">
               {/* Section 1: Academic Info */}
               <div className="space-y-4">
-                <h4 className="font-bold text-xs text-[#2f4692] border-b pb-1">Academic Information</h4>
+                <h4 className="font-bold text-xs text-[#2f4692] border-b pb-1">Academic Information & Hierarchy</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year *</label>
+                    <select name="academicYear" value={formData.academicYear || '2024-2025'} onChange={handleInputChange} className="w-full border border-gray-300 rounded-md p-2 text-xs bg-white font-medium">
+                      <option value="2020-2021">2020-2021</option>
+                      <option value="2021-2022">2021-2022</option>
+                      <option value="2022-2023">2022-2023</option>
+                      <option value="2023-2024">2023-2024</option>
+                      <option value="2024-2025">2024-2025</option>
+                      <option value="2025-2026">2025-2026</option>
+                      <option value="2026-2027">2026-2027</option>
+                      <option value="2027-2028">2027-2028</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Register Number *</label>
-                    <Input name="registerNumber" value={formData.registerNumber} onChange={handleInputChange} required placeholder="e.g. 2130109" />
+                    <Input name="registerNumber" value={formData.registerNumber} onChange={handleInputChange} required placeholder="e.g. 2460301" />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Student Full Name *</label>
-                    <Input name="name" value={formData.name} onChange={handleInputChange} required placeholder="e.g. Rahul Verma" />
+                    <Input name="name" value={formData.name} onChange={handleInputChange} required placeholder="e.g. Aarav Sharma" />
                   </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Campus</label>
+                    <select name="campus" value={formData.campus || ''} onChange={handleInputChange} className="w-full border border-gray-300 rounded-md p-2 text-xs bg-white">
+                      {campusList.map((c, i) => <option key={i} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">School</label>
+                    <select name="school" value={formData.school || ''} onChange={handleInputChange} className="w-full border border-gray-300 rounded-md p-2 text-xs bg-white">
+                      {schoolList.map((s, i) => <option key={i} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Department *</label>
+                    <select name="department" value={formData.department || ''} onChange={handleInputChange} className="w-full border border-gray-300 rounded-md p-2 text-xs bg-white">
+                      {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Program Level *</label>
+                    <select 
+                      name="programLevel" 
+                      value={formData.programLevel || 'UG'} 
+                      onChange={handleInputChange} 
+                      className="w-full border border-gray-300 rounded-md p-2 text-xs bg-white"
+                    >
+                      {getProgramLevelsForDepartment(formData.department || '').map((l) => (
+                        <option key={l.id} value={l.code}>{l.name} ({l.code})</option>
+                      ))}
+                      {getProgramLevelsForDepartment(formData.department || '').length === 0 && (
+                        <>
+                          <option value="UG">Undergraduate (UG)</option>
+                          <option value="PG">Postgraduate (PG)</option>
+                          <option value="PhD">Doctoral (PhD)</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Course / Program *</label>
+                    <select 
+                      name="course" 
+                      value={formData.course || ''} 
+                      onChange={handleInputChange} 
+                      className="w-full border border-gray-300 rounded-md p-2 text-xs bg-white"
+                    >
+                      {getCoursesByDeptAndLevel(formData.department || '', formData.programLevel || 'UG').map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                      {getCoursesByDeptAndLevel(formData.department || '', formData.programLevel || 'UG').length === 0 && (
+                        <option value={formData.course}>{formData.course || 'Select Program'}</option>
+                      )}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Class Name</label>
                     <Input name="className" value={formData.className || ''} onChange={handleInputChange} placeholder="e.g. 3A B.Tech CSE" />
@@ -616,20 +769,6 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Application No</label>
                     <Input name="applicationNo" value={formData.applicationNo || ''} onChange={handleInputChange} placeholder="e.g. APP12345" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Campus</label>
-                    <Input name="campus" value={formData.campus || ''} onChange={handleInputChange} placeholder="e.g. Kengeri Campus" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Department</label>
-                    <select name="department" value={formData.department || ''} onChange={handleInputChange} className="w-full border border-gray-300 rounded-md p-2 text-xs bg-white">
-                      {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Batch Year</label>
-                    <Input name="batch" value={formData.batch || ''} onChange={handleInputChange} placeholder="e.g. 2022 - 2026" />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Enrollment Status</label>
@@ -777,8 +916,8 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                     <p className="font-semibold text-gray-900 mt-0.5">{viewingStudent.campus || '-'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-400 font-medium">Batch</p>
-                    <p className="font-semibold text-gray-900 mt-0.5 font-mono">{viewingStudent.batch || '-'}</p>
+                    <p className="text-gray-400 font-medium">Academic Year</p>
+                    <p className="font-semibold text-indigo-700 mt-0.5 font-mono">{viewingStudent.academicYear || '2024-2025'}</p>
                   </div>
                   <div>
                     <p className="text-gray-400 font-medium">Registration Number</p>

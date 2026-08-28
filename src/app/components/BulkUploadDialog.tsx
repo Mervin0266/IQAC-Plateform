@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info } from 'lucide-react';
+import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 
 const formatDateToISO = (dateStr: string): string | null => {
   if (!dateStr) return null;
@@ -63,7 +64,7 @@ interface BulkUploadDialogProps {
   onClose: () => void;
   token: string;
   onSuccess: () => void;
-  uploadType?: 'achievements' | 'placements' | 'faculty' | 'students' | 'departments' | 'consultancy';
+  uploadType?: 'achievements' | 'placements' | 'faculty' | 'students' | 'departments' | 'consultancy' | 'departmental-activities';
 }
 
 const CONSULTANCY_HEADERS = [
@@ -117,13 +118,85 @@ const STUDENT_HEADERS = [
   'Campus',
   'Disability: (YES/NO)',
   'Department',
-  'Batch'
+  'Program Level'
 ];
 
 const STUDENT_REQUIRED = [
   'Register No',
   'Student Name'
 ];
+
+const DEPARTMENTAL_ACTIVITY_HEADERS = [
+  'Academic Year',
+  'Campus',
+  'School',
+  'Department',
+  'Activity Category',
+  'Title',
+  'Report Details',
+  'Event Date',
+  'Status',
+  'Pending Notes'
+];
+
+const DEPARTMENTAL_ACTIVITY_REQUIRED = [
+  'Department',
+  'Activity Category',
+  'Title'
+];
+
+const DEPARTMENTAL_ACTIVITY_MATRIX_HEADERS = [
+  'No. of Departments',
+  'Faculty Development Activities',
+  'Seminar / Talks/ Training Programs',
+  'Club Association',
+  'Seminar/ Conference/ Guest Talks',
+  'Awards and Recognitions',
+  'Workshops and Skill Development',
+  'Student Development Programme',
+  'Industrial Visit',
+  'Social Outreach Program',
+  'Guest Lectures',
+  'Memorandum of Understanding',
+  'Extension Activity',
+  'Student Publications',
+  'Best Practices',
+  'SDG Related Events',
+  'Departmental Events',
+  'Pending'
+];
+
+const normalizeDeptName = (raw: string): string => {
+  const str = raw.trim().toLowerCase();
+  if (str.includes('ai') || str.includes('data science')) return 'AI and Data Science Engineering';
+  if (str.includes('civil')) return 'Civil Engineering';
+  if (str.includes('computer science') || str.includes('cse')) return 'Computer Science and Engineering';
+  if (str.includes('electrical')) return 'Electrical and Electronics Engineering';
+  if (str.includes('electronics') || str.includes('ece')) return 'Electronics and Communication Engineering';
+  if (str.includes('mechanical') || str.includes('auto')) return 'Mechanical and Automobile Engineering';
+  if (str.includes('science') || str.includes('humanities')) return 'Science and Humanities (Engineering)';
+  return raw.trim();
+};
+
+const normalizeCategoryHeader = (header: string): string => {
+  const h = header.toLowerCase().trim();
+  if (h.includes('faculty dev')) return 'Faculty Development Activities';
+  if (h.includes('seminar') && h.includes('talks')) return 'Seminar / Talks / Training Program';
+  if (h.includes('club') || h.includes('cash association')) return 'Club Association';
+  if (h.includes('seminar') || h.includes('conference')) return 'Seminar / Conference / Guest Talks';
+  if (h.includes('award') || h.includes('recognition')) return 'Awards and Recognitions';
+  if (h.includes('workshop') || h.includes('skill')) return 'Workshops and Skill Development';
+  if (h.includes('student dev')) return 'Student Development Program';
+  if (h.includes('industrial visit') || h.includes('inndustrial')) return 'Industrial Visit';
+  if (h.includes('social outreach')) return 'Social Outreach Program';
+  if (h.includes('guest lecture')) return 'Guest Lectures';
+  if (h.includes('memorandum') || h.includes('mou') || h.includes('understanding')) return 'Memorandum of Understanding';
+  if (h.includes('extension')) return 'Extension Activity';
+  if (h.includes('publication')) return 'Student Publications';
+  if (h.includes('best practice')) return 'Best Practices';
+  if (h.includes('sdg')) return 'SDG Related Events';
+  return header.trim();
+};
 
 // ---- Faculty CSV column definitions ----
 const FACULTY_HEADERS = [
@@ -157,15 +230,22 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const [successMsg, setSuccessMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Department selection for consultancy
-  const FIXED_DEPARTMENTS = ['CSE', 'ECE', 'EEE', 'CIVIL', 'MECH'];
+  const { campusList, schoolList, departments } = useAcademicHierarchy();
+  const FIXED_DEPARTMENTS = React.useMemo(() => {
+    return departments.map(d => d.code).filter(Boolean);
+  }, [departments]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>('2024-2025');
+  const [selectedCampus, setSelectedCampus] = useState<string>('Kengeri Campus');
+  const [selectedSchool, setSelectedSchool] = useState<string>('School of Engineering and Technology');
 
   const isPlacement = uploadType === 'placements';
   const isFaculty = uploadType === 'faculty';
   const isStudent = uploadType === 'students';
   const isDepartment = uploadType === 'departments';
   const isConsultancy = uploadType === 'consultancy';
+  const isDepartmentalActivity = uploadType === 'departmental-activities';
 
   const resetState = () => {
     setFile(null);
@@ -175,6 +255,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     setUploadErrorsList([]);
     setSuccessMsg('');
     setSelectedDepartment('');
+    setSelectedAcademicYear('2024-2025');
+    setSelectedCampus('Kengeri Campus');
+    setSelectedSchool('School of Engineering and Technology');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -204,8 +287,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isStudent) {
       csvContent =
         STUDENT_HEADERS.join(',') + '\n' +
-        `"2310101","John Doe","3A B.Tech CSE","APP12345","Male",2002-04-12,"9876543210","Indian","General","Bengaluru","Karnataka","Bengaluru","Karnataka","9876543211","NO","NIL","Kengeri Campus","NO","Computer Science and Engineering","2022 - 2026"\n` +
-        `"2310102","Jane Smith","5C B.Tech ECE","APP12346","Female",2003-09-25,"9876543212","Indian","General","Bengaluru","Karnataka","Mysuru","Karnataka","9876543213","NO","NIL","Kengeri Campus","NO","Electronics and Communication Engineering","2022 - 2026"`;
+        `"2460301","Aarav Sharma","3A B.Tech CSE","APP12345","Male","2002-04-12","9876543210","Indian","General","Bengaluru","Karnataka","Bengaluru","Karnataka","9876543211","NO","NIL","Kengeri Campus","NO","Computer Science and Engineering","UG"\n` +
+        `"2460302","Ananya Rao","3B B.Tech ADSE","APP12346","Female","2003-09-25","9876543212","Indian","General","Bengaluru","Karnataka","Mysuru","Karnataka","9876543213","NO","NIL","Kengeri Campus","NO","AI and Data Science Engineering","UG"\n` +
+        `"2560301","Diya Patel","Research Scholar","APP12347","Female","1998-11-15","9876543214","Indian","General","Bengaluru","Karnataka","Hubballi","Karnataka","9876543215","NO","NIL","Kengeri Campus","NO","Civil Engineering","PhD"`;
       fileName = 'students_bulk_template.csv';
     } else if (isDepartment) {
       csvContent =
@@ -216,9 +300,26 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isPlacement) {
       csvContent =
         "Register Number,Name,AY (Academic Year),Department,Course,Company,Package\n" +
-        "\"2310101\",\"Amit Sharma\",\"2023-24\",\"Computer Science and Engineering\",\"B.Tech CSE\",\"Google\",12.50\n" +
-        "\"2310102\",\"Neha Gupta\",\"2023-24\",\"Electronics and Communication Engineering\",\"B.Tech ECE\",\"Samsung\",800000";
+        "\"2460301\",\"Aarav Sharma\",\"2024-2025\",\"Computer Science and Engineering\",\"BTech in Computer Science and Engineering\",\"Google\",12.50\n" +
+        "\"2460302\",\"Ananya Rao\",\"2024-2025\",\"AI and Data Science Engineering\",\"BTech (Artificial Intelligence and Machine Learning)\",\"Samsung\",8.50";
       fileName = 'placements_bulk_template.csv';
+    } else if (isPlacement) {
+      csvContent =
+        "Register Number,Name,AY (Academic Year),Department,Course,Company,Package\n" +
+        "\"2460301\",\"Aarav Sharma\",\"2024-2025\",\"Computer Science and Engineering\",\"BTech in Computer Science and Engineering\",\"Google\",12.50\n" +
+        "\"2460302\",\"Ananya Rao\",\"2024-2025\",\"AI and Data Science Engineering\",\"BTech (Artificial Intelligence and Machine Learning)\",\"Samsung\",8.50";
+      fileName = 'placements_bulk_template.csv';
+    } else if (isDepartmentalActivity) {
+      csvContent =
+        DEPARTMENTAL_ACTIVITY_MATRIX_HEADERS.map(h => `"${h}"`).join(',') + '\n' +
+        `"AI and Data Science Engineering","Reports 2025","Reports 2025","-","-","-","-","Reports 2025","Reports 2025","-","-","2 MoUs 2025","Reports 2025-2026","Reports 2025-26","-","-","No Events found","Extension Activity - Reports 2026\nStudent Publications - 2026"\n` +
+        `"Civil Engineering","-","-","-","Reports 2017 to Reports 2020","-","Reports 2015 to Reports 2024","-","Reports 2010, Reports 2019","-","-","-","-","-","-","-","No Events found","Workshops and Skill Development - Reports 2020\nIndustrial Visit - Reports 2017, Reports 2020"\n` +
+        `"Computer Science and Engineering","Reports 2015 to Reports 2025","Reports 2015 to Reports 2025","-","-","Reports 2021-2022, Reports 2022-2023","-","Reports 2015 to Reports 2025","Reports 2015-18, Reports 2025","-","-","Compiled MoUs","Reports 2025-2026","Reports 2025-2026","-","-","No Events found","Student Development Programme - Reports 2017, Reports 2018"\n` +
+        `"Electrical and Electronics Engineering","Reports 2017, Reports 2020","Reports 2016, Reports 2026","-","-","-","-","Reports 2010, Reports 2026","Reports 2018, Reports 2025","-","-","-","-","-","Reports 2025","Reports 2024, Reports 2025","Updated","Faculty Development Activities - Reports 2018\nSeminar/Talks/Training Programs - Reports 2017"\n` +
+        `"Electronics and Communication Engineering","Reports 2015 to Reports 2025","Reports 2018 to Reports 2025","-","-","-","-","Reports 2016 to Reports 2025","2022-2025","-","-","-","-","-","-","-","No Events found","Faculty Development Activities - Reports 2022\nStudent Development Programme - Reports 2021"\n` +
+        `"Mechanical and Automobile Engineering","Reports 2015 to Reports 2025","Reports 2018 to Reports 2025","-","-","-","-","Reports 2018 to Reports 2025","Reports 2023, Reports 2025","-","-","-","-","-","-","-","Updated","Faculty Development Activities - Reports 2026"\n` +
+        `"Science and Humanities (Engineering)","Reports 2024 to Reports 2026","Reports 2023 to Reports 2026","Reports 2024-25","-","-","-","-","Reports 2024-25","Reports 2025-26","Reports 2025","-","-","-","-","-","No Events found",""`;
+      fileName = 'departmental_activities_matrix_template.csv';
     } else {
       csvContent =
         "title,category,date,year,description,subcategory,achieverType,rank,score,organization,location,participants,impact,status\n" +
@@ -259,8 +360,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isStudent) {
       headers = STUDENT_HEADERS;
       sampleRows = [
-        ['2310101', 'John Doe', '3A B.Tech CSE', 'APP12345', 'Male', '2002-04-12', '9876543210', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Bengaluru', 'Karnataka', '9876543211', 'NO', 'NIL', 'Kengeri Campus', 'NO', 'Computer Science and Engineering', '2022 - 2026'],
-        ['2310102', 'Jane Smith', '5C B.Tech ECE', 'APP12346', 'Female', '2003-09-25', '9876543212', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Mysuru', 'Karnataka', '9876543213', 'NO', 'NIL', 'Kengeri Campus', 'NO', 'Electronics and Communication Engineering', '2022 - 2026']
+        ['2460301', 'Aarav Sharma', '3A B.Tech CSE', 'APP12345', 'Male', '2002-04-12', '9876543210', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Bengaluru', 'Karnataka', '9876543211', 'NO', 'NIL', 'Kengeri Campus', 'NO', 'Computer Science and Engineering', 'UG'],
+        ['2460302', 'Ananya Rao', '3B B.Tech ADSE', 'APP12346', 'Female', '2003-09-25', '9876543212', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Mysuru', 'Karnataka', '9876543213', 'NO', 'NIL', 'Kengeri Campus', 'NO', 'AI and Data Science Engineering', 'UG'],
+        ['2560301', 'Diya Patel', 'Research Scholar', 'APP12347', 'Female', '1998-11-15', '9876543214', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Hubballi', 'Karnataka', '9876543215', 'NO', 'NIL', 'Kengeri Campus', 'NO', 'Civil Engineering', 'PhD']
       ];
       fileName = 'students_bulk_template.xlsx';
     } else if (isDepartment) {
@@ -273,10 +375,22 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isPlacement) {
       headers = ['Register Number', 'Name', 'AY (Academic Year)', 'Department', 'Course', 'Company', 'Package'];
       sampleRows = [
-        ['2310101', 'Amit Sharma', '2023-24', 'Computer Science and Engineering', 'B.Tech CSE', 'Google', 12.50],
-        ['2310102', 'Neha Gupta', '2023-24', 'Electronics and Communication Engineering', 'B.Tech ECE', 'Samsung', 800000]
+        ['2460301', 'Aarav Sharma', '2024-2025', 'Computer Science and Engineering', 'BTech in Computer Science and Engineering', 'Google', 12.50],
+        ['2460302', 'Ananya Rao', '2024-2025', 'AI and Data Science Engineering', 'BTech (Artificial Intelligence and Machine Learning)', 'Samsung', 8.50]
       ];
       fileName = 'placements_bulk_template.xlsx';
+    } else if (isDepartmentalActivity) {
+      headers = DEPARTMENTAL_ACTIVITY_MATRIX_HEADERS;
+      sampleRows = [
+        ['AI and Data Science Engineering', 'Reports 2025', 'Reports 2025', '-', '-', '-', '-', 'Reports 2025', 'Reports 2025', '-', '-', '2 MoUs 2025', 'Reports 2025-2026', 'Reports 2025-26', '-', '-', 'No Events found', 'Extension Activity - Reports 2026\nStudent Publications - 2026'],
+        ['Civil Engineering', '-', '-', '-', 'Reports 2017 to Reports 2020', '-', 'Reports 2015 to Reports 2024', '-', 'Reports 2010, Reports 2019', '-', '-', '-', '-', '-', '-', '-', 'No Events found', 'Workshops and Skill Development - Reports 2020\nIndustrial Visit - Reports 2017, Reports 2020'],
+        ['Computer Science and Engineering', 'Reports 2015 to Reports 2025', 'Reports 2015 to Reports 2025', '-', '-', 'Reports 2021-2022, Reports 2022-2023', '-', 'Reports 2015 to Reports 2025', 'Reports 2015-18, Reports 2025', '-', '-', 'Compiled MoUs', 'Reports 2025-2026', 'Reports 2025-2026', '-', '-', 'No Events found', 'Student Development Programme - Reports 2017, Reports 2018'],
+        ['Electrical and Electronics Engineering', 'Reports 2017, Reports 2020', 'Reports 2016, Reports 2026', '-', '-', '-', '-', 'Reports 2010, Reports 2026', 'Reports 2018, Reports 2025', '-', '-', '-', '-', '-', 'Reports 2025', 'Reports 2024, Reports 2025', 'Updated', 'Faculty Development Activities - Reports 2018\nSeminar/Talks/Training Programs - Reports 2017'],
+        ['Electronics and Communication Engineering', 'Reports 2015 to Reports 2025', 'Reports 2018 to Reports 2025', '-', '-', '-', '-', 'Reports 2016 to Reports 2025', '2022-2025', '-', '-', '-', '-', '-', '-', '-', 'No Events found', 'Faculty Development Activities - Reports 2022\nStudent Development Programme - Reports 2021'],
+        ['Mechanical and Automobile Engineering', 'Reports 2015 to Reports 2025', 'Reports 2018 to Reports 2025', '-', '-', '-', '-', 'Reports 2018 to Reports 2025', 'Reports 2023, Reports 2025', '-', '-', '-', '-', '-', '-', '-', 'Updated', 'Faculty Development Activities - Reports 2026'],
+        ['Science and Humanities (Engineering)', 'Reports 2024 to Reports 2026', 'Reports 2023 to Reports 2026', 'Reports 2024-25', '-', '-', '-', '-', 'Reports 2024-25', 'Reports 2025-26', 'Reports 2025', '-', '-', '-', '-', '-', 'No Events found', '']
+      ];
+      fileName = 'departmental_activities_matrix_template.xlsx';
     } else {
       headers = ['title', 'category', 'date', 'year', 'description', 'subcategory', 'achieverType', 'rank', 'score', 'organization', 'location', 'participants', 'impact', 'status'];
       sampleRows = [
@@ -445,6 +559,88 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       const missingOthers = reqOthers.filter(field => !headers.includes(field));
       if (!hasAY) missingOthers.push('AY (Academic Year)');
       missing = missingOthers;
+    } else if (isDepartmentalActivity) {
+      const isMatrixFormat = headers.some(h => {
+        const lh = h.toLowerCase().trim();
+        return (
+          lh.includes('department') ||
+          lh.includes('faculty dev') ||
+          lh.includes('seminar') ||
+          lh.includes('workshop') ||
+          lh.includes('industrial') ||
+          lh.includes('pending')
+        );
+      }) && !headers.includes('Title') && !headers.includes('title');
+
+      if (isMatrixFormat) {
+        const records: any[] = [];
+
+        for (let i = 1; i < allRows.length; i++) {
+          const rowValues = allRows[i];
+          if (rowValues.every(v => v === '')) continue;
+
+          const rawDept = (rowValues[0] || '').trim();
+          if (!rawDept) continue;
+          const department = normalizeDeptName(rawDept);
+
+          headers.forEach((header, colIdx) => {
+            if (colIdx === 0) return;
+            const cellVal = (rowValues[colIdx] || '').trim();
+            if (!cellVal || cellVal === '-' || cellVal.toLowerCase() === 'nil') return;
+
+            const lowerHeader = header.toLowerCase().trim();
+
+            if (lowerHeader.includes('pending')) {
+              const notes = cellVal.split(/\r?\n|;/).map(n => n.trim()).filter(n => n && n !== '-');
+              notes.forEach(note => {
+                let cat = 'Extension Activity';
+                if (note.toLowerCase().includes('faculty')) cat = 'Faculty Development Activities';
+                else if (note.toLowerCase().includes('seminar') || note.toLowerCase().includes('talks')) cat = 'Seminar / Talks / Training Program';
+                else if (note.toLowerCase().includes('workshop')) cat = 'Workshops and Skill Development';
+                else if (note.toLowerCase().includes('student dev')) cat = 'Student Development Program';
+                else if (note.toLowerCase().includes('industrial') || note.toLowerCase().includes('visit')) cat = 'Industrial Visit';
+                else if (note.toLowerCase().includes('publication')) cat = 'Student Publications';
+
+                records.push({
+                  academicYear: selectedAcademicYear,
+                  campus: selectedCampus,
+                  school: selectedSchool,
+                  department,
+                  activityCategory: cat,
+                  title: note,
+                  reportDetails: note,
+                  status: 'Pending',
+                  pendingNotes: note
+                });
+              });
+            } else if (lowerHeader.includes('departmental events')) {
+              // Status column, ignore
+            } else {
+              const cat = normalizeCategoryHeader(header);
+              records.push({
+                academicYear: selectedAcademicYear,
+                campus: selectedCampus,
+                school: selectedSchool,
+                department,
+                activityCategory: cat,
+                title: `${cat} - ${cellVal}`,
+                reportDetails: cellVal,
+                status: 'Completed'
+              });
+            }
+          });
+        }
+
+        if (records.length === 0) {
+          setParseError('No activity records or pending reports detected in the uploaded matrix spreadsheet.');
+          return;
+        }
+
+        setPreviewData(records);
+        return;
+      }
+
+      missing = DEPARTMENTAL_ACTIVITY_REQUIRED.filter(field => !headers.includes(field));
     } else {
       const required = ['title', 'category', 'date', 'year'];
       missing = required.filter(field => !headers.includes(field));
@@ -509,9 +705,13 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           } else if (isStudent) {
             // Map CSV headers to student backend field names
             switch (header) {
-              case 'Register No':              record['registerNumber'] = val || 'NIL'; break;
-              case 'Student Name':             record['name'] = val || 'NIL'; break;
-              case 'Class Name':               record['className'] = val || 'NIL'; record['course'] = val || 'NIL'; break;
+              case 'Register No':              record['registerNumber'] = val; break;
+              case 'Student Name':             record['name'] = val; break;
+              case 'Academic Year':            record['academicYear'] = val || '2024-2025'; break;
+              case 'School':                   record['school'] = val || 'School of Engineering and Technology'; break;
+              case 'Program Level':            record['programLevel'] = val || 'UG'; break;
+              case 'Course':                   record['course'] = val || 'NIL'; break;
+              case 'Class Name':               record['className'] = val || 'NIL'; break;
               case 'Application No':           record['applicationNo'] = val || 'NIL'; break;
               case 'Gender':                   record['gender'] = normalizeGender(val) || 'Male'; break;
               case 'Date Of Birth':            record['dob'] = formatDateToISO(val); break;
@@ -567,6 +767,20 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             } else {
               record[header] = val;
             }
+          } else if (isDepartmentalActivity) {
+            switch (header) {
+              case 'Academic Year':     record['academicYear'] = val; break;
+              case 'Campus':            record['campus'] = val; break;
+              case 'School':            record['school'] = val; break;
+              case 'Department':        record['department'] = val; break;
+              case 'Activity Category': record['activityCategory'] = val; break;
+              case 'Title':             record['title'] = val; break;
+              case 'Report Details':    record['reportDetails'] = val; break;
+              case 'Event Date':        record['eventDate'] = val; break;
+              case 'Status':            record['status'] = val || 'Completed'; break;
+              case 'Pending Notes':     record['pendingNotes'] = val; break;
+              default: record[header] = val;
+            }
           } else {
             record[header] = val;
           }
@@ -574,10 +788,17 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       });
 
       if (isPlacement) {
-        if (!record.role) record.role = 'Not Specified';
+        if (!record.role) record.role = 'NIL';
         if (!record.placementType) record.placementType = 'placement';
         if (!record.placementDate) record.placementDate = new Date().toISOString().split('T')[0];
       }
+
+      // Default any missing, null, or empty string values to 'NIL'
+      Object.keys(record).forEach(k => {
+        if (record[k] === undefined || record[k] === null || record[k] === '' || String(record[k]).trim() === '') {
+          record[k] = 'NIL';
+        }
+      });
 
       records.push(record);
     }
@@ -611,34 +832,45 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     setUploadErrorsList([]);
 
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    const endpoint = isConsultancy
-      ? `${baseUrl}/api/consultancy-projects/bulk`
-      : isFaculty
-        ? `${baseUrl}/api/faculty/bulk`
-        : isPlacement
-          ? `${baseUrl}/api/placements/bulk`
-          : isStudent
-            ? `${baseUrl}/api/students/bulk`
-            : isDepartment
-              ? `${baseUrl}/api/departments/bulk`
-              : `${baseUrl}/api/achievements/bulk`;
+    const endpoint = isDepartmentalActivity
+      ? `${baseUrl}/api/departmental-activities/bulk`
+      : isConsultancy
+        ? `${baseUrl}/api/consultancy-projects/bulk`
+        : isFaculty
+          ? `${baseUrl}/api/faculty/bulk`
+          : isPlacement
+            ? `${baseUrl}/api/placements/bulk`
+            : isStudent
+              ? `${baseUrl}/api/students/bulk`
+              : isDepartment
+                ? `${baseUrl}/api/departments/bulk`
+                : `${baseUrl}/api/achievements/bulk`;
 
-    // For consultancy, add the selected department to each record
-    const dataWithDepartment = isConsultancy
-      ? previewData.map(record => ({ ...record, department: selectedDepartment }))
-      : previewData;
+    // Enrich preview records with common batch metadata selected in the upload dialog
+    const dataWithCommonFields = previewData.map(record => ({
+      academicYear: selectedAcademicYear,
+      campus: selectedCampus,
+      school: selectedSchool,
+      ...record,
+      ...(record.academicYear ? {} : { academicYear: selectedAcademicYear }),
+      ...(record.campus ? {} : { campus: selectedCampus }),
+      ...(record.school ? {} : { school: selectedSchool }),
+      ...(isConsultancy ? { department: selectedDepartment } : {})
+    }));
 
-    const bodyPayload = isConsultancy
-      ? { consultancyProjects: dataWithDepartment }
-      : isFaculty
-        ? { faculty: previewData }
-        : isPlacement
-          ? { placements: previewData }
-          : isStudent
-            ? { students: previewData }
-            : isDepartment
-              ? { departments: previewData }
-              : { achievements: previewData };
+    const bodyPayload = isDepartmentalActivity
+      ? { activities: dataWithCommonFields }
+      : isConsultancy
+        ? { consultancyProjects: dataWithCommonFields }
+        : isFaculty
+          ? { faculty: dataWithCommonFields }
+          : isPlacement
+            ? { placements: dataWithCommonFields }
+            : isStudent
+              ? { students: dataWithCommonFields }
+              : isDepartment
+                ? { departments: dataWithCommonFields }
+                : { achievements: dataWithCommonFields };
 
     try {
       const response = await fetch(endpoint, {
@@ -710,7 +942,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                  </p>
                ) : isStudent ? (
                   <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[10px]">
-                    Register No**, Student Name**, Class Name, Application No, Gender, Date Of Birth, Mobile No, Nationality, Caste, Current City, Current State, Permanent City, Permanent State, Parent Mobile No, Handicapped, Handicapped Description, Campus, Disability: (YES/NO), Department, Batch
+                    Register No**, Student Name**, Class Name, Application No, Gender, Date Of Birth, Mobile No, Nationality, Caste, Current City, Current State, Permanent City, Permanent State, Parent Mobile No, Handicapped, Handicapped Description, Campus, Disability: (YES/NO), Department, Program Level
                   </p>
                ) : isDepartment ? (
                  <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
@@ -743,6 +975,62 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Common Upload Metadata (Academic Year, Campus, School) */}
+          <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+            <h4 className="font-semibold text-xs text-[#2f4692] uppercase tracking-wider flex items-center gap-1.5">
+              <FileSpreadsheet className="w-4 h-4 text-[#2f4692]" />
+              Common Upload Metadata (Applied to all records in this file)
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year <span className="text-red-500">*</span></label>
+                <select
+                  value={selectedAcademicYear}
+                  onChange={(e) => setSelectedAcademicYear(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 font-medium focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="2020-2021">2020-2021</option>
+                  <option value="2021-2022">2021-2022</option>
+                  <option value="2022-2023">2022-2023</option>
+                  <option value="2023-2024">2023-2024</option>
+                  <option value="2024-2025">2024-2025</option>
+                  <option value="2025-2026">2025-2026</option>
+                  <option value="2026-2027">2026-2027</option>
+                  <option value="2027-2028">2027-2028</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Campus <span className="text-red-500">*</span></label>
+                <select
+                  value={selectedCampus}
+                  onChange={(e) => setSelectedCampus(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
+                >
+                  {campusList.map((c, i) => (
+                    <option key={i} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">School <span className="text-red-500">*</span></label>
+                <select
+                  value={selectedSchool}
+                  onChange={(e) => setSelectedSchool(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
+                >
+                  {schoolList.map((s, i) => (
+                    <option key={i} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500 italic">
+              All records in this bulk file will automatically inherit these Academic Year, Campus, and School selections.
+            </p>
           </div>
 
           {/* Department Selection for Consultancy */}

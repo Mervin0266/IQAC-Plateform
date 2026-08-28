@@ -9,6 +9,7 @@ export const ROLE_PERMISSIONS = {
       'faculty-details',
       'student-details',
       'department-details',
+      'departmental-activities',
       'accreditation',
       'achievements',
       'course-files',
@@ -49,6 +50,9 @@ export const ROLE_PERMISSIONS = {
   authority: {
     pages: [
       'dashboard',
+      'academics',
+      'faculty-details',
+      'student-details',
       'achievements',
       'ranking',
       'naac-accreditation',
@@ -65,6 +69,7 @@ export const ROLE_PERMISSIONS = {
       'infrastructure-facilities',
       'placements-internships',
       'department-details',
+      'departmental-activities',
     ],
     features: {
       canEdit: false,
@@ -80,6 +85,9 @@ export const ROLE_PERMISSIONS = {
   hod: {
     pages: [
       'dashboard',
+      'academics',
+      'faculty-details',
+      'student-details',
       'achievements',
       'course-files',
       'strategic-plan',
@@ -96,6 +104,7 @@ export const ROLE_PERMISSIONS = {
       'infrastructure-facilities',
       'placements-internships',
       'department-details',
+      'departmental-activities',
     ],
     features: {
       canEdit: true,
@@ -111,6 +120,9 @@ export const ROLE_PERMISSIONS = {
   coordinator: {
     pages: [
       'dashboard',
+      'academics',
+      'faculty-details',
+      'student-details',
       'achievements',
       'course-files',
       'strategic-plan',
@@ -127,6 +139,7 @@ export const ROLE_PERMISSIONS = {
       'infrastructure-facilities',
       'placements-internships',
       'department-details',
+      'departmental-activities',
     ],
     features: {
       canEdit: true,
@@ -142,6 +155,9 @@ export const ROLE_PERMISSIONS = {
   faculty: {
     pages: [
       'dashboard',
+      'academics',
+      'faculty-details',
+      'student-details',
       'achievements',
       'course-files',
       'research-innovation',
@@ -156,6 +172,7 @@ export const ROLE_PERMISSIONS = {
       'infrastructure-facilities',
       'placements-internships',
       'department-details',
+      'departmental-activities',
     ],
     features: {
       canEdit: true, // Conditionally allowed for own draft/reopened submissions

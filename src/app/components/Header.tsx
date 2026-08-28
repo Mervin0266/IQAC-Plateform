@@ -10,7 +10,7 @@ interface HeaderProps {
 export function Header({ currentPage = 'dashboard', onNavigate }: HeaderProps) {
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard' },
-    { key: 'achievements', label: 'Achievements' },
+    { key: 'departmental-activities', label: 'Departmental Activities' },
     { key: 'course-files', label: 'Course files/Documentation' },
     { key: 'naac-accreditation', label: 'NAAC Accreditation' },
     { key: 'nba-tracking', label: 'NBA Tracking' },

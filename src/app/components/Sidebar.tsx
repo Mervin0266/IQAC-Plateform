@@ -55,6 +55,7 @@ export function Sidebar({
         { label: "Faculty Details", key: "faculty-details" },
         { label: "Student Details", key: "student-details" },
         { label: "Department Details", key: "department-details" },
+        { label: "Departmental Activities", key: "departmental-activities" },
         {
           label: "Research",
           key: "research",
@@ -90,19 +91,9 @@ export function Sidebar({
       ],
     },
     {
-      icon: Globe,
-      label: "International Interactions",
-      key: "international-interactions",
-    },
-    {
       icon: Star,
       label: "Centre of Excellence",
       key: "centre-excellence",
-    },
-    {
-      icon: Wrench,
-      label: "Infrastructure",
-      key: "infrastructure-facilities",
     },
     {
       icon: Target,

@@ -12,6 +12,7 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { Label } from './ui/label';
 import { BulkUploadDialog } from './BulkUploadDialog';
+import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 
 interface ConsultancyProjectsPageProps {
   onNavigate: (page: string) => void;
@@ -125,23 +126,36 @@ export function ConsultancyProjectsPage({
   }, {} as Record<string, { count: number; revenue: number }>);
 
   const activeDepartmentsCount = Object.keys(departmentMap).length;
-  const STANDARD_DEPARTMENTS = [
-    'CSE',
-    'Computer Science and Engineering',
-    'ECE',
-    'Electronics and Communication Engineering',
-    'EEE',
-    'Electrical Engineering',
-    'MECH',
-    'Mechanical Engineering',
-    'CIVIL',
-    'Civil Engineering',
-    'AI & DS',
-    'Artificial Intelligence and Data Science',
-    'IT',
-    'Information Technology'
-  ];
-  const departments = Array.from(new Set([...STANDARD_DEPARTMENTS, ...Object.keys(departmentMap)])).filter(Boolean).sort();
+  const { departments: dbDepts } = useAcademicHierarchy();
+  const departments = React.useMemo(() => {
+    const list: string[] = [];
+    dbDepts.forEach(d => {
+      if (d.code && !list.includes(d.code)) list.push(d.code);
+      if (d.name && !list.includes(d.name)) list.push(d.name);
+    });
+    Object.keys(departmentMap).forEach(key => {
+      if (key && !list.includes(key)) list.push(key);
+    });
+    if (list.length === 0) {
+      return [
+        'CSE',
+        'Computer Science and Engineering',
+        'ECE',
+        'Electronics and Communication Engineering',
+        'EEE',
+        'Electrical Engineering',
+        'MECH',
+        'Mechanical Engineering',
+        'CIVIL',
+        'Civil Engineering',
+        'AI & DS',
+        'Artificial Intelligence and Data Science',
+        'IT',
+        'Information Technology'
+      ];
+    }
+    return list.sort();
+  }, [dbDepts, departmentMap]);
 
   const handleOpenForm = (project?: ConsultancyProject) => {
     if (project) {

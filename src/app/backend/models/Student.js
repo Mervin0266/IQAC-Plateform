@@ -125,6 +125,19 @@ const Student = sequelize.define('Student', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  school: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  programLevel: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  academicYear: {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+    defaultValue: '2024-2025'
+  },
   disability: {
     type: DataTypes.STRING,
     allowNull: true

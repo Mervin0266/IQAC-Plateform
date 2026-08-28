@@ -22,7 +22,8 @@ import {
   aggregateByBatch,
   computeSingleViewStats,
 } from '../utils/placementAnalytics';
-import { getDepartmentShortName, STANDARD_DEPARTMENTS, FALLBACK_BATCHES, FALLBACK_DEPARTMENTS } from '../utils/departmentMappings';
+import { getDepartmentShortName, FALLBACK_BATCHES } from '../utils/departmentMappings';
+import { useAcademicHierarchy } from './useAcademicHierarchy';
 import {
   FALLBACK_DEPT_DATA,
   FALLBACK_OVERALL_DATA,
@@ -70,6 +71,7 @@ export interface DashboardDataReturn {
 
 export function useDashboardData(): DashboardDataReturn {
   const { user, logout } = useAuth();
+  const { departmentList: dbDepts } = useAcademicHierarchy();
 
   // ── Core State ───────────────────────────────────────────
   const [liveStats, setLiveStats] = useState<DashboardLiveStats>({
@@ -97,28 +99,31 @@ export function useDashboardData(): DashboardDataReturn {
       const headers = { Authorization: `Bearer ${user.token}` };
       const fetchOpts = { headers, signal };
 
-      // Parallel fetch for achievements, documents, and strategic plans
-      const [resAchievements, resDocs, resPlans] = await Promise.all([
+      // Parallel fetch for achievements, documents, strategic plans, and hierarchy stats
+      const [resAchievements, resDocs, resPlans, resHierarchy] = await Promise.all([
         fetch(`${API_BASE}/api/achievements`, fetchOpts),
         fetch(`${API_BASE}/api/documents`, fetchOpts),
         fetch(`${API_BASE}/api/strategic-plans`, fetchOpts),
+        fetch(`${API_BASE}/api/hierarchy/stats`, fetchOpts),
       ]);
 
       // Handle 401 on any endpoint
-      if (resAchievements.status === 401 || resDocs.status === 401 || resPlans.status === 401) {
+      if (resAchievements.status === 401 || resDocs.status === 401 || resPlans.status === 401 || resHierarchy.status === 401) {
         logout();
         return;
       }
 
-      const [achievementsData, docsData, plansData] = await Promise.all([
+      const [achievementsData, docsData, plansData, hierarchyData] = await Promise.all([
         resAchievements.json(),
         resDocs.json(),
         resPlans.json(),
+        resHierarchy.json(),
       ]);
 
       const liveAchievements = achievementsData.success ? achievementsData.data : [];
       const liveDocs = docsData.success ? docsData.data : [];
       const livePlans = plansData.success ? plansData.data : [];
+      const hStats = hierarchyData.success ? hierarchyData.data : { totalCampuses: 1, totalSchools: 1, totalDepartments: 7, totalProgramLevels: 3, totalCourses: 27, totalUGPrograms: 18, totalPGPrograms: 6, totalPhDPrograms: 7 };
 
       // Calculate dynamic counts
       const total = liveAchievements.length || 120;
@@ -127,7 +132,19 @@ export function useDashboardData(): DashboardDataReturn {
       ).length || 85;
       const reportsCount = liveDocs.length || 15;
 
-      setLiveStats({ totalAchievements: total, facultyAchievements: facultyCount, annualReports: reportsCount });
+      setLiveStats({
+        totalAchievements: total,
+        facultyAchievements: facultyCount,
+        annualReports: reportsCount,
+        totalCampuses: hStats.totalCampuses,
+        totalSchools: hStats.totalSchools,
+        totalDepartments: hStats.totalDepartments,
+        totalProgramLevels: hStats.totalProgramLevels,
+        totalCourses: hStats.totalCourses,
+        totalUGPrograms: hStats.totalUGPrograms,
+        totalPGPrograms: hStats.totalPGPrograms,
+        totalPhDPrograms: hStats.totalPhDPrograms
+      });
 
       // Fetch placements
       try {
@@ -163,7 +180,11 @@ export function useDashboardData(): DashboardDataReturn {
 
         // Merge with standard departments
         const mergedDepts = [...radarData];
-        STANDARD_DEPARTMENTS.forEach((std) => {
+        const dynamicStdDepts = dbDepts.map(d => ({
+          department: getDepartmentShortName(d),
+          score: 80 // Default benchmark score
+        }));
+        dynamicStdDepts.forEach((std) => {
           if (!mergedDepts.some((d) => d.department === std.department)) {
             mergedDepts.push(std);
           }
@@ -190,10 +211,14 @@ export function useDashboardData(): DashboardDataReturn {
 
   // ── Derived Lists ────────────────────────────────────────
   const departmentsList = useMemo(() => {
-    return Array.from(
+    const list = Array.from(
       new Set(rawPlacements.map((p) => p.department).filter(Boolean) as string[])
     ).sort();
-  }, [rawPlacements]);
+    if (list.length === 0) {
+      return dbDepts;
+    }
+    return list;
+  }, [rawPlacements, dbDepts]);
 
   const batchesList = useMemo(() => {
     return Array.from(

@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ResearchInnovationPage } from './ResearchInnovationPage';
 import { ConsultancyProjectsPage } from './ConsultancyProjectsPage';
 import { BulkUploadDialog } from './BulkUploadDialog';
+import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 
@@ -112,21 +113,32 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
     progress: '0', // Milestone progress %
   });
 
-  const departments = [
-    'CSE',
-    'Computer Science and Engineering',
-    'ECE',
-    'Electronics and Communication Engineering',
-    'EEE',
-    'Electrical and Electronics Engineering',
-    'MECH',
-    'Mechanical Engineering',
-    'CIVIL',
-    'Civil Engineering',
-    'Sciences and Humanities',
-    'School of Architecture',
-    'AIML & Data Science'
-  ];
+  const { departments: dbDepts } = useAcademicHierarchy();
+  const departments = React.useMemo(() => {
+    const list: string[] = [];
+    dbDepts.forEach(d => {
+      if (d.code && !list.includes(d.code)) list.push(d.code);
+      if (d.name && !list.includes(d.name)) list.push(d.name);
+    });
+    if (list.length === 0) {
+      return [
+        'CSE',
+        'Computer Science and Engineering',
+        'ECE',
+        'Electronics and Communication Engineering',
+        'EEE',
+        'Electrical and Electronics Engineering',
+        'MECH',
+        'Mechanical Engineering',
+        'CIVIL',
+        'Civil Engineering',
+        'Sciences and Humanities',
+        'School of Architecture',
+        'AIML & Data Science'
+      ];
+    }
+    return list;
+  }, [dbDepts]);
 
   const months = [
     'June', 'July', 'August', 'September', 'October', 'November', 'December',

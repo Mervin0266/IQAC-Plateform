@@ -9,6 +9,7 @@ import { Badge } from './ui/badge';
 import { Search, UserPlus, Edit2, Trash2, CheckCircle2, XCircle, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoleDisplayName } from '../config/permissions';
+import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 
 interface User {
   id: string;
@@ -53,16 +54,7 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
 
-  const DEPARTMENTS = [
-    'Computer Science and Engineering',
-    'Electronics and Communication Engineering',
-    'Electrical and Electronics Engineering',
-    'Mechanical and Automobile Engineering',
-    'Civil Engineering',
-    'Science and Humanities (Engg.)',
-    'School of Architecture',
-    'Artificial Intelligence and Data Science'
-  ];
+  const { departmentList: DEPARTMENTS } = useAcademicHierarchy();
 
   const fetchUsers = async () => {
     if (!user?.token) return;

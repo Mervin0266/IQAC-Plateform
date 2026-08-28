@@ -22,7 +22,6 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { BulkUploadDialog } from './BulkUploadDialog';
-import { DepartmentLineageTrends } from './DepartmentLineageTrends';
 
 interface Department {
   id: string;
@@ -333,10 +332,7 @@ export function DepartmentDetailsPage({ onNavigate }: DepartmentDetailsPageProps
           </Card>
         </div>
 
-        {/* Temporal Lineage & Bifurcation Analytics */}
-        <div className="mb-8">
-          <DepartmentLineageTrends />
-        </div>
+
 
         {/* Filters and Search */}
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">

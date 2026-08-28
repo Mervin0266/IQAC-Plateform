@@ -462,10 +462,14 @@ const departmentData: Record<string, any> = {
 
 export function DepartmentTrackingPage({ onNavigate, departmentId }: DepartmentTrackingPageProps) {
   const [selectedSubTheme, setSelectedSubTheme] = useState<string | null>(null);
-  const department = departmentData[departmentId];
+  let department = departmentData[departmentId];
 
   if (!department) {
-    return null;
+    const formattedName = departmentId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    department = {
+      ...departmentData['computer-science-engineering'],
+      name: formattedName.length > 30 ? 'New Department' : formattedName
+    };
   }
 
   const calculateProgress = (planned: number, achieved: number) => {

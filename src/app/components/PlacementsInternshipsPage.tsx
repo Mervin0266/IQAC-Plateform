@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { UserCheck, Briefcase, TrendingUp, Building2, Award, DollarSign, Users, BarChart3, Upload } from 'lucide-react';
+import { UserCheck, Briefcase, TrendingUp, Building2, Award, DollarSign, Users, BarChart3, Upload, Filter, RotateCcw, Search } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,94 +69,16 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
     return Math.round(val).toLocaleString('en-IN');
   };
 
-  const dbPlacementsOnly = placements.filter((p: any) => p.placementType === 'placement');
-  const dbInternshipsOnly = placements.filter((p: any) => p.placementType === 'internship');
-  
-  const totalPlaced = dbPlacementsOnly.length;
-  const totalOffers = placements.length;
-  
-  const validPlacements = dbPlacementsOnly.filter((p: any) => parseFloat(p.package || 0) > 0);
-  
-  const avgPkgVal = validPlacements.length > 0 
-    ? validPlacements.reduce((sum, p) => sum + parseFloat(p.package || 0), 0) / validPlacements.length 
-    : 0;
-  
-  const highestPkgVal = validPlacements.length > 0 
-    ? validPlacements.reduce((max, p) => Math.max(max, parseFloat(p.package || 0)), 0) 
-    : 0;
-
-  const lowestPkgVal = validPlacements.length > 0 
-    ? validPlacements.reduce((min, p) => Math.min(min, parseFloat(p.package || 0)), Infinity) 
-    : 0;
-
-  const placementStats = {
-    totalPlaced,
-    placementRate: totalPlaced > 0 ? 100 : 0,
-    averagePackage: formatLPA(avgPkgVal),
-    highestPackage: formatLPA(highestPkgVal),
-    lowestPackage: formatLPA(lowestPkgVal === Infinity ? 0 : lowestPkgVal),
-    companiesVisited: Array.from(new Set(placements.map(p => p.company))).length,
-    totalOffers
-  };
-
-  // Group database records by normalized department name
-  const deptPlacementsMap: Record<string, any[]> = {};
-  const deptInternshipsMap: Record<string, any[]> = {};
-
-  placements.forEach((p: any) => {
-    const deptName = p.department;
-    if (p.placementType === 'placement') {
-      if (!deptPlacementsMap[deptName]) deptPlacementsMap[deptName] = [];
-      deptPlacementsMap[deptName].push(p);
-    } else {
-      if (!deptInternshipsMap[deptName]) deptInternshipsMap[deptName] = [];
-      deptInternshipsMap[deptName].push(p);
-    }
-  });
-
-  const departmentPlacements = Object.keys(deptPlacementsMap).map(dept => {
-    const dbItems = deptPlacementsMap[dept];
-    const dbPlacedCount = dbItems.length;
-    
-    const validDeptPackages = dbItems.map(p => parseFloat(p.package || 0)).filter(pkg => pkg > 0);
-    const dbAvg = validDeptPackages.length > 0 ? validDeptPackages.reduce((sum, val) => sum + val, 0) / validDeptPackages.length : 0;
-    const dbMax = validDeptPackages.length > 0 ? Math.max(...validDeptPackages) : 0;
-    const dbMin = validDeptPackages.length > 0 ? Math.min(...validDeptPackages) : 0;
-    
-    return {
-      department: dept,
-      totalStudents: dbPlacedCount,
-      placed: dbPlacedCount,
-      placementRate: 100,
-      averagePackage: formatLPA(dbAvg),
-      highestPackage: formatLPA(dbMax),
-      lowestPackage: formatLPA(dbMin),
-      topRecruiters: Array.from(new Set(dbItems.map(p => p.company))).slice(0, 5)
-    };
-  });
-
-  const departmentInternships = Object.keys(deptInternshipsMap).map(dept => {
-    const dbItems = deptInternshipsMap[dept];
-    const stipends = dbItems.map(p => parseFloat(p.package || p.stipend || p.package_amount || 0)).filter(s => s > 0);
-    const avgStipendVal = stipends.length > 0 ? stipends.reduce((sum, s) => sum + s, 0) / stipends.length : 0;
-    
-    return {
-      department: dept,
-      interns: dbItems.length,
-      averageStipend: formatStipend(avgStipendVal),
-      topCompanies: Array.from(new Set(dbItems.map(p => p.company))).slice(0, 5)
-    };
-  });
-
-  // Get all unique batches and courses from placements data to populate filters
+  // Unique filter values
   const uniqueBatches = Array.from(new Set(placements.map((p: any) => p.batch))).filter(Boolean).sort();
   const uniqueCourses = Array.from(new Set(placements.map((p: any) => p.course))).filter(Boolean).sort();
+  const uniqueDepartments = Array.from(new Set(placements.map((p: any) => p.department))).filter(Boolean).sort();
 
-  // Filter placements
+  // Dynamic Filtered Placements
   const filteredPlacements = placements.filter((p: any) => {
     if (p.placementType !== 'placement') return false;
 
-    const matchesSearch = 
+    const matchesSearch = !search ||
       (p.studentName || '').toLowerCase().includes(search.toLowerCase()) ||
       (p.studentId || '').toLowerCase().includes(search.toLowerCase()) ||
       (p.company || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -167,6 +89,116 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
     const matchesBatch = batchFilter === 'all' || p.batch === batchFilter;
 
     return matchesSearch && matchesDept && matchesCourse && matchesBatch;
+  });
+
+  // Dynamic Filtered Internships
+  const filteredInternships = placements.filter((p: any) => {
+    if (p.placementType !== 'internship') return false;
+
+    const matchesSearch = !search ||
+      (p.studentName || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.studentId || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.company || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.course || '').toLowerCase().includes(search.toLowerCase());
+
+    const matchesDept = deptFilter === 'all' || p.department === deptFilter;
+    const matchesCourse = courseFilter === 'all' || p.course === courseFilter;
+    const matchesBatch = batchFilter === 'all' || p.batch === batchFilter;
+
+    return matchesSearch && matchesDept && matchesCourse && matchesBatch;
+  });
+
+  // Dynamic Placement Stats derived from filteredPlacements
+  const totalPlaced = filteredPlacements.length;
+  const totalOffers = filteredPlacements.length;
+
+  const validPlacements = filteredPlacements.filter((p: any) => parseFloat(p.package || 0) > 0);
+
+  const avgPkgVal = validPlacements.length > 0
+    ? validPlacements.reduce((sum, p) => sum + parseFloat(p.package || 0), 0) / validPlacements.length
+    : 0;
+
+  const highestPkgVal = validPlacements.length > 0
+    ? validPlacements.reduce((max, p) => Math.max(max, parseFloat(p.package || 0)), 0)
+    : 0;
+
+  const lowestPkgVal = validPlacements.length > 0
+    ? validPlacements.reduce((min, p) => Math.min(min, parseFloat(p.package || 0)), Infinity)
+    : 0;
+
+  const placementStats = {
+    totalPlaced,
+    placementRate: totalPlaced > 0 ? 100 : 0,
+    averagePackage: formatLPA(avgPkgVal),
+    highestPackage: formatLPA(highestPkgVal),
+    lowestPackage: formatLPA(lowestPkgVal === Infinity ? 0 : lowestPkgVal),
+    companiesVisited: Array.from(new Set(filteredPlacements.map(p => p.company))).filter(Boolean).length,
+    totalOffers
+  };
+
+  // Dynamic Internship Stats derived from filteredInternships
+  const validStipends = filteredInternships.filter((p: any) => parseFloat(p.package || p.stipend || 0) > 0);
+  const avgStipendVal = validStipends.length > 0
+    ? validStipends.reduce((sum, p) => sum + parseFloat(p.package || p.stipend || 0), 0) / validStipends.length
+    : 0;
+  const maxStipendVal = validStipends.length > 0
+    ? validStipends.reduce((max, p) => Math.max(max, parseFloat(p.package || p.stipend || 0)), 0)
+    : 0;
+
+  const internshipStats = {
+    totalInterns: filteredInternships.length,
+    averageStipend: formatStipend(avgStipendVal),
+    highestStipend: formatStipend(maxStipendVal),
+    companiesVisited: Array.from(new Set(filteredInternships.map(p => p.company))).filter(Boolean).length,
+  };
+
+  // Dynamic Department-wise Placements derived from filteredPlacements
+  const deptPlacementsMap: Record<string, any[]> = {};
+  filteredPlacements.forEach((p: any) => {
+    const deptName = p.department || 'Other';
+    if (!deptPlacementsMap[deptName]) deptPlacementsMap[deptName] = [];
+    deptPlacementsMap[deptName].push(p);
+  });
+
+  const departmentPlacements = Object.keys(deptPlacementsMap).map(dept => {
+    const dbItems = deptPlacementsMap[dept];
+    const dbPlacedCount = dbItems.length;
+    const validDeptPackages = dbItems.map(p => parseFloat(p.package || 0)).filter(pkg => pkg > 0);
+    const dbAvg = validDeptPackages.length > 0 ? validDeptPackages.reduce((sum, val) => sum + val, 0) / validDeptPackages.length : 0;
+    const dbMax = validDeptPackages.length > 0 ? Math.max(...validDeptPackages) : 0;
+    const dbMin = validDeptPackages.length > 0 ? Math.min(...validDeptPackages) : 0;
+
+    return {
+      department: dept,
+      totalStudents: dbPlacedCount,
+      placed: dbPlacedCount,
+      placementRate: 100,
+      averagePackage: formatLPA(dbAvg),
+      highestPackage: formatLPA(dbMax),
+      lowestPackage: formatLPA(dbMin),
+      topRecruiters: Array.from(new Set(dbItems.map(p => p.company))).filter(Boolean).slice(0, 5)
+    };
+  });
+
+  // Dynamic Department-wise Internships derived from filteredInternships
+  const deptInternshipsMap: Record<string, any[]> = {};
+  filteredInternships.forEach((p: any) => {
+    const deptName = p.department || 'Other';
+    if (!deptInternshipsMap[deptName]) deptInternshipsMap[deptName] = [];
+    deptInternshipsMap[deptName].push(p);
+  });
+
+  const departmentInternships = Object.keys(deptInternshipsMap).map(dept => {
+    const dbItems = deptInternshipsMap[dept];
+    const stipends = dbItems.map(p => parseFloat(p.package || p.stipend || 0)).filter(s => s > 0);
+    const avgStipendVal = stipends.length > 0 ? stipends.reduce((sum, s) => sum + s, 0) / stipends.length : 0;
+
+    return {
+      department: dept,
+      interns: dbItems.length,
+      averageStipend: formatStipend(avgStipendVal),
+      topCompanies: Array.from(new Set(dbItems.map(p => p.company))).filter(Boolean).slice(0, 5)
+    };
   });
 
   // Sort placements
@@ -330,15 +362,109 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
             )}
           </div>
 
+          {/* Global Filter Bar */}
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6 space-y-3">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+              <div className="flex items-center space-x-2 text-gray-800 font-bold text-xs uppercase tracking-wider">
+                <Filter className="w-4 h-4 text-teal-700" />
+                <span>Filter Options</span>
+                {(search !== '' || deptFilter !== 'all' || courseFilter !== 'all' || batchFilter !== 'all') && (
+                  <span className="ml-2 px-2 py-0.5 bg-teal-100 text-teal-800 text-[10px] font-extrabold rounded-full">
+                    Active Filters
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSearch('');
+                    setDeptFilter('all');
+                    setCourseFilter('all');
+                    setBatchFilter('all');
+                    setCurrentPage(1);
+                  }}
+                  className="h-7 text-xs text-gray-600 hover:text-gray-900 border-gray-300"
+                >
+                  <RotateCcw className="w-3 h-3 mr-1" /> Reset Filters
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Search */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Search</label>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search student, register no, company..."
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-700 bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Department Dropdown */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Department</label>
+                <select
+                  value={deptFilter}
+                  onChange={(e) => { setDeptFilter(e.target.value); setCurrentPage(1); }}
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-teal-700 font-medium"
+                >
+                  <option value="all">All Departments</option>
+                  {uniqueDepartments.map((d, i) => (
+                    <option key={i} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Course Dropdown */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Course</label>
+                <select
+                  value={courseFilter}
+                  onChange={(e) => { setCourseFilter(e.target.value); setCurrentPage(1); }}
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-teal-700 font-medium"
+                >
+                  <option value="all">All Courses</option>
+                  {uniqueCourses.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Academic Year (AY) Dropdown */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Academic Year (AY)</label>
+                <select
+                  value={batchFilter}
+                  onChange={(e) => { setBatchFilter(e.target.value); setCurrentPage(1); }}
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-teal-700 font-medium"
+                >
+                  <option value="all">All Academic Years</option>
+                  {uniqueBatches.map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
           <Tabs defaultValue="placements" className="space-y-6">
             <TabsList className="grid w-full grid-cols-2 h-auto">
               <TabsTrigger value="placements" className="flex items-center gap-2 py-3">
                 <UserCheck className="w-4 h-4" />
-                <span>Placements</span>
+                <span>Placements ({filteredPlacements.length})</span>
               </TabsTrigger>
               <TabsTrigger value="internships" className="flex items-center gap-2 py-3">
                 <Briefcase className="w-4 h-4" />
-                <span>Internships</span>
+                <span>Internships ({filteredInternships.length})</span>
               </TabsTrigger>
             </TabsList>
 
@@ -500,14 +626,9 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
                       className="px-2 py-1.5 text-[11px] border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-teal-700"
                     >
                       <option value="all">All Departments</option>
-                      <option value="Computer Science and Engineering">Computer Science and Engineering</option>
-                      <option value="Electronics and Communication Engineering">Electronics and Communication Engineering</option>
-                      <option value="Electrical and Electronics Engineering">Electrical and Electronics Engineering</option>
-                      <option value="Mechanical and Automobile Engineering">Mechanical and Automobile Engineering</option>
-                      <option value="Civil Engineering">Civil Engineering</option>
-                      <option value="Artificial Intelligence and Data Science">Artificial Intelligence and Data Science</option>
-                      <option value="School of Architecture">School of Architecture</option>
-                      <option value="Science and Humanities (Engg.)">Science and Humanities (Engg.)</option>
+                      {uniqueDepartments.map((d, i) => (
+                        <option key={i} value={d}>{d}</option>
+                      ))}
                     </select>
 
                     {/* Course Dropdown */}
@@ -633,25 +754,25 @@ export function PlacementsInternshipsPage({ onNavigate, isPublicView = false }: 
                 <Card className="border-l-4 border-l-orange-500">
                   <CardHeader>
                     <CardDescription className="text-xs">Total Interns</CardDescription>
-                    <CardTitle className="text-3xl font-bold text-orange-600">856</CardTitle>
+                    <CardTitle className="text-3xl font-bold text-orange-600">{internshipStats.totalInterns}</CardTitle>
                   </CardHeader>
                 </Card>
                 <Card className="border-l-4 border-l-orange-500">
                   <CardHeader>
                     <CardDescription className="text-xs">Avg Stipend</CardDescription>
-                    <CardTitle className="text-2xl font-bold text-orange-600">₹15k/mo</CardTitle>
+                    <CardTitle className="text-2xl font-bold text-orange-600">₹{internshipStats.averageStipend}/mo</CardTitle>
                   </CardHeader>
                 </Card>
                 <Card className="border-l-4 border-l-orange-500">
                   <CardHeader>
                     <CardDescription className="text-xs">Highest Stipend</CardDescription>
-                    <CardTitle className="text-2xl font-bold text-orange-600">₹1L/mo</CardTitle>
+                    <CardTitle className="text-2xl font-bold text-orange-600">₹{internshipStats.highestStipend}/mo</CardTitle>
                   </CardHeader>
                 </Card>
                 <Card className="border-l-4 border-l-orange-500">
                   <CardHeader>
-                    <CardDescription className="text-xs">Companies</CardDescription>
-                    <CardTitle className="text-3xl font-bold text-orange-600">142</CardTitle>
+                    <CardDescription className="text-xs">Companies Visited</CardDescription>
+                    <CardTitle className="text-3xl font-bold text-orange-600">{internshipStats.companiesVisited}</CardTitle>
                   </CardHeader>
                 </Card>
               </div>

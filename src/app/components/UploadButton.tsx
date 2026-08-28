@@ -7,6 +7,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
 import { hasFeatureAccess } from '../config/permissions';
+import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 
 interface UploadButtonProps {
   activeTab: string;
@@ -27,21 +28,14 @@ export function UploadButton({ activeTab, onRefresh }: UploadButtonProps) {
     description: ''
   });
 
-  const DEPARTMENTS = [
-    'Computer Science and Engineering',
-    'Electronics and Communication Engineering',
-    'Electrical and Electronics Engineering',
-    'Mechanical and Automobile Engineering',
-    'Civil Engineering',
-    'Science and Humanities (Engg.)',
-    'School of Architecture',
-    'Artificial Intelligence and Data Science'
-  ];
-
-  const departmentsList = [...DEPARTMENTS];
-  if (user?.department && !departmentsList.includes(user.department)) {
-    departmentsList.push(user.department);
-  }
+  const { departmentList: dbDepartments } = useAcademicHierarchy();
+  const departmentsList = React.useMemo(() => {
+    const list = [...dbDepartments];
+    if (user?.department && !list.includes(user.department)) {
+      list.push(user.department);
+    }
+    return list;
+  }, [dbDepartments, user?.department]);
 
   // Pre-fill user department when dialog opens
   useEffect(() => {

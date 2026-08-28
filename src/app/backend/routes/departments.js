@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const {
   getDepartments,
+  getDepartment,
+  getDepartmentCourses,
+  getDepartmentProgramLevels,
   createDepartment,
   bulkCreateDepartment,
   updateDepartment,
@@ -19,7 +22,14 @@ router.route('/bulk')
   .post(authorize('admin', 'coordinator', 'hod'), bulkCreateDepartment);
 
 router.route('/:id')
+  .get(getDepartment)
   .put(authorize('admin', 'coordinator', 'hod'), updateDepartment)
   .delete(authorize('admin', 'coordinator', 'hod'), deleteDepartment);
+
+router.route('/:id/courses')
+  .get(getDepartmentCourses);
+
+router.route('/:id/program-levels')
+  .get(getDepartmentProgramLevels);
 
 module.exports = router;

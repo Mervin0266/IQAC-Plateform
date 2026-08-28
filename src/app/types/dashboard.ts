@@ -10,6 +10,14 @@ export interface DashboardLiveStats {
   totalAchievements: number;
   facultyAchievements: number;
   annualReports: number;
+  totalCampuses?: number;
+  totalSchools?: number;
+  totalDepartments?: number;
+  totalProgramLevels?: number;
+  totalCourses?: number;
+  totalUGPrograms?: number;
+  totalPGPrograms?: number;
+  totalPhDPrograms?: number;
 }
 
 // ─── Placement Data ──────────────────────────────────────────────

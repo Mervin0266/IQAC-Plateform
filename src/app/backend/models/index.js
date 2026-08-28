@@ -15,8 +15,38 @@ const ConsultancyProject = require('./ConsultancyProject');
 const AccreditationFramework = require('./AccreditationFramework');
 const AccreditationParameter = require('./AccreditationParameter');
 const ParameterDataSubmission = require('./ParameterDataSubmission');
+const UserDepartmentHistory = require('./UserDepartmentHistory');
+const DepartmentLineage = require('./DepartmentLineage');
 
-// Define associations
+// ── New Academic Hierarchy Models ─────────────────────────────────
+const Campus = require('./Campus');
+const School = require('./School');
+const ProgramLevel = require('./ProgramLevel');
+const Course = require('./Course');
+const DepartmentalActivity = require('./DepartmentalActivity');
+
+// ══════════════════════════════════════════════════════════════════
+// Associations
+// ══════════════════════════════════════════════════════════════════
+
+// ── Academic Hierarchy: Campus → School → Department → Course ────
+Campus.hasMany(School, { foreignKey: 'campusId', as: 'schools' });
+School.belongsTo(Campus, { foreignKey: 'campusId', as: 'campus' });
+
+School.hasMany(Department, { foreignKey: 'schoolId', as: 'departments' });
+Department.belongsTo(School, { foreignKey: 'schoolId', as: 'school' });
+
+Department.hasMany(Course, { foreignKey: 'departmentId', as: 'courses' });
+Course.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
+
+ProgramLevel.hasMany(Course, { foreignKey: 'programLevelId', as: 'courses' });
+Course.belongsTo(ProgramLevel, { foreignKey: 'programLevelId', as: 'programLevel' });
+
+// Department → HOD (User)
+Department.belongsTo(User, { foreignKey: 'hodId', as: 'hod' });
+User.hasOne(Department, { foreignKey: 'hodId', as: 'headOfDepartment' });
+
+// ── Existing Associations (preserved) ────────────────────────────
 User.hasMany(Achievement, { foreignKey: 'createdBy', as: 'achievements' });
 Achievement.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
@@ -43,9 +73,6 @@ Notification.belongsTo(User, { foreignKey: 'recipientId', as: 'recipient' });
 
 User.hasMany(ConsultancyProject, { foreignKey: 'createdBy', as: 'consultancyProjects' });
 ConsultancyProject.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
-
-const UserDepartmentHistory = require('./UserDepartmentHistory');
-const DepartmentLineage = require('./DepartmentLineage');
 
 // Accreditation & Parameter Master Associations
 AccreditationFramework.hasMany(AccreditationParameter, { foreignKey: 'frameworkId', as: 'parameters', onDelete: 'CASCADE' });
@@ -86,5 +113,11 @@ module.exports = {
   AccreditationParameter,
   ParameterDataSubmission,
   UserDepartmentHistory,
-  DepartmentLineage
+  DepartmentLineage,
+  // New hierarchy models
+  Campus,
+  School,
+  ProgramLevel,
+  Course,
+  DepartmentalActivity
 };

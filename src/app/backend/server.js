@@ -88,8 +88,14 @@ app.use('/api/faculty', require('./routes/faculty'));
 app.use('/api/departments', require('./routes/departments'));
 app.use('/api/research-metrics', require('./routes/researchMetrics'));
 app.use('/api/consultancy-projects', require('./routes/consultancyProjects'));
+app.use('/api/departmental-activities', require('./routes/departmentalActivities'));
 app.use('/api/parameter-master', require('./routes/parameterMaster'));
 app.use('/api/department-lineage', require('./routes/departmentLineage'));
+app.use('/api/campuses', require('./routes/campuses'));
+app.use('/api/schools', require('./routes/schools'));
+app.use('/api/program-levels', require('./routes/programLevels'));
+app.use('/api/courses', require('./routes/courses'));
+app.use('/api/hierarchy', require('./routes/hierarchy'));
 
 // Health check
 app.get('/health', (req, res) => {

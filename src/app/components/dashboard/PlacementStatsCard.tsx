@@ -13,7 +13,6 @@ import {
 } from 'recharts';
 import { Card } from '../ui/card';
 import { PlacementTooltip } from './CustomTooltip';
-import { FALLBACK_DEPARTMENTS } from '../../utils/departmentMappings';
 import type {
   PlacementView,
   DepartmentPlacementData,
@@ -85,7 +84,7 @@ export function PlacementStatsCard({
                 onChange={(e) => setSelectedDepartment(e.target.value)}
                 className="px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium max-w-[200px]"
               >
-                {(hasLiveData ? departmentsList : FALLBACK_DEPARTMENTS).map((dept) => (
+                {departmentsList.map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
                   </option>

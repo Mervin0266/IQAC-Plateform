@@ -26,6 +26,7 @@ const PlacementsInternshipsPage = React.lazy(() => import('./components/Placemen
 const StudentDetailsPage = React.lazy(() => import('./components/StudentDetailsPage').then(m => ({ default: m.StudentDetailsPage })));
 const FacultyDetailsPage = React.lazy(() => import('./components/FacultyDetailsPage').then(m => ({ default: m.FacultyDetailsPage })));
 const DepartmentDetailsPage = React.lazy(() => import('./components/DepartmentDetailsPage').then(m => ({ default: m.DepartmentDetailsPage })));
+const DepartmentalActivitiesPage = React.lazy(() => import('./components/DepartmentalActivitiesPage').then(m => ({ default: m.DepartmentalActivitiesPage })));
 const DynamicParameterMaster = React.lazy(() => import('./components/DynamicParameterMaster').then(m => ({ default: m.DynamicParameterMaster })));
 const PageSkeleton = React.lazy(() => import('./components/PageSkeleton').then(m => ({ default: m.PageSkeleton })));
 
@@ -60,6 +61,11 @@ function AppContent() {
   }
 
   const renderPage = () => {
+    if (currentPage.startsWith('strategic-plan-')) {
+      const deptId = currentPage.replace('strategic-plan-', '');
+      return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId={deptId} />;
+    }
+
     switch (currentPage) {
       case 'dashboard':
         return <DashboardPage onNavigate={setCurrentPage} />;
@@ -69,6 +75,8 @@ function AppContent() {
         return <StudentDetailsPage onNavigate={setCurrentPage} />;
       case 'department-details':
         return <DepartmentDetailsPage onNavigate={setCurrentPage} />;
+      case 'departmental-activities':
+        return <DepartmentalActivitiesPage onNavigate={setCurrentPage} />;
       case 'achievements':
         return <AchievementsPage onNavigate={setCurrentPage} />;
       case 'course-files':
@@ -99,22 +107,6 @@ function AppContent() {
         return <PlacementsInternshipsPage onNavigate={setCurrentPage} />;
       case 'strategic-plan':
         return <StrategicPlanPage onNavigate={setCurrentPage} />;
-      case 'strategic-plan-civil-engineering':
-        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="civil-engineering" />;
-      case 'strategic-plan-electronics-communication-engineering':
-        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="electronics-communication-engineering" />;
-      case 'strategic-plan-electrical-electronics-engineering':
-        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="electrical-electronics-engineering" />;
-      case 'strategic-plan-mechanical-automobile-engineering':
-        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="mechanical-automobile-engineering" />;
-      case 'strategic-plan-computer-science-engineering':
-        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="computer-science-engineering" />;
-      case 'strategic-plan-science-humanities-engineering':
-        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="science-humanities-engineering" />;
-      case 'strategic-plan-school-architecture':
-        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="school-architecture" />;
-      case 'strategic-plan-ai-data-science':
-        return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId="ai-data-science" />;
       case 'naac-accreditation':
       case 'nba-tracking':
         return <DynamicParameterMaster onNavigate={setCurrentPage} />;

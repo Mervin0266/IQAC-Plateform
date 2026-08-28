@@ -3,86 +3,43 @@ import { Sidebar } from './Sidebar';
 import { Card } from './ui/card';
 import { ArrowRight, Target, TrendingUp } from 'lucide-react';
 import { Progress } from './ui/progress';
+import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 
 interface StrategicPlanPageProps {
   onNavigate: (page: string) => void;
 }
 
 export function StrategicPlanPage({ onNavigate }: StrategicPlanPageProps) {
-  const departments = [
-    {
-      id: 'civil-engineering',
-      name: 'Civil Engineering',
-      description: 'Infrastructure Development, Construction Management, Structural Design',
-      progress: 82,
-      goals: 14,
-      achieved: 11,
-      color: 'bg-blue-500'
-    },
-    {
-      id: 'electronics-communication-engineering',
-      name: 'Electronics and Communication Engineering',
-      description: 'Communication Systems, Signal Processing, VLSI Design',
-      progress: 78,
-      goals: 16,
-      achieved: 12,
-      color: 'bg-green-500'
-    },
-    {
-      id: 'electrical-electronics-engineering',
-      name: 'Electrical and Electronics Engineering',
-      description: 'Power Systems, Control Systems, Renewable Energy',
-      progress: 85,
-      goals: 15,
-      achieved: 13,
-      color: 'bg-purple-500'
-    },
-    {
-      id: 'mechanical-automobile-engineering',
-      name: 'Mechanical and Automobile Engineering',
-      description: 'Automotive Design, Manufacturing, Thermal Engineering',
-      progress: 88,
-      goals: 13,
-      achieved: 11,
-      color: 'bg-orange-500'
-    },
-    {
-      id: 'computer-science-engineering',
-      name: 'Computer Science and Engineering',
-      description: 'Software Development, Database Systems, Cloud Computing',
-      progress: 90,
-      goals: 18,
-      achieved: 16,
-      color: 'bg-indigo-500'
-    },
-    {
-      id: 'science-humanities-engineering',
-      name: 'Science and Humanities (Engg.)',
-      description: 'Applied Sciences, Mathematics, Communication Skills',
-      progress: 75,
-      goals: 12,
-      achieved: 9,
-      color: 'bg-pink-500'
-    },
-    {
-      id: 'school-architecture',
-      name: 'School of Architecture',
-      description: 'Architectural Design, Urban Planning, Sustainable Design',
-      progress: 80,
-      goals: 11,
-      achieved: 9,
-      color: 'bg-teal-500'
-    },
-    {
-      id: 'ai-data-science',
-      name: 'Artificial Intelligence and Data Science',
-      description: 'Machine Learning, Deep Learning, Big Data Analytics',
-      progress: 92,
-      goals: 17,
-      achieved: 15,
-      color: 'bg-cyan-500'
+  const { departments: dbDepts } = useAcademicHierarchy();
+  const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-indigo-500', 'bg-pink-500', 'bg-teal-500', 'bg-cyan-500'];
+  const departments = React.useMemo(() => {
+    const list = dbDepts.map((d, index) => {
+      const id = d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      return {
+        id,
+        name: d.name,
+        description: d.description || `Strategic development, curriculum, and research metrics for ${d.name}.`,
+        progress: d.code === 'CSE' ? 90 : d.code === 'ADSE' ? 92 : d.code === 'CIVIL' ? 82 : d.code === 'ECE' ? 78 : d.code === 'EEE' ? 85 : d.code === 'MECH' ? 88 : 75,
+        goals: d.code === 'CSE' ? 18 : d.code === 'ADSE' ? 17 : d.code === 'CIVIL' ? 14 : d.code === 'ECE' ? 16 : d.code === 'EEE' ? 15 : d.code === 'MECH' ? 13 : 12,
+        achieved: d.code === 'CSE' ? 16 : d.code === 'ADSE' ? 15 : d.code === 'CIVIL' ? 11 : d.code === 'ECE' ? 12 : d.code === 'EEE' ? 13 : d.code === 'MECH' ? 11 : 9,
+        color: colors[index % colors.length]
+      };
+    });
+
+    if (list.length === 0) {
+      return [
+        { id: 'civil-engineering', name: 'Civil Engineering', description: 'Infrastructure Development, Construction Management, Structural Design', progress: 82, goals: 14, achieved: 11, color: 'bg-blue-500' },
+        { id: 'electronics-communication-engineering', name: 'Electronics and Communication Engineering', description: 'Communication Systems, Signal Processing, VLSI Design', progress: 78, goals: 16, achieved: 12, color: 'bg-green-500' },
+        { id: 'electrical-electronics-engineering', name: 'Electrical and Electronics Engineering', description: 'Power Systems, Control Systems, Renewable Energy', progress: 85, goals: 15, achieved: 13, color: 'bg-purple-500' },
+        { id: 'mechanical-automobile-engineering', name: 'Mechanical and Automobile Engineering', description: 'Automotive Design, Manufacturing, Thermal Engineering', progress: 88, goals: 13, achieved: 11, color: 'bg-orange-500' },
+        { id: 'computer-science-engineering', name: 'Computer Science and Engineering', description: 'Software Development, Database Systems, Cloud Computing', progress: 90, goals: 18, achieved: 16, color: 'bg-indigo-500' },
+        { id: 'science-humanities-engineering', name: 'Science and Humanities (Engg.)', description: 'Applied Sciences, Mathematics, Communication Skills', progress: 75, goals: 12, achieved: 9, color: 'bg-pink-500' },
+        { id: 'school-architecture', name: 'School of Architecture', description: 'Architectural Design, Urban Planning, Sustainable Design', progress: 80, goals: 11, achieved: 9, color: 'bg-teal-500' },
+        { id: 'ai-data-science', name: 'Artificial Intelligence and Data Science', description: 'Machine Learning, Deep Learning, Big Data Analytics', progress: 92, goals: 17, achieved: 15, color: 'bg-cyan-500' }
+      ];
     }
-  ];
+    return list;
+  }, [dbDepts]);
 
   const overallProgress = Math.round(departments.reduce((acc, dept) => acc + dept.progress, 0) / departments.length);
   const totalGoals = departments.reduce((acc, dept) => acc + dept.goals, 0);

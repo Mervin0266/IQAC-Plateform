@@ -22,10 +22,12 @@ import {
   Briefcase,
   FileText,
   Upload,
-  RefreshCw
+  RefreshCw,
+  GraduationCap
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { BulkUploadDialog } from './BulkUploadDialog';
+import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 
 interface FacultyDetailsPageProps {
   onNavigate: (page: string) => void;
@@ -133,15 +135,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     status: 'Active'
   });
 
-  const departmentsList = [
-    'Computer Science and Engineering',
-    'Artificial Intelligence and Data Science',
-    'Electronics and Communication Engineering',
-    'Electrical and Electronics Engineering',
-    'Mechanical and Automobile Engineering',
-    'Civil Engineering',
-    'Sciences & Humanities'
-  ];
+  const { departmentList: departmentsList } = useAcademicHierarchy();
 
   const designationsList = [
     'Head of Department',
@@ -189,6 +183,16 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
       if (valA > valB) return isAsc ? 1 : -1;
       return 0;
     });
+
+  const designationCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredFaculty.forEach(fac => {
+      if (fac.designation) {
+        counts[fac.designation] = (counts[fac.designation] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [filteredFaculty]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -352,76 +356,86 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Export CSV</span>
               </Button>
-              <Button
-                onClick={() => setIsBulkUploadOpen(true)}
-                variant="outline"
-                className="border-teal-600 text-teal-700 hover:bg-teal-50 flex items-center gap-2"
-              >
-                <Upload className="w-4 h-4" />
-                Upload CSV / Excel
-              </Button>
-              <Button
-                onClick={() => { resetForm(); setIsAddModalOpen(true); }}
-                className="bg-[#2f4692] hover:bg-[#243a7a] text-white flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add Faculty
-              </Button>
+              {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
+                <>
+                  <Button
+                    onClick={() => setIsBulkUploadOpen(true)}
+                    variant="outline"
+                    className="border-teal-600 text-teal-700 hover:bg-teal-50 flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Upload CSV / Excel
+                  </Button>
+                  <Button
+                    onClick={() => { resetForm(); setIsAddModalOpen(true); }}
+                    className="bg-[#2f4692] hover:bg-[#243a7a] text-white flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Faculty
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-white border-blue-100 shadow-sm">
-              <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-blue-50 rounded-lg text-[#2f4692]">
-                  <Users className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Total Faculty Members</p>
-                  <p className="text-2xl font-bold text-gray-900">{facultyList.length}</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white border-indigo-100 shadow-sm">
-              <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600">
-                  <Award className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Ph.D. Holders</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {facultyList.filter(f => !!f.qualifications?.phd).length}
-                  </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="bg-white border border-gray-100 border-l-4 border-l-blue-600 shadow-sm hover:shadow-md transition-all duration-300">
+              <CardContent className="p-5 flex items-center h-full min-h-[108px]">
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-blue-50 rounded-lg text-[#2f4692] flex-shrink-0">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Total Faculty</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">{filteredFaculty.length}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Active profiles in selection</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-white border-emerald-100 shadow-sm">
-              <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
-                  <Briefcase className="w-6 h-6" />
+            <Card className="bg-white border border-gray-100 border-l-4 border-l-indigo-600 shadow-sm hover:shadow-md transition-all duration-300">
+              <CardContent className="p-5 flex flex-col justify-between h-full min-h-[108px]">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600 flex-shrink-0">
+                      <GraduationCap className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider font-medium">Designations & Leadership</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-0.5">
+                        Professors & HODs: <span className="text-indigo-600 font-bold">{filteredFaculty.filter(f => f.designation.includes('Professor') || f.designation.includes('Head')).length}</span>
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Professors & HODs</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {facultyList.filter(f => f.designation.includes('Professor') || f.designation.includes('Head')).length}
-                  </p>
+                <div className="flex flex-wrap gap-1 mt-2.5">
+                  {Object.entries(designationCounts).map(([desig, count]) => (
+                    <span key={desig} className="inline-flex items-center text-[9px] bg-slate-50 text-slate-700 px-2 py-0.5 rounded-full font-medium border border-slate-100">
+                      {desig}: <span className="font-bold text-slate-900 ml-1">{count}</span>
+                    </span>
+                  ))}
+                  {Object.keys(designationCounts).length === 0 && (
+                    <p className="text-[10px] text-gray-400 italic">No designations found</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-white border-amber-100 shadow-sm">
-              <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-amber-50 rounded-lg text-amber-600">
-                  <Building2 className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Academic Departments</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {Array.from(new Set(facultyList.map(f => f.department))).length}
-                  </p>
+            <Card className="bg-white border border-gray-100 border-l-4 border-l-amber-500 shadow-sm hover:shadow-md transition-all duration-300">
+              <CardContent className="p-5 flex items-center h-full min-h-[108px]">
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-amber-50 rounded-lg text-amber-600 flex-shrink-0">
+                    <Building2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Academic Departments</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">
+                      {Array.from(new Set(filteredFaculty.map(f => f.department).filter(Boolean))).length}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Departments represented</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -538,20 +552,24 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => setEditingFaculty(faculty)}
-                            className="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
-                            title="Edit Faculty Record"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(faculty.id)}
-                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                            title="Remove Faculty"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
+                            <>
+                              <button
+                                onClick={() => setEditingFaculty(faculty)}
+                                className="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
+                                title="Edit Faculty Record"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(faculty.id)}
+                                className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                title="Remove Faculty"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))

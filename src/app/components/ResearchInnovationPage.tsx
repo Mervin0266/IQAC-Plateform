@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useAuth } from '../contexts/AuthContext';
+import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 
 interface ResearchInnovationPageProps {
   onNavigate: (page: string) => void;
@@ -200,22 +201,33 @@ export function ResearchInnovationPage({ onNavigate, isPublicView = false, hideS
   const patentsGranted = filterPatents(finalGranted);
   const patentsCommercialized = filterPatents(finalCommercialized);
 
-  const departments = [
-    'CSE',
-    'Computer Science and Engineering',
-    'Computer Science',
-    'ECE',
-    'Electronics',
-    'Electronics and Communication Engineering',
-    'EEE',
-    'Electrical Engineering',
-    'MECH',
-    'Mechanical Engineering',
-    'CIVIL',
-    'Civil Engineering',
-    'AI & DS',
-    'Artificial Intelligence and Data Science'
-  ];
+  const { departments: dbDepts } = useAcademicHierarchy();
+  const departments = React.useMemo(() => {
+    const list: string[] = [];
+    dbDepts.forEach(d => {
+      if (d.code && !list.includes(d.code)) list.push(d.code);
+      if (d.name && !list.includes(d.name)) list.push(d.name);
+    });
+    if (list.length === 0) {
+      return [
+        'CSE',
+        'Computer Science and Engineering',
+        'Computer Science',
+        'ECE',
+        'Electronics',
+        'Electronics and Communication Engineering',
+        'EEE',
+        'Electrical Engineering',
+        'MECH',
+        'Mechanical Engineering',
+        'CIVIL',
+        'Civil Engineering',
+        'AI & DS',
+        'Artificial Intelligence and Data Science'
+      ];
+    }
+    return list;
+  }, [dbDepts]);
 
   const totalRevenueNumber = patentsCommercialized.reduce((sum, p) => {
     if (!p.revenue) return sum;

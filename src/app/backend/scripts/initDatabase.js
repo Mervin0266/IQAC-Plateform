@@ -1,6 +1,7 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const { sequelize } = require('../config/database');
-const { User, Achievement, Document, Patent, Placement, StrategicPlan } = require('../models');
-require('dotenv').config();
+const { User, Achievement, Document, Patent, Placement, StrategicPlan, Campus, School, Department, ProgramLevel, Course, Student } = require('../models');
 
 const initDatabase = async () => {
   try {
@@ -13,6 +14,166 @@ const initDatabase = async () => {
     // Sync all models
     await sequelize.sync({ force: true });
     console.log('✓ Database tables created');
+
+    // 1. Create Campus
+    const kengeriCampus = await Campus.create({
+      code: 'KENGERI',
+      name: 'Kengeri Campus',
+      description: 'Christ University Kengeri Campus, Bangalore',
+      status: 'Active'
+    });
+    console.log('✓ Kengeri Campus seeded');
+
+    // 2. Create School
+    const schoolOfEngineering = await School.create({
+      code: 'SOE',
+      name: 'School of Engineering and Technology',
+      description: 'School of Engineering and Technology',
+      campusId: kengeriCampus.id,
+      status: 'Active'
+    });
+    console.log('✓ School of Engineering and Technology seeded');
+
+    // 3. Create Program Levels
+    const ugLevel = await ProgramLevel.create({
+      code: 'UG',
+      name: 'Undergraduate',
+      description: 'Undergraduate Degree Programs',
+      status: 'Active'
+    });
+
+    const pgLevel = await ProgramLevel.create({
+      code: 'PG',
+      name: 'Postgraduate',
+      description: 'Postgraduate Master Programs',
+      status: 'Active'
+    });
+
+    const phdLevel = await ProgramLevel.create({
+      code: 'PHD',
+      name: 'Doctoral',
+      description: 'Doctoral Research Programs',
+      status: 'Active'
+    });
+    console.log('✓ 3 Program Levels seeded (UG, PG, PHD)');
+
+    // 4. Create Departments
+    const adseDept = await Department.create({
+      code: 'ADSE',
+      name: 'AI and Data Science Engineering',
+      shortName: 'ADSE',
+      schoolId: schoolOfEngineering.id,
+      establishedYear: 2021,
+      status: 'Active',
+      description: 'Department of AI and Data Science Engineering'
+    });
+
+    const cseDept = await Department.create({
+      code: 'CSE',
+      name: 'Computer Science and Engineering',
+      shortName: 'CSE',
+      schoolId: schoolOfEngineering.id,
+      establishedYear: 2010,
+      status: 'Active',
+      description: 'Department of Computer Science and Engineering'
+    });
+
+    const eceDept = await Department.create({
+      code: 'ECE',
+      name: 'Electronics and Communication Engineering',
+      shortName: 'ECE',
+      schoolId: schoolOfEngineering.id,
+      establishedYear: 2010,
+      status: 'Active',
+      description: 'Department of Electronics and Communication Engineering'
+    });
+
+    const civilDept = await Department.create({
+      code: 'CIVIL',
+      name: 'Civil Engineering',
+      shortName: 'CIVIL',
+      schoolId: schoolOfEngineering.id,
+      establishedYear: 2010,
+      status: 'Active',
+      description: 'Department of Civil Engineering'
+    });
+
+    const eeeDept = await Department.create({
+      code: 'EEE',
+      name: 'Electrical and Electronics Engineering',
+      shortName: 'EEE',
+      schoolId: schoolOfEngineering.id,
+      establishedYear: 2010,
+      status: 'Active',
+      description: 'Department of Electrical and Electronics Engineering'
+    });
+
+    const mechDept = await Department.create({
+      code: 'MECH',
+      name: 'Mechanical and Automobile Engineering',
+      shortName: 'MECH',
+      schoolId: schoolOfEngineering.id,
+      establishedYear: 2010,
+      status: 'Active',
+      description: 'Department of Mechanical and Automobile Engineering'
+    });
+
+    const shDept = await Department.create({
+      code: 'S&H',
+      name: 'Sciences and Humanities (Engineering)',
+      shortName: 'S&H',
+      schoolId: schoolOfEngineering.id,
+      establishedYear: 2010,
+      status: 'Active',
+      description: 'Department of Sciences and Humanities (Engineering)'
+    });
+    console.log('✓ 7 Departments seeded');
+
+    // 5. Create Courses / Programs
+    await Course.bulkCreate([
+      // 7.1 AI and Data Science Engineering
+      { code: 'BTECH-ADSE-AIML', name: 'BTech (Computer Science and Engineering - Artificial Intelligence and Machine Learning)', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
+      { code: 'BTECH-ADSE-DS', name: 'BTech (Computer Science and Engineering - Data Science)', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
+      { code: 'BTECH-AIML', name: 'BTech (Artificial Intelligence and Machine Learning)', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
+      { code: 'BTECH-ADSE-AIML-LE', name: 'BTech (CSE - AI & ML) - Lateral Entry', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '3 Years', status: 'Active' },
+      { code: 'BTECH-ADSE-DS-LE', name: 'BTech (CSE - Data Science) - Lateral Entry', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '3 Years', status: 'Active' },
+      { code: 'MTECH-DS', name: 'MTech (Data Science)', departmentId: adseDept.id, programLevelId: pgLevel.id, duration: '2 Years', status: 'Active' },
+      { code: 'PHD-ADSE', name: 'PhD in AI and Data Science Engineering', departmentId: adseDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' },
+
+      // 7.2 Computer Science and Engineering
+      { code: 'BTECH-CSE', name: 'BTech in Computer Science and Engineering', departmentId: cseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
+      { code: 'BTECH-CSE-LE', name: 'BTech (Computer Science and Engineering) - Lateral Entry', departmentId: cseDept.id, programLevelId: ugLevel.id, duration: '3 Years', status: 'Active' },
+      { code: 'MTECH-CSE', name: 'MTech in Computer Science and Engineering', departmentId: cseDept.id, programLevelId: pgLevel.id, duration: '2 Years', status: 'Active' },
+      { code: 'PHD-CSE', name: 'PhD in Computer Science and Engineering', departmentId: cseDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' },
+
+      // 7.3 Electronics and Communication Engineering
+      { code: 'BTECH-ECE', name: 'BTech in Electronics and Communication Engineering', departmentId: eceDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
+      { code: 'BTECH-ECE-LE', name: 'BTech (ECE) - Lateral Entry', departmentId: eceDept.id, programLevelId: ugLevel.id, duration: '3 Years', status: 'Active' },
+      { code: 'MTECH-ECE-VLSI', name: 'MTech in Electronics and Communication Engineering (VLSI and Embedded Systems)', departmentId: eceDept.id, programLevelId: pgLevel.id, duration: '2 Years', status: 'Active' },
+      { code: 'PHD-ECE', name: 'PhD in Electronics and Communication Engineering', departmentId: eceDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' },
+
+      // 7.4 Civil Engineering
+      { code: 'BTECH-CIVIL', name: 'BTech in Civil Engineering', departmentId: civilDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
+      { code: 'BTECH-CIVIL-LE', name: 'BTech (Civil Engineering) - Lateral Entry', departmentId: civilDept.id, programLevelId: ugLevel.id, duration: '3 Years', status: 'Active' },
+      { code: 'MTECH-CIVIL-SE', name: 'MTech in Structural Engineering', departmentId: civilDept.id, programLevelId: pgLevel.id, duration: '2 Years', status: 'Active' },
+      { code: 'PHD-CIVIL', name: 'PhD in Civil Engineering', departmentId: civilDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' },
+
+      // 7.5 Electrical and Electronics Engineering
+      { code: 'BTECH-EEE', name: 'BTech in Electrical and Electronics Engineering', departmentId: eeeDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
+      { code: 'BTECH-EEE-LE', name: 'BTech (EEE) - Lateral Entry', departmentId: eeeDept.id, programLevelId: ugLevel.id, duration: '3 Years', status: 'Active' },
+      { code: 'MTECH-EEE-PS', name: 'MTech in Power Systems / Electrical Engineering', departmentId: eeeDept.id, programLevelId: pgLevel.id, duration: '2 Years', status: 'Active' },
+      { code: 'PHD-EEE', name: 'PhD in Electrical and Electronics Engineering', departmentId: eeeDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' },
+
+      // 7.6 Mechanical and Automobile Engineering
+      { code: 'BTECH-MECH', name: 'BTech in Mechanical Engineering', departmentId: mechDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
+      { code: 'BTECH-MECH-LE', name: 'BTech (Mechanical Engineering) - Lateral Entry', departmentId: mechDept.id, programLevelId: ugLevel.id, duration: '3 Years', status: 'Active' },
+      { code: 'MTECH-MECH-AS', name: 'MTech in Mechanical Engineering (Automotive Systems)', departmentId: mechDept.id, programLevelId: pgLevel.id, duration: '2 Years', status: 'Active' },
+      { code: 'PHD-MECH', name: 'PhD in Mechanical Engineering', departmentId: mechDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' },
+
+      // 7.7 Sciences and Humanities (Engineering)
+      { code: 'PHD-SH', name: 'PhD in Mathematics / Physics / Chemistry (Engineering streams)', departmentId: shDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' }
+    ]);
+    console.log('✓ All courses/programs seeded with proper program levels');
 
     // Create default admin user
     const adminUser = await User.create({
@@ -69,6 +230,14 @@ const initDatabase = async () => {
       }
     ], { individualHooks: true });
     console.log('✓ Sample departmental users created');
+
+    // Associate HOD to Department
+    const hodUser = seededUsers.find(u => u.role === 'hod');
+    if (hodUser) {
+      await cseDept.update({ hodId: hodUser.id, hodName: hodUser.name, hodEmail: hodUser.email });
+      console.log('✓ HOD associated with CSE Department');
+    }
+
 
     // Create sample achievements
     const achievements = await Achievement.bulkCreate([
@@ -366,6 +535,96 @@ const initDatabase = async () => {
       }
     ]);
     console.log('✓ Sample documents created');
+
+    // Create sample students
+    await Student.bulkCreate([
+      {
+        registerNumber: '2460301',
+        name: 'Aarav Sharma',
+        email: 'aarav.sharma@students.christuniversity.in',
+        phone: '+91 9876543201',
+        campus: 'Kengeri Campus',
+        school: 'School of Engineering and Technology',
+        department: 'Computer Science and Engineering',
+        programLevel: 'UG',
+        course: 'BTech in Computer Science and Engineering',
+        academicYear: '2024-2025',
+        batch: '2024-2028',
+        gender: 'Male',
+        status: 'Active',
+        bloodGroup: 'O+',
+        admissionDate: '2024-07-15'
+      },
+      {
+        registerNumber: '2460302',
+        name: 'Ananya Rao',
+        email: 'ananya.rao@students.christuniversity.in',
+        phone: '+91 9876543202',
+        campus: 'Kengeri Campus',
+        school: 'School of Engineering and Technology',
+        department: 'AI and Data Science Engineering',
+        programLevel: 'UG',
+        course: 'BTech (Artificial Intelligence and Machine Learning)',
+        academicYear: '2024-2025',
+        batch: '2024-2028',
+        gender: 'Female',
+        status: 'Active',
+        bloodGroup: 'A+',
+        admissionDate: '2024-07-15'
+      },
+      {
+        registerNumber: '2460303',
+        name: 'Rohan Verma',
+        email: 'rohan.verma@students.christuniversity.in',
+        phone: '+91 9876543203',
+        campus: 'Kengeri Campus',
+        school: 'School of Engineering and Technology',
+        department: 'Electronics and Communication Engineering',
+        programLevel: 'PG',
+        course: 'MTech in Electronics and Communication Engineering (VLSI and Embedded Systems)',
+        academicYear: '2024-2025',
+        batch: '2024-2026',
+        gender: 'Male',
+        status: 'Active',
+        bloodGroup: 'B+',
+        admissionDate: '2024-07-20'
+      },
+      {
+        registerNumber: '2560301',
+        name: 'Diya Patel',
+        email: 'diya.patel@students.christuniversity.in',
+        phone: '+91 9876543204',
+        campus: 'Kengeri Campus',
+        school: 'School of Engineering and Technology',
+        department: 'Civil Engineering',
+        programLevel: 'PhD',
+        course: 'PhD in Civil Engineering',
+        academicYear: '2025-2026',
+        batch: '2025-2029',
+        gender: 'Female',
+        status: 'Active',
+        bloodGroup: 'AB+',
+        admissionDate: '2025-07-10'
+      },
+      {
+        registerNumber: '2560302',
+        name: 'Karthik N',
+        email: 'karthik.n@students.christuniversity.in',
+        phone: '+91 9876543205',
+        campus: 'Kengeri Campus',
+        school: 'School of Engineering and Technology',
+        department: 'Electrical and Electronics Engineering',
+        programLevel: 'UG',
+        course: 'BTech in Electrical and Electronics Engineering',
+        academicYear: '2025-2026',
+        batch: '2025-2029',
+        gender: 'Male',
+        status: 'Active',
+        bloodGroup: 'O-',
+        admissionDate: '2025-07-12'
+      }
+    ]);
+    console.log('✓ Sample student records created');
 
     console.log('\n========================================');
     console.log('Database initialization completed!');

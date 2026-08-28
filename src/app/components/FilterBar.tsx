@@ -1,6 +1,7 @@
 import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Search, Filter } from 'lucide-react';
+import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 
 interface FilterBarProps {
   filters: {
@@ -16,6 +17,8 @@ export function FilterBar({ filters, setFilters }: FilterBarProps) {
   const updateFilter = (key: string, value: string) => {
     setFilters({ ...filters, [key]: value });
   };
+
+  const { campuses, departments } = useAcademicHierarchy();
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
@@ -41,10 +44,18 @@ export function FilterBar({ filters, setFilters }: FilterBarProps) {
               <SelectValue placeholder="Select Campus" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="bangalore-central">Bangalore Central</SelectItem>
-              <SelectItem value="bangalore-yeshwanthpur">Bangalore Yeshwanthpur</SelectItem>
-              <SelectItem value="delhi-ncr">Delhi NCR</SelectItem>
-              <SelectItem value="pune-lavasa">Pune Lavasa</SelectItem>
+              {campuses.length > 0 ? (
+                campuses.map(c => (
+                  <SelectItem key={c.id} value={c.code}>{c.name}</SelectItem>
+                ))
+              ) : (
+                <>
+                  <SelectItem value="bangalore-central">Bangalore Central</SelectItem>
+                  <SelectItem value="bangalore-yeshwanthpur">Bangalore Yeshwanthpur</SelectItem>
+                  <SelectItem value="delhi-ncr">Delhi NCR</SelectItem>
+                  <SelectItem value="pune-lavasa">Pune Lavasa</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -57,12 +68,20 @@ export function FilterBar({ filters, setFilters }: FilterBarProps) {
               <SelectValue placeholder="Select Department" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="computer-science">Computer Science</SelectItem>
-              <SelectItem value="electronics">Electronics & Communication</SelectItem>
-              <SelectItem value="mechanical">Mechanical Engineering</SelectItem>
-              <SelectItem value="business">Business Administration</SelectItem>
-              <SelectItem value="psychology">Psychology</SelectItem>
-              <SelectItem value="literature">English Literature</SelectItem>
+              {departments.length > 0 ? (
+                departments.map(d => (
+                  <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                ))
+              ) : (
+                <>
+                  <SelectItem value="computer-science">Computer Science</SelectItem>
+                  <SelectItem value="electronics">Electronics & Communication</SelectItem>
+                  <SelectItem value="mechanical">Mechanical Engineering</SelectItem>
+                  <SelectItem value="business">Business Administration</SelectItem>
+                  <SelectItem value="psychology">Psychology</SelectItem>
+                  <SelectItem value="literature">English Literature</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>
