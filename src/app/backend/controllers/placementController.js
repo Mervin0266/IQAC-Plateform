@@ -231,13 +231,13 @@ exports.bulkCreatePlacements = async (req, res) => {
           studentId,
           batch,
           department: finalDept,
-          course,
+          course: course || 'NIL',
           company,
-          role: record.role || 'Not Specified',
+          role: (record.role && String(record.role).trim() !== '') ? record.role : 'NIL',
           package: parsedPackage,
           placementType: record.placementType || 'placement',
           placementDate: record.placementDate || new Date().toISOString().split('T')[0],
-          location: record.location || null,
+          location: (record.location && String(record.location).trim() !== '') ? record.location : 'NIL',
           createdBy: req.user.id
         });
 

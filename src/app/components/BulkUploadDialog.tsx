@@ -847,16 +847,26 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                 : `${baseUrl}/api/achievements/bulk`;
 
     // Enrich preview records with common batch metadata selected in the upload dialog
-    const dataWithCommonFields = previewData.map(record => ({
-      academicYear: selectedAcademicYear,
-      campus: selectedCampus,
-      school: selectedSchool,
-      ...record,
-      ...(record.academicYear ? {} : { academicYear: selectedAcademicYear }),
-      ...(record.campus ? {} : { campus: selectedCampus }),
-      ...(record.school ? {} : { school: selectedSchool }),
-      ...(isConsultancy ? { department: selectedDepartment } : {})
-    }));
+    const dataWithCommonFields = previewData.map(record => {
+      const item: Record<string, any> = {
+        academicYear: selectedAcademicYear,
+        campus: selectedCampus,
+        school: selectedSchool,
+        ...record,
+        ...(record.academicYear ? {} : { academicYear: selectedAcademicYear }),
+        ...(record.campus ? {} : { campus: selectedCampus }),
+        ...(record.school ? {} : { school: selectedSchool }),
+        ...(isConsultancy ? { department: selectedDepartment } : {})
+      };
+
+      Object.keys(item).forEach(k => {
+        if (item[k] === undefined || item[k] === null || item[k] === '' || String(item[k]).trim() === '') {
+          item[k] = 'NIL';
+        }
+      });
+
+      return item;
+    });
 
     const bodyPayload = isDepartmentalActivity
       ? { activities: dataWithCommonFields }

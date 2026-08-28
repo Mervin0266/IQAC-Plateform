@@ -27,8 +27,8 @@ const normalizeStudentRecord = (record) => {
 
   for (const field of nullableStringFields) {
     if (normalized[field] === undefined || normalized[field] === null ||
-        normalized[field] === '' || normalized[field] === 'NIL') {
-      normalized[field] = 'N/A';
+        normalized[field] === '' || normalized[field] === 'N/A' || String(normalized[field]).trim() === '') {
+      normalized[field] = 'NIL';
     }
   }
 

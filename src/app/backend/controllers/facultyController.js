@@ -73,7 +73,12 @@ exports.bulkCreateFaculty = async (req, res) => {
     const created = [];
 
     for (let i = 0; i < facultyList.length; i++) {
-      const record = facultyList[i];
+      const record = { ...facultyList[i] };
+      Object.keys(record).forEach(k => {
+        if (k !== 'sNo' && (record[k] === undefined || record[k] === null || record[k] === '' || record[k] === 'N/A' || String(record[k]).trim() === '')) {
+          record[k] = 'NIL';
+        }
+      });
       try {
         const existing = await Faculty.findOne({
           where: { employeeId: record.employeeId }
