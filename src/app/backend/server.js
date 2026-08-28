@@ -96,6 +96,7 @@ app.use('/api/schools', require('./routes/schools'));
 app.use('/api/program-levels', require('./routes/programLevels'));
 app.use('/api/courses', require('./routes/courses'));
 app.use('/api/hierarchy', require('./routes/hierarchy'));
+app.use('/api/system', require('./routes/system'));
 
 // Health check
 app.get('/health', (req, res) => {

@@ -224,25 +224,80 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
     return matchSearch && matchRole && matchDept && matchStatus;
   });
 
+  const [isClearDbOpen, setIsClearDbOpen] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState('');
+  const [isClearing, setIsClearing] = useState(false);
+  const [clearSuccessMsg, setClearSuccessMsg] = useState('');
+
+  const handleClearDatabase = async () => {
+    if (clearConfirmText.toUpperCase() !== 'CLEAR') {
+      alert('Please type "CLEAR" to confirm wiping the database.');
+      return;
+    }
+    setIsClearing(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/system/clear-database`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user?.token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setClearSuccessMsg('Entire database cleared successfully! The website is now clean without any initial data.');
+        setIsClearDbOpen(false);
+        setClearConfirmText('');
+        fetchUsers();
+      } else {
+        alert(data.message || 'Failed to clear database.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to execute clear database request.');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar currentPage="user-management" onNavigate={onNavigate} />
       <main className="ml-64 p-8">
         <div className="p-6">
           {/* Header */}
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <div>
               <h1 className="text-2xl font-bold text-[#0f1746] tracking-tight">USER MANAGEMENT</h1>
-              <p className="text-sm text-gray-500 mt-1">Manage platform accounts, departments, and login access.</p>
+              <p className="text-sm text-gray-500 mt-1">Manage platform accounts, departments, and system database storage.</p>
             </div>
-            <Button 
-              onClick={handleOpenCreate}
-              className="bg-blue-900 text-white hover:bg-blue-800 text-xs font-semibold flex items-center space-x-2 px-4 py-2"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Add New User</span>
-            </Button>
+            
+            <div className="flex items-center gap-3">
+              {user?.role === 'admin' && (
+                <Button
+                  onClick={() => setIsClearDbOpen(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold flex items-center space-x-2 px-4 py-2 shadow-sm"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Clear Entire Database</span>
+                </Button>
+              )}
+              <Button 
+                onClick={handleOpenCreate}
+                className="bg-blue-900 text-white hover:bg-blue-800 text-xs font-semibold flex items-center space-x-2 px-4 py-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Add New User</span>
+              </Button>
+            </div>
           </div>
+
+          {clearSuccessMsg && (
+            <div className="bg-emerald-50 text-emerald-800 p-4 rounded-lg text-xs font-semibold border border-emerald-200 mb-6 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <span>{clearSuccessMsg}</span>
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 text-red-700 p-4 rounded-lg text-xs font-semibold border border-red-200 mb-6 flex items-center gap-2">
@@ -551,6 +606,68 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear Database Confirmation Modal */}
+      <Dialog open={isClearDbOpen} onOpenChange={setIsClearDbOpen}>
+        <DialogContent className="max-w-md bg-white p-6 rounded-xl border border-red-200">
+          <DialogHeader className="pb-3 border-b border-gray-150">
+            <DialogTitle className="text-lg font-bold text-red-600 flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-red-600" />
+              <span>Clear Entire Database</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-4 space-y-3">
+            <p className="text-xs text-gray-700 leading-relaxed font-medium">
+              This action will <strong>permanently delete all data</strong> from the database, including:
+            </p>
+            <ul className="text-xs text-gray-600 list-disc pl-5 space-y-1">
+              <li>Student & Faculty Details</li>
+              <li>Departmental Activities & Matrices</li>
+              <li>Achievements, Publications, Patents & Research Metrics</li>
+              <li>Placements & Consultancy Projects</li>
+              <li>Departments, Schools, Campuses & Programs</li>
+            </ul>
+
+            <div className="bg-red-50 border border-red-200 p-3 rounded-lg text-[11px] text-red-800 font-semibold">
+              ⚠️ The website will be 100% clean without any initial seed data.
+            </div>
+
+            <div className="pt-2">
+              <Label className="text-xs font-bold text-gray-700 block mb-1">
+                Type <span className="text-red-600 font-mono">CLEAR</span> to confirm:
+              </Label>
+              <Input
+                type="text"
+                placeholder="CLEAR"
+                value={clearConfirmText}
+                onChange={(e) => setClearConfirmText(e.target.value)}
+                className="w-full text-xs uppercase font-mono tracking-widest border-red-300 focus:ring-red-500"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="pt-3 border-t border-gray-100 flex justify-end space-x-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { setIsClearDbOpen(false); setClearConfirmText(''); }}
+              className="text-xs"
+              disabled={isClearing}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleClearDatabase}
+              disabled={clearConfirmText.toUpperCase() !== 'CLEAR' || isClearing}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
+            >
+              {isClearing ? 'Clearing Database...' : 'Wipe & Clear Database'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
