@@ -99,4 +99,4 @@ const checkDepartment = (req, res, next) => {
   next();
 };
 
-module.exports = { auth, authorize, checkDepartment };
+module.exports = { auth, protect: auth, authorize, checkDepartment };
