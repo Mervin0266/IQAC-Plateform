@@ -32,6 +32,20 @@ const normalizeStudentRecord = (record) => {
     }
   }
 
+  // Handle Date fields safely (null if missing/NIL/N/A or invalid date)
+  const dateFields = ['dob', 'admissionDate'];
+  for (const df of dateFields) {
+    if (!normalized[df] || normalized[df] === 'NIL' || normalized[df] === 'N/A' || String(normalized[df]).trim() === '') {
+      normalized[df] = null;
+    } else {
+      const dStr = String(normalized[df]).trim();
+      const parsed = new Date(dStr);
+      if (isNaN(parsed.getTime())) {
+        normalized[df] = null;
+      }
+    }
+  }
+
   return normalized;
 };
 
@@ -313,7 +327,10 @@ exports.bulkCreateStudent = async (req, res) => {
           created.push(std);
         }
       } catch (err) {
-        errors.push(`Row ${i + 1} (${rawRecord.registerNumber || 'unknown'}): ${err.message}`);
+        const detail = err.errors && Array.isArray(err.errors)
+          ? err.errors.map(e => e.message || e.path).join(', ')
+          : (err.message || 'Validation error');
+        errors.push(`Row ${i + 1} (${rawRecord.registerNumber || 'unknown'}): ${detail}`);
       }
     }
 
