@@ -28,10 +28,7 @@ exports.getConsultancyProjects = async (req, res) => {
       }
     }
 
-    // Authorities can ONLY see finalized records
-    if (req.user.role === 'authority') {
-      where.status = 'finalized';
-    } else if (status) {
+    if (status && status !== 'all') {
       where.status = status;
     }
 
@@ -92,12 +89,7 @@ exports.getConsultancyProject = async (req, res) => {
         message: 'Access denied. You can only view records within your department.'
       });
     }
-    if (req.user.role === 'authority' && project.status !== 'finalized') {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Institutional Authorities can only view finalized records.'
-      });
-    }
+    // Institutional Authority can view records across all statuses
 
     res.json({
       success: true,
@@ -349,8 +341,6 @@ exports.getConsultancyStats = async (req, res) => {
       where.createdBy = req.user.id;
     } else if (req.user.role === 'coordinator' || req.user.role === 'hod') {
       where.department = req.user.department;
-    } else if (req.user.role === 'authority') {
-      where.status = 'finalized';
     }
 
     const total = await ConsultancyProject.count({ where });
