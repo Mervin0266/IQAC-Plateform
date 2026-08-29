@@ -187,12 +187,30 @@ export const ROLE_PERMISSIONS = {
   },
 };
 
-export function hasPageAccess(role: UserRole, page: string): boolean {
-  if (!ROLE_PERMISSIONS[role]) return false;
+export function hasPageAccess(role: UserRole | string, page: string): boolean {
+  if (!role) return true;
+  
+  // Normalize role string to handle capitalization or alternate names
+  const roleStr = String(role).toLowerCase();
+  const targetRole: UserRole = ROLE_PERMISSIONS[roleStr as UserRole] 
+    ? (roleStr as UserRole)
+    : roleStr.includes('admin') ? 'admin'
+    : roleStr.includes('authority') || roleStr.includes('dean') ? 'authority'
+    : roleStr.includes('hod') || roleStr.includes('head') ? 'hod'
+    : roleStr.includes('coord') ? 'coordinator'
+    : 'faculty';
+
+  const permissions = ROLE_PERMISSIONS[targetRole];
+  if (!permissions) return true;
+
+  // Admin and Institutional Authority have universal view access to all pages
+  if (targetRole === 'admin' || targetRole === 'authority') {
+    return true;
+  }
 
   // Check grouped page access for strategic plans
   if (page.startsWith('strategic-plan-')) {
-    return ROLE_PERMISSIONS[role].pages.includes('strategic-plan');
+    return permissions.pages.includes('strategic-plan');
   }
 
   // Allow ranking submenu access for roles that can access the main ranking section
@@ -203,10 +221,10 @@ export function hasPageAccess(role: UserRole, page: string): boolean {
     'qs-india-ranking',
   ];
   if (rankingSubPages.includes(page)) {
-    return ROLE_PERMISSIONS[role].pages.includes('ranking');
+    return permissions.pages.includes('ranking');
   }
   
-  return ROLE_PERMISSIONS[role].pages.includes(page);
+  return permissions.pages.includes(page);
 }
 
 export function hasFeatureAccess(role: UserRole, feature: keyof typeof ROLE_PERMISSIONS.admin.features): boolean {

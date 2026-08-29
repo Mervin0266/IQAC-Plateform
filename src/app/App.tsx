@@ -56,9 +56,11 @@ function AppContent() {
   }
 
   // Check if user has access to current page
-  if (!hasPageAccess(user.role, currentPage)) {
-    setCurrentPage('dashboard'); // Redirect to dashboard if no access
-  }
+  React.useEffect(() => {
+    if (user && !hasPageAccess(user.role, currentPage)) {
+      setCurrentPage('dashboard');
+    }
+  }, [user, currentPage]);
 
   const renderPage = () => {
     if (currentPage.startsWith('strategic-plan-')) {
