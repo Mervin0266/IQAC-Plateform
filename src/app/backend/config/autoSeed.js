@@ -16,10 +16,13 @@ const autoSeed = async (sequelize) => {
       // Ignore if table/constraint not present
     }
 
+    // Ensure default system login accounts always exist
+    await ensureDefaultUsers();
+
     // Check if basic academic hierarchy (Departments) already exists in the database
     const deptCount = await Department.count();
     if (deptCount > 0) {
-      console.log('✓ Database already contains academic hierarchy/departments.');
+      console.log('✓ Database contains academic hierarchy and default users.');
       return;
     }
 
@@ -570,4 +573,74 @@ const autoSeed = async (sequelize) => {
   }
 };
 
+const ensureDefaultUsers = async () => {
+  try {
+    const defaultAccounts = [
+      {
+        name: 'System Administrator',
+        email: process.env.DEFAULT_ADMIN_EMAIL || 'admin@christuniversity.in',
+        password: process.env.DEFAULT_ADMIN_PASSWORD || 'Admin@123',
+        role: 'admin',
+        department: 'Administration',
+        employeeId: 'ADMIN001',
+        phone: '+91-9876543210',
+        isActive: true
+      },
+      {
+        name: 'Dr. Jane Doe (Dean)',
+        email: 'dean@christuniversity.in',
+        password: 'Authority@123',
+        role: 'authority',
+        department: 'Deans Office',
+        employeeId: 'DEAN001',
+        phone: '+91-9876543220',
+        isActive: true
+      },
+      {
+        name: 'Dr. Rajesh Kumar (HOD)',
+        email: 'hod.cse@christuniversity.in',
+        password: 'Hod@123',
+        role: 'hod',
+        department: 'Computer Science and Engineering',
+        employeeId: 'HOD001',
+        phone: '+91-9876543211',
+        isActive: true
+      },
+      {
+        name: 'Dr. Suresh Menon (Coordinator)',
+        email: 'coord.cse@christuniversity.in',
+        password: 'Coordinator@123',
+        role: 'coordinator',
+        department: 'Computer Science and Engineering',
+        employeeId: 'COORD001',
+        phone: '+91-9876543213',
+        isActive: true
+      },
+      {
+        name: 'Dr. Priya Sharma (Faculty)',
+        email: 'faculty.cse@christuniversity.in',
+        password: 'Faculty@123',
+        role: 'faculty',
+        department: 'Computer Science and Engineering',
+        employeeId: 'FAC001',
+        phone: '+91-9876543212',
+        isActive: true
+      }
+    ];
+
+    for (const acc of defaultAccounts) {
+      const existing = await User.findOne({ where: { email: acc.email } });
+      if (!existing) {
+        await User.create(acc);
+        console.log(`✓ Default login account created: ${acc.email}`);
+      } else if (!existing.isActive) {
+        await existing.update({ isActive: true });
+      }
+    }
+  } catch (err) {
+    console.error('Error ensuring default users:', err.message);
+  }
+};
+
+autoSeed.ensureDefaultUsers = ensureDefaultUsers;
 module.exports = autoSeed;

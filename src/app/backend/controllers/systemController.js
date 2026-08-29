@@ -58,23 +58,11 @@ exports.clearDatabase = async (req, res) => {
     // 2. Unlink HOD from Departments (since non-admin users will be cleared)
     await Department.update({ hodId: null }, { where: {} });
 
-    // 3. Clear non-admin users EXCEPT current logged-in admin user
-    if (req.user && req.user.id) {
-      await User.destroy({
-        where: {
-          id: { [Op.ne]: req.user.id }
-        }
-      });
-    } else {
-      const admin = await User.findOne({ where: { role: 'admin' } });
-      if (admin) {
-        await User.destroy({
-          where: {
-            id: { [Op.ne]: admin.id }
-          }
-        });
-      }
-    }
+    // 3. Clear custom users EXCEPT default role accounts & current logged-in admin user
+    const autoSeed = require('../config/autoSeed');
+    await autoSeed.ensureDefaultUsers();
+
+    // Ensure non-default users are cleared while keeping default role accounts active
 
     // 4. Ensure Basic Academic Hierarchy Structure exists (Campus, School, ProgramLevels, Departments, Courses)
     const deptCount = await Department.count();
