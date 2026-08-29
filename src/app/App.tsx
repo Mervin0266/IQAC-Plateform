@@ -47,6 +47,13 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showLogin, setShowLogin] = useState(false);
 
+  // Check if user has access to current page (Hook called unconditionally at top level)
+  React.useEffect(() => {
+    if (user && !hasPageAccess(user.role, currentPage)) {
+      setCurrentPage('dashboard');
+    }
+  }, [user, currentPage]);
+
   // If not authenticated and not explicitly showing login, show public website
   if (!isAuthenticated || !user) {
     if (showLogin) {
@@ -54,13 +61,6 @@ function AppContent() {
     }
     return <PublicWebsite onLoginClick={() => setShowLogin(true)} />;
   }
-
-  // Check if user has access to current page
-  React.useEffect(() => {
-    if (user && !hasPageAccess(user.role, currentPage)) {
-      setCurrentPage('dashboard');
-    }
-  }, [user, currentPage]);
 
   const renderPage = () => {
     if (currentPage.startsWith('strategic-plan-')) {
