@@ -327,6 +327,38 @@ exports.deleteConsultancyProject = async (req, res) => {
   }
 };
 
+// @desc    Clear all consultancy projects
+// @route   DELETE /api/consultancy-projects/clear-all
+// @access  Private (Admin / Coordinator / HOD)
+exports.clearAllConsultancyProjects = async (req, res) => {
+  try {
+    const whereClause = {};
+
+    if (req.user.role === 'faculty' || req.user.role === 'authority') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You do not have permission to clear consultancy records.'
+      });
+    } else if (req.user.role === 'coordinator' || req.user.role === 'hod') {
+      whereClause.department = req.user.department;
+    }
+
+    const count = await ConsultancyProject.count({ where: whereClause });
+    await ConsultancyProject.destroy({ where: whereClause, truncate: false });
+
+    res.json({
+      success: true,
+      message: `Successfully cleared ${count} consultancy project record(s).`
+    });
+  } catch (error) {
+    console.error('Clear consultancy projects error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear consultancy project records'
+    });
+  }
+};
+
 // @desc    Get consultancy project statistics
 // @route   GET /api/consultancy-projects/stats
 // @access  Private

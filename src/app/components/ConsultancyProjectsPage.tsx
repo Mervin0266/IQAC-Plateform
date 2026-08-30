@@ -87,6 +87,30 @@ export function ConsultancyProjectsPage({
 
   // Delete confirm
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
+
+  const handleClearConsultancyDetails = async () => {
+    if (!token) return;
+    setClearLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/consultancy-projects/clear-all`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowClearConfirm(false);
+        fetchProjects();
+      } else {
+        setError(data.message || 'Failed to clear consultancy records');
+      }
+    } catch {
+      setError('Error connecting to server.');
+    } finally {
+      setClearLoading(false);
+    }
+  };
 
   const fetchProjects = useCallback(async () => {
     if (!token) return;
@@ -310,7 +334,18 @@ export function ConsultancyProjectsPage({
             ) : (
               <div></div>
             )}
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={projects.length === 0}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Clear Consultancy Data
+                </Button>
+              )}
               {canBulkUpload && (
                 <Button
                   variant="outline"
@@ -715,6 +750,33 @@ export function ConsultancyProjectsPage({
               onClick={() => deletingId && handleDelete(deletingId)}
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── CLEAR ALL CONFIRMATION DIALOG ──────────────────────────────────── */}
+      <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              Clear Consultancy Details
+            </DialogTitle>
+            <DialogDescription className="mt-2">
+              Are you sure you want to clear all consultancy project records? This operation will delete only consultancy details and cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 gap-2">
+            <Button variant="outline" onClick={() => setShowClearConfirm(false)} disabled={clearLoading}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={handleClearConsultancyDetails}
+              disabled={clearLoading}
+            >
+              {clearLoading ? 'Clearing...' : 'Yes, Clear All Details'}
             </Button>
           </DialogFooter>
         </DialogContent>

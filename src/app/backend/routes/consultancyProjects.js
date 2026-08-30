@@ -7,7 +7,8 @@ const {
   updateConsultancyProject,
   deleteConsultancyProject,
   getConsultancyStats,
-  bulkCreateConsultancyProjects
+  bulkCreateConsultancyProjects,
+  clearAllConsultancyProjects
 } = require('../controllers/consultancyProjectController');
 const { auth, authorize } = require('../middleware/auth');
 
@@ -16,6 +17,7 @@ router.use(auth);
 
 router.get('/stats', getConsultancyStats);
 router.post('/bulk', authorize('admin', 'coordinator', 'hod', 'faculty'), bulkCreateConsultancyProjects);
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllConsultancyProjects);
 
 router.route('/')
   .get(getConsultancyProjects)

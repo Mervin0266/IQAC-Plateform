@@ -231,10 +231,25 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const [successMsg, setSuccessMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { campusList, schoolList, departments } = useAcademicHierarchy();
+  const { campusList, schoolList, departmentList } = useAcademicHierarchy();
   const FIXED_DEPARTMENTS = React.useMemo(() => {
-    return departments.map(d => d.code).filter(Boolean);
-  }, [departments]);
+    const set = new Set<string>();
+    departmentList.forEach(d => {
+      if (d) set.add(normalizeDepartmentName(d));
+    });
+    if (set.size === 0) {
+      return [
+        'AI and Data Science Engineering',
+        'Civil Engineering',
+        'Computer Science and Engineering',
+        'Electrical and Electronics Engineering',
+        'Electronics and Communication Engineering',
+        'Mechanical and Automobile Engineering',
+        'Sciences and Humanities (Engineering)'
+      ];
+    }
+    return Array.from(set).sort();
+  }, [departmentList]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>('2024-2025');
