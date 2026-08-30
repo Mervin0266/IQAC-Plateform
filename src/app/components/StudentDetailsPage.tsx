@@ -165,25 +165,64 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
     disability: 'NO'
   });
 
-  // Filtered Students
-  const filteredStudents = students
-    .filter(student => {
-      const matchesSearch = 
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.registerNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (student.course && student.course.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (student.className && student.className.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (student.campus && student.campus.toLowerCase().includes(searchTerm.toLowerCase()));
+  const availableAcademicYears = React.useMemo(() => {
+    const yearsSet = new Set<string>();
+    students.forEach(st => {
+      if (st.academicYear) {
+        yearsSet.add(st.academicYear);
+      }
+    });
+    if (yearsSet.size === 0) {
+      return ['2025-2026', '2024-2025', '2023-2024', '2022-2023', '2021-2022'];
+    }
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+  }, [students]);
 
-      const matchesDept = departmentFilter === 'All' || student.department === departmentFilter;
-      const matchesYear = academicYearFilter === 'All' || student.academicYear === academicYearFilter;
-      const matchesLevel = programLevelFilter === 'All' || student.programLevel === programLevelFilter;
-      const matchesStatus = statusFilter === 'All' || student.status === statusFilter;
+  // Filtered & Deduplicated Students List
+  const filteredStudents = React.useMemo(() => {
+    let list = students.filter(student => {
+      const searchLower = searchTerm.toLowerCase().trim();
+      const matchesSearch = 
+        !searchLower ||
+        student.name.toLowerCase().includes(searchLower) ||
+        student.registerNumber.toLowerCase().includes(searchLower) ||
+        (student.email && student.email.toLowerCase().includes(searchLower)) ||
+        (student.course && student.course.toLowerCase().includes(searchLower)) ||
+        (student.department && student.department.toLowerCase().includes(searchLower)) ||
+        (student.className && student.className.toLowerCase().includes(searchLower)) ||
+        (student.campus && student.campus.toLowerCase().includes(searchLower));
+
+      const matchesDept = departmentFilter === 'All' || (student.department || '').toLowerCase().trim() === departmentFilter.toLowerCase().trim();
+      const matchesYear = academicYearFilter === 'All' || (student.academicYear || '2024-2025').toLowerCase().trim() === academicYearFilter.toLowerCase().trim();
+      const matchesLevel = programLevelFilter === 'All' || (student.programLevel || '').toLowerCase().trim() === programLevelFilter.toLowerCase().trim();
+      const matchesStatus = statusFilter === 'All' || (student.status || '').toLowerCase().trim() === statusFilter.toLowerCase().trim();
 
       return matchesSearch && matchesDept && matchesYear && matchesLevel && matchesStatus;
-    })
-    .sort((a, b) => {
+    });
+
+    // Deduplicate by registerNumber ONLY when "All Academic Years" is selected
+    if (academicYearFilter === 'All') {
+      const uniqueMap = new Map<string, Student>();
+      list.forEach(st => {
+        const regKey = st.registerNumber ? st.registerNumber.toLowerCase().trim() : '';
+        if (!regKey) return;
+
+        if (!uniqueMap.has(regKey)) {
+          uniqueMap.set(regKey, st);
+        } else {
+          // Retain the record with the newest academic year
+          const existing = uniqueMap.get(regKey)!;
+          const yearCurr = st.academicYear || '2024-2025';
+          const yearExist = existing.academicYear || '2024-2025';
+          if (yearCurr.localeCompare(yearExist) > 0) {
+            uniqueMap.set(regKey, st);
+          }
+        }
+      });
+      list = Array.from(uniqueMap.values());
+    }
+
+    return list.sort((a, b) => {
       const [field, order] = sortBy.split('-');
       const isAsc = order === 'asc';
 
@@ -200,6 +239,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       if (valA > valB) return isAsc ? 1 : -1;
       return 0;
     });
+  }, [students, searchTerm, departmentFilter, academicYearFilter, programLevelFilter, statusFilter, sortBy]);
 
   // Dynamic program level breakdown counts for filtered set
   const programLevelCounts = React.useMemo(() => {
@@ -525,14 +565,11 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                 className="border border-gray-300 rounded-md px-3 py-1.5 text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               >
                 <option value="All">All Academic Years</option>
-                <option value="2020-2021">AY 2020-2021</option>
-                <option value="2021-2022">AY 2021-2022</option>
-                <option value="2022-2023">AY 2022-2023</option>
-                <option value="2023-2024">AY 2023-2024</option>
-                <option value="2024-2025">AY 2024-2025</option>
-                <option value="2025-2026">AY 2025-2026</option>
-                <option value="2026-2027">AY 2026-2027</option>
-                <option value="2027-2028">AY 2027-2028</option>
+                {availableAcademicYears.map(yr => (
+                  <option key={yr} value={yr}>
+                    AY {yr}
+                  </option>
+                ))}
               </select>
 
               <select

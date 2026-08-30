@@ -33,6 +33,47 @@ interface FacultyDetailsPageProps {
   onNavigate: (page: string) => void;
 }
 
+export function normalizeDepartmentName(dept?: string): string {
+  if (!dept) return 'Unassigned';
+  const clean = dept.trim().replace(/\s+/g, ' ');
+  const upper = clean.toUpperCase();
+
+  if (upper.includes('CIVIL')) return 'Civil Engineering';
+  if (upper.includes('COMPUTER SCIENCE') || upper.includes('CSE')) return 'Computer Science and Engineering';
+  if (upper.includes('AI AND DATA') || upper.includes('ARTIFICIAL INTELLIGENCE') || upper.includes('DATA SCIENCE') || upper.includes('ADSE')) return 'AI and Data Science Engineering';
+  if (upper.includes('ELECTRICAL') || upper.includes('EEE')) return 'Electrical and Electronics Engineering';
+  if (upper.includes('ELECTRONICS') || upper.includes('COMMUNICATION') || upper.includes('ECE')) return 'Electronics and Communication Engineering';
+  if (upper.includes('MECHANICAL') || upper.includes('AUTOMOBILE') || upper.includes('MECH')) return 'Mechanical and Automobile Engineering';
+  if (upper.includes('SCIENCE') && upper.includes('HUMANITIES')) return 'Sciences and Humanities (Engineering)';
+
+  return clean
+    .toLowerCase()
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+export function normalizeDesignationName(desig?: string): string {
+  if (!desig) return 'Assistant Professor';
+  const clean = desig.trim().replace(/\s+/g, ' ');
+  const upper = clean.toUpperCase();
+
+  if (upper.includes('HEAD OF DEPARTMENT') || upper.includes('HOD') || upper.includes('HEAD')) return 'Head of Department';
+  if (upper.includes('ASSOCIATE PROFESSOR') || upper.includes('ASSOC')) return 'Associate Professor';
+  if (upper.includes('ASSISTANT PROFESSOR') || upper.includes('ASST')) return 'Assistant Professor';
+  if (upper.includes('PROFESSOR OF PRACTICE')) return 'Professor of Practice';
+  if (upper.includes('ADJUNCT')) return 'Adjunct Faculty';
+  if (upper.includes('GUEST')) return 'Guest Faculty';
+  if (upper.includes('PROFESSOR') || upper.includes('PROF')) return 'Professor';
+  if (upper.includes('DEAN')) return 'Dean';
+
+  return clean
+    .toLowerCase()
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 export interface Qualifications {
   ug: string;
   pg: string;
@@ -47,6 +88,7 @@ export interface Faculty {
   name: string;
   designation: string;
   department: string;
+  academicYear?: string;
   gender?: 'Male' | 'Female' | 'Other';
   dateOfBirth?: string;
   panCardNo?: string;
@@ -106,6 +148,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
   // Filters & Search State
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('All');
+  const [academicYearFilter, setAcademicYearFilter] = useState('All');
   const [designationFilter, setDesignationFilter] = useState('All');
   const [sortBy, setSortBy] = useState<string>('name-asc');
 
@@ -120,6 +163,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     name: '',
     designation: 'Assistant Professor',
     department: 'Computer Science and Engineering',
+    academicYear: '2024-2025',
     gender: undefined,
     dateOfBirth: '',
     panCardNo: '',
@@ -145,22 +189,74 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     'Dean'
   ];
 
-  // Filtered Faculty List
-  const filteredFaculty = facultyList
-    .filter(fac => {
+  // Dynamically compute available Academic Years from faculty records
+  const availableAcademicYears = React.useMemo(() => {
+    const yearsSet = new Set<string>();
+    facultyList.forEach(fac => {
+      if (fac.academicYear) {
+        yearsSet.add(fac.academicYear);
+      }
+    });
+    if (yearsSet.size === 0) {
+      return ['2025-2026', '2024-2025', '2023-2024', '2022-2023', '2021-2022'];
+    }
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+  }, [facultyList]);
+
+  // Normalized faculty records to consolidate casing and formatting variations
+  const normalizedFacultyList = React.useMemo(() => {
+    return facultyList.map(fac => ({
+      ...fac,
+      department: normalizeDepartmentName(fac.department),
+      designation: normalizeDesignationName(fac.designation)
+    }));
+  }, [facultyList]);
+
+  // Filtered & Deduplicated Faculty List
+  const filteredFaculty = React.useMemo(() => {
+    let list = normalizedFacultyList.filter(fac => {
+      const searchLower = searchTerm.toLowerCase().trim();
       const matchesSearch =
-        fac.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fac.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (fac.email && fac.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (fac.highestQualification && fac.highestQualification.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (fac.qualificationLevel && fac.qualificationLevel.toLowerCase().includes(searchTerm.toLowerCase()));
+        !searchLower ||
+        fac.name.toLowerCase().includes(searchLower) ||
+        fac.employeeId.toLowerCase().includes(searchLower) ||
+        fac.department.toLowerCase().includes(searchLower) ||
+        fac.designation.toLowerCase().includes(searchLower) ||
+        (fac.email && fac.email.toLowerCase().includes(searchLower)) ||
+        (fac.highestQualification && fac.highestQualification.toLowerCase().includes(searchLower)) ||
+        (fac.qualificationLevel && fac.qualificationLevel.toLowerCase().includes(searchLower));
 
-      const matchesDept = departmentFilter === 'All' || fac.department === departmentFilter;
-      const matchesDesig = designationFilter === 'All' || fac.designation === designationFilter;
+      const matchesDept = departmentFilter === 'All' || fac.department.toLowerCase().trim() === departmentFilter.toLowerCase().trim();
+      const matchesDesig = designationFilter === 'All' || fac.designation.toLowerCase().trim() === designationFilter.toLowerCase().trim();
+      const matchesYear = academicYearFilter === 'All' || (fac.academicYear || '2024-2025').toLowerCase().trim() === academicYearFilter.toLowerCase().trim();
 
-      return matchesSearch && matchesDept && matchesDesig;
-    })
-    .sort((a, b) => {
+      return matchesSearch && matchesDept && matchesDesig && matchesYear;
+    });
+
+    // Deduplicate ONLY when "All Academic Years" is selected
+    if (academicYearFilter === 'All') {
+      const uniqueMap = new Map<string, Faculty>();
+      list.forEach(fac => {
+        const key = fac.employeeId && fac.employeeId !== 'NIL'
+          ? fac.employeeId.toLowerCase().trim()
+          : `${fac.name.toLowerCase().trim()}_${fac.department.toLowerCase().trim()}`;
+
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, fac);
+        } else {
+          // Retain the record with the newest academic year
+          const existing = uniqueMap.get(key)!;
+          const yearCurr = fac.academicYear || '2024-2025';
+          const yearExist = existing.academicYear || '2024-2025';
+          if (yearCurr.localeCompare(yearExist) > 0) {
+            uniqueMap.set(key, fac);
+          }
+        }
+      });
+      list = Array.from(uniqueMap.values());
+    }
+
+    return list.sort((a, b) => {
       const [field, order] = sortBy.split('-');
       const isAsc = order === 'asc';
 
@@ -183,6 +279,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
       if (valA > valB) return isAsc ? 1 : -1;
       return 0;
     });
+  }, [normalizedFacultyList, searchTerm, departmentFilter, designationFilter, academicYearFilter, sortBy]);
 
   const designationCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
@@ -289,6 +386,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
       name: '',
       designation: 'Assistant Professor',
       department: 'Computer Science and Engineering',
+      academicYear: '2024-2025',
       gender: undefined,
       dateOfBirth: '',
       panCardNo: '',
@@ -306,9 +404,9 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
   };
 
   const exportToCSV = () => {
-    const headerRow = 'S.No,EmpId,Name,Designation,Department,Gender,Date of birth,PanCard No,Date Of Joining,Previous Teaching Experince Years,Previous Teaching Experince Months,Previous Industry Experince Years,Previous Industry Experince Months,Qualification Level,Highest Qualification,Experience in CU - Years,Experience in CU - Months';
+    const headerRow = 'S.No,EmpId,Name,Designation,Department,Academic Year,Gender,Date of birth,PanCard No,Date Of Joining,Previous Teaching Experince Years,Previous Teaching Experince Months,Previous Industry Experince Years,Previous Industry Experince Months,Qualification Level,Highest Qualification,Experience in CU - Years,Experience in CU - Months';
     const rows = filteredFaculty.map((f, idx) =>
-      `${f.sNo ?? idx + 1},"${f.employeeId}","${f.name}","${f.designation}","${f.department}","${f.gender || ''}","${f.dateOfBirth || ''}","${f.panCardNo || ''}","${f.dateOfJoining || ''}",${f.prevTeachingExpYears ?? 0},${f.prevTeachingExpMonths ?? 0},${f.prevIndustryExpYears ?? 0},${f.prevIndustryExpMonths ?? 0},"${f.qualificationLevel || ''}","${f.highestQualification || ''}",${f.cuExpYears ?? 0},${f.cuExpMonths ?? 0}`
+      `${f.sNo ?? idx + 1},"${f.employeeId}","${f.name}","${f.designation}","${f.department}","${f.academicYear || '2024-2025'}","${f.gender || ''}","${f.dateOfBirth || ''}","${f.panCardNo || ''}","${f.dateOfJoining || ''}",${f.prevTeachingExpYears ?? 0},${f.prevTeachingExpMonths ?? 0},${f.prevIndustryExpYears ?? 0},${f.prevIndustryExpMonths ?? 0},"${f.qualificationLevel || ''}","${f.highestQualification || ''}",${f.cuExpYears ?? 0},${f.cuExpMonths ?? 0}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headerRow, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -405,7 +503,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                     <div>
                       <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider font-medium">Designations & Leadership</p>
                       <p className="text-xs font-semibold text-gray-700 mt-0.5">
-                        Professors & HODs: <span className="text-indigo-600 font-bold">{filteredFaculty.filter(f => f.designation.includes('Professor') || f.designation.includes('Head')).length}</span>
+                        Professors & HODs: <span className="text-indigo-600 font-bold">{filteredFaculty.filter(f => f.designation.toLowerCase().includes('professor') || f.designation.toLowerCase().includes('head') || f.designation.toLowerCase().includes('dean')).length}</span>
                       </p>
                     </div>
                   </div>
@@ -459,6 +557,19 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                 <span>Department:</span>
               </div>
               <select
+                value={academicYearFilter}
+                onChange={e => setAcademicYearFilter(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-1.5 text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+              >
+                <option value="All">All Academic Years</option>
+                {availableAcademicYears.map(yr => (
+                  <option key={yr} value={yr}>
+                    AY {yr}
+                  </option>
+                ))}
+              </select>
+
+              <select
                 value={departmentFilter}
                 onChange={e => setDepartmentFilter(e.target.value)}
                 className="border border-gray-300 rounded-md px-3 py-1.5 text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -506,6 +617,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                     <th className="px-4 py-3 whitespace-nowrap">Name</th>
                     <th className="px-4 py-3 whitespace-nowrap">Designation</th>
                     <th className="px-4 py-3 whitespace-nowrap">Department</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Academic Year</th>
                     <th className="px-4 py-3 whitespace-nowrap">Gender</th>
                     <th className="px-4 py-3 whitespace-nowrap">Date of Birth</th>
                     <th className="px-4 py-3 whitespace-nowrap">PAN Card</th>
@@ -535,6 +647,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                         </td>
                         <td className="px-4 py-3 text-xs whitespace-nowrap">{faculty.designation}</td>
                         <td className="px-4 py-3 text-xs">{faculty.department}</td>
+                        <td className="px-4 py-3 text-xs font-mono font-semibold text-indigo-600 whitespace-nowrap">{faculty.academicYear || '2024-2025'}</td>
                         <td className="px-4 py-3 text-xs">{faculty.gender || '-'}</td>
                         <td className="px-4 py-3 text-xs font-mono whitespace-nowrap">{faculty.dateOfBirth || '-'}</td>
                         <td className="px-4 py-3 text-xs font-mono">{faculty.panCardNo || '-'}</td>
@@ -626,6 +739,16 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Department *</label>
                   <select name="department" value={formData.department} onChange={handleInputChange} className="w-full border border-gray-300 rounded-md p-2 text-sm">
                     {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year *</label>
+                  <select name="academicYear" value={formData.academicYear || '2024-2025'} onChange={handleInputChange} className="w-full border border-gray-300 rounded-md p-2 text-sm font-medium">
+                    <option value="2025-2026">2025-2026</option>
+                    <option value="2024-2025">2024-2025</option>
+                    <option value="2023-2024">2023-2024</option>
+                    <option value="2022-2023">2022-2023</option>
+                    <option value="2021-2022">2021-2022</option>
                   </select>
                 </div>
 
@@ -752,6 +875,10 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                 <p className="font-bold text-gray-900 text-sm mb-3">Personal Details</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
+                    <p className="text-gray-400 font-medium">Academic Year</p>
+                    <p className="font-semibold text-indigo-700 mt-0.5 font-mono">{viewingFaculty.academicYear || '2024-2025'}</p>
+                  </div>
+                  <div>
                     <p className="text-gray-400 font-medium">Gender</p>
                     <p className="font-semibold text-gray-900 mt-0.5">{viewingFaculty.gender || '-'}</p>
                   </div>
@@ -852,6 +979,16 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Department</label>
                   <select value={editingFaculty.department} onChange={e => setEditingFaculty({ ...editingFaculty, department: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm">
                     {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year</label>
+                  <select value={editingFaculty.academicYear || '2024-2025'} onChange={e => setEditingFaculty({ ...editingFaculty, academicYear: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm font-medium">
+                    <option value="2025-2026">2025-2026</option>
+                    <option value="2024-2025">2024-2025</option>
+                    <option value="2023-2024">2023-2024</option>
+                    <option value="2022-2023">2022-2023</option>
+                    <option value="2021-2022">2021-2022</option>
                   </select>
                 </div>
 

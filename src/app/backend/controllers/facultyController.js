@@ -34,8 +34,24 @@ exports.createFaculty = async (req, res) => {
 
     const record = {
       ...req.body,
-      sNo: req.body.sNo || nextSNo
+      sNo: req.body.sNo || nextSNo,
+      academicYear: req.body.academicYear || '2024-2025'
     };
+
+    const existing = await Faculty.findOne({
+      where: {
+        employeeId: record.employeeId,
+        academicYear: record.academicYear
+      }
+    });
+
+    if (existing) {
+      await existing.update(record);
+      return res.json({
+        success: true,
+        data: existing
+      });
+    }
 
     const faculty = await Faculty.create(record);
     res.status(201).json({
@@ -52,6 +68,7 @@ exports.createFaculty = async (req, res) => {
 };
 
 // @desc    Bulk create faculty from CSV upload
+// @desc    Bulk create faculty from CSV upload
 // @route   POST /api/faculty/bulk
 // @access  Private (admin/coordinator)
 exports.bulkCreateFaculty = async (req, res) => {
@@ -64,6 +81,15 @@ exports.bulkCreateFaculty = async (req, res) => {
       });
     }
 
+    // Drop legacy employeeId unique index/constraint if present in DB
+    try {
+      const { sequelize } = require('../config/database');
+      await sequelize.query('ALTER TABLE "faculties" DROP CONSTRAINT IF EXISTS "faculties_employeeId_key" CASCADE;').catch(() => {});
+      await sequelize.query('ALTER TABLE "faculties" DROP CONSTRAINT IF EXISTS "faculties_employee_id_key" CASCADE;').catch(() => {});
+      await sequelize.query('DROP INDEX IF EXISTS "faculties_employee_id_key";').catch(() => {});
+      await sequelize.query('DROP INDEX IF EXISTS "faculties_employeeId_key";').catch(() => {});
+    } catch (e) {}
+
     const maxSNoFaculty = await Faculty.findOne({
       order: [['sNo', 'DESC']]
     });
@@ -75,6 +101,9 @@ exports.bulkCreateFaculty = async (req, res) => {
     for (let i = 0; i < facultyList.length; i++) {
       const raw = facultyList[i];
       const record = { ...raw };
+      if (!record.academicYear) {
+        record.academicYear = '2024-2025';
+      }
 
       // Sanitize Date fields: dateOfBirth, dateOfJoining
       ['dateOfBirth', 'dateOfJoining'].forEach(df => {
@@ -110,7 +139,10 @@ exports.bulkCreateFaculty = async (req, res) => {
 
       try {
         const existing = await Faculty.findOne({
-          where: { employeeId: record.employeeId }
+          where: { 
+            employeeId: record.employeeId,
+            academicYear: record.academicYear
+          }
         });
         if (existing) {
           if (existing.sNo === null || existing.sNo === undefined) {

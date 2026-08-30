@@ -13,8 +13,7 @@ const Faculty = sequelize.define('Faculty', {
   },
   employeeId: {
     type: DataTypes.STRING,
-    allowNull: false,
-    unique: true
+    allowNull: false
   },
   name: {
     type: DataTypes.STRING,
@@ -27,6 +26,10 @@ const Faculty = sequelize.define('Faculty', {
   department: {
     type: DataTypes.STRING,
     allowNull: false
+  },
+  academicYear: {
+    type: DataTypes.STRING,
+    defaultValue: '2024-2025'
   },
   gender: {
     type: DataTypes.ENUM('Male', 'Female', 'Other'),

@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info } from 'lucide-react';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
+import { normalizeDepartmentName, normalizeDesignationName } from './FacultyDetailsPage';
 
 const formatDateToISO = (dateStr: string): string | null => {
   if (!dateStr) return null;
@@ -686,8 +687,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             switch (header) {
               case 'EmpId':            record['employeeId'] = val || 'NIL'; break;
               case 'Name':             record['name'] = val || 'NIL'; break;
-              case 'Designation':      record['designation'] = val || 'NIL'; break;
-              case 'Department':       record['department'] = val || 'NIL'; break;
+              case 'Designation':      record['designation'] = normalizeDesignationName(val) || 'NIL'; break;
+              case 'Department':       record['department'] = normalizeDepartmentName(val) || 'NIL'; break;
               case 'Gender':           record['gender'] = normalizeGender(val); break;
               case 'Date of birth':    record['dateOfBirth'] = formatDateToISO(val); break;
               case 'PanCard No':       record['panCardNo'] = val || 'NIL'; break;
@@ -700,7 +701,11 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               case 'Highest Qualification':   record['highestQualification'] = val || 'NIL'; break;
               case 'Experience in CU - Years':  record['cuExpYears'] = val || 'NIL'; break;
               case 'Experience in CU - Months': record['cuExpMonths'] = val || 'NIL'; break;
+              case 'Academic Year':            record['academicYear'] = val || selectedAcademicYear || '2024-2025'; break;
               default: record[header] = val;
+            }
+            if (!record['academicYear']) {
+              record['academicYear'] = selectedAcademicYear || '2024-2025';
             }
           } else if (isStudent) {
             // Map CSV headers to student backend field names
