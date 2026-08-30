@@ -171,6 +171,20 @@ export function DepartmentalActivitiesPage({ onNavigate }: DepartmentalActivitie
 
   const getMockActivities = (): DepartmentalActivity[] => [];
 
+  // Dynamically compute available Academic Years from departmental activities records
+  const availableAcademicYears = useMemo(() => {
+    const yearsSet = new Set<string>();
+    activities.forEach(act => {
+      if (act.academicYear) {
+        yearsSet.add(act.academicYear);
+      }
+    });
+    if (yearsSet.size === 0) {
+      return ['2025-2026', '2024-2025', '2023-2024', '2022-2023', '2021-2022'];
+    }
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+  }, [activities]);
+
   // Dynamic Filtered Activities List
   const filteredActivities = useMemo(() => {
     return activities.filter(act => {
@@ -434,14 +448,11 @@ export function DepartmentalActivitiesPage({ onNavigate }: DepartmentalActivitie
                   className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="All">All Academic Years</option>
-                  <option value="2020-2021">AY 2020-2021</option>
-                  <option value="2021-2022">AY 2021-2022</option>
-                  <option value="2022-2023">AY 2022-2023</option>
-                  <option value="2023-2024">AY 2023-2024</option>
-                  <option value="2024-2025">AY 2024-2025</option>
-                  <option value="2025-2026">AY 2025-2026</option>
-                  <option value="2026-2027">AY 2026-2027</option>
-                  <option value="2027-2028">AY 2027-2028</option>
+                  {availableAcademicYears.map(yr => (
+                    <option key={yr} value={yr}>
+                      AY {yr}
+                    </option>
+                  ))}
                 </select>
               </div>
 
