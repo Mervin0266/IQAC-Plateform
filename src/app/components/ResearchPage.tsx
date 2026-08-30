@@ -14,6 +14,7 @@ import { ResearchInnovationPage } from './ResearchInnovationPage';
 import { ConsultancyProjectsPage } from './ConsultancyProjectsPage';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
+import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 
@@ -113,31 +114,24 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
     progress: '0', // Milestone progress %
   });
 
-  const { departments: dbDepts } = useAcademicHierarchy();
+  const { departmentList: dbDepts } = useAcademicHierarchy();
   const departments = React.useMemo(() => {
-    const list: string[] = [];
+    const set = new Set<string>();
     dbDepts.forEach(d => {
-      if (d.code && !list.includes(d.code)) list.push(d.code);
-      if (d.name && !list.includes(d.name)) list.push(d.name);
+      if (d) set.add(normalizeDepartmentName(d));
     });
-    if (list.length === 0) {
+    if (set.size === 0) {
       return [
-        'CSE',
-        'Computer Science and Engineering',
-        'ECE',
-        'Electronics and Communication Engineering',
-        'EEE',
-        'Electrical and Electronics Engineering',
-        'MECH',
-        'Mechanical Engineering',
-        'CIVIL',
+        'AI and Data Science Engineering',
         'Civil Engineering',
-        'Sciences and Humanities',
-        'School of Architecture',
-        'AIML & Data Science'
+        'Computer Science and Engineering',
+        'Electrical and Electronics Engineering',
+        'Electronics and Communication Engineering',
+        'Mechanical and Automobile Engineering',
+        'Sciences and Humanities (Engineering)'
       ];
     }
-    return list;
+    return Array.from(set).sort();
   }, [dbDepts]);
 
   const months = [
