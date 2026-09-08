@@ -4,36 +4,53 @@ const autoSeed = async (sequelize) => {
   try {
     // 0. Pre-sync migrations to fix any legacy PostgreSQL enum or constraint issues
     try {
-      await sequelize.query('ALTER TABLE "research_metrics" ALTER COLUMN "periodType" TYPE VARCHAR(50) USING "periodType"::VARCHAR;');
-      await sequelize.query("UPDATE \"research_metrics\" SET \"periodType\" = 'academic_year' WHERE \"periodType\" = 'yearly';");
-      await sequelize.query("UPDATE \"research_metrics\" SET \"periodType\" = 'month' WHERE \"periodType\" = 'monthly';");
-      await sequelize.query('DROP TYPE IF EXISTS "enum_research_metrics_periodType" CASCADE;');
-    } catch (e) {
-      // Ignore if table does not exist yet
-    }
-
-    try {
       await sequelize.query(`
-        ALTER TABLE "patents" ALTER COLUMN "inventors" TYPE TEXT USING CASE 
-          WHEN pg_typeof("inventors")::text = 'text[]' OR pg_typeof("inventors")::text = 'character varying[]'
-          THEN array_to_string("inventors", ', ')
-          ELSE "inventors"::text
-        END;
+        DO $$ 
+        BEGIN
+          BEGIN
+            ALTER TABLE "patents" ALTER COLUMN "inventors" TYPE TEXT USING array_to_string("inventors", ', ');
+          EXCEPTION WHEN OTHERS THEN
+            BEGIN
+              ALTER TABLE "patents" ALTER COLUMN "inventors" TYPE TEXT;
+            EXCEPTION WHEN OTHERS THEN
+              NULL;
+            END;
+          END;
+
+          BEGIN
+            ALTER TABLE "patents" ALTER COLUMN "approvalStatus" TYPE VARCHAR(50);
+          EXCEPTION WHEN OTHERS THEN
+            NULL;
+          END;
+
+          BEGIN
+            ALTER TABLE "publications" ALTER COLUMN "status" TYPE VARCHAR(50);
+          EXCEPTION WHEN OTHERS THEN
+            NULL;
+          END;
+
+          BEGIN
+            ALTER TABLE "research_metrics" ALTER COLUMN "periodType" TYPE VARCHAR(50);
+          EXCEPTION WHEN OTHERS THEN
+            NULL;
+          END;
+
+          BEGIN
+            UPDATE "research_metrics" SET "periodType" = 'academic_year' WHERE "periodType" = 'yearly';
+            UPDATE "research_metrics" SET "periodType" = 'month' WHERE "periodType" = 'monthly';
+          EXCEPTION WHEN OTHERS THEN
+            NULL;
+          END;
+
+          BEGIN
+            DROP TYPE IF EXISTS "enum_patents_approvalStatus" CASCADE;
+            DROP TYPE IF EXISTS "enum_publications_status" CASCADE;
+            DROP TYPE IF EXISTS "enum_research_metrics_periodType" CASCADE;
+          EXCEPTION WHEN OTHERS THEN
+            NULL;
+          END;
+        END $$;
       `);
-    } catch (e) {
-      // Ignore if table does not exist yet
-    }
-
-    try {
-      await sequelize.query('ALTER TABLE "patents" ALTER COLUMN "approvalStatus" TYPE VARCHAR(50) USING "approvalStatus"::VARCHAR;');
-      await sequelize.query('DROP TYPE IF EXISTS "enum_patents_approvalStatus" CASCADE;');
-    } catch (e) {
-      // Ignore if table does not exist yet
-    }
-
-    try {
-      await sequelize.query('ALTER TABLE "publications" ALTER COLUMN "status" TYPE VARCHAR(50) USING "status"::VARCHAR;');
-      await sequelize.query('DROP TYPE IF EXISTS "enum_publications_status" CASCADE;');
     } catch (e) {
       // Ignore if table does not exist yet
     }
@@ -50,18 +67,6 @@ const autoSeed = async (sequelize) => {
       await sequelize.query('DROP INDEX IF EXISTS "students_registerNumber_key";');
     } catch (e) {
       // Ignore if table/constraint not present
-    }
-
-    // Ensure research_metrics periodType is VARCHAR(50) and normalize legacy enum values
-    try {
-      await sequelize.query('ALTER TABLE "research_metrics" ALTER COLUMN "periodType" TYPE VARCHAR(50) USING "periodType"::VARCHAR;');
-      await sequelize.query("UPDATE \"research_metrics\" SET \"periodType\" = 'academic_year' WHERE \"periodType\" = 'yearly';");
-      await sequelize.query("UPDATE \"research_metrics\" SET \"periodType\" = 'month' WHERE \"periodType\" = 'monthly';");
-      await sequelize.query('DROP TYPE IF EXISTS "enum_research_metrics_periodType" CASCADE;');
-      await sequelize.query('ALTER TABLE "patents" ALTER COLUMN "approvalStatus" TYPE VARCHAR(50) USING "approvalStatus"::VARCHAR;');
-      await sequelize.query('ALTER TABLE "publications" ALTER COLUMN "status" TYPE VARCHAR(50) USING "status"::VARCHAR;');
-    } catch (e) {
-      // Ignore if table not present
     }
 
     // Ensure default system login accounts always exist
