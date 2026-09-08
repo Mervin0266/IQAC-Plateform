@@ -154,6 +154,7 @@ export function SponsoredResearchPage({
         'Electrical and Electronics Engineering',
         'Electronics and Communication Engineering',
         'Mechanical and Automobile Engineering',
+        'School of Architecture',
         'Sciences and Humanities (Engineering)'
       ];
     }
