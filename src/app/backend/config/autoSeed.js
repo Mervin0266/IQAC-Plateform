@@ -2,6 +2,16 @@ const { User, Achievement, ResearchMetric, Campus, School, Department, ProgramLe
 
 const autoSeed = async (sequelize) => {
   try {
+    // 0. Pre-sync migrations to fix any legacy PostgreSQL enum or constraint issues
+    try {
+      await sequelize.query('ALTER TABLE "research_metrics" ALTER COLUMN "periodType" TYPE VARCHAR(50) USING "periodType"::VARCHAR;');
+      await sequelize.query("UPDATE \"research_metrics\" SET \"periodType\" = 'academic_year' WHERE \"periodType\" = 'yearly';");
+      await sequelize.query("UPDATE \"research_metrics\" SET \"periodType\" = 'month' WHERE \"periodType\" = 'monthly';");
+      await sequelize.query('DROP TYPE IF EXISTS "enum_research_metrics_periodType" CASCADE;');
+    } catch (e) {
+      // Ignore if table does not exist yet
+    }
+
     // Sync the database schema (create tables and add missing columns if they don't exist)
     await sequelize.sync({ force: false, alter: { drop: false } });
     console.log('✓ Database schema synchronized');
@@ -14,6 +24,16 @@ const autoSeed = async (sequelize) => {
       await sequelize.query('DROP INDEX IF EXISTS "students_registerNumber_key";');
     } catch (e) {
       // Ignore if table/constraint not present
+    }
+
+    // Ensure research_metrics periodType is VARCHAR(50) and normalize legacy enum values
+    try {
+      await sequelize.query('ALTER TABLE "research_metrics" ALTER COLUMN "periodType" TYPE VARCHAR(50) USING "periodType"::VARCHAR;');
+      await sequelize.query("UPDATE \"research_metrics\" SET \"periodType\" = 'academic_year' WHERE \"periodType\" = 'yearly';");
+      await sequelize.query("UPDATE \"research_metrics\" SET \"periodType\" = 'month' WHERE \"periodType\" = 'monthly';");
+      await sequelize.query('DROP TYPE IF EXISTS "enum_research_metrics_periodType" CASCADE;');
+    } catch (e) {
+      // Ignore if table not present
     }
 
     // Ensure default system login accounts always exist
@@ -326,7 +346,7 @@ const autoSeed = async (sequelize) => {
       // AY 2024-2025 (Yearly breakdown from Screenshot 1)
       {
         academicYear: '2024-2025',
-        periodType: 'yearly',
+        periodType: 'academic_year',
         periodValue: 'AY 2024-25',
         department: 'Civil Engineering',
         books: 0, chapters: 1, scopusJournals: 13, nationalJournals: 0, internationalJournals: 14, citations: 127,
@@ -335,7 +355,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2024-2025',
-        periodType: 'yearly',
+        periodType: 'academic_year',
         periodValue: 'AY 2024-25',
         department: 'Computer Science and Engineering',
         books: 6, chapters: 71, scopusJournals: 77, nationalJournals: 0, internationalJournals: 77, citations: 70,
@@ -344,7 +364,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2024-2025',
-        periodType: 'yearly',
+        periodType: 'academic_year',
         periodValue: 'AY 2024-25',
         department: 'Electronics and Communication Engineering',
         books: 3, chapters: 9, scopusJournals: 16, nationalJournals: 0, internationalJournals: 16, citations: 35,
@@ -353,7 +373,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2024-2025',
-        periodType: 'yearly',
+        periodType: 'academic_year',
         periodValue: 'AY 2024-25',
         department: 'Electrical and Electronics Engineering',
         books: 1, chapters: 1, scopusJournals: 15, nationalJournals: 2, internationalJournals: 15, citations: 207,
@@ -362,7 +382,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2024-2025',
-        periodType: 'yearly',
+        periodType: 'academic_year',
         periodValue: 'AY 2024-25',
         department: 'Mechanical Engineering',
         books: 7, chapters: 3, scopusJournals: 26, nationalJournals: 2, internationalJournals: 26, citations: 36,
@@ -371,7 +391,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2024-2025',
-        periodType: 'yearly',
+        periodType: 'academic_year',
         periodValue: 'AY 2024-25',
         department: 'Sciences and Humanities',
         books: 3, chapters: 9, scopusJournals: 47, nationalJournals: 0, internationalJournals: 47, citations: 94,
@@ -380,7 +400,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2024-2025',
-        periodType: 'yearly',
+        periodType: 'academic_year',
         periodValue: 'AY 2024-25',
         department: 'School of Architecture',
         books: 0, chapters: 7, scopusJournals: 2, nationalJournals: 0, internationalJournals: 5, citations: 7,
@@ -391,7 +411,7 @@ const autoSeed = async (sequelize) => {
       // AY 2025-2026 Monthly Breakdown for AIML & Data Science (from Screenshot 2)
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'June - 2025',
         department: 'AIML & Data Science',
         books: 1, chapters: 11, scopusJournals: 2, nationalJournals: 0, internationalJournals: 2, citations: 0,
@@ -400,7 +420,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'July - 2025',
         department: 'AIML & Data Science',
         books: 3, chapters: 5, scopusJournals: 2, nationalJournals: 0, internationalJournals: 2, citations: 0,
@@ -409,7 +429,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'August - 2025',
         department: 'AIML & Data Science',
         books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
@@ -418,7 +438,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'September - 2025',
         department: 'AIML & Data Science',
         books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
@@ -427,7 +447,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'October - 2025',
         department: 'AIML & Data Science',
         books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
@@ -436,7 +456,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'November - 2025',
         department: 'AIML & Data Science',
         books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
@@ -445,7 +465,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'December - 2025',
         department: 'AIML & Data Science',
         books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
@@ -454,7 +474,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'January - 2026',
         department: 'AIML & Data Science',
         books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
@@ -463,7 +483,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'February - 2026',
         department: 'AIML & Data Science',
         books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
@@ -472,7 +492,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'March - 2026',
         department: 'AIML & Data Science',
         books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
@@ -481,7 +501,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'April - 2026',
         department: 'AIML & Data Science',
         books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,
@@ -490,7 +510,7 @@ const autoSeed = async (sequelize) => {
       },
       {
         academicYear: '2025-2026',
-        periodType: 'monthly',
+        periodType: 'month',
         periodValue: 'May - 2026',
         department: 'AIML & Data Science',
         books: 0, chapters: 0, scopusJournals: 0, nationalJournals: 0, internationalJournals: 0, citations: 0,

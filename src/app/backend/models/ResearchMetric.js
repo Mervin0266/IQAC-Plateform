@@ -12,9 +12,9 @@ const ResearchMetric = sequelize.define('ResearchMetric', {
     allowNull: false
   },
   periodType: {
-    type: DataTypes.ENUM('yearly', 'monthly'),
+    type: DataTypes.STRING(50),
     allowNull: false,
-    defaultValue: 'yearly'
+    defaultValue: 'academic_year'
   },
   periodValue: { // e.g., 'AY 2024-25', 'June - 2025'
     type: DataTypes.STRING,

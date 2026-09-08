@@ -145,7 +145,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
     if (breakdownType === 'dept') {
       const rows = departments.map(dept => {
         const found = researchMetrics.find(
-          m => m.periodType === 'academic_year' && 
+          m => (m.periodType === 'academic_year' || m.periodType === 'yearly') && 
                m.academicYear === metricYear && 
                m.department?.toLowerCase() === dept.toLowerCase()
         );
@@ -177,7 +177,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
       const rows = months.map(mName => {
         const periodVal = getPeriodValueForMonth(mName, metricYear);
         const found = researchMetrics.find(
-          m => m.periodType === 'month' && 
+          m => (m.periodType === 'month' || m.periodType === 'monthly') && 
                m.academicYear === metricYear && 
                m.periodValue === periodVal && 
                m.department?.toLowerCase() === metricDept.toLowerCase()

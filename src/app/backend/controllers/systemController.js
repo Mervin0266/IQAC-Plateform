@@ -162,21 +162,21 @@ exports.getDashboardStats = async (req, res) => {
       deptCount,
       courseCount
     ] = await Promise.all([
-      Student ? Student.count() : 0,
-      Faculty ? Faculty.count() : 0,
-      Achievement ? Achievement.count() : 0,
-      Patent ? Patent.count() : 0,
-      Publication ? Publication.count() : 0,
-      SponsoredProject ? SponsoredProject.count() : 0,
-      ConsultancyProject ? ConsultancyProject.count() : 0,
-      Placement ? Placement.count() : 0,
-      DepartmentalActivity ? DepartmentalActivity.count() : 0,
-      Document ? Document.count() : 0,
-      StrategicPlan ? StrategicPlan.count() : 0,
-      Campus ? Campus.count() : 0,
-      School ? School.count() : 0,
-      Department ? Department.count() : 0,
-      Course ? Course.count() : 0
+      Student ? Student.count().catch(() => 0) : 0,
+      Faculty ? Faculty.count().catch(() => 0) : 0,
+      Achievement ? Achievement.count().catch(() => 0) : 0,
+      Patent ? Patent.count().catch(() => 0) : 0,
+      Publication ? Publication.count().catch(() => 0) : 0,
+      SponsoredProject ? SponsoredProject.count().catch(() => 0) : 0,
+      ConsultancyProject ? ConsultancyProject.count().catch(() => 0) : 0,
+      Placement ? Placement.count().catch(() => 0) : 0,
+      DepartmentalActivity ? DepartmentalActivity.count().catch(() => 0) : 0,
+      Document ? Document.count().catch(() => 0) : 0,
+      StrategicPlan ? StrategicPlan.count().catch(() => 0) : 0,
+      Campus ? Campus.count().catch(() => 0) : 0,
+      School ? School.count().catch(() => 0) : 0,
+      Department ? Department.count().catch(() => 0) : 0,
+      Course ? Course.count().catch(() => 0) : 0
     ]);
 
     // Aggregate Research Metrics if available
@@ -200,34 +200,46 @@ exports.getDashboardStats = async (req, res) => {
     };
 
     if (ResearchMetric) {
-      const allMetrics = await ResearchMetric.findAll({ where: { periodType: 'academic_year' } });
-      allMetrics.forEach(m => {
-        totalResearchMetrics.books += Number(m.books) || 0;
-        totalResearchMetrics.chapters += Number(m.chapters) || 0;
-        totalResearchMetrics.scopusJournals += Number(m.scopusJournals) || 0;
-        totalResearchMetrics.nationalJournals += Number(m.nationalJournals) || 0;
-        totalResearchMetrics.internationalJournals += Number(m.internationalJournals) || 0;
-        totalResearchMetrics.citations += Number(m.citations) || 0;
-        totalResearchMetrics.patentsIndian += Number(m.patentsIndian) || 0;
-        totalResearchMetrics.patentsInternational += Number(m.patentsInternational) || 0;
-        totalResearchMetrics.conferencesNational += Number(m.conferencesNational) || 0;
-        totalResearchMetrics.conferencesInternational += Number(m.conferencesInternational) || 0;
-        totalResearchMetrics.consultancyCount += Number(m.consultancyCount) || 0;
-        totalResearchMetrics.consultancyAmount += Number(m.consultancyAmount) || 0;
-        totalResearchMetrics.seedMoneyCount += Number(m.seedMoneyCount) || 0;
-        totalResearchMetrics.seedMoneyAmount += Number(m.seedMoneyAmount) || 0;
-        totalResearchMetrics.externalProjectsCount += Number(m.externalProjectsCount) || 0;
-        totalResearchMetrics.externalProjectsAmount += Number(m.externalProjectsAmount) || 0;
-      });
+      try {
+        const allMetrics = await ResearchMetric.findAll({
+          where: {
+            periodType: { [Op.in]: ['academic_year', 'yearly'] }
+          }
+        });
+        allMetrics.forEach(m => {
+          totalResearchMetrics.books += Number(m.books) || 0;
+          totalResearchMetrics.chapters += Number(m.chapters) || 0;
+          totalResearchMetrics.scopusJournals += Number(m.scopusJournals) || 0;
+          totalResearchMetrics.nationalJournals += Number(m.nationalJournals) || 0;
+          totalResearchMetrics.internationalJournals += Number(m.internationalJournals) || 0;
+          totalResearchMetrics.citations += Number(m.citations) || 0;
+          totalResearchMetrics.patentsIndian += Number(m.patentsIndian) || 0;
+          totalResearchMetrics.patentsInternational += Number(m.patentsInternational) || 0;
+          totalResearchMetrics.conferencesNational += Number(m.conferencesNational) || 0;
+          totalResearchMetrics.conferencesInternational += Number(m.conferencesInternational) || 0;
+          totalResearchMetrics.consultancyCount += Number(m.consultancyCount) || 0;
+          totalResearchMetrics.consultancyAmount += Number(m.consultancyAmount) || 0;
+          totalResearchMetrics.seedMoneyCount += Number(m.seedMoneyCount) || 0;
+          totalResearchMetrics.seedMoneyAmount += Number(m.seedMoneyAmount) || 0;
+          totalResearchMetrics.externalProjectsCount += Number(m.externalProjectsCount) || 0;
+          totalResearchMetrics.externalProjectsAmount += Number(m.externalProjectsAmount) || 0;
+        });
+      } catch (err) {
+        console.warn('Dashboard research metrics fetch notice:', err.message);
+      }
     }
 
     // Sponsored projects sum (Lakhs)
     let totalSponsoredSanctioned = 0;
     if (SponsoredProject) {
-      const sps = await SponsoredProject.findAll();
-      sps.forEach(sp => {
-        totalSponsoredSanctioned += Number(sp.sanctionedAmount) || 0;
-      });
+      try {
+        const sps = await SponsoredProject.findAll();
+        sps.forEach(sp => {
+          totalSponsoredSanctioned += Number(sp.sanctionedAmount) || 0;
+        });
+      } catch (err) {
+        console.warn('Dashboard sponsored projects fetch notice:', err.message);
+      }
     }
 
     const effectiveGrantsLakhs = totalSponsoredSanctioned > 0 
@@ -242,18 +254,22 @@ exports.getDashboardStats = async (req, res) => {
     let avgSalary = '0.0';
     let highestSalary = '0.0';
     if (placementCount > 0 && Placement) {
-      const placements = await Placement.findAll();
-      let salarySum = 0;
-      let maxSalary = 0;
-      placements.forEach(p => {
-        const pkg = Number(p.package) || 0;
-        if (pkg > 0) {
-          salarySum += pkg;
-          if (pkg > maxSalary) maxSalary = pkg;
-        }
-      });
-      avgSalary = placements.length > 0 ? (salarySum / placements.length).toFixed(1) : '0.0';
-      highestSalary = maxSalary > 0 ? maxSalary.toFixed(1) : '0.0';
+      try {
+        const placements = await Placement.findAll();
+        let salarySum = 0;
+        let maxSalary = 0;
+        placements.forEach(p => {
+          const pkg = Number(p.package) || 0;
+          if (pkg > 0) {
+            salarySum += pkg;
+            if (pkg > maxSalary) maxSalary = pkg;
+          }
+        });
+        avgSalary = placements.length > 0 ? (salarySum / placements.length).toFixed(1) : '0.0';
+        highestSalary = maxSalary > 0 ? maxSalary.toFixed(1) : '0.0';
+      } catch (err) {
+        console.warn('Dashboard placements fetch notice:', err.message);
+      }
     }
 
     // Student to Faculty Ratio (SFR)

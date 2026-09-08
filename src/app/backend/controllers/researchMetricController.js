@@ -1,4 +1,13 @@
+const { Op } = require('sequelize');
 const { ResearchMetric } = require('../models');
+
+const normalizePeriodType = (type) => {
+  if (!type) return 'academic_year';
+  const t = String(type).trim().toLowerCase();
+  if (t === 'yearly' || t === 'academic_year' || t === 'year') return 'academic_year';
+  if (t === 'monthly' || t === 'month') return 'month';
+  return t;
+};
 
 // @desc    Get research metrics
 // @route   GET /api/research-metrics
@@ -7,7 +16,16 @@ exports.getMetrics = async (req, res) => {
     const { academicYear, periodType, department } = req.query;
     const filter = {};
     if (academicYear) filter.academicYear = academicYear;
-    if (periodType) filter.periodType = periodType;
+    if (periodType) {
+      const norm = normalizePeriodType(periodType);
+      if (norm === 'academic_year') {
+        filter.periodType = { [Op.in]: ['academic_year', 'yearly'] };
+      } else if (norm === 'month') {
+        filter.periodType = { [Op.in]: ['month', 'monthly'] };
+      } else {
+        filter.periodType = periodType;
+      }
+    }
     if (department) filter.department = department;
 
     const data = await ResearchMetric.findAll({
@@ -26,7 +44,7 @@ exports.getMetrics = async (req, res) => {
     console.error('Get research metrics error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error retrieving metrics.'
+      message: error.message || 'Server error retrieving metrics.'
     });
   }
 };
@@ -45,17 +63,26 @@ exports.bulkUpsertMetrics = async (req, res) => {
 
     const savedRecords = [];
     for (const item of metrics) {
-      const { academicYear, periodType, periodValue, department } = item;
+      const { academicYear, periodValue, department } = item;
+      const rawPeriodType = item.periodType;
       
-      if (!academicYear || !periodType || !periodValue || !department) {
+      if (!academicYear || !rawPeriodType || !periodValue || !department) {
         continue; // skip invalid entries
       }
 
-      // Find existing
+      const normPeriodType = normalizePeriodType(rawPeriodType);
+
+      // Find existing (check both normalized and raw)
       let record = await ResearchMetric.findOne({
         where: {
           academicYear,
-          periodType,
+          periodType: {
+            [Op.in]: [
+              normPeriodType,
+              rawPeriodType,
+              normPeriodType === 'academic_year' ? 'yearly' : 'monthly'
+            ]
+          },
           periodValue,
           department
         }
@@ -82,12 +109,15 @@ exports.bulkUpsertMetrics = async (req, res) => {
 
       if (record) {
         // Update
-        await record.update(fieldValues);
+        await record.update({
+          periodType: normPeriodType,
+          ...fieldValues
+        });
       } else {
         // Create
         record = await ResearchMetric.create({
           academicYear,
-          periodType,
+          periodType: normPeriodType,
           periodValue,
           department,
           ...fieldValues
@@ -105,7 +135,7 @@ exports.bulkUpsertMetrics = async (req, res) => {
     console.error('Bulk upsert research metrics error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error saving metrics.'
+      message: error.message || 'Server error saving metrics.'
     });
   }
 };
