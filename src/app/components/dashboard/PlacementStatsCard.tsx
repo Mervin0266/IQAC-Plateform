@@ -128,8 +128,18 @@ export function PlacementStatsCard({
           </div>
         </div>
 
+        {/* Empty state when no placement data in database */}
+        {!hasLiveData && deptData.length === 0 && overallData.length === 0 && (
+          <div className="py-14 text-center space-y-2 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+            <p className="text-sm font-bold text-slate-700">No Placement Records in Database</p>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              The database is currently clean without student placement records. Upload placement and internship spreadsheets in the Placements workspace to generate live analytics.
+            </p>
+          </div>
+        )}
+
         {/* Single Department View */}
-        {placementView === 'single-department' && (
+        {placementView === 'single-department' && (hasLiveData || deptData.length > 0) && (
           <div className="space-y-6">
             {/* Key stats row */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -226,7 +236,7 @@ export function PlacementStatsCard({
         )}
 
         {/* Departmentwise & Overall Views */}
-        {(placementView === 'departmentwise' || placementView === 'overall') && (
+        {(placementView === 'departmentwise' || placementView === 'overall') && (hasLiveData || deptData.length > 0 || overallData.length > 0) && (
           <>
             <div className="w-full h-[380px]">
               <ResponsiveContainer width="100%" height="100%">

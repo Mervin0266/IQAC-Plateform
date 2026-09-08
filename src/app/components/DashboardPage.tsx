@@ -48,7 +48,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     day: 'numeric',
   });
 
-  // Quick Modules Directory
+  // Quick Modules Directory (Dynamically connected to real database counts)
   const quickModules = [
     {
       title: 'Research & Innovation',
@@ -58,7 +58,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       bg: 'bg-purple-50',
       border: 'border-purple-200',
       desc: 'Publications, patents, grants & consultancy projects',
-      stat: '480+ Papers • ₹11.70 Cr Grants'
+      stat: `${dashboard.liveStats.totalPapers ?? 0} Papers • ₹ ${dashboard.liveStats.totalGrantsCrores || '0.00'} Cr Grants`
     },
     {
       title: 'Accreditation Master',
@@ -68,7 +68,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       bg: 'bg-indigo-50',
       border: 'border-indigo-200',
       desc: 'NAAC SSR 7 Criteria & NBA SAR 10 Criteria tracking',
-      stat: 'Grade A++ (3.74 CGPA) • 91.4%'
+      stat: `Grade ${dashboard.liveStats.naacGrade || 'A++'} (${dashboard.liveStats.naacCgpa || '3.74'} CGPA) • ${dashboard.liveStats.readinessPct ?? 0}%`
     },
     {
       title: 'National & Global Rankings',
@@ -88,7 +88,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       bg: 'bg-emerald-50',
       border: 'border-emerald-200',
       desc: 'Campus recruitment, compensation & corporate hiring',
-      stat: '96.2% Placed • ₹10.4 LPA Avg'
+      stat: `${dashboard.liveStats.placedPercentage ?? 0}% Placed • ₹ ${dashboard.liveStats.avgSalaryLpa || '0.0'} LPA Avg`
     },
     {
       title: 'Centres of Excellence',
@@ -98,7 +98,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       bg: 'bg-blue-50',
       border: 'border-blue-200',
       desc: 'Multi-disciplinary labs, GPU clusters & industry R&D',
-      stat: '4 Active Hubs • 100+ Partners'
+      stat: `${dashboard.liveStats.totalActivities ?? 0} Events • 4 Active Hubs`
     },
     {
       title: 'Strategic Plan 2025–2030',
@@ -108,24 +108,25 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       bg: 'bg-rose-50',
       border: 'border-rose-200',
       desc: 'Department goals, milestones & capital budget',
-      stat: '86.4% Goal Attainment'
+      stat: `${dashboard.liveStats.totalStrategicPlans ?? 0} Goals Attained`
     },
   ];
 
   // Export Executive Summary to Excel
   const handleExportSummary = () => {
     const summaryRows = [
+      { Dimension: 'Total Students Enrolled', Value: dashboard.liveStats.totalStudents ?? 0, Notes: 'Registered student database' },
+      { Dimension: 'Total Faculty Members', Value: dashboard.liveStats.totalFaculty ?? 0, Notes: `SFR: ${dashboard.liveStats.sfr || '—'}` },
       { Dimension: 'Total Campuses', Value: dashboard.liveStats.totalCampuses || 1, Notes: 'Kengeri Campus Bangalore' },
       { Dimension: 'Total Schools', Value: dashboard.liveStats.totalSchools || 1, Notes: 'School of Engineering and Technology' },
-      { Dimension: 'Total Departments', Value: dashboard.liveStats.totalDepartments || 7, Notes: 'ADSE, CSE, ECE, CIVIL, EEE, MECH, S&H' },
-      { Dimension: 'Total Academic Programs', Value: dashboard.liveStats.totalCourses || 27, Notes: 'UG: 18, PG: 6, PhD: 7' },
-      { Dimension: 'NAAC Projected CGPA', Value: '3.74 / 4.00', Notes: 'Grade A++ Exemplary' },
-      { Dimension: 'NIRF University Rank', Value: '#63', Notes: 'Top 100 National Universities' },
-      { Dimension: 'NIRF Engineering Rank', Value: '#76', Notes: 'National Engineering Band' },
-      { Dimension: 'QS India Ranking', Value: '#18', Notes: 'Top Private Universities' },
-      { Dimension: 'Campus Placement Rate', Value: '96.2%', Notes: 'Across graduating batch' },
-      { Dimension: 'Average Compensation', Value: '₹ 10.4 LPA', Notes: 'Mean CTC' },
-      { Dimension: 'Research Grants Received', Value: '₹ 11.70+ Crores', Notes: 'DST, AICTE, ISRO, Industry' }
+      { Dimension: 'Total Departments', Value: dashboard.liveStats.totalDepartments || 8, Notes: 'ADSE, CSE, ECE, CIVIL, EEE, MECH, SOA, S&H' },
+      { Dimension: 'Total Academic Programs', Value: dashboard.liveStats.totalCourses || 27, Notes: 'UG, PG, PhD Degree Programs' },
+      { Dimension: 'NAAC Projected CGPA', Value: `${dashboard.liveStats.naacCgpa || '3.74'} / 4.00`, Notes: `Grade ${dashboard.liveStats.naacGrade || 'A++'}` },
+      { Dimension: 'Campus Placement Rate', Value: `${dashboard.liveStats.placedPercentage ?? 0}%`, Notes: `Placed students (${dashboard.liveStats.totalPlacements ?? 0} total records)` },
+      { Dimension: 'Average Compensation', Value: `₹ ${dashboard.liveStats.avgSalaryLpa || '0.0'} LPA`, Notes: 'Mean CTC' },
+      { Dimension: 'Research Papers & Articles', Value: dashboard.liveStats.totalPapers ?? 0, Notes: 'Scopus, WoS, National, International' },
+      { Dimension: 'Patents Filed & Granted', Value: dashboard.liveStats.totalPatents ?? 0, Notes: 'Indian & International IPR' },
+      { Dimension: 'Research Grants Received', Value: `₹ ${dashboard.liveStats.totalGrantsCrores || '0.00'} Crores`, Notes: 'Extramural research grants' }
     ];
 
     const ws = XLSX.utils.json_to_sheet(summaryRows);
@@ -213,10 +214,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 </div>
                 <div className="mt-3">
                   <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    2,850+
+                    {(dashboard.liveStats.totalStudents ?? 0).toLocaleString()}
                   </div>
                   <div className="text-[11px] text-blue-700 font-medium mt-1">
-                    185 Faculty • SFR 1:15
+                    {dashboard.liveStats.totalFaculty ?? 0} Faculty • SFR {dashboard.liveStats.sfr || '—'}
                   </div>
                 </div>
               </CardContent>
@@ -237,10 +238,14 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 </div>
                 <div className="mt-3">
                   <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    ₹ 11.70 Cr
+                    {Number(dashboard.liveStats.totalGrantsCrores) > 0 
+                      ? `₹ ${dashboard.liveStats.totalGrantsCrores} Cr` 
+                      : (Number(dashboard.liveStats.totalGrantsAmountLakhs) > 0 
+                          ? `₹ ${Number(dashboard.liveStats.totalGrantsAmountLakhs).toFixed(2)} L` 
+                          : '₹ 0.00')}
                   </div>
                   <div className="text-[11px] text-purple-700 font-medium mt-1">
-                    480+ Scopus • 18 Patents
+                    {dashboard.liveStats.totalPapers ?? 0} Papers • {dashboard.liveStats.totalPatents ?? 0} Patents
                   </div>
                 </div>
               </CardContent>
@@ -261,10 +266,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 </div>
                 <div className="mt-3">
                   <div className="text-2xl font-bold text-indigo-600 tracking-tight">
-                    3.74 <span className="text-sm font-semibold text-slate-500">/ 4.00</span>
+                    {dashboard.liveStats.naacCgpa || '3.74'} <span className="text-sm font-semibold text-slate-500">/ 4.00</span>
                   </div>
                   <div className="text-[11px] text-indigo-700 font-bold mt-1">
-                    NAAC Grade A++ • 91.4%
+                    NAAC Grade {dashboard.liveStats.naacGrade || 'A++'} • {dashboard.liveStats.readinessPct ?? 0}%
                   </div>
                 </div>
               </CardContent>
@@ -309,10 +314,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 </div>
                 <div className="mt-3">
                   <div className="text-2xl font-bold text-emerald-600 tracking-tight">
-                    96.2%
+                    {dashboard.liveStats.placedPercentage ?? 0}%
                   </div>
                   <div className="text-[11px] text-emerald-700 font-medium mt-1">
-                    Avg ₹ 10.4 LPA • High 44 LPA
+                    Avg ₹ {dashboard.liveStats.avgSalaryLpa || '0.0'} LPA • High {dashboard.liveStats.highestSalaryLpa || '0.0'} LPA
                   </div>
                 </div>
               </CardContent>
@@ -538,17 +543,21 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                   <span className="text-xs font-bold uppercase text-slate-500 block">Publications & Citations</span>
-                  <div className="text-2xl font-bold text-slate-900">480+ Papers</div>
-                  <Progress value={88} className="h-2 bg-slate-200" />
+                  <div className="text-2xl font-bold text-slate-900">
+                    {dashboard.liveStats.totalPapers ?? 0} Papers
+                  </div>
+                  <Progress value={dashboard.liveStats.totalPapers ? Math.min(100, Math.round((dashboard.liveStats.totalPapers / 500) * 100)) : 0} className="h-2 bg-slate-200" />
                   <p className="text-xs text-slate-600">
-                    Scopus Q1/Q2 indexed papers with average 8.4 citations per published faculty paper.
+                    {dashboard.liveStats.scopusJournals ?? 0} Scopus / WoS indexed journal publications recorded.
                   </p>
                 </div>
 
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                   <span className="text-xs font-bold uppercase text-slate-500 block">Funded Grants</span>
-                  <div className="text-2xl font-bold text-emerald-600">₹ 11.70+ Cr</div>
-                  <Progress value={78} className="h-2 bg-slate-200" />
+                  <div className="text-2xl font-bold text-emerald-600">
+                    {Number(dashboard.liveStats.totalGrantsCrores) > 0 ? `₹ ${dashboard.liveStats.totalGrantsCrores} Cr` : `₹ ${Number(dashboard.liveStats.totalGrantsAmountLakhs || 0).toFixed(2)} L`}
+                  </div>
+                  <Progress value={Number(dashboard.liveStats.totalGrantsCrores) > 0 ? Math.min(100, Math.round((Number(dashboard.liveStats.totalGrantsCrores) / 15) * 100)) : 0} className="h-2 bg-slate-200" />
                   <p className="text-xs text-slate-600">
                     Extramural grants received from DST-SERB, AICTE, ISRO-RESPOND, and corporate research partners.
                   </p>
@@ -556,8 +565,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                   <span className="text-xs font-bold uppercase text-slate-500 block">Patents & IPR</span>
-                  <div className="text-2xl font-bold text-amber-600">18 Patents</div>
-                  <Progress value={92} className="h-2 bg-slate-200" />
+                  <div className="text-2xl font-bold text-amber-600">
+                    {dashboard.liveStats.totalPatents ?? 0} Patents
+                  </div>
+                  <Progress value={dashboard.liveStats.totalPatents ? Math.min(100, Math.round((dashboard.liveStats.totalPatents / 20) * 100)) : 0} className="h-2 bg-slate-200" />
                   <p className="text-xs text-slate-600">
                     Published and granted technologies across Artificial Intelligence, Clean Energy, and Advanced Materials.
                   </p>

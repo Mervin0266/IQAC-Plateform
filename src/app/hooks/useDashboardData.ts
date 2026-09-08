@@ -75,15 +75,36 @@ export function useDashboardData(): DashboardDataReturn {
 
   // ── Core State ───────────────────────────────────────────
   const [liveStats, setLiveStats] = useState<DashboardLiveStats>({
-    totalAchievements: 120,
-    facultyAchievements: 85,
-    annualReports: 15,
+    totalAchievements: 0,
+    facultyAchievements: 0,
+    annualReports: 0,
+    totalStudents: 0,
+    totalFaculty: 0,
+    sfr: '—',
+    totalPapers: 0,
+    scopusJournals: 0,
+    totalPatents: 0,
+    totalGrantsAmountLakhs: 0,
+    totalGrantsCrores: '0.00',
+    consultancyAmountLakhs: 0,
+    totalPlacements: 0,
+    placedPercentage: 0,
+    avgSalaryLpa: '0.0',
+    highestSalaryLpa: '0.0',
+    naacCgpa: '3.74',
+    naacGrade: 'A++',
+    readinessPct: 0,
+    totalCampuses: 0,
+    totalSchools: 0,
+    totalDepartments: 0,
+    totalProgramLevels: 0,
+    totalCourses: 0,
   });
   const [placementView, setPlacementView] = useState<PlacementView>('departmentwise');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   const [selectedBatch, setSelectedBatch] = useState<string>('All');
   const [rawPlacements, setRawPlacements] = useState<PlacementRecord[]>([]);
-  const [placementDeptData, setPlacementDeptData] = useState<DepartmentPlacementData[]>(FALLBACK_DEPT_DATA);
+  const [placementDeptData, setPlacementDeptData] = useState<DepartmentPlacementData[]>([]);
   const [deptPerformance, setDeptPerformance] = useState<DeptPerformanceDataPoint[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -99,68 +120,108 @@ export function useDashboardData(): DashboardDataReturn {
       const headers = { Authorization: `Bearer ${user.token}` };
       const fetchOpts = { headers, signal };
 
-      // Parallel fetch for achievements, documents, strategic plans, and hierarchy stats
-      const [resAchievements, resDocs, resPlans, resHierarchy] = await Promise.all([
+      // Parallel fetch for dynamic dashboard stats, achievements, documents, strategic plans, hierarchy stats, and placements
+      const [resSysStats, resAchievements, resDocs, resPlans, resHierarchy, resPlacements] = await Promise.all([
+        fetch(`${API_BASE}/api/system/dashboard-stats`, fetchOpts),
         fetch(`${API_BASE}/api/achievements`, fetchOpts),
         fetch(`${API_BASE}/api/documents`, fetchOpts),
         fetch(`${API_BASE}/api/strategic-plans`, fetchOpts),
         fetch(`${API_BASE}/api/hierarchy/stats`, fetchOpts),
+        fetch(`${API_BASE}/api/placements`, fetchOpts).catch(() => ({ ok: false, json: () => ({ success: false }) } as any))
       ]);
 
       // Handle 401 on any endpoint
-      if (resAchievements.status === 401 || resDocs.status === 401 || resPlans.status === 401 || resHierarchy.status === 401) {
+      if (resSysStats.status === 401 || resAchievements.status === 401 || resDocs.status === 401 || resPlans.status === 401 || resHierarchy.status === 401) {
         logout();
         return;
       }
 
-      const [achievementsData, docsData, plansData, hierarchyData] = await Promise.all([
-        resAchievements.json(),
-        resDocs.json(),
-        resPlans.json(),
-        resHierarchy.json(),
+      const [sysStatsData, achievementsData, docsData, plansData, hierarchyData] = await Promise.all([
+        resSysStats.ok ? resSysStats.json() : { success: false },
+        resAchievements.ok ? resAchievements.json() : { success: false },
+        resDocs.ok ? resDocs.json() : { success: false },
+        resPlans.ok ? resPlans.json() : { success: false },
+        resHierarchy.ok ? resHierarchy.json() : { success: false },
       ]);
 
-      const liveAchievements = achievementsData.success ? achievementsData.data : [];
-      const liveDocs = docsData.success ? docsData.data : [];
-      const livePlans = plansData.success ? plansData.data : [];
-      const hStats = hierarchyData.success ? hierarchyData.data : { totalCampuses: 1, totalSchools: 1, totalDepartments: 7, totalProgramLevels: 3, totalCourses: 27, totalUGPrograms: 18, totalPGPrograms: 6, totalPhDPrograms: 7 };
+      const liveAchievements = achievementsData.success ? (achievementsData.data || []) : [];
+      const liveDocs = docsData.success ? (docsData.data || []) : [];
+      const livePlans = plansData.success ? (plansData.data || []) : [];
+      const hStats = hierarchyData.success ? hierarchyData.data : { totalCampuses: 0, totalSchools: 0, totalDepartments: 0, totalProgramLevels: 0, totalCourses: 0 };
+      const sysStats = sysStatsData.success ? sysStatsData.data : null;
 
-      // Calculate dynamic counts
-      const total = liveAchievements.length || 120;
-      const facultyCount = liveAchievements.filter(
-        (a: PlacementRecord) => a.category === 'research' || a.category === 'awards'
-      ).length || 85;
-      const reportsCount = liveDocs.length || 15;
+      if (sysStats) {
+        setLiveStats({
+          totalStudents: sysStats.totalStudents ?? 0,
+          totalFaculty: sysStats.totalFaculty ?? 0,
+          sfr: sysStats.sfr || '—',
+          totalAchievements: sysStats.totalAchievements ?? liveAchievements.length,
+          facultyAchievements: sysStats.facultyAchievements ?? liveAchievements.length,
+          annualReports: sysStats.annualReports ?? liveDocs.length,
+          totalPapers: sysStats.totalPapers ?? 0,
+          scopusJournals: sysStats.scopusJournals ?? 0,
+          totalPatents: sysStats.totalPatents ?? 0,
+          totalGrantsAmountLakhs: sysStats.totalGrantsAmountLakhs ?? 0,
+          totalGrantsCrores: sysStats.totalGrantsCrores ?? '0.00',
+          consultancyAmountLakhs: sysStats.consultancyAmountLakhs ?? 0,
+          totalPlacements: sysStats.totalPlacements ?? 0,
+          placedPercentage: sysStats.placedPercentage ?? 0,
+          avgSalaryLpa: sysStats.avgSalaryLpa ?? '0.0',
+          highestSalaryLpa: sysStats.highestSalaryLpa ?? '0.0',
+          naacCgpa: sysStats.naacCgpa || '3.74',
+          naacGrade: sysStats.naacGrade || 'A++',
+          readinessPct: sysStats.readinessPct ?? 0,
+          totalCampuses: sysStats.totalCampuses ?? hStats.totalCampuses ?? 0,
+          totalSchools: sysStats.totalSchools ?? hStats.totalSchools ?? 0,
+          totalDepartments: sysStats.totalDepartments ?? hStats.totalDepartments ?? 0,
+          totalProgramLevels: sysStats.totalProgramLevels ?? hStats.totalProgramLevels ?? 0,
+          totalCourses: sysStats.totalCourses ?? hStats.totalCourses ?? 0,
+          totalActivities: sysStats.totalActivities ?? 0,
+          totalStrategicPlans: sysStats.totalStrategicPlans ?? livePlans.length
+        });
+      } else {
+        const total = liveAchievements.length;
+        const facultyCount = liveAchievements.filter(
+          (a: PlacementRecord) => a.category === 'research' || a.category === 'awards'
+        ).length;
+        const reportsCount = liveDocs.length;
 
-      setLiveStats({
-        totalAchievements: total,
-        facultyAchievements: facultyCount,
-        annualReports: reportsCount,
-        totalCampuses: hStats.totalCampuses,
-        totalSchools: hStats.totalSchools,
-        totalDepartments: hStats.totalDepartments,
-        totalProgramLevels: hStats.totalProgramLevels,
-        totalCourses: hStats.totalCourses,
-        totalUGPrograms: hStats.totalUGPrograms,
-        totalPGPrograms: hStats.totalPGPrograms,
-        totalPhDPrograms: hStats.totalPhDPrograms
-      });
+        setLiveStats({
+          totalAchievements: total,
+          facultyAchievements: facultyCount,
+          annualReports: reportsCount,
+          totalCampuses: hStats.totalCampuses || 0,
+          totalSchools: hStats.totalSchools || 0,
+          totalDepartments: hStats.totalDepartments || 0,
+          totalProgramLevels: hStats.totalProgramLevels || 0,
+          totalCourses: hStats.totalCourses || 0,
+          totalStudents: 0,
+          totalFaculty: 0,
+          sfr: '—',
+          totalPapers: 0,
+          totalPatents: 0,
+          totalGrantsCrores: '0.00',
+          totalPlacements: 0,
+          placedPercentage: 0,
+          avgSalaryLpa: '0.0',
+          highestSalaryLpa: '0.0'
+        });
+      }
 
-      // Fetch placements
-      try {
-        const resPlacements = await fetch(`${API_BASE}/api/placements`, fetchOpts);
-        if (resPlacements.ok) {
-          const placementsData = await resPlacements.json();
-          if (placementsData.success && placementsData.data?.length > 0) {
-            setRawPlacements(placementsData.data);
-            const liveDeptList = aggregateByDepartment(placementsData.data);
-            if (liveDeptList.length > 0) {
-              setPlacementDeptData(liveDeptList);
-            }
-          }
+      // Process placements
+      if (resPlacements && resPlacements.ok) {
+        const placementsData = await resPlacements.json();
+        if (placementsData.success && Array.isArray(placementsData.data) && placementsData.data.length > 0) {
+          setRawPlacements(placementsData.data);
+          const liveDeptList = aggregateByDepartment(placementsData.data);
+          setPlacementDeptData(liveDeptList);
+        } else {
+          setRawPlacements([]);
+          setPlacementDeptData([]);
         }
-      } catch (pErr) {
-        if (!signal?.aborted) console.error('Error fetching placements:', pErr);
+      } else {
+        setRawPlacements([]);
+        setPlacementDeptData([]);
       }
 
       // Compute Radar Chart data from strategic plans
@@ -178,19 +239,9 @@ export function useDashboardData(): DashboardDataReturn {
           score: Math.round(data.sum / data.count),
         }));
 
-        // Merge with standard departments
-        const mergedDepts = [...radarData];
-        const dynamicStdDepts = dbDepts.map(d => ({
-          department: getDepartmentShortName(d),
-          score: 80 // Default benchmark score
-        }));
-        dynamicStdDepts.forEach((std) => {
-          if (!mergedDepts.some((d) => d.department === std.department)) {
-            mergedDepts.push(std);
-          }
-        });
-
-        setDeptPerformance(mergedDepts.slice(0, 6));
+        setDeptPerformance(radarData.slice(0, 6));
+      } else {
+        setDeptPerformance([]);
       }
     } catch (err) {
       if (!signal?.aborted) {
@@ -258,28 +309,39 @@ export function useDashboardData(): DashboardDataReturn {
   // ── Final Resolved Data ──────────────────────────────────
   const deptData = useMemo(() => {
     if (rawPlacements.length > 0) return computedDeptData;
-    if (selectedBatch && selectedBatch !== 'All' && MOCK_SINGLE_BATCH_DATA[selectedBatch]) {
-      const breakdown = MOCK_SINGLE_BATCH_DATA[selectedBatch].departmentBreakdown;
-      return breakdown || placementDeptData;
-    }
-    return placementDeptData;
-  }, [rawPlacements, computedDeptData, selectedBatch, placementDeptData]);
+    return [];
+  }, [rawPlacements, computedDeptData]);
 
-  const overallData = rawPlacements.length > 0 ? computedOverallData : FALLBACK_OVERALL_DATA;
+  const overallData = useMemo(() => {
+    if (rawPlacements.length > 0) return computedOverallData;
+    return [];
+  }, [rawPlacements, computedOverallData]);
 
   const activeSingleBatch = useMemo<SingleBatchStats>(() => {
-    const activeB = selectedBatch || (rawPlacements.length > 0 ? batchesList[0] : FALLBACK_BATCHES[0]);
     if (rawPlacements.length > 0 && singleBatchData) return singleBatchData;
-    return MOCK_SINGLE_BATCH_DATA[activeB] || MOCK_SINGLE_BATCH_DATA['2024-25'];
-  }, [rawPlacements, singleBatchData, selectedBatch, batchesList]);
+    return {
+      totalPlaced: 0,
+      totalInterns: 0,
+      highestPackage: 0,
+      lowestPackage: 0,
+      avgPackage: 0,
+      topEmployers: [],
+      salaryDistribution: []
+    };
+  }, [rawPlacements, singleBatchData]);
 
   const activeSingleDept = useMemo<SingleBatchStats>(() => {
     if (rawPlacements.length > 0 && singleDeptData) return singleDeptData;
-    const batchScale = selectedBatch && selectedBatch !== 'All' && MOCK_SINGLE_BATCH_DATA[selectedBatch]
-      ? (MOCK_SINGLE_BATCH_DATA[selectedBatch].avgPackage / 8.5)
-      : 1.0;
-    return getMockSingleDeptStats(batchScale);
-  }, [rawPlacements, singleDeptData, selectedBatch]);
+    return {
+      totalPlaced: 0,
+      totalInterns: 0,
+      highestPackage: 0,
+      lowestPackage: 0,
+      avgPackage: 0,
+      topEmployers: [],
+      salaryDistribution: []
+    };
+  }, [rawPlacements, singleDeptData]);
 
   return {
     liveStats,
