@@ -83,19 +83,7 @@ const Patent = sequelize.define('Patent', {
     comment: 'Abstract / Claims summary'
   },
   approvalStatus: {
-    type: DataTypes.ENUM(
-      'draft',
-      'submitted',
-      'under_coordinator_review',
-      'returned_for_correction',
-      'rejected',
-      'approved',
-      'under_hod_review',
-      'finalized',
-      'edit_requested',
-      'edit_request_approved',
-      'record_reopened'
-    ),
+    type: DataTypes.STRING(50),
     defaultValue: 'approved'
   },
   createdBy: {

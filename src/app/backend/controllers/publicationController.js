@@ -4,6 +4,49 @@ const { sequelize } = require('../config/database');
 const { logAction } = require('../middleware/auditLogger');
 const { sendNotification } = require('../middleware/notificationHelper');
 
+const sanitizeDate = (val) => {
+  if (!val) return null;
+  if (typeof val === 'number') {
+    const d = new Date((val - 25569) * 86400 * 1000);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  }
+  const str = String(val).trim();
+  if (!str) return null;
+  const lower = str.toLowerCase();
+  if (['n/a', 'na', 'nil', 'null', '-', '--', 'pending', 'none', 'tbd'].includes(lower)) return null;
+  if (/^\d{4,5}$/.test(str) && parseInt(str, 10) > 10000) {
+    const num = parseInt(str, 10);
+    const d = new Date((num - 25569) * 86400 * 1000);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const parts = str.split(/[\/\-\.]/);
+  if (parts.length === 3) {
+    let p1 = parts[0].trim();
+    let p2 = parts[1].trim();
+    let p3 = parts[2].trim();
+    if (p1.length === 4) return `${p1}-${p2.padStart(2, '0')}-${p3.padStart(2, '0')}`;
+    let day = p1.padStart(2, '0');
+    let month = p2.padStart(2, '0');
+    let year = p3.length === 2 ? '20' + p3 : p3;
+    const m = parseInt(month, 10);
+    const d = parseInt(day, 10);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) return `${year}-${month}-${day}`;
+  }
+  if (/^\d{4}$/.test(str)) return `${str}-01-01`;
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  return null;
+};
+
+const sanitizeAmount = (val) => {
+  if (val === null || val === undefined || val === '') return null;
+  if (typeof val === 'number') return isNaN(val) ? null : val;
+  const cleaned = String(val).replace(/[^0-9.]/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? null : parsed;
+};
+
 // @desc    Get all publications with filters and search
 // @route   GET /api/publications
 // @access  Private / Public (optional)
@@ -473,18 +516,18 @@ exports.bulkUploadPublications = async (req, res) => {
         journalType: normalizedType,
         department: department.trim(),
         academicYear: academicYear.trim(),
-        publicationDate: publicationDate || null,
+        publicationDate: sanitizeDate(publicationDate),
         doi: doi ? doi.trim() : null,
         issn: issn ? issn.trim() : null,
         volume: volume ? String(volume).trim() : null,
         issue: issue ? String(issue).trim() : null,
         pageNumber: pageNumber ? String(pageNumber).trim() : null,
-        impactFactor: impactFactor ? parseFloat(impactFactor) : null,
-        citationCount: citationCount ? parseInt(citationCount, 10) : 0,
+        impactFactor: sanitizeAmount(impactFactor),
+        citationCount: citationCount ? parseInt(String(citationCount).replace(/[^0-9]/g, ''), 10) || 0 : 0,
         paperUrl: paperUrl ? paperUrl.trim() : null,
         abstract: abstract ? abstract.trim() : null,
-        status: req.user.role === 'admin' ? 'approved' : 'submitted',
-        createdBy: req.user.id
+        status: req.user?.role === 'admin' ? 'approved' : 'submitted',
+        createdBy: req.user?.id
       });
     });
 

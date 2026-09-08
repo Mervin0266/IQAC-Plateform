@@ -12,6 +12,32 @@ const autoSeed = async (sequelize) => {
       // Ignore if table does not exist yet
     }
 
+    try {
+      await sequelize.query(`
+        ALTER TABLE "patents" ALTER COLUMN "inventors" TYPE TEXT USING CASE 
+          WHEN pg_typeof("inventors")::text = 'text[]' OR pg_typeof("inventors")::text = 'character varying[]'
+          THEN array_to_string("inventors", ', ')
+          ELSE "inventors"::text
+        END;
+      `);
+    } catch (e) {
+      // Ignore if table does not exist yet
+    }
+
+    try {
+      await sequelize.query('ALTER TABLE "patents" ALTER COLUMN "approvalStatus" TYPE VARCHAR(50) USING "approvalStatus"::VARCHAR;');
+      await sequelize.query('DROP TYPE IF EXISTS "enum_patents_approvalStatus" CASCADE;');
+    } catch (e) {
+      // Ignore if table does not exist yet
+    }
+
+    try {
+      await sequelize.query('ALTER TABLE "publications" ALTER COLUMN "status" TYPE VARCHAR(50) USING "status"::VARCHAR;');
+      await sequelize.query('DROP TYPE IF EXISTS "enum_publications_status" CASCADE;');
+    } catch (e) {
+      // Ignore if table does not exist yet
+    }
+
     // Sync the database schema (create tables and add missing columns if they don't exist)
     await sequelize.sync({ force: false, alter: { drop: false } });
     console.log('✓ Database schema synchronized');
@@ -32,6 +58,8 @@ const autoSeed = async (sequelize) => {
       await sequelize.query("UPDATE \"research_metrics\" SET \"periodType\" = 'academic_year' WHERE \"periodType\" = 'yearly';");
       await sequelize.query("UPDATE \"research_metrics\" SET \"periodType\" = 'month' WHERE \"periodType\" = 'monthly';");
       await sequelize.query('DROP TYPE IF EXISTS "enum_research_metrics_periodType" CASCADE;');
+      await sequelize.query('ALTER TABLE "patents" ALTER COLUMN "approvalStatus" TYPE VARCHAR(50) USING "approvalStatus"::VARCHAR;');
+      await sequelize.query('ALTER TABLE "publications" ALTER COLUMN "status" TYPE VARCHAR(50) USING "status"::VARCHAR;');
     } catch (e) {
       // Ignore if table not present
     }

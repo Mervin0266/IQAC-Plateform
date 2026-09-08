@@ -4,6 +4,88 @@ const { sequelize } = require('../config/database');
 const { logAction } = require('../middleware/auditLogger');
 const { sendNotification } = require('../middleware/notificationHelper');
 
+const sanitizeDate = (val) => {
+  if (!val) return null;
+  
+  // Handle Excel numeric serial dates (e.g. 45123)
+  if (typeof val === 'number') {
+    const d = new Date((val - 25569) * 86400 * 1000);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split('T')[0];
+    }
+  }
+
+  const str = String(val).trim();
+  if (!str) return null;
+
+  const lower = str.toLowerCase();
+  if (['n/a', 'na', 'nil', 'null', '-', '--', 'pending', 'under examination', 'not applicable', 'none', 'tbd', 'ongoing'].includes(lower)) {
+    return null;
+  }
+
+  // If numeric string of Excel serial date (4-5 digits)
+  if (/^\d{4,5}$/.test(str) && parseInt(str, 10) > 10000) {
+    const num = parseInt(str, 10);
+    const d = new Date((num - 25569) * 86400 * 1000);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split('T')[0];
+    }
+  }
+
+  // Standard ISO date YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str;
+  }
+
+  // Handle DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
+  const parts = str.split(/[\/\-\.]/);
+  if (parts.length === 3) {
+    let p1 = parts[0].trim();
+    let p2 = parts[1].trim();
+    let p3 = parts[2].trim();
+    
+    // Check if format is YYYY-MM-DD
+    if (p1.length === 4) {
+      const y = p1;
+      const m = p2.padStart(2, '0');
+      const d = p3.padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    
+    // Otherwise assume DD-MM-YYYY
+    let day = p1.padStart(2, '0');
+    let month = p2.padStart(2, '0');
+    let year = p3;
+    if (year.length === 2) year = '20' + year;
+    const m = parseInt(month, 10);
+    const d = parseInt(day, 10);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  // Handle YYYY only (e.g. "2024")
+  if (/^\d{4}$/.test(str)) {
+    return `${str}-01-01`;
+  }
+
+  // General fallback
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().split('T')[0];
+  }
+
+  return null;
+};
+
+const sanitizeAmount = (val) => {
+  if (val === null || val === undefined || val === '') return 0.00;
+  if (typeof val === 'number') return isNaN(val) ? 0.00 : val;
+  const cleaned = String(val).replace(/[^0-9.]/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0.00 : parsed;
+};
+
 // @desc    Get all patents with filtering, searching, and role isolation
 // @route   GET /api/patents
 // @access  Private / Public (optional)
@@ -258,12 +340,12 @@ exports.createPatent = async (req, res) => {
       patentType: patentType || 'National (Indian)',
       department: assignedDept.trim(),
       academicYear: assignedYear.trim(),
-      filedDate: filedDate || null,
-      publishedDate: publishedDate || null,
-      grantedDate: grantedDate || null,
-      licenseDate: licenseDate || null,
+      filedDate: sanitizeDate(filedDate),
+      publishedDate: sanitizeDate(publishedDate),
+      grantedDate: sanitizeDate(grantedDate),
+      licenseDate: sanitizeDate(licenseDate),
       partner: partner ? partner.trim() : null,
-      revenue: revenue ? parseFloat(revenue) : 0.00,
+      revenue: sanitizeAmount(revenue),
       patentUrl: patentUrl ? patentUrl.trim() : null,
       description: description ? description.trim() : null,
       approvalStatus: approvalStatus || (req.user.role === 'admin' ? 'approved' : 'submitted'),
@@ -328,6 +410,10 @@ exports.updatePatent = async (req, res) => {
       if (req.body[field] !== undefined) {
         if (field === 'inventors' && Array.isArray(req.body.inventors)) {
           patent.inventors = req.body.inventors.join(', ');
+        } else if (['filedDate', 'publishedDate', 'grantedDate', 'licenseDate'].includes(field)) {
+          patent[field] = sanitizeDate(req.body[field]);
+        } else if (field === 'revenue') {
+          patent.revenue = sanitizeAmount(req.body[field]);
         } else {
           patent[field] = req.body[field];
         }
@@ -437,7 +523,7 @@ exports.bulkUploadPatents = async (req, res) => {
       const rawStatus = item.status || item['Status'] || item['Patent Status'] || item['Stage'] || 'Published';
       const rawType = item.patentType || item['Patent Type'] || item['Type'] || item['Jurisdiction'] || 'National (Indian)';
       const academicYear = item.academicYear || item['Academic Year'] || item['Year'] || defaultYear || '2024-2025';
-      const department = item.department || item['Department'] || defaultDepartment || req.user.department || 'General';
+      const department = item.department || item['Department'] || defaultDepartment || req.user?.department || 'General';
       const filedDate = item.filedDate || item['Filing Date'] || item['Filed Date'] || item['Date of Filing'] || null;
       const publishedDate = item.publishedDate || item['Publication Date'] || item['Published Date'] || item['Date of Publication'] || null;
       const grantedDate = item.grantedDate || item['Grant Date'] || item['Granted Date'] || item['Date of Grant'] || null;
@@ -496,16 +582,16 @@ exports.bulkUploadPatents = async (req, res) => {
         patentType: normalizedType,
         department: String(department).trim(),
         academicYear: String(academicYear).trim(),
-        filedDate: filedDate || null,
-        publishedDate: publishedDate || null,
-        grantedDate: grantedDate || null,
-        licenseDate: licenseDate || null,
+        filedDate: sanitizeDate(filedDate),
+        publishedDate: sanitizeDate(publishedDate),
+        grantedDate: sanitizeDate(grantedDate),
+        licenseDate: sanitizeDate(licenseDate),
         partner: partner ? String(partner).trim() : null,
-        revenue: revenue ? parseFloat(String(revenue).replace(/[^0-9.]/g, '')) || 0.00 : 0.00,
+        revenue: sanitizeAmount(revenue),
         patentUrl: patentUrl ? String(patentUrl).trim() : null,
         description: description ? String(description).trim() : null,
-        approvalStatus: req.user.role === 'admin' ? 'approved' : 'submitted',
-        createdBy: req.user.id
+        approvalStatus: req.user?.role === 'admin' ? 'approved' : 'submitted',
+        createdBy: req.user?.id
       });
     });
 
