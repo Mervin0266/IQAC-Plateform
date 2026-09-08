@@ -7,6 +7,7 @@ const DEPARTMENTS = [
   'Electrical and Electronics Engineering',
   'Electronics and Communication Engineering',
   'Mechanical and Automobile Engineering',
+  'School of Architecture',
   'Science and Humanities (Engineering)',
 ];
 

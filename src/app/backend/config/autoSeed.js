@@ -1,4 +1,4 @@
-const { User, Achievement, ResearchMetric, Campus, School, Department, ProgramLevel, Course, Student, DepartmentalActivity } = require('../models');
+const { User, Achievement, ResearchMetric, Campus, School, Department, ProgramLevel, Course, Student, DepartmentalActivity, Publication, Patent, SponsoredProject } = require('../models');
 
 const autoSeed = async (sequelize) => {
   try {
@@ -18,6 +18,15 @@ const autoSeed = async (sequelize) => {
 
     // Ensure default system login accounts always exist
     await ensureDefaultUsers();
+
+    // Ensure initial publications exist if table is empty
+    await ensureInitialPublications();
+
+    // Ensure initial patents exist if table is empty
+    await ensureInitialPatents();
+
+    // Ensure initial sponsored projects exist if table is empty
+    await ensureInitialSponsoredProjects();
 
     // Check if basic academic hierarchy (Departments) already exists in the database
     const deptCount = await Department.count();
@@ -131,6 +140,16 @@ const autoSeed = async (sequelize) => {
       description: 'Department of Mechanical and Automobile Engineering'
     });
 
+    const soaDept = await Department.create({
+      code: 'SOA',
+      name: 'School of Architecture',
+      shortName: 'SOA',
+      schoolId: schoolOfEngineering.id,
+      establishedYear: 2017,
+      status: 'Active',
+      description: 'Department / School of Architecture'
+    });
+
     const shDept = await Department.create({
       code: 'S&H',
       name: 'Sciences and Humanities (Engineering)',
@@ -140,7 +159,7 @@ const autoSeed = async (sequelize) => {
       status: 'Active',
       description: 'Department of Sciences and Humanities (Engineering)'
     });
-    console.log('✓ 7 Departments seeded');
+    console.log('✓ 8 Departments seeded');
 
     // 5. Create Courses / Programs
     await Course.bulkCreate([
@@ -183,7 +202,12 @@ const autoSeed = async (sequelize) => {
       { code: 'MTECH-MECH-AS', name: 'MTech in Mechanical Engineering (Automotive Systems)', departmentId: mechDept.id, programLevelId: pgLevel.id, duration: '2 Years', status: 'Active' },
       { code: 'PHD-MECH', name: 'PhD in Mechanical Engineering', departmentId: mechDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' },
 
-      // 7.7 Sciences and Humanities (Engineering)
+      // 7.7 School of Architecture
+      { code: 'BARCH', name: 'Bachelor of Architecture (B.Arch)', departmentId: soaDept.id, programLevelId: ugLevel.id, duration: '5 Years', status: 'Active' },
+      { code: 'MARCH-URBAN', name: 'Master of Architecture (M.Arch - Urban Design)', departmentId: soaDept.id, programLevelId: pgLevel.id, duration: '2 Years', status: 'Active' },
+      { code: 'PHD-ARCH', name: 'PhD in Architecture and Sustainable Built Environment', departmentId: soaDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' },
+
+      // 7.8 Sciences and Humanities (Engineering)
       { code: 'PHD-SH', name: 'PhD in Mathematics / Physics / Chemistry (Engineering streams)', departmentId: shDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' }
     ]);
     console.log('✓ All courses/programs seeded with proper program levels');
@@ -642,5 +666,334 @@ const ensureDefaultUsers = async () => {
   }
 };
 
+const ensureInitialPublications = async () => {
+  try {
+    const pubCount = await Publication.count();
+    if (pubCount > 0) return;
+
+    const adminUser = await User.findOne({ where: { role: 'admin' } });
+    if (!adminUser) return;
+
+    const samplePubs = [
+      {
+        authorName: 'Dr. Rajesh Kumar, Dr. Priya Sharma',
+        title: 'Optimized Edge Computing Gateway for Precision Agricultural Sensor Networks',
+        journalName: 'IEEE Internet of Things Journal',
+        journalType: 'Scopus',
+        department: 'Computer Science and Engineering',
+        academicYear: '2024-2025',
+        publicationDate: '2024-03-15',
+        doi: '10.1109/JIOT.2024.3378912',
+        issn: '2327-4662',
+        volume: '11',
+        issue: '6',
+        pageNumber: '9420-9432',
+        impactFactor: 8.200,
+        citationCount: 14,
+        paperUrl: 'https://ieeexplore.ieee.org',
+        abstract: 'This paper proposes an intelligent low-power edge gateway using adaptive compression algorithms for smart irrigation grids.',
+        status: 'approved',
+        createdBy: adminUser.id
+      },
+      {
+        authorName: 'Dr. Deepa Singh, Dr. Suresh Menon',
+        title: 'Thermal and Mechanical Characterization of Fly-Ash Based Geopolymer Concretes',
+        journalName: 'Construction and Building Materials (Elsevier)',
+        journalType: 'WoS (Web of Science)',
+        department: 'Civil Engineering',
+        academicYear: '2024-2025',
+        publicationDate: '2024-01-20',
+        doi: '10.1016/j.conbuildmat.2024.135241',
+        issn: '0950-0618',
+        volume: '412',
+        issue: '1',
+        pageNumber: '135-148',
+        impactFactor: 7.400,
+        citationCount: 9,
+        paperUrl: 'https://sciencedirect.com',
+        abstract: 'An experimental study evaluating compressive durability and microstructural properties of geopolymer matrices.',
+        status: 'approved',
+        createdBy: adminUser.id
+      },
+      {
+        authorName: 'Dr. Anand V, Dr. Priya Sharma',
+        title: 'Deep Transfer Learning Architecture for Automated Brain Tumor Segmentation in MRI',
+        journalName: 'Springer Journal of Ambient Intelligence and Humanized Computing',
+        journalType: 'Scopus',
+        department: 'AI and Data Science Engineering',
+        academicYear: '2023-2024',
+        publicationDate: '2023-11-10',
+        doi: '10.1007/s12652-023-04612-9',
+        issn: '1868-5137',
+        volume: '14',
+        issue: '11',
+        pageNumber: '15201-15214',
+        impactFactor: 3.800,
+        citationCount: 22,
+        paperUrl: 'https://link.springer.com',
+        abstract: 'A dual-pathway convolutional neural network with attention mechanisms for multi-sequence MRI image segmentation.',
+        status: 'approved',
+        createdBy: adminUser.id
+      },
+      {
+        authorName: 'Dr. Karthik N, Dr. Rajesh Kumar',
+        title: 'Adaptive Frequency Regulation in Microgrids with High Renewable Penetration',
+        journalName: 'IET Generation, Transmission & Distribution',
+        journalType: 'WoS (Web of Science)',
+        department: 'Electrical and Electronics Engineering',
+        academicYear: '2023-2024',
+        publicationDate: '2023-08-05',
+        doi: '10.1049/gtd2.12890',
+        issn: '1751-8687',
+        volume: '17',
+        issue: '15',
+        pageNumber: '3410-3424',
+        impactFactor: 2.800,
+        citationCount: 6,
+        paperUrl: 'https://ietresearch.onlinelibrary.wiley.com',
+        abstract: 'Design and hardware-in-the-loop validation of a robust predictive controller for islanded microgrid stability.',
+        status: 'approved',
+        createdBy: adminUser.id
+      }
+    ];
+
+    await Publication.bulkCreate(samplePubs);
+    console.log(`✓ Seeded ${samplePubs.length} initial research publications (Scopus & WoS)`);
+  } catch (err) {
+    console.error('Error seeding initial publications:', err.message);
+  }
+};
+
+const ensureInitialPatents = async () => {
+  try {
+    const patentCount = await Patent.count();
+    if (patentCount > 0) return;
+
+    const adminUser = await User.findOne({ where: { role: 'admin' } });
+    if (!adminUser) return;
+
+    const samplePatents = [
+      {
+        title: 'IoT-Based Edge Computational Device for Real-Time Agricultural Water Level Sensing',
+        inventors: 'Dr. Rajesh Kumar, Dr. Priya Sharma, Dr. Anand V',
+        applicationNo: 'IN202441012345',
+        patentNo: 'PAT-IN-489021',
+        status: 'granted',
+        patentType: 'National (Indian)',
+        department: 'Computer Science and Engineering',
+        academicYear: '2024-2025',
+        filedDate: '2023-04-12',
+        publishedDate: '2023-10-15',
+        grantedDate: '2024-05-20',
+        licenseDate: '2024-08-01',
+        partner: 'AgriTech Automation Solutions Pvt. Ltd.',
+        revenue: 450000.00,
+        patentUrl: 'https://ipindiaservices.gov.in',
+        description: 'An edge gateway device with automated duty cycling for precision irrigation flow control.',
+        approvalStatus: 'approved',
+        createdBy: adminUser.id
+      },
+      {
+        title: 'Sustainable High-Durability Geopolymer Binder Formulation Utilizing Thermal Fly Ash',
+        inventors: 'Dr. Suresh Menon, Dr. Deepa Singh',
+        applicationNo: 'IN202441023456',
+        patentNo: null,
+        status: 'published',
+        patentType: 'National (Indian)',
+        department: 'Civil Engineering',
+        academicYear: '2024-2025',
+        filedDate: '2024-01-18',
+        publishedDate: '2024-07-22',
+        grantedDate: null,
+        licenseDate: null,
+        partner: null,
+        revenue: 0.00,
+        patentUrl: 'https://ipindiaservices.gov.in',
+        description: 'Alkali-activated composite cementitious mixture with accelerated curing and high resistance to sulfate attack.',
+        approvalStatus: 'approved',
+        createdBy: adminUser.id
+      },
+      {
+        title: 'Compact Dual-Band MIMO Antenna System for 5G Cellular and Satellite Telemetry',
+        inventors: 'Dr. Anand V, Dr. Priya Sharma',
+        applicationNo: 'PCT/IB2023/056789',
+        patentNo: 'US11894520B2',
+        status: 'commercialized',
+        patentType: 'International (PCT)',
+        department: 'Electronics and Communication Engineering',
+        academicYear: '2023-2024',
+        filedDate: '2022-08-10',
+        publishedDate: '2023-02-14',
+        grantedDate: '2023-11-28',
+        licenseDate: '2024-02-15',
+        partner: 'Qualcomm Technologies Inc. (Global Licensing)',
+        revenue: 1250000.00,
+        patentUrl: 'https://patents.google.com',
+        description: 'High-isolation compact antenna array for integrated millimeter-wave transceivers.',
+        approvalStatus: 'approved',
+        createdBy: adminUser.id
+      },
+      {
+        title: 'Intelligent Adaptive Energy Router for High-Penetration Hybrid Renewable Microgrids',
+        inventors: 'Dr. Karthik N, Dr. Rajesh Kumar',
+        applicationNo: 'IN202341034567',
+        patentNo: null,
+        status: 'filed',
+        patentType: 'National (Indian)',
+        department: 'Electrical and Electronics Engineering',
+        academicYear: '2023-2024',
+        filedDate: '2023-11-05',
+        publishedDate: null,
+        grantedDate: null,
+        licenseDate: null,
+        partner: null,
+        revenue: 0.00,
+        patentUrl: 'https://ipindiaservices.gov.in',
+        description: 'Predictive power routing topology minimizing battery degradation during peak solar fluctuations.',
+        approvalStatus: 'approved',
+        createdBy: adminUser.id
+      }
+    ];
+
+    await Patent.bulkCreate(samplePatents);
+    console.log(`✓ Seeded ${samplePatents.length} initial research patents (Published, Granted, Commercialized)`);
+  } catch (err) {
+    console.error('Error seeding initial patents:', err.message);
+  }
+};
+
+const ensureInitialSponsoredProjects = async () => {
+  try {
+    const count = await SponsoredProject.count();
+    if (count > 0) return;
+
+    const adminUser = await User.findOne({ where: { role: 'admin' } });
+    if (!adminUser) return;
+
+    const sampleProjects = [
+      {
+        title: 'Development of Edge AI Gateway and Deep Learning Sensors for Real-Time Cardiac Monitoring',
+        principalInvestigator: 'Dr. Rajesh Kumar',
+        coInvestigators: 'Dr. Priya Sharma, Dr. Arun Kumar',
+        fundingAgency: 'Department of Science & Technology (DST - SERB)',
+        scheme: 'Core Research Grant (CRG)',
+        agencyType: 'Government (National)',
+        sanctionOrderNo: 'DST/SERB/CRG/2023/004821',
+        sanctionDate: '2023-09-15',
+        startDate: '2023-10-01',
+        endDate: '2026-09-30',
+        sanctionedAmount: 4850000.00,
+        amountReceived: 2800000.00,
+        status: 'Ongoing',
+        progressPercentage: 65,
+        department: 'Computer Science and Engineering',
+        academicYear: '2024-2025',
+        projectUrl: 'https://serbonline.in',
+        description: 'Multi-institutional funded grant to develop miniaturized low-power wearable ECG/SpO2 IoT edge devices with sub-10ms anomaly detection.',
+        approvalStatus: 'approved',
+        createdBy: adminUser.id
+      },
+      {
+        title: 'Sustainable High-Performance Geopolymer Structural Binders Utilizing Fly Ash and Industrial Blast Furnace Slag',
+        principalInvestigator: 'Dr. Suresh Menon',
+        coInvestigators: 'Dr. Anita Rao',
+        fundingAgency: 'AICTE - Research Promotion Scheme (RPS)',
+        scheme: 'Research Promotion Scheme (RPS)',
+        agencyType: 'Government (National)',
+        sanctionOrderNo: 'AICTE/RPS/CIVIL/2023/892',
+        sanctionDate: '2023-11-20',
+        startDate: '2024-01-05',
+        endDate: '2026-01-04',
+        sanctionedAmount: 2200000.00,
+        amountReceived: 1450000.00,
+        status: 'Ongoing',
+        progressPercentage: 50,
+        department: 'Civil Engineering',
+        academicYear: '2024-2025',
+        projectUrl: 'https://aicte-india.org',
+        description: 'Experimental investigation and structural optimization of zero-cement alkali-activated green concrete for low-carbon heavy infrastructure.',
+        approvalStatus: 'approved',
+        createdBy: adminUser.id
+      },
+      {
+        title: 'Design and Millimeter-Wave Prototype Validation of 5G/6G Dual-Polarized MIMO Antenna Transceivers',
+        principalInvestigator: 'Dr. Deepa Singh',
+        coInvestigators: 'Dr. Anand V',
+        fundingAgency: 'Qualcomm India Research Grant',
+        scheme: 'Industry Sponsored Innovation Fund',
+        agencyType: 'Industry / Corporate',
+        sanctionOrderNo: 'QCOM/IN/2022/GRANT-109',
+        sanctionDate: '2022-08-10',
+        startDate: '2022-09-01',
+        endDate: '2024-08-31',
+        sanctionedAmount: 3500000.00,
+        amountReceived: 3500000.00,
+        status: 'Completed',
+        progressPercentage: 100,
+        department: 'Electronics and Communication Engineering',
+        academicYear: '2023-2024',
+        projectUrl: 'https://qualcomm.com/research',
+        description: 'Design, electromagnetic simulation, and anechoic chamber testing of high-isolation phased-array transceivers for next-generation base stations.',
+        approvalStatus: 'approved',
+        createdBy: adminUser.id
+      },
+      {
+        title: 'Intelligent Decentralized Energy Routing and Battery Life Optimization for Off-Grid Hybrid Microgrids',
+        principalInvestigator: 'Dr. Karthik N',
+        coInvestigators: 'Dr. Vikram Patel',
+        fundingAgency: 'Ministry of New and Renewable Energy (MNRE)',
+        scheme: 'National Renewable Energy R&D Programme',
+        agencyType: 'Government (National)',
+        sanctionOrderNo: 'MNRE/RND/2024/EE/561',
+        sanctionDate: '2024-03-12',
+        startDate: '2024-04-01',
+        endDate: '2027-03-31',
+        sanctionedAmount: 5400000.00,
+        amountReceived: 2100000.00,
+        status: 'Ongoing',
+        progressPercentage: 30,
+        department: 'Electrical and Electronics Engineering',
+        academicYear: '2024-2025',
+        projectUrl: 'https://mnre.gov.in',
+        description: 'Development of multi-agent reinforcement learning controller for seamless solar-wind-battery power flow stabilization in rural microgrids.',
+        approvalStatus: 'approved',
+        createdBy: adminUser.id
+      },
+      {
+        title: 'Development of Biomimetic Nanostructured Lightweight Ceramic Composites for High-Temperature Aerospace Heat Shields',
+        principalInvestigator: 'Dr. Meera Nair',
+        coInvestigators: 'Dr. Suresh Menon',
+        fundingAgency: 'Indian Space Research Organisation (ISRO - RESPOND)',
+        scheme: 'RESPOND Programme',
+        agencyType: 'Government (National)',
+        sanctionOrderNo: 'ISRO/RESPOND/MECH/2024/782',
+        sanctionDate: '2024-06-01',
+        startDate: '2024-07-01',
+        endDate: '2027-06-30',
+        sanctionedAmount: 6200000.00,
+        amountReceived: 2500000.00,
+        status: 'Ongoing',
+        progressPercentage: 25,
+        department: 'Mechanical and Automobile Engineering',
+        academicYear: '2024-2025',
+        projectUrl: 'https://isro.gov.in/respond',
+        description: 'Synthesis and thermal ablation testing of porous ceramic-matrix composites capable of withstanding hypersonic reentry temperatures above 1600°C.',
+        approvalStatus: 'approved',
+        createdBy: adminUser.id
+      }
+    ];
+
+    await SponsoredProject.bulkCreate(sampleProjects);
+    console.log(`✓ Seeded ${sampleProjects.length} initial sponsored research projects (DST, AICTE, ISRO, Qualcomm)`);
+  } catch (err) {
+    console.error('Error seeding initial sponsored projects:', err.message);
+  }
+};
+
 autoSeed.ensureDefaultUsers = ensureDefaultUsers;
+autoSeed.ensureInitialPublications = ensureInitialPublications;
+autoSeed.ensureInitialPatents = ensureInitialPatents;
+autoSeed.ensureInitialSponsoredProjects = ensureInitialSponsoredProjects;
 module.exports = autoSeed;
+
+

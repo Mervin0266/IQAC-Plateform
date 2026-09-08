@@ -17,6 +17,9 @@ const UserRolesPage = React.lazy(() => import('./components/UserRolesPage').then
 const UserManagementPage = React.lazy(() => import('./components/UserManagementPage').then(m => ({ default: m.UserManagementPage })));
 const RankingPage = React.lazy(() => import('./components/RankingPage').then(m => ({ default: m.RankingPage })));
 const ResearchPage = React.lazy(() => import('./components/ResearchPage').then(m => ({ default: m.ResearchPage })));
+const PublicationsPage = React.lazy(() => import('./components/PublicationsPage').then(m => ({ default: m.PublicationsPage })));
+const PatentsPage = React.lazy(() => import('./components/PatentsPage').then(m => ({ default: m.PatentsPage })));
+const SponsoredResearchPage = React.lazy(() => import('./components/SponsoredResearchPage').then(m => ({ default: m.SponsoredResearchPage })));
 const IncubationsPage = React.lazy(() => import('./components/IncubationsPage').then(m => ({ default: m.IncubationsPage })));
 const IndustryConnectsPage = React.lazy(() => import('./components/IndustryConnectsPage').then(m => ({ default: m.IndustryConnectsPage })));
 const InternationalInteractionsPage = React.lazy(() => import('./components/InternationalInteractionsPage').then(m => ({ default: m.InternationalInteractionsPage })));
@@ -88,9 +91,12 @@ function AppContent() {
       case 'india-today-ranking':
       case 'the-world-ranking':
       case 'qs-india-ranking':
-        return <RankingPage onNavigate={setCurrentPage} />;
-      case 'research-metrics':
+        return <RankingPage onNavigate={setCurrentPage} currentPage={currentPage} />;
       case 'publications':
+        return <PublicationsPage onNavigate={setCurrentPage} />;
+      case 'patents':
+        return <PatentsPage onNavigate={setCurrentPage} />;
+      case 'research-metrics':
       case 'research-innovation':
       case 'sponsored-research':
       case 'consultancy-projects':
@@ -109,9 +115,10 @@ function AppContent() {
         return <PlacementsInternshipsPage onNavigate={setCurrentPage} />;
       case 'strategic-plan':
         return <StrategicPlanPage onNavigate={setCurrentPage} />;
+      case 'accreditation':
       case 'naac-accreditation':
       case 'nba-tracking':
-        return <DynamicParameterMaster onNavigate={setCurrentPage} />;
+        return <DynamicParameterMaster onNavigate={setCurrentPage} currentPage={currentPage} />;
       case 'event-logs':
         return <PlaceholderPage 
           title="Event Logs and Report" 

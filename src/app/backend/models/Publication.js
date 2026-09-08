@@ -1,40 +1,29 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const Patent = sequelize.define('Patent', {
+const Publication = sequelize.define('Publication', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
+  authorName: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
   title: {
     type: DataTypes.TEXT,
     allowNull: false
   },
-  inventors: {
-    type: DataTypes.TEXT,
-    allowNull: false,
-    comment: 'Comma-separated inventor names or array string'
-  },
-  applicationNo: {
+  journalName: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false
   },
-  patentNo: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  status: {
+  journalType: {
     type: DataTypes.STRING,
     allowNull: false,
-    defaultValue: 'published',
-    comment: 'filed, published, granted, commercialized, under_examination'
-  },
-  patentType: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    defaultValue: 'National (Indian)',
-    comment: 'National (Indian), International (PCT), USPTO (USA), EPO (Europe), Other'
+    defaultValue: 'Scopus',
+    comment: 'Scopus, WoS (Web of Science), or others as needed'
   },
   department: {
     type: DataTypes.STRING,
@@ -45,44 +34,48 @@ const Patent = sequelize.define('Patent', {
     allowNull: false,
     defaultValue: '2024-2025'
   },
-  filedDate: {
+  publicationDate: {
     type: DataTypes.DATEONLY,
     allowNull: true
   },
-  publishedDate: {
-    type: DataTypes.DATEONLY,
-    allowNull: true
-  },
-  grantedDate: {
-    type: DataTypes.DATEONLY,
-    allowNull: true
-  },
-  licenseDate: {
-    type: DataTypes.DATEONLY,
-    allowNull: true
-  },
-  partner: {
+  doi: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Commercializing agency or industry licensee'
+    allowNull: true
   },
-  revenue: {
-    type: DataTypes.DECIMAL(15, 2),
-    allowNull: true,
-    defaultValue: 0.00,
-    comment: 'Revenue or royalty generated in INR'
+  issn: {
+    type: DataTypes.STRING,
+    allowNull: true
   },
-  patentUrl: {
+  volume: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  issue: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  pageNumber: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  impactFactor: {
+    type: DataTypes.DECIMAL(6, 3),
+    allowNull: true
+  },
+  citationCount: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: 0
+  },
+  paperUrl: {
     type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Official patent URL / gazette link / Google Patents link'
+    allowNull: true
   },
-  description: {
+  abstract: {
     type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Abstract / Claims summary'
+    allowNull: true
   },
-  approvalStatus: {
+  status: {
     type: DataTypes.ENUM(
       'draft',
       'submitted',
@@ -103,15 +96,14 @@ const Patent = sequelize.define('Patent', {
     allowNull: false
   }
 }, {
-  tableName: 'patents',
+  tableName: 'publications',
   timestamps: true,
   indexes: [
-    { fields: ['status'] },
-    { fields: ['patentType'] },
+    { fields: ['journalType'] },
     { fields: ['academicYear'] },
     { fields: ['department'] },
     { fields: ['createdBy'] }
   ]
 });
 
-module.exports = Patent;
+module.exports = Publication;

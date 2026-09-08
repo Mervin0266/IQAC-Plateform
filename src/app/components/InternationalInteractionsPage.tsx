@@ -1,10 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Sidebar } from './Sidebar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Globe, Users, BookOpen, Award, Calendar, MapPin, GraduationCap, Plane, Building } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { 
+  Globe, 
+  Users, 
+  BookOpen, 
+  Award, 
+  Calendar, 
+  MapPin, 
+  GraduationCap, 
+  Plane, 
+  Building, 
+  Search, 
+  Plus, 
+  Download, 
+  Table as TableIcon, 
+  LayoutGrid, 
+  BarChart3, 
+  RotateCcw,
+  Sparkles,
+  FileSpreadsheet,
+  CheckCircle2,
+  X,
+  Compass
+} from 'lucide-react';
 import { Badge } from './ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface InternationalInteractionsPageProps {
   onNavigate: (page: string) => void;
@@ -12,10 +34,11 @@ interface InternationalInteractionsPageProps {
 }
 
 export function InternationalInteractionsPage({ onNavigate, isPublicView = false }: InternationalInteractionsPageProps) {
-  const [selectedYear, setSelectedYear] = useState('2024');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [countryFilter, setCountryFilter] = useState('All');
+  const [activeTab, setActiveTab] = useState<'partnerships' | 'conferences' | 'students' | 'faculty'>('partnerships');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
-  // MoUs and Partnerships
   const partnerships = [
     {
       id: 'MOU-001',
@@ -59,12 +82,12 @@ export function InternationalInteractionsPage({ onNavigate, isPublicView = false
     },
   ];
 
-  // International Conferences
   const conferences = [
     {
       id: 'CONF-001',
       name: 'IEEE International Conference on AI and ML',
       location: 'San Francisco, USA',
+      country: 'United States',
       date: '2024-06-15',
       participants: ['Dr. Rajesh Kumar', 'Dr. Priya Sharma', 'Dr. Arun Menon'],
       papers: 3,
@@ -74,6 +97,7 @@ export function InternationalInteractionsPage({ onNavigate, isPublicView = false
       id: 'CONF-002',
       name: 'World Engineering Summit',
       location: 'Tokyo, Japan',
+      country: 'Japan',
       date: '2024-08-20',
       participants: ['Dr. Suresh Rao', 'Dr. Lakshmi Prasad'],
       papers: 2,
@@ -83,6 +107,7 @@ export function InternationalInteractionsPage({ onNavigate, isPublicView = false
       id: 'CONF-003',
       name: 'International Conference on Sustainable Development',
       location: 'Paris, France',
+      country: 'France',
       date: '2024-09-10',
       participants: ['Dr. Meera Nair', 'Dr. Karthik Iyer'],
       papers: 1,
@@ -90,7 +115,6 @@ export function InternationalInteractionsPage({ onNavigate, isPublicView = false
     },
   ];
 
-  // Student Exchange Programs
   const studentExchanges = [
     {
       id: 'EX-001',
@@ -127,14 +151,13 @@ export function InternationalInteractionsPage({ onNavigate, isPublicView = false
     },
   ];
 
-  // Visiting Faculty
   const visitingFaculty = [
     {
       id: 'VF-001',
       name: 'Prof. John Smith',
       designation: 'Professor of AI',
       institution: 'Stanford University',
-      country: 'USA',
+      country: 'United States',
       visitDate: '2024-03-15',
       duration: '2 Weeks',
       activities: ['Guest Lectures', 'Workshop on Deep Learning', 'Research Collaboration'],
@@ -151,394 +174,352 @@ export function InternationalInteractionsPage({ onNavigate, isPublicView = false
     },
   ];
 
-  // Statistics
-  const stats = {
-    totalPartnerships: partnerships.length,
-    activeCountries: new Set(partnerships.map(p => p.country)).size,
-    studentExchanges: studentExchanges.length,
-    internationalConferences: conferences.length,
-  };
+  const countriesList = useMemo(() => {
+    const set = new Set<string>();
+    partnerships.forEach(p => set.add(p.country));
+    conferences.forEach(c => set.add(c.country));
+    studentExchanges.forEach(s => set.add(s.country));
+    visitingFaculty.forEach(f => set.add(f.country));
+    return Array.from(set);
+  }, [partnerships, conferences, studentExchanges, visitingFaculty]);
 
-  if (isPublicView) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Hero Banner */}
-        <div className="bg-gradient-to-r from-cyan-600 to-cyan-500 text-white py-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center space-x-4 mb-4">
-              <Globe className="w-12 h-12" />
-              <div>
-                <h1 className="text-4xl font-bold">International Interactions</h1>
-                <p className="text-cyan-100 mt-2">Global partnerships fostering academic excellence</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Stats Overview */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
-            <Card className="border-l-4 border-l-cyan-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Partnerships</CardDescription>
-                <CardTitle className="text-3xl font-bold text-cyan-600">{stats.totalPartnerships}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className="border-l-4 border-l-cyan-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Countries</CardDescription>
-                <CardTitle className="text-3xl font-bold text-cyan-600">{stats.activeCountries}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className="border-l-4 border-l-cyan-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Student Exchanges</CardDescription>
-                <CardTitle className="text-3xl font-bold text-cyan-600">{stats.studentExchanges}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className="border-l-4 border-l-cyan-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Conferences</CardDescription>
-                <CardTitle className="text-3xl font-bold text-cyan-600">{stats.internationalConferences}</CardTitle>
-              </CardHeader>
-            </Card>
-          </div>
-
-          {/* MoUs - Summary Cards */}
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">International Partnerships</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {partnerships.map((mou) => (
-                <Card
-                  key={mou.id}
-                  className="border-l-4 border-l-cyan-500 hover:-translate-y-1 transition-transform shadow-sm hover:shadow-lg"
-                >
-                  <CardHeader>
-                    <div className="flex items-start space-x-2 mb-2">
-                      <Building className="w-5 h-5 text-cyan-600 flex-shrink-0 mt-0.5" />
-                      <CardTitle className="text-lg leading-tight">{mou.institution}</CardTitle>
-                    </div>
-                    <CardDescription className="text-sm">Collaboration promoting global academic exchange</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      <Badge variant="secondary" className="text-xs">{mou.type}</Badge>
-                      <Badge variant="secondary" className="text-xs">{mou.duration}</Badge>
-                      <Badge variant="secondary" className="text-xs">{mou.status}</Badge>
-                    </div>
-                    <p className="text-sm text-gray-600">{mou.country}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          {/* Student Exchanges - Summary Cards */}
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Student Exchange Programs</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {studentExchanges.map((exchange) => (
-                <Card
-                  key={exchange.id}
-                  className="border-l-4 border-l-cyan-500 hover:-translate-y-1 transition-transform shadow-sm hover:shadow-lg"
-                >
-                  <CardHeader>
-                    <div className="flex items-start space-x-2 mb-2">
-                      <GraduationCap className="w-5 h-5 text-cyan-600 flex-shrink-0 mt-0.5" />
-                      <CardTitle className="text-lg leading-tight">{exchange.studentName}</CardTitle>
-                    </div>
-                    <CardDescription className="text-sm">International academic experience abroad</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      <Badge variant="secondary" className="text-xs">{exchange.program}</Badge>
-                      <Badge variant="secondary" className="text-xs">{exchange.duration}</Badge>
-                    </div>
-                    <p className="text-sm text-gray-600">{exchange.destinationUniversity}, {exchange.country}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const filteredPartnerships = useMemo(() => {
+    return partnerships.filter(p => {
+      const matchesSearch = !searchTerm ||
+        p.institution.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.country.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.focusAreas.some(f => f.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesCountry = countryFilter === 'All' || p.country === countryFilter;
+      return matchesSearch && matchesCountry;
+    });
+  }, [partnerships, searchTerm, countryFilter]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar currentPage="international-interactions" onNavigate={onNavigate} />
-      <main className="ml-64 p-8">
-        <div className="p-6">
-          {/* Page Title */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-medium text-gray-900 mb-2">International Interactions</h1>
-            <p className="text-gray-600">
-              Track international collaborations, exchange programs, and global partnerships
-            </p>
+    <div className="min-h-screen bg-slate-50 flex">
+      {!isPublicView && <Sidebar currentPage="international-interactions" onNavigate={onNavigate} />}
+
+      <main className={`${isPublicView ? 'w-full' : 'ml-64 flex-1'} p-8`}>
+        <div className="max-w-7xl mx-auto space-y-6">
+          
+          {/* Header Bar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-[#2f4692]/20 ring-4 ring-[#2f4692]/10">
+                <Globe className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                  International Relations & Global Immersion
+                </h1>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Global academic MoUs, foreign exchange programs, visiting professorships and world conferences
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <Button
+                variant="outline"
+                className="border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
+                onClick={() => {
+                  const header = 'Institution / Partner,Country,Type,Duration,Status';
+                  const rows = filteredPartnerships.map(p => `"${p.institution}","${p.country}","${p.type}","${p.duration}","${p.status}"`);
+                  const csv = 'data:text/csv;charset=utf-8,' + [header, ...rows].join('\n');
+                  const link = document.createElement('a');
+                  link.href = encodeURI(csv);
+                  link.download = 'International_MoUs_Report.csv';
+                  link.click();
+                }}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Export Report</span>
+              </Button>
+            </div>
           </div>
 
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card className="border-l-4 border-l-blue-600">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription>MoUs & Partnerships</CardDescription>
-                  <Building className="w-5 h-5 text-blue-600" />
+          {/* 5 Executive KPI Metric Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2f4692] to-blue-500" />
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Global MoUs</p>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2f4692] flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Building className="w-4 h-4" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">{stats.totalPartnerships}</div>
-                <p className="text-xs text-gray-500 mt-1">Active collaborations</p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{partnerships.length}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">Tier-1 universities</p>
+            </div>
 
-            <Card className="border-l-4 border-l-green-600">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription>Countries</CardDescription>
-                  <Globe className="w-5 h-5 text-green-600" />
+            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Countries</p>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Globe className="w-4 h-4" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">{stats.activeCountries}</div>
-                <p className="text-xs text-gray-500 mt-1">Global presence</p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-2xl font-black text-emerald-700 tracking-tight mt-2">{countriesList.length}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">Active nations</p>
+            </div>
 
-            <Card className="border-l-4 border-l-orange-600">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription>Student Exchanges</CardDescription>
-                  <GraduationCap className="w-5 h-5 text-orange-600" />
+            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-500" />
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Exchange Scholars</p>
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <GraduationCap className="w-4 h-4" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">{stats.studentExchanges}</div>
-                <p className="text-xs text-gray-500 mt-1">Current academic year</p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-2xl font-black text-purple-700 tracking-tight mt-2">{studentExchanges.length}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">Global internships</p>
+            </div>
 
-            <Card className="border-l-4 border-l-purple-600">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription>Int'l Conferences</CardDescription>
-                  <Award className="w-5 h-5 text-purple-600" />
+            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Conferences</p>
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Award className="w-4 h-4" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">{stats.internationalConferences}</div>
-                <p className="text-xs text-gray-500 mt-1">Faculty participation</p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{conferences.length}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">World summits</p>
+            </div>
+
+            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Visiting Faculty</p>
+                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Plane className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{visitingFaculty.length}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">International chairs</p>
+            </div>
           </div>
 
-          <Tabs defaultValue="partnerships" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="partnerships">MoUs & Partnerships</TabsTrigger>
-              <TabsTrigger value="conferences">International Conferences</TabsTrigger>
-              <TabsTrigger value="students">Student Exchange</TabsTrigger>
-              <TabsTrigger value="faculty">Visiting Faculty</TabsTrigger>
-            </TabsList>
+          {/* Tab Selection */}
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+            {[
+              { id: 'partnerships', label: 'MoUs & Global Alliances', count: partnerships.length },
+              { id: 'conferences', label: 'International Conferences', count: conferences.length },
+              { id: 'students', label: 'Student Exchange Programs', count: studentExchanges.length },
+              { id: 'faculty', label: 'Visiting Professors', count: visitingFaculty.length },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                  activeTab === tab.id
+                    ? 'bg-[#2f4692] text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                  activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
 
-            <TabsContent value="partnerships" className="space-y-4">
-              {partnerships.map((mou) => (
-                <Card key={mou.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <CardTitle className="text-xl">{mou.institution}</CardTitle>
-                          <Badge className="bg-green-100 text-green-800 border-green-200">
-                            {mou.status}
-                          </Badge>
+          {/* Unified Filter Bar */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[300px]">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Search international universities, countries, focus areas..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-8 pr-8 text-xs h-9 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <select
+                value={countryFilter}
+                onChange={e => setCountryFilter(e.target.value)}
+                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
+              >
+                <option value="All">All Countries</option>
+                {countriesList.map((c, i) => (
+                  <option key={i} value={c}>{c}</option>
+                ))}
+              </select>
+
+              {(searchTerm || countryFilter !== 'All') && (
+                <Button
+                  onClick={() => { setSearchTerm(''); setCountryFilter('All'); }}
+                  variant="ghost"
+                  className="h-9 text-xs font-semibold text-slate-500 hover:text-slate-900 flex items-center gap-1 px-2.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Tab Content: Partnerships */}
+          {activeTab === 'partnerships' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredPartnerships.map((mou) => (
+                <div key={mou.id} className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group">
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white flex items-center justify-center font-bold shadow-md shadow-blue-200">
+                          <Globe className="w-5 h-5" />
                         </div>
-                        <CardDescription className="text-base flex items-center gap-2">
-                          <MapPin className="w-4 h-4" />
-                          {mou.country}
-                        </CardDescription>
+                        <div>
+                          <h3 className="font-black text-slate-900 text-base group-hover:text-[#2f4692] transition-colors">{mou.institution}</h3>
+                          <p className="text-xs text-slate-500 font-semibold flex items-center gap-1 mt-0.5">
+                            <MapPin className="w-3.5 h-3.5 text-rose-500" /> {mou.country}
+                          </p>
+                        </div>
                       </div>
-                      <Badge variant="outline" className="bg-blue-50">
-                        {mou.type}
-                      </Badge>
+
+                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        {mou.status}
+                      </span>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Signed Date</p>
-                        <p className="font-medium flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {new Date(mou.signedDate).toLocaleDateString('en-IN')}
-                        </p>
+
+                    <div className="mt-3 bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Collaboration Type:</span>
+                        <strong className="text-slate-800">{mou.type}</strong>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Duration</p>
-                        <p className="font-medium">{mou.duration}</p>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Pact Duration:</span>
+                        <strong className="text-slate-800">{mou.duration}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Signed Date:</span>
+                        <strong className="text-slate-800 font-mono">{mou.signedDate}</strong>
                       </div>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-600 mb-2">Focus Areas</p>
-                      <div className="flex flex-wrap gap-2">
-                        {mou.focusAreas.map((area, idx) => (
-                          <Badge key={idx} variant="outline" className="bg-purple-50">
+
+                    <div className="mt-4 pt-3 border-t border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Research Focus Areas</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {mou.focusAreas.map((area, i) => (
+                          <span key={i} className="text-[11px] font-semibold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-lg border border-blue-100">
                             {area}
-                          </Badge>
+                          </span>
                         ))}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               ))}
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="conferences" className="space-y-4">
+          {/* Tab Content: Conferences */}
+          {activeTab === 'conferences' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {conferences.map((conf) => (
-                <Card key={conf.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-xl mb-2">{conf.name}</CardTitle>
-                        <CardDescription className="text-base flex items-center gap-2">
-                          <MapPin className="w-4 h-4" />
-                          {conf.location}
-                        </CardDescription>
-                      </div>
-                      <Badge variant="outline" className="bg-orange-50">
+                <div key={conf.id} className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Award className="w-5 h-5 text-amber-600" />
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                         {conf.type}
-                      </Badge>
+                      </span>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Conference Date</p>
-                        <p className="font-medium flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {new Date(conf.date).toLocaleDateString('en-IN')}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Papers Presented</p>
-                        <p className="font-medium flex items-center">
-                          <BookOpen className="w-4 h-4 mr-1" />
-                          {conf.papers}
-                        </p>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 mb-2">Participants</p>
-                      <div className="flex flex-wrap gap-2">
-                        {conf.participants.map((participant, idx) => (
-                          <Badge key={idx} variant="outline" className="bg-blue-50">
-                            <Users className="w-3 h-3 mr-1" />
-                            {participant}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </TabsContent>
+                    <h3 className="font-bold text-slate-900 text-sm leading-snug">{conf.name}</h3>
+                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400" /> {conf.location}
+                    </p>
 
-            <TabsContent value="students" className="space-y-4">
-              {studentExchanges.map((exchange) => (
-                <Card key={exchange.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-xl mb-2">{exchange.studentName}</CardTitle>
-                        <CardDescription className="text-base">
-                          {exchange.department}
-                        </CardDescription>
-                      </div>
-                      <Badge variant="outline" className="bg-green-50">
-                        {exchange.program}
-                      </Badge>
+                    <div className="mt-4 pt-3 border-t border-slate-100 text-xs">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Participating Faculty</p>
+                      <p className="font-semibold text-slate-800">{conf.participants.join(', ')}</p>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Destination</p>
-                        <p className="font-medium">{exchange.destinationUniversity}</p>
-                        <p className="text-sm text-gray-500 flex items-center mt-1">
-                          <MapPin className="w-3 h-3 mr-1" />
-                          {exchange.country}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Duration</p>
-                        <p className="font-medium">{exchange.duration}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Start Date</p>
-                        <p className="font-medium flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {new Date(exchange.startDate).toLocaleDateString('en-IN')}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">End Date</p>
-                        <p className="font-medium flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {new Date(exchange.endDate).toLocaleDateString('en-IN')}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </TabsContent>
+                  </div>
 
-            <TabsContent value="faculty" className="space-y-4">
-              {visitingFaculty.map((faculty) => (
-                <Card key={faculty.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-xl mb-2">{faculty.name}</CardTitle>
-                        <CardDescription className="text-base">
-                          {faculty.designation} - {faculty.institution}
-                        </CardDescription>
-                        <p className="text-sm text-gray-500 flex items-center mt-1">
-                          <MapPin className="w-3 h-3 mr-1" />
-                          {faculty.country}
-                        </p>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Visit Date</p>
-                        <p className="font-medium flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {new Date(faculty.visitDate).toLocaleDateString('en-IN')}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Duration</p>
-                        <p className="font-medium">{faculty.duration}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 mb-2">Activities</p>
-                      <div className="flex flex-wrap gap-2">
-                        {faculty.activities.map((activity, idx) => (
-                          <Badge key={idx} variant="outline" className="bg-purple-50">
-                            {activity}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                    <span>Date: <strong className="text-slate-600 font-mono">{conf.date}</strong></span>
+                    <span className="font-bold text-emerald-700">{conf.papers} Papers Published</span>
+                  </div>
+                </div>
               ))}
-            </TabsContent>
-          </Tabs>
+            </div>
+          )}
+
+          {/* Tab Content: Student Exchanges */}
+          {activeTab === 'students' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {studentExchanges.map((ex) => (
+                <div key={ex.id} className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <GraduationCap className="w-5 h-5 text-purple-600" />
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                        {ex.program}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-slate-900 text-sm">{ex.studentName}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">{ex.department}</p>
+
+                    <div className="mt-4 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1">
+                      <p className="text-slate-400">Destination University:</p>
+                      <p className="font-bold text-slate-900">{ex.destinationUniversity}</p>
+                      <p className="text-[11px] text-slate-500 font-semibold">{ex.country} • {ex.duration}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] font-mono text-slate-500">
+                    Term: {ex.startDate} to {ex.endDate}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Tab Content: Visiting Faculty */}
+          {activeTab === 'faculty' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {visitingFaculty.map((vf) => (
+                <div key={vf.id} className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold">
+                        <Plane className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-base">{vf.name}</h3>
+                        <p className="text-xs text-slate-500">{vf.designation} • {vf.institution} ({vf.country})</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs space-y-2">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Key Immersion Activities</p>
+                      <ul className="list-disc list-inside space-y-1 text-slate-700 font-medium">
+                        {vf.activities.map((act, i) => (
+                          <li key={i}>{act}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-medium">
+                    <span>Visit Date: <strong className="font-mono text-slate-800">{vf.visitDate}</strong></span>
+                    <span>Duration: <strong>{vf.duration}</strong></span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>

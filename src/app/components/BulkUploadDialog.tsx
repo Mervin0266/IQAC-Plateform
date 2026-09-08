@@ -65,8 +65,84 @@ interface BulkUploadDialogProps {
   onClose: () => void;
   token: string;
   onSuccess: () => void;
-  uploadType?: 'achievements' | 'placements' | 'faculty' | 'students' | 'departments' | 'consultancy' | 'departmental-activities';
+  uploadType?: 'achievements' | 'placements' | 'faculty' | 'students' | 'departments' | 'consultancy' | 'departmental-activities' | 'publications' | 'patents' | 'sponsored-projects' | 'sponsored-research';
 }
+
+const SPONSORED_RESEARCH_HEADERS = [
+  'Project Title',
+  'Principal Investigator',
+  'Co-Investigators',
+  'Funding Agency',
+  'Scheme / Program',
+  'Agency Type',
+  'Sanction Order No',
+  'Sanction Date',
+  'Start Date',
+  'End Date',
+  'Sanctioned Amount (INR)',
+  'Amount Received (INR)',
+  'Status',
+  'Progress (%)',
+  'Department',
+  'Academic Year',
+  'Project URL',
+  'Description'
+];
+
+const SPONSORED_RESEARCH_REQUIRED = [
+  'Project Title',
+  'Principal Investigator',
+  'Funding Agency'
+];
+
+const PATENTS_HEADERS = [
+  'Title',
+  'Inventors',
+  'Application No',
+  'Patent No',
+  'Status',
+  'Patent Type',
+  'Department',
+  'Academic Year',
+  'Filing Date',
+  'Publication Date',
+  'Grant Date',
+  'License Date',
+  'Commercial Partner',
+  'Revenue Generated (INR)',
+  'Patent URL',
+  'Abstract'
+];
+
+const PATENTS_REQUIRED = [
+  'Title',
+  'Inventors'
+];
+
+const PUBLICATIONS_HEADERS = [
+  'Author Name',
+  'Title',
+  'Journal Name',
+  'Journal Type',
+  'Department',
+  'Academic Year',
+  'Publication Date',
+  'DOI',
+  'ISSN',
+  'Volume',
+  'Issue',
+  'Page Number',
+  'Impact Factor',
+  'Citations',
+  'URL',
+  'Abstract'
+];
+
+const PUBLICATIONS_REQUIRED = [
+  'Author Name',
+  'Title',
+  'Journal Name'
+];
 
 const CONSULTANCY_HEADERS = [
   'S. No.',
@@ -169,6 +245,7 @@ const DEPARTMENTAL_ACTIVITY_MATRIX_HEADERS = [
 
 const normalizeDeptName = (raw: string): string => {
   const str = raw.trim().toLowerCase();
+  if (str.includes('architecture') || str.includes('soa') || str.includes('arch')) return 'School of Architecture';
   if (str.includes('ai') || str.includes('data science')) return 'AI and Data Science Engineering';
   if (str.includes('civil')) return 'Civil Engineering';
   if (str.includes('computer science') || str.includes('cse')) return 'Computer Science and Engineering';
@@ -262,6 +339,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const isDepartment = uploadType === 'departments';
   const isConsultancy = uploadType === 'consultancy';
   const isDepartmentalActivity = uploadType === 'departmental-activities';
+  const isPublication = uploadType === 'publications';
+  const isPatent = uploadType === 'patents';
+  const isSponsored = uploadType === 'sponsored-projects' || uploadType === 'sponsored-research';
 
   const resetState = () => {
     setFile(null);
@@ -288,7 +368,19 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     let csvContent = '';
     let fileName = 'bulk_template.csv';
 
-    if (isConsultancy) {
+    if (isSponsored) {
+      csvContent =
+        SPONSORED_RESEARCH_HEADERS.join(',') + '\n' +
+        `"Autonomous Aerial Edge Computing Swarm for Precision Agriculture","Dr. Rajesh Kumar","Dr. Priya Sharma, Dr. Deepa Singh","Department of Science and Technology (DST) - SERB","CRG (Core Research Grant)","Government (National)","DST/SERB/2024/CRG-0891","2024-03-15","2024-04-01","2027-03-31",4850000,2425000,"Ongoing",45,"Computer Science and Engineering","2024-2025","https://serb.gov.in","Multi-UAV cooperative reinforcement learning framework."\n` +
+        `"Low-Cost Nanostructured Photocatalytic Wastewater Remediation","Dr. Suresh Menon","Dr. Anita Rao","AICTE - Research Promotion Scheme (RPS)","RPS Grant-in-Aid","Government (National)","AICTE/RPS/8-45/2023-24","2023-11-20","2024-01-01","2026-12-31",2200000,2200000,"Ongoing",60,"Civil Engineering","2023-2024","https://aicte-india.org","Visible light responsive titanium dioxide membrane filtration."`;
+      fileName = 'sponsored_projects_bulk_template.csv';
+    } else if (isPatent) {
+      csvContent =
+        PATENTS_HEADERS.join(',') + '\n' +
+        `"AI-Driven Smart Grid Energy Optimization & Load Forecasting","Dr. Rajesh Kumar, Dr. Priya Sharma","202441012345","IN-PAT-456789","Granted","National (Indian)","Computer Science and Engineering","2024-2025","2023-08-15","2024-02-10","2024-11-20","2025-01-15","Schneider Electric India",1500000,"https://ipindiaonline.gov.in/patentsearch","Novel AI algorithm minimizing line loss in microgrids."\n` +
+        `"Biodegradable Chitosan-Silica Nanocomposite Membrane for Effluent Treatment","Dr. Suresh Menon, Dr. Anita Rao","PCT/IN2023/050123","","Published","International (PCT)","Civil Engineering","2023-2024","2023-11-05","2024-05-12","","","",0,"https://patentscope.wipo.int","Eco-friendly membrane technology for industrial dye and heavy metal removal."`;
+      fileName = 'patents_bulk_template.csv';
+    } else if (isConsultancy) {
       csvContent =
         CONSULTANCY_HEADERS.join(',') + '\n' +
         `1,"Dr. Rajesh Kumar","Smart City Infrastructure Planning","Bangalore Smart City Corporation, Contact: info@bscc.gov.in, Ph: 080-12345678","2024-25",25.00\n` +
@@ -319,12 +411,6 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         "\"2460301\",\"Aarav Sharma\",\"2024-2025\",\"Computer Science and Engineering\",\"BTech in Computer Science and Engineering\",\"Google\",12.50\n" +
         "\"2460302\",\"Ananya Rao\",\"2024-2025\",\"AI and Data Science Engineering\",\"BTech (Artificial Intelligence and Machine Learning)\",\"Samsung\",8.50";
       fileName = 'placements_bulk_template.csv';
-    } else if (isPlacement) {
-      csvContent =
-        "Register Number,Name,AY (Academic Year),Department,Course,Company,Package\n" +
-        "\"2460301\",\"Aarav Sharma\",\"2024-2025\",\"Computer Science and Engineering\",\"BTech in Computer Science and Engineering\",\"Google\",12.50\n" +
-        "\"2460302\",\"Ananya Rao\",\"2024-2025\",\"AI and Data Science Engineering\",\"BTech (Artificial Intelligence and Machine Learning)\",\"Samsung\",8.50";
-      fileName = 'placements_bulk_template.csv';
     } else if (isDepartmentalActivity) {
       csvContent =
         DEPARTMENTAL_ACTIVITY_MATRIX_HEADERS.map(h => `"${h}"`).join(',') + '\n' +
@@ -336,6 +422,12 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         `"Mechanical and Automobile Engineering","Reports 2015 to Reports 2025","Reports 2018 to Reports 2025","-","-","-","-","Reports 2018 to Reports 2025","Reports 2023, Reports 2025","-","-","-","-","-","-","-","Updated","Faculty Development Activities - Reports 2026"\n` +
         `"Science and Humanities (Engineering)","Reports 2024 to Reports 2026","Reports 2023 to Reports 2026","Reports 2024-25","-","-","-","-","Reports 2024-25","Reports 2025-26","Reports 2025","-","-","-","-","-","No Events found",""`;
       fileName = 'departmental_activities_matrix_template.csv';
+    } else if (isPublication) {
+      csvContent =
+        PUBLICATIONS_HEADERS.join(',') + '\n' +
+        `"Dr. Rajesh Kumar, Dr. Priya Sharma","Deep Learning Framework for Edge IoT Healthcare Sensors","IEEE Transactions on Industrial Informatics","Scopus","Computer Science and Engineering","2024-2025","2024-04-10","10.1109/TII.2024.1234567","1551-3203","20","4","2890-2902",11.7,18,"https://ieeexplore.ieee.org","A comprehensive study on lightweight neural networks for wearable heart monitoring."\n` +
+        `"Dr. Deepa Singh, Dr. Suresh Menon","Sustainable High-Volume Fly Ash Concrete Under High Temperatures","Journal of Cleaner Production (Elsevier)","WoS (Web of Science)","Civil Engineering","2024-2025","2024-02-18","10.1016/j.jclepro.2024.140890","0959-6526","435","1","140-155",11.1,12,"https://sciencedirect.com","Investigation into structural fire resistance and carbonation depth of alkali-activated slag binders."`;
+      fileName = 'publications_bulk_template.csv';
     } else {
       csvContent =
         "title,category,date,year,description,subcategory,achieverType,rank,score,organization,location,participants,impact,status\n" +
@@ -359,7 +451,21 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     let sampleRows: any[][] = [];
     let fileName = 'bulk_template.xlsx';
 
-    if (isConsultancy) {
+    if (isSponsored) {
+      headers = SPONSORED_RESEARCH_HEADERS;
+      sampleRows = [
+        ['Autonomous Aerial Edge Computing Swarm for Precision Agriculture', 'Dr. Rajesh Kumar', 'Dr. Priya Sharma, Dr. Deepa Singh', 'Department of Science and Technology (DST) - SERB', 'CRG (Core Research Grant)', 'Government (National)', 'DST/SERB/2024/CRG-0891', '2024-03-15', '2024-04-01', '2027-03-31', 4850000, 2425000, 'Ongoing', 45, 'Computer Science and Engineering', '2024-2025', 'https://serb.gov.in', 'Multi-UAV cooperative reinforcement learning framework.'],
+        ['Low-Cost Nanostructured Photocatalytic Wastewater Remediation', 'Dr. Suresh Menon', 'Dr. Anita Rao', 'AICTE - Research Promotion Scheme (RPS)', 'RPS Grant-in-Aid', 'Government (National)', 'AICTE/RPS/8-45/2023-24', '2023-11-20', '2024-01-01', '2026-12-31', 2200000, 2200000, 'Ongoing', 60, 'Civil Engineering', '2023-2024', 'https://aicte-india.org', 'Visible light responsive titanium dioxide membrane filtration.']
+      ];
+      fileName = 'sponsored_projects_bulk_template.xlsx';
+    } else if (isPatent) {
+      headers = PATENTS_HEADERS;
+      sampleRows = [
+        ['AI-Driven Smart Grid Energy Optimization & Load Forecasting', 'Dr. Rajesh Kumar, Dr. Priya Sharma', '202441012345', 'IN-PAT-456789', 'Granted', 'National (Indian)', 'Computer Science and Engineering', '2024-2025', '2023-08-15', '2024-02-10', '2024-11-20', '2025-01-15', 'Schneider Electric India', 1500000, 'https://ipindiaonline.gov.in/patentsearch', 'Novel AI algorithm minimizing line loss in microgrids.'],
+        ['Biodegradable Chitosan-Silica Nanocomposite Membrane for Effluent Treatment', 'Dr. Suresh Menon, Dr. Anita Rao', 'PCT/IN2023/050123', '', 'Published', 'International (PCT)', 'Civil Engineering', '2023-2024', '2023-11-05', '2024-05-12', '', '', '', 0, 'https://patentscope.wipo.int', 'Eco-friendly membrane technology for industrial dye and heavy metal removal.']
+      ];
+      fileName = 'patents_bulk_template.xlsx';
+    } else if (isConsultancy) {
       headers = CONSULTANCY_HEADERS;
       sampleRows = [
         ['1', 'Dr. Rajesh Kumar', 'Smart City Infrastructure Planning', 'Bangalore Smart City Corporation, Contact: info@bscc.gov.in, Ph: 080-12345678', '2024-25', 25.00],
@@ -407,6 +513,13 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         ['Science and Humanities (Engineering)', 'Reports 2024 to Reports 2026', 'Reports 2023 to Reports 2026', 'Reports 2024-25', '-', '-', '-', '-', 'Reports 2024-25', 'Reports 2025-26', 'Reports 2025', '-', '-', '-', '-', '-', 'No Events found', '']
       ];
       fileName = 'departmental_activities_matrix_template.xlsx';
+    } else if (isPublication) {
+      headers = PUBLICATIONS_HEADERS;
+      sampleRows = [
+        ['Dr. Rajesh Kumar, Dr. Priya Sharma', 'Deep Learning Framework for Edge IoT Healthcare Sensors', 'IEEE Transactions on Industrial Informatics', 'Scopus', 'Computer Science and Engineering', '2024-2025', '2024-04-10', '10.1109/TII.2024.1234567', '1551-3203', '20', '4', '2890-2902', 11.7, 18, 'https://ieeexplore.ieee.org', 'A comprehensive study on lightweight neural networks for wearable heart monitoring.'],
+        ['Dr. Deepa Singh, Dr. Suresh Menon', 'Sustainable High-Volume Fly Ash Concrete Under High Temperatures', 'Journal of Cleaner Production (Elsevier)', 'WoS (Web of Science)', 'Civil Engineering', '2024-2025', '2024-02-18', '10.1016/j.jclepro.2024.140890', '0959-6526', '435', '1', '140-155', 11.1, 12, 'https://sciencedirect.com', 'Investigation into structural fire resistance and carbonation depth of alkali-activated slag binders.']
+      ];
+      fileName = 'publications_bulk_template.xlsx';
     } else {
       headers = ['title', 'category', 'date', 'year', 'description', 'subcategory', 'achieverType', 'rank', 'score', 'organization', 'location', 'participants', 'impact', 'status'];
       sampleRows = [
@@ -657,6 +770,21 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       }
 
       missing = DEPARTMENTAL_ACTIVITY_REQUIRED.filter(field => !headers.includes(field));
+    } else if (isSponsored) {
+      missing = SPONSORED_RESEARCH_REQUIRED.filter(field => !headers.some(h => {
+        const lh = h.toLowerCase().trim();
+        const flh = field.toLowerCase().trim();
+        return (
+          lh === flh ||
+          (field === 'Project Title' && (lh.includes('title') || lh.includes('project'))) ||
+          (field === 'Principal Investigator' && (lh.includes('principal') || lh.includes('investigator') || lh.includes('pi') || lh.includes('author'))) ||
+          (field === 'Funding Agency' && (lh.includes('agency') || lh.includes('funding') || lh.includes('sponsor')))
+        );
+      }));
+    } else if (isPatent) {
+      missing = PATENTS_REQUIRED.filter(field => !headers.some(h => h.toLowerCase().trim() === field.toLowerCase().trim() || (field === 'Title' && h.toLowerCase().includes('title')) || (field === 'Inventors' && (h.toLowerCase().includes('inventor') || h.toLowerCase().includes('author')))));
+    } else if (isPublication) {
+      missing = PUBLICATIONS_REQUIRED.filter(field => !headers.some(h => h.toLowerCase().trim() === field.toLowerCase().trim() || (field === 'Title' && h.toLowerCase().includes('title')) || (field === 'Author Name' && (h.toLowerCase().includes('author') || h.toLowerCase().includes('participants'))) || (field === 'Journal Name' && (h.toLowerCase().includes('journal') || h.toLowerCase().includes('organization') || h.toLowerCase().includes('publisher')))));
     } else {
       const required = ['title', 'category', 'date', 'year'];
       missing = required.filter(field => !headers.includes(field));
@@ -673,8 +801,6 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       const rowValues = allRows[i];
       // Skip entirely empty rows
       if (rowValues.every(v => v === '')) continue;
-
-
 
       const record: any = {};
       headers.forEach((header, index) => {
@@ -801,6 +927,162 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               case 'Pending Notes':     record['pendingNotes'] = val; break;
               default: record[header] = val;
             }
+          } else if (isPublication) {
+            switch (header) {
+              case 'Author Name':
+              case 'Author':
+              case 'Authors':
+              case 'authorName':
+                record['authorName'] = val; break;
+              case 'Title':
+              case 'Publication Title':
+              case 'Paper Title':
+              case 'title':
+                record['title'] = val; break;
+              case 'Journal Name':
+              case 'Journal':
+              case 'Publisher':
+              case 'journalName':
+                record['journalName'] = val; break;
+              case 'Journal Type':
+              case 'Indexing':
+              case 'Type':
+              case 'journalType':
+                record['journalType'] = val; break;
+              case 'Department':
+              case 'department':
+                record['department'] = val; break;
+              case 'Academic Year':
+              case 'Year':
+              case 'academicYear':
+                record['academicYear'] = val; break;
+              case 'Publication Date':
+              case 'Date':
+              case 'publicationDate':
+                record['publicationDate'] = val; break;
+              case 'DOI':
+              case 'DOI Number':
+              case 'doi':
+                record['doi'] = val; break;
+              case 'ISSN':
+              case 'ISBN':
+              case 'issn':
+                record['issn'] = val; break;
+              case 'Volume':
+              case 'volume':
+                record['volume'] = val; break;
+              case 'Issue':
+              case 'issue':
+                record['issue'] = val; break;
+              case 'Page Number':
+              case 'Pages':
+              case 'pageNumber':
+                record['pageNumber'] = val; break;
+              case 'Impact Factor':
+              case 'impactFactor':
+                record['impactFactor'] = parseFloat(val) || null; break;
+              case 'Citations':
+              case 'citationCount':
+                record['citationCount'] = parseInt(val) || 0; break;
+              case 'URL':
+              case 'Paper Link':
+              case 'paperUrl':
+                record['paperUrl'] = val; break;
+              case 'Abstract':
+              case 'abstract':
+                record['abstract'] = val; break;
+              default: record[header] = val;
+            }
+          } else if (isPatent) {
+            const lh = header.toLowerCase().trim();
+            if (lh.includes('title')) {
+              record['title'] = val;
+            } else if (lh.includes('inventor') || lh.includes('author')) {
+              record['inventors'] = val;
+            } else if (lh.includes('application') || lh === 'app no' || lh === 'appno' || lh === 'applicationno') {
+              record['applicationNo'] = val;
+            } else if (lh.includes('patent no') || lh === 'patentno' || lh === 'grant no' || lh === 'patent number') {
+              record['patentNo'] = val;
+            } else if (lh === 'status' || lh === 'stage' || lh.includes('patent status')) {
+              const sl = (val || '').toLowerCase().trim();
+              if (sl.includes('grant')) record['status'] = 'granted';
+              else if (sl.includes('publish')) record['status'] = 'published';
+              else if (sl.includes('commercial') || sl.includes('licens')) record['status'] = 'commercialized';
+              else if (sl.includes('exam')) record['status'] = 'under_examination';
+              else if (sl.includes('file') || sl.includes('submit')) record['status'] = 'filed';
+              else record['status'] = val || 'published';
+            } else if (lh.includes('type') || lh.includes('jurisdiction')) {
+              record['patentType'] = val || 'National (Indian)';
+            } else if (lh.includes('department')) {
+              record['department'] = val;
+            } else if (lh.includes('academic year') || lh === 'year') {
+              record['academicYear'] = val;
+            } else if (lh.includes('file') || lh.includes('filing')) {
+              record['filedDate'] = formatDateToISO(val);
+            } else if (lh.includes('publish') || lh.includes('publication')) {
+              record['publishedDate'] = formatDateToISO(val);
+            } else if (lh.includes('grant')) {
+              record['grantedDate'] = formatDateToISO(val);
+            } else if (lh.includes('licens')) {
+              record['licenseDate'] = formatDateToISO(val);
+            } else if (lh.includes('partner') || lh.includes('commercial partner') || lh.includes('industry')) {
+              record['partner'] = val;
+            } else if (lh.includes('revenue') || lh.includes('royalt') || lh.includes('amount') || lh.includes('earning')) {
+              record['revenue'] = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+            } else if (lh.includes('url') || lh.includes('link')) {
+              record['patentUrl'] = val;
+            } else if (lh.includes('abstract') || lh.includes('description') || lh.includes('summary')) {
+              record['description'] = val;
+            } else {
+              record[header] = val;
+            }
+          } else if (isSponsored) {
+            const lh = header.toLowerCase().trim();
+            if (lh.includes('title') || lh.includes('project name')) {
+              record['title'] = val;
+            } else if (lh.includes('principal') || lh.includes('investigator') || lh === 'pi' || lh === 'lead investigator') {
+              record['principalInvestigator'] = val;
+            } else if (lh.includes('co-investigator') || lh.includes('coinvestigator') || lh.includes('co pi') || lh.includes('co-pi')) {
+              record['coInvestigators'] = val;
+            } else if (lh.includes('agency') || lh.includes('sponsor') || lh.includes('funding source')) {
+              record['fundingAgency'] = val;
+            } else if (lh.includes('scheme') || lh.includes('program') || lh.includes('grant name')) {
+              record['scheme'] = val;
+            } else if (lh.includes('agency type') || lh.includes('funding type') || lh.includes('category')) {
+              record['agencyType'] = val || 'Government (National)';
+            } else if (lh.includes('sanction order') || lh.includes('order no') || lh.includes('sanction no') || lh.includes('grant no') || lh.includes('project id') || lh.includes('reference no')) {
+              record['sanctionOrderNo'] = val;
+            } else if (lh.includes('sanction date') || lh.includes('order date') || lh.includes('approval date')) {
+              record['sanctionDate'] = formatDateToISO(val);
+            } else if (lh.includes('start date') || lh.includes('commencement') || lh.includes('from date')) {
+              record['startDate'] = formatDateToISO(val);
+            } else if (lh.includes('end date') || lh.includes('completion date') || lh.includes('to date')) {
+              record['endDate'] = formatDateToISO(val);
+            } else if (lh.includes('sanctioned amount') || lh.includes('grant amount') || lh.includes('total amount') || lh.includes('budget') || lh.includes('outlay') || lh === 'amount') {
+              record['sanctionedAmount'] = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+            } else if (lh.includes('received') || lh.includes('released') || lh.includes('disbursed') || lh.includes('funds received')) {
+              record['amountReceived'] = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+            } else if (lh === 'status' || lh.includes('project status')) {
+              const sl = (val || '').toLowerCase().trim();
+              if (sl.includes('ongoing') || sl.includes('active') || sl.includes('progress')) record['status'] = 'Ongoing';
+              else if (sl.includes('complete') || sl.includes('closed') || sl.includes('finished')) record['status'] = 'Completed';
+              else if (sl.includes('sanction') || sl.includes('approved')) record['status'] = 'Sanctioned';
+              else if (sl.includes('propos') || sl.includes('submit')) record['status'] = 'Proposal Submitted';
+              else if (sl.includes('terminat') || sl.includes('cancel')) record['status'] = 'Terminated';
+              else record['status'] = val || 'Ongoing';
+            } else if (lh.includes('progress') || lh.includes('completion %') || lh.includes('percentage')) {
+              record['progressPercentage'] = parseInt(val.replace(/[^0-9]/g, '')) || 0;
+            } else if (lh.includes('department') || lh === 'dept') {
+              record['department'] = val;
+            } else if (lh.includes('academic year') || lh === 'year') {
+              record['academicYear'] = val;
+            } else if (lh.includes('url') || lh.includes('link') || lh.includes('portal')) {
+              record['projectUrl'] = val;
+            } else if (lh.includes('description') || lh.includes('abstract') || lh.includes('summary') || lh.includes('objectives')) {
+              record['description'] = val;
+            } else {
+              record[header] = val;
+            }
           } else {
             record[header] = val;
           }
@@ -813,19 +1095,24 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         if (!record.placementDate) record.placementDate = new Date().toISOString().split('T')[0];
       }
 
-      // Default any missing, null, or empty string values to 'NIL'
-      Object.keys(record).forEach(k => {
-        if (record[k] === undefined || record[k] === null || record[k] === '' || String(record[k]).trim() === '') {
-          record[k] = 'NIL';
-        }
-      });
+      // Default any missing, null, or empty string values to 'NIL' (except for publications/patents/sponsored where optional fields can remain empty/null)
+      if (!isPublication && !isPatent && !isSponsored) {
+        Object.keys(record).forEach(k => {
+          if (record[k] === undefined || record[k] === null || record[k] === '' || String(record[k]).trim() === '') {
+            record[k] = 'NIL';
+          }
+        });
+      }
 
       records.push(record);
     }
 
     if (records.length === 0) {
       setParseError(
-        isConsultancy ? 'No consultancy project rows detected in the CSV file.'
+        isSponsored ? 'No sponsored research grant rows detected in the CSV file.'
+        : isPatent ? 'No patent rows detected in the CSV file.'
+        : isPublication ? 'No publication rows detected in the CSV file.'
+        : isConsultancy ? 'No consultancy project rows detected in the CSV file.'
         : isFaculty ? 'No faculty rows detected in the CSV file.'
         : isStudent ? 'No student rows detected in the CSV file.'
         : isDepartment ? 'No department rows detected in the CSV file.'
@@ -854,17 +1141,23 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     const endpoint = isDepartmentalActivity
       ? `${baseUrl}/api/departmental-activities/bulk`
-      : isConsultancy
-        ? `${baseUrl}/api/consultancy-projects/bulk`
-        : isFaculty
-          ? `${baseUrl}/api/faculty/bulk`
-          : isPlacement
-            ? `${baseUrl}/api/placements/bulk`
-            : isStudent
-              ? `${baseUrl}/api/students/bulk`
-              : isDepartment
-                ? `${baseUrl}/api/departments/bulk`
-                : `${baseUrl}/api/achievements/bulk`;
+      : isPublication
+        ? `${baseUrl}/api/publications/bulk`
+        : isPatent
+          ? `${baseUrl}/api/patents/bulk`
+          : isSponsored
+            ? `${baseUrl}/api/sponsored-projects/bulk`
+            : isConsultancy
+              ? `${baseUrl}/api/consultancy-projects/bulk`
+              : isFaculty
+                ? `${baseUrl}/api/faculty/bulk`
+                : isPlacement
+                  ? `${baseUrl}/api/placements/bulk`
+                  : isStudent
+                    ? `${baseUrl}/api/students/bulk`
+                    : isDepartment
+                      ? `${baseUrl}/api/departments/bulk`
+                      : `${baseUrl}/api/achievements/bulk`;
 
     // Enrich preview records with common batch metadata selected in the upload dialog
     const dataWithCommonFields = previewData.map(record => {
@@ -876,16 +1169,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         ...(record.academicYear ? {} : { academicYear: selectedAcademicYear }),
         ...(record.campus ? {} : { campus: selectedCampus }),
         ...(record.school ? {} : { school: selectedSchool }),
-        ...(isConsultancy ? { department: selectedDepartment } : {})
+        ...(isConsultancy || isPublication || isPatent || isSponsored ? { department: record.department || selectedDepartment } : {})
       };
 
-      const dateKeys = ['dateOfBirth', 'dateOfJoining', 'dob', 'admissionDate', 'eventDate', 'placementDate', 'date'];
+      const dateKeys = ['dateOfBirth', 'dateOfJoining', 'dob', 'admissionDate', 'eventDate', 'placementDate', 'date', 'publicationDate', 'filedDate', 'publishedDate', 'grantedDate', 'licenseDate', 'sanctionDate', 'startDate', 'endDate'];
       Object.keys(item).forEach(k => {
         if (dateKeys.includes(k)) {
           if (!item[k] || String(item[k]).toLowerCase() === 'nil' || String(item[k]).toLowerCase() === 'n/a' || String(item[k]).toLowerCase() === 'invalid date' || String(item[k]).trim() === '') {
             item[k] = null;
           }
-        } else {
+        } else if (!isPublication && !isPatent && !isSponsored) {
           if (item[k] === undefined || item[k] === null || item[k] === '' || String(item[k]).trim() === '') {
             item[k] = 'NIL';
           }
@@ -897,17 +1190,23 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
 
     const bodyPayload = isDepartmentalActivity
       ? { activities: dataWithCommonFields }
-      : isConsultancy
-        ? { consultancyProjects: dataWithCommonFields }
-        : isFaculty
-          ? { faculty: dataWithCommonFields }
-          : isPlacement
-            ? { placements: dataWithCommonFields }
-            : isStudent
-              ? { students: dataWithCommonFields }
-              : isDepartment
-                ? { departments: dataWithCommonFields }
-                : { achievements: dataWithCommonFields };
+      : isPublication
+        ? { items: dataWithCommonFields, defaultDepartment: selectedDepartment, defaultYear: selectedAcademicYear }
+        : isPatent
+          ? { items: dataWithCommonFields, defaultDepartment: selectedDepartment, defaultYear: selectedAcademicYear }
+          : isSponsored
+            ? { items: dataWithCommonFields, defaultDepartment: selectedDepartment, defaultYear: selectedAcademicYear }
+            : isConsultancy
+              ? { consultancyProjects: dataWithCommonFields }
+              : isFaculty
+                ? { faculty: dataWithCommonFields }
+                : isPlacement
+                  ? { placements: dataWithCommonFields }
+                  : isStudent
+                    ? { students: dataWithCommonFields }
+                    : isDepartment
+                      ? { departments: dataWithCommonFields }
+                      : { achievements: dataWithCommonFields };
 
     try {
       const response = await fetch(endpoint, {
@@ -947,7 +1246,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     }
   };
 
-  const uploadTypeLabel = isConsultancy ? 'Consultancy Projects (NIRF)' : isFaculty ? 'Faculty Details' : isStudent ? 'Student Details' : isDepartment ? 'Department Details' : isPlacement ? 'Placements & Internships' : 'Achievements';
+  const uploadTypeLabel = isSponsored ? 'Sponsored Research & Grants' : isPatent ? 'Patents & Intellectual Property' : isPublication ? 'Publications (Scopus / WoS)' : isConsultancy ? 'Consultancy Projects (NIRF)' : isFaculty ? 'Faculty Details' : isStudent ? 'Student Details' : isDepartment ? 'Department Details' : isPlacement ? 'Placements & Internships' : 'Achievements';
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -969,7 +1268,19 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             <div className="space-y-1">
               <p className="font-semibold">CSV / Excel Formatting Guidelines:</p>
                <p>Your CSV or Excel file columns must map to the headers list below. The required fields are marked with **.</p>
-               {isConsultancy ? (
+               {isSponsored ? (
+                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
+                    Project Title**, Principal Investigator**, Co-Investigators, Funding Agency**, Scheme / Program, Agency Type, Sanction Order No, Sanction Date, Start Date, End Date, Sanctioned Amount (INR), Amount Received (INR), Status, Progress (%), Department, Academic Year, Project URL, Description
+                 </p>
+               ) : isPatent ? (
+                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
+                    Title**, Inventors**, Application No, Patent No, Status, Patent Type, Department, Academic Year, Filing Date, Publication Date, Grant Date, License Date, Commercial Partner, Revenue Generated (INR), Patent URL, Abstract
+                 </p>
+               ) : isPublication ? (
+                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
+                    Author Name**, Title**, Journal Name**, Journal Type, Department, Academic Year, Publication Date, DOI, ISSN, Volume, Issue, Page Number, Impact Factor, Citations, URL, Abstract
+                 </p>
+               ) : isConsultancy ? (
                  <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
                     S. No., Name of the Teacher Consultant**, Name of Consultancy Project**, Consulting/Sponsoring Agency with Contact Details**, Year**, Revenue Generated (INR in Lakhs)
                  </p>
@@ -1282,6 +1593,111 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                             <td className="py-2 px-3 truncate max-w-[150px]" title={row.sponsoringAgency}>{row.sponsoringAgency}</td>
                             <td className="py-2 px-3 font-mono">{row.year}</td>
                             <td className="py-2 px-3 font-mono font-semibold text-green-700">{row.revenueInLakhs}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </>
+                  ) : isSponsored ? (
+                    <>
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200 font-semibold">
+                          <th className="py-2 px-3 whitespace-nowrap">Preview No</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Project Title</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Principal Investigator</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Funding Agency</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Category</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Sanction Order</th>
+                          <th className="py-2 px-3 whitespace-nowrap text-right">Sanctioned (₹)</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Status</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Department</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Year</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {previewData.slice(0, 5).map((row, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="py-2 px-3 font-mono">{idx + 1}</td>
+                            <td className="py-2 px-3 font-semibold text-gray-900 truncate max-w-[160px]" title={row.title}>{row.title}</td>
+                            <td className="py-2 px-3 truncate max-w-[130px]" title={row.principalInvestigator}>{row.principalInvestigator}</td>
+                            <td className="py-2 px-3 truncate max-w-[140px]" title={row.fundingAgency}>{row.fundingAgency}</td>
+                            <td className="py-2 px-3 whitespace-nowrap text-[10px] text-gray-600">{row.agencyType || 'Government'}</td>
+                            <td className="py-2 px-3 font-mono text-[10px]">{row.sanctionOrderNo || '-'}</td>
+                            <td className="py-2 px-3 font-mono font-semibold text-emerald-700 text-right">
+                              ₹{Number(row.sanctionedAmount || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-medium border border-emerald-200">
+                                {row.status || 'Ongoing'}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 truncate max-w-[110px]" title={row.department}>{row.department || '-'}</td>
+                            <td className="py-2 px-3 font-mono">{row.academicYear || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </>
+                  ) : isPatent ? (
+                    <>
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200 font-semibold">
+                          <th className="py-2 px-3 whitespace-nowrap">Preview No</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Title</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Inventors</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Application No</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Patent No</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Status</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Type</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Department</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Year</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {previewData.slice(0, 5).map((row, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="py-2 px-3 font-mono">{idx + 1}</td>
+                            <td className="py-2 px-3 font-semibold text-gray-900 truncate max-w-[160px]" title={row.title}>{row.title}</td>
+                            <td className="py-2 px-3 truncate max-w-[130px]" title={row.inventors}>{row.inventors}</td>
+                            <td className="py-2 px-3 font-mono">{row.applicationNo || '-'}</td>
+                            <td className="py-2 px-3 font-mono">{row.patentNo || '-'}</td>
+                            <td className="py-2 px-3 capitalize">
+                              <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-medium border border-amber-200">
+                                {row.status || 'published'}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3">{row.patentType || 'National (Indian)'}</td>
+                            <td className="py-2 px-3 truncate max-w-[120px]" title={row.department}>{row.department || '-'}</td>
+                            <td className="py-2 px-3 font-mono">{row.academicYear || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </>
+                  ) : isPublication ? (
+                    <>
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200 font-semibold">
+                          <th className="py-2 px-3 whitespace-nowrap">Preview No</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Title</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Author(s)</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Journal Name</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Indexing</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Department</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Year</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {previewData.slice(0, 5).map((row, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="py-2 px-3 font-mono">{idx + 1}</td>
+                            <td className="py-2 px-3 font-semibold text-gray-900 truncate max-w-[180px]" title={row.title}>{row.title}</td>
+                            <td className="py-2 px-3 truncate max-w-[140px]" title={row.authorName}>{row.authorName}</td>
+                            <td className="py-2 px-3 truncate max-w-[140px]" title={row.journalName}>{row.journalName}</td>
+                            <td className="py-2 px-3">
+                              <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-medium border border-blue-200">
+                                {row.journalType || 'Scopus'}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 truncate max-w-[120px]" title={row.department}>{row.department || '-'}</td>
+                            <td className="py-2 px-3 font-mono">{row.academicYear || '-'}</td>
                           </tr>
                         ))}
                       </tbody>

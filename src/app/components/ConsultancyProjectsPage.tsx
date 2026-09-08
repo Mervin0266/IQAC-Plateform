@@ -1,15 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { Sidebar } from './Sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import {
   DollarSign, TrendingUp, Briefcase, Plus, Upload, Pencil, Trash2,
-  CheckCircle, Clock, AlertCircle, X, Building, Calendar
+  CheckCircle, Clock, AlertCircle, X, Building, Calendar, Search,
+  Download, Eye, Filter, LayoutGrid, Table as TableIcon, BarChart3,
+  ExternalLink, Sparkles, UserCheck, ChevronRight
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
+import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
@@ -23,7 +26,7 @@ interface ConsultancyProjectsPageProps {
   userRole?: string;
 }
 
-interface ConsultancyProject {
+export interface ConsultancyProject {
   id: string;
   teacherConsultant: string;
   projectName: string;
@@ -32,127 +35,95 @@ interface ConsultancyProject {
   revenueInLakhs: number;
   department: string;
   status: string;
+  description?: string;
   createdAt?: string;
+  updatedAt?: string;
   creator?: { name: string; email: string; department: string };
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-const YEARS = Array.from({ length: new Date().getFullYear() - 2018 + 1 }, (_, i) => {
-  const y = new Date().getFullYear() - i;
-  return `${y}-${String(y + 1).slice(-2)}`;
-});
+const YEARS = [
+  '2026-2027',
+  '2025-2026',
+  '2024-2025',
+  '2023-2024',
+  '2022-2023',
+  '2021-2022',
+  '2020-2021'
+];
 
 const EMPTY_FORM = {
   teacherConsultant: '',
   projectName: '',
   sponsoringAgency: '',
-  year: '',
+  year: '2024-2025',
   revenueInLakhs: '',
   department: '',
+  status: 'approved',
+  description: ''
 };
 
-const STATUS_CONFIG: Record<string, { color: string; icon: React.ReactNode }> = {
-  draft: { color: 'bg-gray-100 text-gray-700 border-gray-200', icon: <Clock className="w-3 h-3" /> },
-  submitted: { color: 'bg-blue-100 text-blue-700 border-blue-200', icon: <Clock className="w-3 h-3" /> },
-  under_coordinator_review: { color: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: <AlertCircle className="w-3 h-3" /> },
-  approved: { color: 'bg-teal-100 text-teal-700 border-teal-200', icon: <CheckCircle className="w-3 h-3" /> },
-  finalized: { color: 'bg-green-100 text-green-700 border-green-200', icon: <CheckCircle className="w-3 h-3" /> },
-  returned_for_correction: { color: 'bg-orange-100 text-orange-700 border-orange-200', icon: <AlertCircle className="w-3 h-3" /> },
-  rejected: { color: 'bg-red-100 text-red-700 border-red-200', icon: <X className="w-3 h-3" /> },
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
+  approved: { label: 'Approved', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: <CheckCircle className="w-3 h-3 text-emerald-600" /> },
+  finalized: { label: 'Finalized', color: 'text-teal-700', bg: 'bg-teal-50', border: 'border-teal-200', icon: <CheckCircle className="w-3 h-3 text-teal-600" /> },
+  submitted: { label: 'Submitted', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: <Clock className="w-3 h-3 text-blue-600" /> },
+  under_coordinator_review: { label: 'Under Review', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', icon: <AlertCircle className="w-3 h-3 text-amber-600" /> },
+  draft: { label: 'Draft', color: 'text-gray-700', bg: 'bg-gray-50', border: 'border-gray-200', icon: <Clock className="w-3 h-3 text-gray-500" /> },
+  returned_for_correction: { label: 'Correction', color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: <AlertCircle className="w-3 h-3 text-orange-600" /> },
+  rejected: { label: 'Rejected', color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', icon: <X className="w-3 h-3 text-red-600" /> },
 };
 
-function formatStatus(status: string) {
-  return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+function formatStatusBadge(statusKey: string) {
+  const cfg = STATUS_CONFIG[statusKey] || {
+    label: statusKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    color: 'text-gray-700',
+    bg: 'bg-gray-50',
+    border: 'border-gray-200',
+    icon: <Clock className="w-3 h-3 text-gray-500" />
+  };
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
+      {cfg.icon}
+      <span>{cfg.label}</span>
+    </span>
+  );
 }
 
 export function ConsultancyProjectsPage({
-  onNavigate, isPublicView = false, hideSidebar = false, token = '', userRole = 'faculty'
+  onNavigate,
+  isPublicView = false,
+  hideSidebar = false,
+  token = '',
+  userRole = 'faculty'
 }: ConsultancyProjectsPageProps) {
-  const [selectedYear, setSelectedYear] = useState('all');
-  const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [projects, setProjects] = useState<ConsultancyProject[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Form dialog
+  // Filtering & View State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedYear, setSelectedYear] = useState('all');
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [viewMode, setViewMode] = useState<'table' | 'cards' | 'department'>('table');
+
+  // Modals & Drawers
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState<ConsultancyProject | null>(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
 
-  // Bulk upload dialog
+  const [viewingProject, setViewingProject] = useState<ConsultancyProject | null>(null);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
-
-  // Delete confirm
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
 
-  const handleClearConsultancyDetails = async () => {
-    if (!token) return;
-    setClearLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/consultancy-projects/clear-all`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success) {
-        setShowClearConfirm(false);
-        fetchProjects();
-      } else {
-        setError(data.message || 'Failed to clear consultancy records');
-      }
-    } catch {
-      setError('Error connecting to server.');
-    } finally {
-      setClearLoading(false);
-    }
-  };
-
-  const fetchProjects = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    setError('');
-    try {
-      const params = new URLSearchParams();
-      if (selectedYear !== 'all') params.append('year', selectedYear);
-      if (selectedDepartment !== 'all') params.append('department', selectedDepartment);
-      const res = await fetch(`${API_BASE}/api/consultancy-projects?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success) {
-        setProjects(data.data);
-      } else {
-        setError(data.message || 'Failed to load records');
-      }
-    } catch {
-      setError('Connection failed. Make sure backend is running.');
-    } finally {
-      setLoading(false);
-    }
-  }, [token, selectedYear, selectedDepartment]);
-
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
-
-  // Stats computed from loaded data
-  const totalRevenue = projects.reduce((sum, p) => sum + Number(p.revenueInLakhs || 0), 0);
-  const departmentMap = projects.reduce((acc, p) => {
-    const d = p.department || 'Unknown';
-    if (!acc[d]) acc[d] = { count: 0, revenue: 0 };
-    acc[d].count++;
-    acc[d].revenue += Number(p.revenueInLakhs || 0);
-    return acc;
-  }, {} as Record<string, { count: number; revenue: number }>);
-
-  const activeDepartmentsCount = Object.keys(departmentMap).length;
   const { departmentList: dbDepts } = useAcademicHierarchy();
-  const departments = React.useMemo(() => {
+  const departments = useMemo(() => {
     const set = new Set<string>();
     dbDepts.forEach(d => {
       if (d) set.add(normalizeDepartmentName(d));
@@ -174,30 +145,117 @@ export function ConsultancyProjectsPage({
     return Array.from(set).sort();
   }, [dbDepts, projects]);
 
+  const fetchProjects = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams();
+      if (selectedYear !== 'all') params.append('year', selectedYear);
+      if (selectedDepartment !== 'all') params.append('department', selectedDepartment);
+      if (selectedStatus !== 'all') params.append('status', selectedStatus);
+
+      const res = await fetch(`${API_BASE}/api/consultancy-projects?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProjects(data.data || []);
+      } else {
+        setError(data.message || 'Failed to load records');
+      }
+    } catch {
+      setError('Connection failed. Please ensure the backend server is active.');
+    } finally {
+      setLoading(false);
+    }
+  }, [token, selectedYear, selectedDepartment, selectedStatus]);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  // Filtered list
+  const filteredProjects = useMemo(() => {
+    return projects.filter(item => {
+      if (selectedYear !== 'all' && item.year !== selectedYear) return false;
+      if (selectedDepartment !== 'all' && item.department !== selectedDepartment) return false;
+      if (selectedStatus !== 'all' && item.status !== selectedStatus) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const titleMatch = item.projectName?.toLowerCase().includes(q);
+        const consultantMatch = item.teacherConsultant?.toLowerCase().includes(q);
+        const agencyMatch = item.sponsoringAgency?.toLowerCase().includes(q);
+        const deptMatch = item.department?.toLowerCase().includes(q);
+        if (!titleMatch && !consultantMatch && !agencyMatch && !deptMatch) return false;
+      }
+      return true;
+    });
+  }, [projects, selectedYear, selectedDepartment, selectedStatus, searchQuery]);
+
+  // Aggregate stats
+  const totalRevenue = useMemo(() => {
+    return filteredProjects.reduce((sum, p) => sum + Number(p.revenueInLakhs || 0), 0);
+  }, [filteredProjects]);
+
+  const uniqueConsultants = useMemo(() => {
+    const set = new Set<string>();
+    filteredProjects.forEach(p => {
+      if (p.teacherConsultant) {
+        p.teacherConsultant.split(',').forEach(name => {
+          const trimmed = name.trim();
+          if (trimmed) set.add(trimmed);
+        });
+      }
+    });
+    return set.size;
+  }, [filteredProjects]);
+
+  const departmentMap = useMemo(() => {
+    return filteredProjects.reduce((acc, p) => {
+      const d = p.department || 'General';
+      if (!acc[d]) acc[d] = { count: 0, revenue: 0 };
+      acc[d].count++;
+      acc[d].revenue += Number(p.revenueInLakhs || 0);
+      return acc;
+    }, {} as Record<string, { count: number; revenue: number }>);
+  }, [filteredProjects]);
+
+  const activeDepartmentsCount = Object.keys(departmentMap).length;
+  const avgRevenuePerProject = filteredProjects.length > 0 ? (totalRevenue / filteredProjects.length) : 0;
+
+  // Handlers
   const handleOpenForm = (project?: ConsultancyProject) => {
     if (project) {
       setEditingProject(project);
       setFormData({
-        teacherConsultant: project.teacherConsultant,
-        projectName: project.projectName,
-        sponsoringAgency: project.sponsoringAgency,
-        year: project.year,
-        revenueInLakhs: String(project.revenueInLakhs),
-        department: project.department || '',
+        teacherConsultant: project.teacherConsultant || '',
+        projectName: project.projectName || '',
+        sponsoringAgency: project.sponsoringAgency || '',
+        year: project.year || '2024-2025',
+        revenueInLakhs: String(project.revenueInLakhs || ''),
+        department: project.department || departments[0] || '',
+        status: project.status || 'approved',
+        description: project.description || ''
       });
     } else {
       setEditingProject(null);
-      setFormData(EMPTY_FORM);
+      setFormData({
+        ...EMPTY_FORM,
+        department: departments[0] || 'Computer Science and Engineering'
+      });
     }
     setFormError('');
     setShowForm(true);
   };
 
-  const handleFormSubmit = async () => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!formData.teacherConsultant.trim() || !formData.projectName.trim() || !formData.sponsoringAgency.trim() || !formData.year) {
-      setFormError('Please fill in all required fields.');
+      setFormError('Please fill in all required fields (Consultant, Project Title, Sponsoring Agency, and Year).');
       return;
     }
+
     setFormLoading(true);
     setFormError('');
     try {
@@ -205,6 +263,7 @@ export function ConsultancyProjectsPage({
         ? `${API_BASE}/api/consultancy-projects/${editingProject.id}`
         : `${API_BASE}/api/consultancy-projects`;
       const method = editingProject ? 'PUT' : 'POST';
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -218,7 +277,7 @@ export function ConsultancyProjectsPage({
         setShowForm(false);
         fetchProjects();
       } else {
-        setFormError(data.message || 'Failed to save record');
+        setFormError(data.message || 'Failed to save record.');
       }
     } catch {
       setFormError('Connection failed. Please try again.');
@@ -228,6 +287,7 @@ export function ConsultancyProjectsPage({
   };
 
   const handleDelete = async (id: string) => {
+    if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/consultancy-projects/${id}`, {
         method: 'DELETE',
@@ -236,11 +296,109 @@ export function ConsultancyProjectsPage({
       const data = await res.json();
       if (data.success) {
         setDeletingId(null);
+        if (viewingProject?.id === id) setViewingProject(null);
         fetchProjects();
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error(err);
     }
+  };
+
+  const handleClearAll = async () => {
+    if (!token) return;
+    setClearLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/consultancy-projects/clear-all`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowClearConfirm(false);
+        fetchProjects();
+      } else {
+        setError(data.message || 'Failed to clear records.');
+      }
+    } catch {
+      setError('Error connecting to server.');
+    } finally {
+      setClearLoading(false);
+    }
+  };
+
+  // Export functions
+  const handleExportCSV = () => {
+    if (filteredProjects.length === 0) {
+      alert('No records available to export.');
+      return;
+    }
+
+    const headers = [
+      'S. No.',
+      'Teacher Consultant',
+      'Name of Consultancy Project',
+      'Consulting / Sponsoring Agency with Contact Details',
+      'Year',
+      'Revenue Generated (INR in Lakhs)',
+      'Department',
+      'Status'
+    ];
+
+    const rows = filteredProjects.map((p, idx) => [
+      idx + 1,
+      `"${(p.teacherConsultant || '').replace(/"/g, '""')}"`,
+      `"${(p.projectName || '').replace(/"/g, '""')}"`,
+      `"${(p.sponsoringAgency || '').replace(/"/g, '""')}"`,
+      `"${p.year || ''}"`,
+      Number(p.revenueInLakhs || 0).toFixed(2),
+      `"${(p.department || '').replace(/"/g, '""')}"`,
+      `"${p.status || ''}"`
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `consultancy_projects_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportExcel = () => {
+    if (filteredProjects.length === 0) {
+      alert('No records available to export.');
+      return;
+    }
+
+    const headers = [
+      'S. No.',
+      'Teacher Consultant',
+      'Name of Consultancy Project',
+      'Consulting / Sponsoring Agency with Contact Details',
+      'Academic Year',
+      'Revenue Generated (INR in Lakhs)',
+      'Department',
+      'Status'
+    ];
+
+    const rows = filteredProjects.map((p, idx) => [
+      idx + 1,
+      p.teacherConsultant,
+      p.projectName,
+      p.sponsoringAgency,
+      p.year,
+      Number(p.revenueInLakhs || 0),
+      p.department,
+      p.status
+    ]);
+
+    const wsData = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Consultancy Projects');
+    XLSX.writeFile(wb, `consultancy_projects_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const canEdit = userRole === 'admin' || userRole === 'coordinator' || userRole === 'hod' || userRole === 'faculty';
@@ -251,64 +409,96 @@ export function ConsultancyProjectsPage({
   if (isPublicView) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-gradient-to-r from-teal-600 to-teal-500 text-white py-16">
+        <div className="bg-gradient-to-r from-teal-700 via-teal-800 to-slate-900 text-white py-14 shadow-md">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center space-x-4 mb-4">
-              <Briefcase className="w-12 h-12" />
+            <div className="flex items-center space-x-4 mb-2">
+              <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20">
+                <Briefcase className="w-8 h-8 text-teal-300" />
+              </div>
               <div>
-                <h1 className="text-4xl font-bold">Consultancy Projects</h1>
-                <p className="text-teal-100 mt-2">Bridging academia and industry through innovative solutions</p>
+                <h1 className="text-3xl font-extrabold tracking-tight">Consultancy Projects & Advisory Services</h1>
+                <p className="text-teal-200 text-sm mt-1">
+                  Industry solutions, commercial testing, and technical advisory undertaken by faculty consultants
+                </p>
               </div>
             </div>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-12">
-            <Card className="border-l-4 border-l-teal-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Total Projects</CardDescription>
-                <CardTitle className="text-3xl font-bold text-teal-600">{projects.length}</CardTitle>
-              </CardHeader>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+            <Card className="border-0 shadow-sm bg-white ring-1 ring-gray-200">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-gray-500 tracking-wider">Total Assignments</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{filteredProjects.length}</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center text-teal-700">
+                  <Briefcase className="w-6 h-6" />
+                </div>
+              </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-teal-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Total Revenue</CardDescription>
-                <CardTitle className="text-3xl font-bold text-teal-600">₹{totalRevenue.toFixed(2)}L</CardTitle>
-              </CardHeader>
+
+            <Card className="border-0 shadow-sm bg-white ring-1 ring-gray-200">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-gray-500 tracking-wider">Total Revenue</p>
+                  <p className="text-2xl font-bold text-emerald-600 mt-1">₹{totalRevenue.toFixed(2)}L</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-700">
+                  <DollarSign className="w-6 h-6" />
+                </div>
+              </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-teal-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Departments</CardDescription>
-                <CardTitle className="text-3xl font-bold text-teal-600">{activeDepartmentsCount}</CardTitle>
-              </CardHeader>
+
+            <Card className="border-0 shadow-sm bg-white ring-1 ring-gray-200">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-gray-500 tracking-wider">Faculty Consultants</p>
+                  <p className="text-2xl font-bold text-indigo-600 mt-1">{uniqueConsultants}</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-700">
+                  <UserCheck className="w-6 h-6" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-white ring-1 ring-gray-200">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-gray-500 tracking-wider">Active Depts</p>
+                  <p className="text-2xl font-bold text-purple-600 mt-1">{activeDepartmentsCount}</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-700">
+                  <Building className="w-6 h-6" />
+                </div>
+              </CardContent>
             </Card>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left border border-gray-200 rounded-lg overflow-hidden">
-              <thead className="bg-teal-600 text-white">
+
+          <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-slate-800 text-white font-semibold">
                 <tr>
                   <th className="py-3 px-4">S. No.</th>
                   <th className="py-3 px-4">Teacher Consultant</th>
                   <th className="py-3 px-4">Project Name</th>
-                  <th className="py-3 px-4">Sponsoring Agency</th>
+                  <th className="py-3 px-4">Consulting / Sponsoring Agency</th>
                   <th className="py-3 px-4">Year</th>
-                  <th className="py-3 px-4">Revenue (₹ Lakhs)</th>
+                  <th className="py-3 px-4 text-right">Revenue (₹ Lakhs)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {projects.map((p, idx) => (
-                  <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="py-3 px-4 text-gray-500 font-mono">{idx + 1}</td>
-                    <td className="py-3 px-4 font-medium">{p.teacherConsultant}</td>
-                    <td className="py-3 px-4">{p.projectName}</td>
+              <tbody className="divide-y divide-gray-100">
+                {filteredProjects.map((p, idx) => (
+                  <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-3 px-4 font-mono text-gray-500">{idx + 1}</td>
+                    <td className="py-3 px-4 font-semibold text-gray-900">{p.teacherConsultant}</td>
+                    <td className="py-3 px-4 text-gray-800">{p.projectName}</td>
                     <td className="py-3 px-4 text-gray-600">{p.sponsoringAgency}</td>
                     <td className="py-3 px-4 font-mono">{p.year}</td>
-                    <td className="py-3 px-4 font-bold text-teal-700">₹{Number(p.revenueInLakhs).toFixed(2)}</td>
+                    <td className="py-3 px-4 font-bold text-emerald-700 text-right">₹{Number(p.revenueInLakhs).toFixed(2)} Lakhs</td>
                   </tr>
                 ))}
-                {projects.length === 0 && (
-                  <tr><td colSpan={6} className="py-8 text-center text-gray-400">No records found</td></tr>
-                )}
               </tbody>
             </table>
           </div>
@@ -317,479 +507,868 @@ export function ConsultancyProjectsPage({
     );
   }
 
-  // ─── INTERNAL VIEW ──────────────────────────────────────────────────────────
+  // ─── INTERNAL WORKSPACE VIEW ────────────────────────────────────────────────
   return (
-    <div className={hideSidebar ? '' : 'min-h-screen bg-gray-50'}>
+    <div className={hideSidebar ? 'space-y-6' : 'min-h-screen bg-gray-50 flex'}>
       {!hideSidebar && <Sidebar currentPage="consultancy-projects" onNavigate={onNavigate} />}
-      <main className={hideSidebar ? 'p-0' : 'ml-64 p-8'}>
-        <div className={hideSidebar ? '' : 'p-6'}>
 
-          {/* Page Title + Actions */}
-          <div className="mb-8 flex items-center justify-between flex-wrap gap-4">
-            {!hideSidebar ? (
-              <div>
-                <h1 className="text-2xl font-medium text-gray-900 mb-1">Consultancy Projects</h1>
-                <p className="text-gray-500 text-sm">NIRF consultancy data — track teacher consultants, projects and revenue</p>
+      <main className={hideSidebar ? 'w-full' : 'flex-1 ml-64 p-8'}>
+        <div className={hideSidebar ? 'space-y-6' : 'max-w-7xl mx-auto space-y-6'}>
+
+          {/* Top Section Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-200/80 shadow-sm">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-teal-50 text-teal-700 rounded-xl border border-teal-200/60 shadow-sm">
+                  <Briefcase className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Consultancy Projects</h1>
+                    <span className="bg-teal-100 text-teal-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      NIRF & NAAC 3.5
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Industry testing, professional advisory, and corporate research projects rendered by faculty
+                  </p>
+                </div>
               </div>
-            ) : (
-              <div></div>
-            )}
-            <div className="flex gap-3 flex-wrap">
-              {canEdit && (
+            </div>
+
+            {/* Quick Action Buttons */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {canDelete && projects.length > 0 && (
                 <Button
                   variant="outline"
-                  className="flex items-center gap-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                  size="sm"
                   onClick={() => setShowClearConfirm(true)}
-                  disabled={projects.length === 0}
+                  className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 text-xs font-semibold shadow-sm"
                 >
-                  <Trash2 className="w-4 h-4" />
-                  Clear Consultancy Data
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Clear All Data</span>
                 </Button>
               )}
+
+              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleExportCSV}
+                  className="text-xs text-gray-700 hover:bg-gray-100 px-3 py-1.5 h-8 font-medium rounded-none border-r border-gray-200"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                  <span>CSV</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleExportExcel}
+                  className="text-xs text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 h-8 font-semibold rounded-none"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                  <span>Excel (.xlsx)</span>
+                </Button>
+              </div>
+
               {canBulkUpload && (
                 <Button
                   variant="outline"
-                  className="flex items-center gap-2 border-teal-600 text-teal-700 hover:bg-teal-50"
+                  size="sm"
                   onClick={() => setShowBulkUpload(true)}
+                  className="border-teal-200 text-teal-700 bg-teal-50/50 hover:bg-teal-100/70 text-xs font-semibold shadow-sm"
                 >
-                  <Upload className="w-4 h-4" />
-                  Bulk Upload (CSV/Excel)
+                  <Upload className="w-3.5 h-3.5 mr-1.5 text-teal-600" />
+                  <span>Bulk Upload</span>
                 </Button>
               )}
+
               {canEdit && (
                 <Button
-                  className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white"
+                  size="sm"
                   onClick={() => handleOpenForm()}
+                  className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold shadow-sm"
                 >
-                  <Plus className="w-4 h-4" />
-                  Add Entry
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Add Consultancy</span>
                 </Button>
               )}
             </div>
           </div>
 
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card className="border-l-4 border-l-blue-600">
-              <CardHeader className="pb-3">
+          {/* Key Metric KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <Card className="border border-teal-100 bg-gradient-to-br from-teal-50/70 to-white shadow-sm rounded-xl">
+              <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                  <CardDescription>Total Entries</CardDescription>
-                  <Briefcase className="w-5 h-5 text-blue-600" />
+                  <span className="text-[11px] font-bold text-teal-800 uppercase tracking-wider">Total Projects</span>
+                  <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center">
+                    <Briefcase className="w-4 h-4" />
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">{projects.length}</div>
-                <p className="text-xs text-gray-500 mt-1">All consultancy records</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-extrabold text-gray-900">{filteredProjects.length}</span>
+                  <span className="text-[10px] text-teal-600 font-medium">Assignments</span>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">Across all academic departments</p>
               </CardContent>
             </Card>
 
-            <Card className="border-l-4 border-l-green-600">
-              <CardHeader className="pb-3">
+            <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50/70 to-white shadow-sm rounded-xl">
+              <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                  <CardDescription>Total Revenue</CardDescription>
-                  <DollarSign className="w-5 h-5 text-green-600" />
+                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Total Revenue</span>
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">₹{totalRevenue.toFixed(2)}L</div>
-                <p className="text-xs text-gray-500 mt-1">INR in Lakhs</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-extrabold text-emerald-700">₹{totalRevenue.toFixed(2)}L</span>
+                  <span className="text-[10px] text-emerald-600 font-medium">INR Lakhs</span>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">Earned via external contracts</p>
               </CardContent>
             </Card>
 
-            <Card className="border-l-4 border-l-purple-600">
-              <CardHeader className="pb-3">
+            <Card className="border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white shadow-sm rounded-xl">
+              <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                  <CardDescription>Departments</CardDescription>
-                  <Building className="w-5 h-5 text-purple-600" />
+                  <span className="text-[11px] font-bold text-indigo-800 uppercase tracking-wider">Faculty Consultants</span>
+                  <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                    <UserCheck className="w-4 h-4" />
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">{activeDepartmentsCount}</div>
-                <p className="text-xs text-gray-500 mt-1">Departments involved</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-extrabold text-gray-900">{uniqueConsultants}</span>
+                  <span className="text-[10px] text-indigo-600 font-medium">Experts</span>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">Active faculty advisors</p>
               </CardContent>
             </Card>
 
-            <Card className="border-l-4 border-l-orange-600">
-              <CardHeader className="pb-3">
+            <Card className="border border-purple-100 bg-gradient-to-br from-purple-50/70 to-white shadow-sm rounded-xl">
+              <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                  <CardDescription>Avg Revenue / Entry</CardDescription>
-                  <TrendingUp className="w-5 h-5 text-orange-600" />
+                  <span className="text-[11px] font-bold text-purple-800 uppercase tracking-wider">Active Depts</span>
+                  <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
+                    <Building className="w-4 h-4" />
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">
-                  ₹{projects.length ? (totalRevenue / projects.length).toFixed(2) : '0.00'}L
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-extrabold text-gray-900">{activeDepartmentsCount}</span>
+                  <span className="text-[10px] text-purple-600 font-medium">of {departments.length}</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Per project</p>
+                <p className="text-[10px] text-gray-500 mt-1">Engaged disciplines</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-amber-100 bg-gradient-to-br from-amber-50/70 to-white shadow-sm rounded-xl">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Avg / Project</span>
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-extrabold text-gray-900">₹{avgRevenuePerProject.toFixed(2)}L</span>
+                  <span className="text-[10px] text-amber-600 font-medium">Avg Outlay</span>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">Average contract size</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Filters */}
-          <Card className="mb-6">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Filter Records</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Academic Year</label>
+          {/* Search, Filter & View Controls */}
+          <Card className="border border-gray-200/80 shadow-sm rounded-xl bg-white">
+            <CardContent className="p-4 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+                {/* Search Bar */}
+                <div className="relative flex-1 min-w-[220px]">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by project title, consultant, client agency..."
+                    className="pl-9 h-9 text-xs border-gray-200 focus-visible:ring-teal-600"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Academic Year Filter */}
+                <div className="w-[145px]">
                   <Select value={selectedYear} onValueChange={setSelectedYear}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select year" />
+                    <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
+                      <SelectValue placeholder="Academic Year" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Years</SelectItem>
+                      <SelectItem value="all">All Academic Years</SelectItem>
                       {YEARS.map(y => (
-                        <SelectItem key={y} value={y}>{y}</SelectItem>
+                        <SelectItem key={y} value={y}>AY {y}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Department</label>
+
+                {/* Department Filter */}
+                <div className="w-[185px]">
                   <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select department" />
+                    <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
+                      <SelectValue placeholder="Department" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Departments</SelectItem>
-                      {departments.map(d => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                      {departments.map(dept => (
+                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Status Filter */}
+                <div className="w-[130px]">
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="finalized">Finalized</SelectItem>
+                      <SelectItem value="submitted">Submitted</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Clear Filter button */}
+                {(selectedYear !== 'all' || selectedDepartment !== 'all' || selectedStatus !== 'all' || searchQuery) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedYear('all');
+                      setSelectedDepartment('all');
+                      setSelectedStatus('all');
+                      setSearchQuery('');
+                    }}
+                    className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 h-9 px-2"
+                  >
+                    Reset
+                  </Button>
+                )}
+              </div>
+
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-gray-100 p-1 rounded-lg border border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('table')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                  title="Table View"
+                >
+                  <TableIcon className="w-3.5 h-3.5" />
+                  <span>Table</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('cards')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    viewMode === 'cards' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                  title="Card View"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Cards</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('department')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    viewMode === 'department' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                  title="Department Analytics"
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span>Dept Analytics</span>
+                </button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Tabs: Table view + Department Stats */}
-          <Tabs defaultValue="table" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="table">All Records</TabsTrigger>
-              <TabsTrigger value="department">Department-wise</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="table">
-              <Card>
-                <CardContent className="p-0">
-                  {loading ? (
-                    <div className="py-16 text-center text-gray-400">Loading records…</div>
-                  ) : error ? (
-                    <div className="py-16 text-center text-red-500">{error}</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="py-3 px-4 font-semibold text-gray-600 whitespace-nowrap">S. No.</th>
-                            <th className="py-3 px-4 font-semibold text-gray-600 whitespace-nowrap">Teacher Consultant</th>
-                            <th className="py-3 px-4 font-semibold text-gray-600 whitespace-nowrap">Project Name</th>
-                            <th className="py-3 px-4 font-semibold text-gray-600 whitespace-nowrap">Consulting/Sponsoring Agency</th>
-                            <th className="py-3 px-4 font-semibold text-gray-600 whitespace-nowrap">Year</th>
-                            <th className="py-3 px-4 font-semibold text-gray-600 whitespace-nowrap">Revenue (₹ Lakhs)</th>
-                            <th className="py-3 px-4 font-semibold text-gray-600 whitespace-nowrap">Status</th>
-                            {(canEdit || canDelete) && (
-                              <th className="py-3 px-4 font-semibold text-gray-600 whitespace-nowrap">Actions</th>
-                            )}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 bg-white">
-                          {projects.map((project, idx) => {
-                            const sc = STATUS_CONFIG[project.status] || STATUS_CONFIG['draft'];
-                            return (
-                              <tr key={project.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="py-3 px-4 font-mono text-gray-500">{idx + 1}</td>
-                                <td className="py-3 px-4 font-semibold text-gray-900 max-w-[160px] truncate" title={project.teacherConsultant}>
-                                  {project.teacherConsultant}
-                                </td>
-                                <td className="py-3 px-4 max-w-[180px] truncate" title={project.projectName}>
-                                  {project.projectName}
-                                </td>
-                                <td className="py-3 px-4 max-w-[200px] truncate text-gray-600" title={project.sponsoringAgency}>
-                                  {project.sponsoringAgency}
-                                </td>
-                                <td className="py-3 px-4 font-mono">{project.year}</td>
-                                <td className="py-3 px-4 font-bold text-green-700">₹{Number(project.revenueInLakhs).toFixed(2)}</td>
-                                <td className="py-3 px-4">
-                                  <Badge className={`${sc.color} flex items-center gap-1 w-fit text-xs`}>
-                                    {sc.icon}
-                                    {formatStatus(project.status)}
-                                  </Badge>
-                                </td>
-                                {(canEdit || canDelete) && (
-                                  <td className="py-3 px-4">
-                                    <div className="flex items-center gap-2">
-                                      {canEdit && (
-                                        <button
-                                          onClick={() => handleOpenForm(project)}
-                                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                                          title="Edit"
-                                        >
-                                          <Pencil className="w-4 h-4" />
-                                        </button>
-                                      )}
-                                      {canDelete && (
-                                        <button
-                                          onClick={() => setDeletingId(project.id)}
-                                          className="p-1.5 text-red-500 hover:bg-red-50 rounded"
-                                          title="Delete"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
-                                )}
-                              </tr>
-                            );
-                          })}
-                          {projects.length === 0 && (
-                            <tr>
-                              <td colSpan={8} className="py-16 text-center text-gray-400">
-                                No consultancy records found.
-                                {canEdit && (
-                                  <button
-                                    onClick={() => handleOpenForm()}
-                                    className="ml-2 text-teal-600 underline hover:text-teal-800"
-                                  >
-                                    Add the first entry
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="department">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {Object.entries(departmentMap).map(([dept, stats]) => (
-                  <Card key={dept} className="hover:shadow-md transition-shadow">
-                    <CardHeader>
-                      <CardTitle className="text-base leading-snug">{dept}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Total Projects</span>
-                          <span className="text-xl font-bold text-blue-600">{stats.count}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Total Revenue</span>
-                          <span className="text-xl font-bold text-green-600">₹{stats.revenue.toFixed(2)}L</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Avg per Project</span>
-                          <span className="text-base font-semibold text-gray-700">
-                            ₹{(stats.revenue / stats.count).toFixed(2)}L
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                {Object.keys(departmentMap).length === 0 && (
-                  <div className="col-span-3 py-16 text-center text-gray-400">No data available</div>
+          {/* Main Content Area */}
+          {loading ? (
+            <div className="py-24 text-center space-y-3 bg-white rounded-xl border border-gray-200">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-700 mx-auto"></div>
+              <p className="text-xs text-gray-500 font-medium">Loading consultancy records from database...</p>
+            </div>
+          ) : error ? (
+            <div className="p-8 text-center bg-red-50 text-red-700 rounded-xl border border-red-200 space-y-2">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto" />
+              <p className="font-semibold">{error}</p>
+              <Button size="sm" variant="outline" onClick={fetchProjects} className="mt-2 text-xs">
+                Try Again
+              </Button>
+            </div>
+          ) : filteredProjects.length === 0 ? (
+            <Card className="border border-dashed border-gray-300 shadow-none rounded-xl p-12 text-center bg-white">
+              <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-gray-800">No Consultancy Projects Found</h3>
+              <p className="text-xs text-gray-500 max-w-md mx-auto mt-1 mb-5">
+                {searchQuery || selectedYear !== 'all' || selectedDepartment !== 'all' || selectedStatus !== 'all'
+                  ? 'No project records matched your active filter criteria. Try resetting the filters.'
+                  : 'Start by recording faculty consultancy assignments or upload bulk spreadsheets.'}
+              </p>
+              <div className="flex justify-center gap-3">
+                {canEdit && (
+                  <Button size="sm" onClick={() => handleOpenForm()} className="bg-teal-700 hover:bg-teal-800 text-white text-xs">
+                    <Plus className="w-3.5 h-3.5 mr-1.5" />
+                    <span>Add First Record</span>
+                  </Button>
+                )}
+                {canBulkUpload && (
+                  <Button size="sm" variant="outline" onClick={() => setShowBulkUpload(true)} className="text-xs">
+                    <Upload className="w-3.5 h-3.5 mr-1.5 text-teal-600" />
+                    <span>Bulk Upload Spreadsheet</span>
+                  </Button>
                 )}
               </div>
-            </TabsContent>
-          </Tabs>
+            </Card>
+          ) : viewMode === 'table' ? (
+            /* TABLE VIEW */
+            <Card className="border border-gray-200/80 shadow-sm rounded-xl overflow-hidden bg-white">
+              <CardContent className="p-0 overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-slate-50 border-b border-gray-200">
+                    <tr className="text-gray-700 font-semibold">
+                      <th className="py-3 px-3.5 w-12 text-center">#</th>
+                      <th className="py-3 px-3.5 min-w-[220px]">Project Name</th>
+                      <th className="py-3 px-3.5 min-w-[180px]">Teacher Consultant</th>
+                      <th className="py-3 px-3.5 min-w-[200px]">Sponsoring Client / Agency</th>
+                      <th className="py-3 px-3.5 whitespace-nowrap">Year</th>
+                      <th className="py-3 px-3.5 text-right whitespace-nowrap font-bold text-emerald-800">Revenue (₹ Lakhs)</th>
+                      <th className="py-3 px-3.5 whitespace-nowrap">Department</th>
+                      <th className="py-3 px-3.5 whitespace-nowrap text-center">Status</th>
+                      <th className="py-3 px-3.5 text-right whitespace-nowrap">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredProjects.map((project, idx) => (
+                      <tr key={project.id} className="hover:bg-slate-50/70 transition-colors group">
+                        <td className="py-3 px-3.5 text-center font-mono text-gray-400">{idx + 1}</td>
+                        <td className="py-3 px-3.5">
+                          <button
+                            onClick={() => setViewingProject(project)}
+                            className="font-bold text-gray-900 hover:text-teal-700 text-left line-clamp-2 transition-colors"
+                          >
+                            {project.projectName}
+                          </button>
+                        </td>
+                        <td className="py-3 px-3.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-6 h-6 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-[10px] flex-shrink-0">
+                              {project.teacherConsultant?.charAt(0) || 'T'}
+                            </span>
+                            <span className="font-semibold text-gray-800 truncate max-w-[160px]" title={project.teacherConsultant}>
+                              {project.teacherConsultant}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3.5 text-gray-600 truncate max-w-[200px]" title={project.sponsoringAgency}>
+                          {project.sponsoringAgency}
+                        </td>
+                        <td className="py-3 px-3.5 font-mono text-gray-700 whitespace-nowrap">
+                          {project.year}
+                        </td>
+                        <td className="py-3 px-3.5 text-right whitespace-nowrap font-mono font-bold text-emerald-700">
+                          ₹{Number(project.revenueInLakhs || 0).toFixed(2)}L
+                        </td>
+                        <td className="py-3 px-3.5 text-gray-600 truncate max-w-[140px]" title={project.department}>
+                          {project.department || '-'}
+                        </td>
+                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                          {formatStatusBadge(project.status)}
+                        </td>
+                        <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setViewingProject(project)}
+                              className="h-7 w-7 p-0 text-gray-500 hover:text-teal-700"
+                              title="View Details"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
+                            {canEdit && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenForm(project)}
+                                className="h-7 w-7 p-0 text-gray-500 hover:text-blue-700"
+                                title="Edit"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeletingId(project.id)}
+                                className="h-7 w-7 p-0 text-gray-500 hover:text-red-700"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          ) : viewMode === 'cards' ? (
+            /* CARD GRID VIEW */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredProjects.map((project) => (
+                <Card
+                  key={project.id}
+                  className="border border-gray-200/80 shadow-sm rounded-xl overflow-hidden hover:shadow-md transition-all flex flex-col justify-between bg-white group"
+                >
+                  <CardHeader className="p-5 pb-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant="outline" className="text-[10px] font-mono text-teal-800 bg-teal-50 border-teal-200">
+                        AY {project.year}
+                      </Badge>
+                      {formatStatusBadge(project.status)}
+                    </div>
+                    <CardTitle className="text-sm font-bold text-gray-900 group-hover:text-teal-700 transition-colors line-clamp-2">
+                      {project.projectName}
+                    </CardTitle>
+                    <CardDescription className="text-xs text-gray-600 flex items-center gap-1.5 pt-1">
+                      <UserCheck className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+                      <span className="font-semibold text-gray-800 truncate">{project.teacherConsultant}</span>
+                    </CardDescription>
+                  </CardHeader>
+
+                  <CardContent className="p-5 pt-0 space-y-3">
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-1.5 text-xs">
+                      <div className="text-[11px] text-gray-500 font-medium truncate" title={project.sponsoringAgency}>
+                        <span className="font-semibold text-gray-700">Client:</span> {project.sponsoringAgency}
+                      </div>
+                      <div className="text-[11px] text-gray-500 truncate" title={project.department}>
+                        <span className="font-semibold text-gray-700">Dept:</span> {project.department}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Contract Value</span>
+                        <span className="text-base font-extrabold text-emerald-700 font-mono">
+                          ₹{Number(project.revenueInLakhs || 0).toFixed(2)} Lakhs
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setViewingProject(project)}
+                        className="text-xs text-teal-700 border-teal-200 hover:bg-teal-50 h-8"
+                      >
+                        Inspect
+                        <ChevronRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            /* DEPARTMENT ANALYTICS VIEW */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {Object.entries(departmentMap).map(([dept, stats]) => (
+                <Card key={dept} className="border border-gray-200/80 shadow-sm rounded-xl hover:shadow-md transition-shadow bg-white">
+                  <CardHeader className="p-5 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-indigo-50 text-indigo-700 rounded-lg">
+                        <Building className="w-4 h-4" />
+                      </div>
+                      <CardTitle className="text-sm font-bold text-gray-900 truncate" title={dept}>
+                        {dept}
+                      </CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-5 pt-0 space-y-3 text-xs">
+                    <div className="space-y-2 border-t border-gray-100 pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Consultancy Projects:</span>
+                        <span className="font-bold text-gray-900 font-mono">{stats.count}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Total Revenue Generated:</span>
+                        <span className="font-extrabold text-emerald-700 font-mono">₹{stats.revenue.toFixed(2)} Lakhs</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Average / Project:</span>
+                        <span className="font-semibold text-gray-700 font-mono">
+                          ₹{(stats.revenue / (stats.count || 1)).toFixed(2)} Lakhs
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
         </div>
       </main>
 
-      {/* ─── ADD / EDIT FORM DIALOG ─────────────────────────────────────────── */}
-      <Dialog open={showForm} onOpenChange={open => !open && setShowForm(false)}>
-        <DialogContent className="sm:max-w-[600px] bg-white rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Briefcase className="w-5 h-5 text-teal-600" />
-              {editingProject ? 'Edit Consultancy Project' : 'Add Consultancy Project'}
-            </DialogTitle>
-            <DialogDescription className="text-sm text-gray-500">
-              Enter NIRF consultancy data. Fields marked * are required.
-            </DialogDescription>
-          </DialogHeader>
+      {/* DIALOG: ADD/EDIT CONSULTANCY PROJECT */}
+      {showForm && (
+        <Dialog open={showForm} onOpenChange={(open) => !open && setShowForm(false)}>
+          <DialogContent className="sm:max-w-[620px] max-h-[85vh] overflow-y-auto bg-white p-6 rounded-2xl">
+            <DialogHeader className="border-b border-gray-100 pb-3">
+              <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-teal-700" />
+                <span>{editingProject ? 'Edit Consultancy Record' : 'Add Consultancy Project'}</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-gray-500">
+                Record contract details, client organization info, and revenue generated (NIRF Metric & NAAC 3.5).
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <Label className="text-sm font-medium mb-1.5 block">
-                  Name of the Teacher Consultant <span className="text-red-500">*</span>
-                </Label>
-                <input
-                  type="text"
-                  value={formData.teacherConsultant}
-                  onChange={e => setFormData(f => ({ ...f, teacherConsultant: e.target.value }))}
-                  placeholder="e.g., Dr. Rajesh Kumar"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
+            <form onSubmit={handleFormSubmit} className="space-y-4 py-2 text-xs">
+              {formError && (
+                <div className="p-3 bg-red-50 text-red-700 rounded-lg border border-red-200 text-xs font-medium flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
 
-              <div>
-                <Label className="text-sm font-medium mb-1.5 block">
-                  Name of Consultancy Project <span className="text-red-500">*</span>
-                </Label>
-                <input
-                  type="text"
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-gray-700">Project Title / Assignment Name <span className="text-red-500">*</span></Label>
+                <Input
+                  required
+                  placeholder="e.g. AI-Powered Smart City Infrastructure Planning"
+                  className="h-9 text-xs border-gray-200 focus-visible:ring-teal-600"
                   value={formData.projectName}
-                  onChange={e => setFormData(f => ({ ...f, projectName: e.target.value }))}
-                  placeholder="e.g., Smart City Infrastructure Planning"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  onChange={(e) => setFormData({ ...formData, projectName: e.target.value })}
                 />
               </div>
 
-              <div>
-                <Label className="text-sm font-medium mb-1.5 block">
-                  Consulting/Sponsoring Agency with Contact Details <span className="text-red-500">*</span>
-                </Label>
-                <textarea
-                  value={formData.sponsoringAgency}
-                  onChange={e => setFormData(f => ({ ...f, sponsoringAgency: e.target.value }))}
-                  placeholder="e.g., Bangalore Smart City Corporation, Ph: 080-12345678, Email: info@bscc.gov.in"
-                  rows={3}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-sm font-medium mb-1.5 block">
-                    Department
-                  </Label>
-                  <Select value={formData.department} onValueChange={v => setFormData(f => ({ ...f, department: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map(d => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Name of Teacher Consultant(s) <span className="text-red-500">*</span></Label>
+                  <Input
+                    required
+                    placeholder="e.g. Dr. Rajesh Kumar, Dr. Priya Sharma"
+                    className="h-9 text-xs border-gray-200 focus-visible:ring-teal-600"
+                    value={formData.teacherConsultant}
+                    onChange={(e) => setFormData({ ...formData, teacherConsultant: e.target.value })}
+                  />
                 </div>
 
-                <div>
-                  <Label className="text-sm font-medium mb-1.5 block">
-                    Academic Year <span className="text-red-500">*</span>
-                  </Label>
-                  <Select value={formData.year} onValueChange={v => setFormData(f => ({ ...f, year: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select year" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {YEARS.map(y => (
-                        <SelectItem key={y} value={y}>{y}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-1.5 block">
-                    Revenue Generated (₹ Lakhs)
-                  </Label>
-                  <input
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Revenue Generated (₹ in Lakhs) <span className="text-red-500">*</span></Label>
+                  <Input
+                    required
                     type="number"
-                    min="0"
                     step="0.01"
+                    placeholder="e.g. 25.00"
+                    className="h-9 text-xs border-gray-200 focus-visible:ring-teal-600"
                     value={formData.revenueInLakhs}
-                    onChange={e => setFormData(f => ({ ...f, revenueInLakhs: e.target.value }))}
-                    placeholder="e.g., 25.50"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    onChange={(e) => setFormData({ ...formData, revenueInLakhs: e.target.value })}
                   />
                 </div>
               </div>
+
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-gray-700">Consulting / Sponsoring Agency with Contact Details <span className="text-red-500">*</span></Label>
+                <textarea
+                  required
+                  rows={2}
+                  placeholder="e.g. Bangalore Smart City Corporation, Contact: info@bscc.gov.in, Ph: 080-12345678"
+                  className="w-full rounded-md border border-gray-200 p-2.5 outline-none focus:border-teal-600 text-xs"
+                  value={formData.sponsoringAgency}
+                  onChange={(e) => setFormData({ ...formData, sponsoringAgency: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Academic Year <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={formData.year}
+                    onValueChange={(val) => setFormData({ ...formData, year: val })}
+                  >
+                    <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
+                      <SelectValue placeholder="Select Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {YEARS.map(y => (
+                        <SelectItem key={y} value={y}>AY {y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Department</Label>
+                  <Select
+                    value={formData.department}
+                    onValueChange={(val) => setFormData({ ...formData, department: val })}
+                  >
+                    <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
+                      <SelectValue placeholder="Select Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map(dept => (
+                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Status</Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(val) => setFormData({ ...formData, status: val })}
+                  >
+                    <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="finalized">Finalized</SelectItem>
+                      <SelectItem value="submitted">Submitted</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-gray-700">Scope of Work / Deliverables Summary</Label>
+                <textarea
+                  rows={2}
+                  placeholder="Optional summary of deliverables, testing reports, or technical advisory outcomes..."
+                  className="w-full rounded-md border border-gray-200 p-2.5 outline-none focus:border-teal-600 text-xs"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+
+              <DialogFooter className="pt-4 border-t border-gray-100 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowForm(false)}
+                  disabled={formLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-teal-700 hover:bg-teal-800 text-white font-semibold"
+                  disabled={formLoading}
+                >
+                  {formLoading ? 'Saving...' : editingProject ? 'Update Record' : 'Save Consultancy'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* DRAWER: VIEW DETAILS SHEET */}
+      {viewingProject && (
+        <Dialog open={!!viewingProject} onOpenChange={(open) => !open && setViewingProject(null)}>
+          <DialogContent className="sm:max-w-[650px] max-h-[85vh] overflow-y-auto bg-white p-6 rounded-2xl">
+            <DialogHeader className="border-b border-gray-100 pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <Badge variant="outline" className="text-xs font-mono text-teal-800 bg-teal-50 border-teal-200">
+                  AY {viewingProject.year}
+                </Badge>
+                {formatStatusBadge(viewingProject.status)}
+              </div>
+              <DialogTitle className="text-lg font-bold text-gray-900 mt-2">
+                {viewingProject.projectName}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-gray-500">
+                NIRF Consultancy & Corporate Advisory Project Detail Sheet
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-3 text-xs text-gray-700">
+              <div className="grid grid-cols-2 gap-4 bg-teal-50/50 p-4 rounded-xl border border-teal-100">
+                <div>
+                  <span className="text-[10px] font-bold text-teal-800 uppercase tracking-wider block">Revenue (INR)</span>
+                  <p className="text-xl font-extrabold text-emerald-700 font-mono mt-0.5">
+                    ₹{Number(viewingProject.revenueInLakhs || 0).toFixed(2)} Lakhs
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-teal-800 uppercase tracking-wider block">Academic Department</span>
+                  <p className="font-semibold text-gray-900 mt-0.5">{viewingProject.department || 'N/A'}</p>
+                </div>
+              </div>
+
+              <div className="space-y-1 border-t border-gray-100 pt-3">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Teacher Consultant(s)</span>
+                <p className="font-semibold text-gray-900 text-sm">{viewingProject.teacherConsultant}</p>
+              </div>
+
+              <div className="space-y-1 border-t border-gray-100 pt-3">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Consulting / Sponsoring Agency & Contact Info</span>
+                <p className="font-medium text-gray-800 bg-gray-50 p-3 rounded-lg border border-gray-200 leading-relaxed">
+                  {viewingProject.sponsoringAgency}
+                </p>
+              </div>
+
+              {viewingProject.description && (
+                <div className="space-y-1 border-t border-gray-100 pt-3">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Deliverables & Scope Description</span>
+                  <p className="text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-200 leading-relaxed">
+                    {viewingProject.description}
+                  </p>
+                </div>
+              )}
+
+              {viewingProject.creator && (
+                <div className="border-t border-gray-100 pt-3 flex items-center justify-between text-[11px] text-gray-500">
+                  <span>Submitted by: <strong>{viewingProject.creator.name}</strong> ({viewingProject.creator.department})</span>
+                  <span>{viewingProject.createdAt ? new Date(viewingProject.createdAt).toLocaleDateString() : ''}</span>
+                </div>
+              )}
             </div>
 
-            {formError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {formError}
+            <DialogFooter className="pt-3 border-t border-gray-100 flex justify-between items-center sm:justify-between">
+              {canDelete ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const id = viewingProject.id;
+                    setViewingProject(null);
+                    setDeletingId(id);
+                  }}
+                  className="text-xs text-red-600 hover:bg-red-50 border-red-200"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  Delete
+                </Button>
+              ) : <div></div>}
+
+              <div className="flex gap-2">
+                {canEdit && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const p = viewingProject;
+                      setViewingProject(null);
+                      handleOpenForm(p);
+                    }}
+                    className="text-xs text-blue-700 border-blue-200"
+                  >
+                    <Pencil className="w-3.5 h-3.5 mr-1" />
+                    Edit
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  onClick={() => setViewingProject(null)}
+                  className="bg-gray-800 text-white hover:bg-gray-900 text-xs"
+                >
+                  Close Sheet
+                </Button>
               </div>
-            )}
-          </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowForm(false)} disabled={formLoading}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleFormSubmit}
-              disabled={formLoading}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
-            >
-              {formLoading ? 'Saving…' : editingProject ? 'Update Record' : 'Submit Record'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* CONFIRM DELETE DIALOG */}
+      {deletingId && (
+        <Dialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
+          <DialogContent className="sm:max-w-[420px] bg-white p-6 rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold text-red-600 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <span>Confirm Deletion</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-gray-600 mt-2">
+                Are you sure you want to delete this consultancy project record? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="pt-4 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDeletingId(null)} className="text-xs">
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => deletingId && handleDelete(deletingId)}
+                className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
+              >
+                Delete Record
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-      {/* ─── DELETE CONFIRM DIALOG ──────────────────────────────────────────── */}
-      <Dialog open={!!deletingId} onOpenChange={open => !open && setDeletingId(null)}>
-        <DialogContent className="sm:max-w-[400px] bg-white rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-red-700 flex items-center gap-2">
-              <Trash2 className="w-5 h-5" />
-              Confirm Delete
-            </DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this consultancy record? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDeletingId(null)}>Cancel</Button>
-            <Button
-              className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={() => deletingId && handleDelete(deletingId)}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* CONFIRM CLEAR ALL DIALOG */}
+      {showClearConfirm && (
+        <Dialog open={showClearConfirm} onOpenChange={(open) => !open && setShowClearConfirm(false)}>
+          <DialogContent className="sm:max-w-[440px] bg-white p-6 rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold text-red-600 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <span>Clear All Consultancy Records</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-gray-600 mt-2 leading-relaxed">
+                This will permanently delete all {projects.length} consultancy projects from the platform. Are you sure you want to proceed?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="pt-4 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowClearConfirm(false)} disabled={clearLoading} className="text-xs">
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleClearAll}
+                className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
+                disabled={clearLoading}
+              >
+                {clearLoading ? 'Clearing...' : 'Yes, Delete All'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-      {/* ─── CLEAR ALL CONFIRMATION DIALOG ──────────────────────────────────── */}
-      <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-red-600 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" />
-              Clear Consultancy Details
-            </DialogTitle>
-            <DialogDescription className="mt-2">
-              Are you sure you want to clear all consultancy project records? This operation will delete only consultancy details and cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="mt-4 gap-2">
-            <Button variant="outline" onClick={() => setShowClearConfirm(false)} disabled={clearLoading}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={handleClearConsultancyDetails}
-              disabled={clearLoading}
-            >
-              {clearLoading ? 'Clearing...' : 'Yes, Clear All Details'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─── BULK UPLOAD DIALOG ─────────────────────────────────────────────── */}
+      {/* BULK CSV / EXCEL UPLOAD DIALOG */}
       {showBulkUpload && (
         <BulkUploadDialog
           isOpen={showBulkUpload}
           onClose={() => setShowBulkUpload(false)}
           token={token}
           onSuccess={() => {
-            setShowBulkUpload(false);
             fetchProjects();
           }}
           uploadType="consultancy"

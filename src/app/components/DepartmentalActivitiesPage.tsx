@@ -59,6 +59,7 @@ const DEPARTMENTS = [
   'Electrical and Electronics Engineering',
   'Electronics and Communication Engineering',
   'Mechanical and Automobile Engineering',
+  'School of Architecture',
   'Science and Humanities (Engineering)'
 ];
 
@@ -90,6 +91,7 @@ const CAMPUSES = [
 
 const SCHOOLS = [
   'School of Engineering and Technology',
+  'School of Architecture',
   'School of Sciences',
   'School of Business and Management',
   'School of Law',

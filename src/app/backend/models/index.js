@@ -94,9 +94,21 @@ ParameterDataSubmission.belongsTo(Document, { foreignKey: 'evidenceDocumentId', 
 User.hasMany(UserDepartmentHistory, { foreignKey: 'userId', as: 'departmentHistories' });
 UserDepartmentHistory.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
+// Publication Associations
+const Publication = require('./Publication');
+User.hasMany(Publication, { foreignKey: 'createdBy', as: 'publications' });
+Publication.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+
+// Sponsored Research Project Associations
+const SponsoredProject = require('./SponsoredProject');
+User.hasMany(SponsoredProject, { foreignKey: 'createdBy', as: 'sponsoredProjects' });
+SponsoredProject.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+
 module.exports = {
   User,
   Achievement,
+  Publication,
+  SponsoredProject,
   Document,
   Patent,
   Placement,
@@ -121,3 +133,4 @@ module.exports = {
   Course,
   DepartmentalActivity
 };
+

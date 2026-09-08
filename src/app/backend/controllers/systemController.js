@@ -84,6 +84,7 @@ exports.clearDatabase = async (req, res) => {
       const civilDept = await Department.create({ code: 'CIVIL', name: 'Civil Engineering', shortName: 'CIVIL', schoolId: schoolOfEngineering.id, establishedYear: 2010, status: 'Active' });
       const eeeDept = await Department.create({ code: 'EEE', name: 'Electrical and Electronics Engineering', shortName: 'EEE', schoolId: schoolOfEngineering.id, establishedYear: 2010, status: 'Active' });
       const mechDept = await Department.create({ code: 'MECH', name: 'Mechanical and Automobile Engineering', shortName: 'MECH', schoolId: schoolOfEngineering.id, establishedYear: 2010, status: 'Active' });
+      const soaDept = await Department.create({ code: 'SOA', name: 'School of Architecture', shortName: 'SOA', schoolId: schoolOfEngineering.id, establishedYear: 2017, status: 'Active' });
       const shDept = await Department.create({ code: 'S&H', name: 'Sciences and Humanities (Engineering)', shortName: 'S&H', schoolId: schoolOfEngineering.id, establishedYear: 2010, status: 'Active' });
 
       await Course.bulkCreate([
@@ -94,7 +95,10 @@ exports.clearDatabase = async (req, res) => {
         { code: 'BTECH-ECE', name: 'BTech in Electronics and Communication Engineering', departmentId: eceDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
         { code: 'BTECH-CIVIL', name: 'BTech in Civil Engineering', departmentId: civilDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
         { code: 'BTECH-EEE', name: 'BTech in Electrical and Electronics Engineering', departmentId: eeeDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
-        { code: 'BTECH-MECH', name: 'BTech in Mechanical Engineering', departmentId: mechDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' }
+        { code: 'BTECH-MECH', name: 'BTech in Mechanical Engineering', departmentId: mechDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
+        { code: 'BARCH', name: 'Bachelor of Architecture (B.Arch)', departmentId: soaDept.id, programLevelId: ugLevel.id, duration: '5 Years', status: 'Active' },
+        { code: 'MARCH-URBAN', name: 'Master of Architecture (M.Arch)', departmentId: soaDept.id, programLevelId: pgLevel.id, duration: '2 Years', status: 'Active' },
+        { code: 'PHD-ARCH', name: 'PhD in Architecture', departmentId: soaDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' }
       ]);
     }
 

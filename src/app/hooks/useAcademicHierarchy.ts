@@ -123,11 +123,12 @@ export function useAcademicHierarchy() {
 
 const DEFAULT_DEPARTMENTS = [
   'AI and Data Science Engineering',
-  'Computer Science and Engineering',
-  'Electronics and Communication Engineering',
   'Civil Engineering',
+  'Computer Science and Engineering',
   'Electrical and Electronics Engineering',
+  'Electronics and Communication Engineering',
   'Mechanical and Automobile Engineering',
+  'School of Architecture',
   'Sciences and Humanities (Engineering)'
 ];
 
@@ -142,6 +143,7 @@ const DEFAULT_CAMPUSES = [
 
 const DEFAULT_SCHOOLS = [
   'School of Engineering and Technology',
+  'School of Architecture',
   'School of Sciences',
   'School of Commerce, Finance and Accountancy',
   'School of Business and Management',

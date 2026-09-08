@@ -1,9 +1,30 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Sidebar } from './Sidebar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Layers, Building2, Cpu, Microscope, Calendar, DollarSign, TrendingUp } from 'lucide-react';
+import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { 
+  Layers, 
+  Building2, 
+  Cpu, 
+  Microscope, 
+  Calendar, 
+  DollarSign, 
+  TrendingUp, 
+  Search, 
+  Plus, 
+  Filter, 
+  Download, 
+  Table as TableIcon, 
+  LayoutGrid, 
+  BarChart3, 
+  RotateCcw,
+  Sparkles,
+  FileSpreadsheet,
+  CheckCircle2,
+  X
+} from 'lucide-react';
 import { Badge } from './ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 
 interface InfrastructureFacilitiesPageProps {
   onNavigate: (page: string) => void;
@@ -11,6 +32,10 @@ interface InfrastructureFacilitiesPageProps {
 }
 
 export function InfrastructureFacilitiesPage({ onNavigate, isPublicView = false }: InfrastructureFacilitiesPageProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('All');
+  const [viewMode, setViewMode] = useState<'cards' | 'table' | 'analytics'>('cards');
+
   const departmentInfrastructure = [
     {
       department: 'Computer Science and Engineering',
@@ -154,229 +179,292 @@ export function InfrastructureFacilitiesPage({ onNavigate, isPublicView = false 
     },
   ];
 
-  const totalInvestment = departmentInfrastructure.reduce((total, dept) => {
-    const deptTotal = dept.labs.reduce((sum, lab) => {
-      const labValue = parseFloat(lab.totalValue.replace(/[₹,\sLakhsCrores]/g, ''));
-      const multiplier = lab.totalValue.includes('Crores') ? 100 : 1;
-      return sum + (labValue * multiplier);
-    }, 0);
-    return total + deptTotal;
-  }, 0);
+  const filteredDepts = useMemo(() => {
+    return departmentInfrastructure.filter(dept => {
+      const matchesDept = departmentFilter === 'All' || dept.department === departmentFilter;
+      const matchesSearch = !searchTerm ||
+        dept.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dept.labs.some(l => l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          l.newEquipments.some(e => e.item.toLowerCase().includes(searchTerm.toLowerCase())));
+      return matchesDept && matchesSearch;
+    });
+  }, [departmentInfrastructure, departmentFilter, searchTerm]);
 
-  const totalLabs = departmentInfrastructure.reduce((total, dept) => total + dept.labs.length, 0);
-  const totalEquipments = departmentInfrastructure.reduce((total, dept) => {
-    return total + dept.labs.reduce((sum, lab) => sum + lab.newEquipments.length, 0);
-  }, 0);
+  const totalLabs = useMemo(() => {
+    return filteredDepts.reduce((sum, d) => sum + d.labs.length, 0);
+  }, [filteredDepts]);
 
-  if (isPublicView) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Hero Banner */}
-        <div className="bg-gradient-to-r from-red-600 to-red-500 text-white py-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center space-x-4 mb-4">
-              <Layers className="w-12 h-12" />
-              <div>
-                <h1 className="text-4xl font-bold">Infrastructure & Facilities</h1>
-                <p className="text-red-100 mt-2">State-of-the-art laboratories and research facilities</p>
-              </div>
-            </div>
-          </div>
-        </div>
+  const totalEquipments = useMemo(() => {
+    return filteredDepts.reduce((sum, d) => sum + d.labs.reduce((s, l) => s + l.newEquipments.length, 0), 0);
+  }, [filteredDepts]);
 
-        {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Stats Overview */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
-            <Card className="border-l-4 border-l-red-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Total Labs</CardDescription>
-                <CardTitle className="text-3xl font-bold text-red-600">{totalLabs}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className="border-l-4 border-l-red-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Investment</CardDescription>
-                <CardTitle className="text-2xl font-bold text-red-600">₹{totalInvestment.toFixed(2)}L</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className="border-l-4 border-l-red-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Departments</CardDescription>
-                <CardTitle className="text-3xl font-bold text-red-600">{departmentInfrastructure.length}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className="border-l-4 border-l-red-500">
-              <CardHeader>
-                <CardDescription className="text-xs">Equipment Categories</CardDescription>
-                <CardTitle className="text-3xl font-bold text-red-600">{totalEquipments}</CardTitle>
-              </CardHeader>
-            </Card>
-          </div>
-
-          {/* Department Labs - Summary Cards */}
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Department-wise Laboratories</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {departmentInfrastructure.map((dept, deptIdx) => (
-                dept.labs.map((lab, labIdx) => (
-                  <Card
-                    key={`${deptIdx}-${labIdx}`}
-                    className="border-l-4 border-l-red-500 hover:-translate-y-1 transition-transform shadow-sm hover:shadow-lg"
-                  >
-                    <CardHeader>
-                      <div className="flex items-start space-x-2 mb-2">
-                        <Microscope className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                        <CardTitle className="text-lg leading-tight">{lab.name}</CardTitle>
-                      </div>
-                      <CardDescription className="text-sm">Modern lab equipped with advanced technology</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-1.5 mb-3">
-                        <Badge variant="secondary" className="text-xs">Value: {lab.totalValue}</Badge>
-                        <Badge variant="secondary" className="text-xs">Capacity: {lab.capacity}</Badge>
-                        <Badge variant="secondary" className="text-xs">{lab.newEquipments.length} equipment</Badge>
-                      </div>
-                      <p className="text-sm text-gray-600">{dept.department}</p>
-                    </CardContent>
-                  </Card>
-                ))
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const allDepartmentsList = useMemo(() => {
+    return departmentInfrastructure.map(d => d.department);
+  }, [departmentInfrastructure]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar currentPage="infrastructure-facilities" onNavigate={onNavigate} />
-      <main className="ml-64 p-8">
-        <div className="p-6">
-          {/* Page Title */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-medium text-gray-900 mb-2">Infrastructure & Facilities</h1>
-            <p className="text-gray-600">
-              Overview of campus infrastructure, laboratories, and facilities
-            </p>
+    <div className="min-h-screen bg-slate-50 flex">
+      {!isPublicView && <Sidebar currentPage="infrastructure-facilities" onNavigate={onNavigate} />}
+
+      <main className={`${isPublicView ? 'w-full' : 'ml-64 flex-1'} p-8`}>
+        <div className="max-w-7xl mx-auto space-y-6">
+          
+          {/* Header Bar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-[#2f4692]/20 ring-4 ring-[#2f4692]/10">
+                <Layers className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                  Infrastructure & Research Facilities
+                </h1>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  State-of-the-art specialized laboratories, high-performance computing, testing benches and capital equipment
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <Button
+                variant="outline"
+                className="border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
+                onClick={() => {
+                  const header = 'Department,Laboratory,Total Value,Student Capacity,Equipments Count';
+                  const rows: string[] = [];
+                  filteredDepts.forEach(d => {
+                    d.labs.forEach(l => {
+                      rows.push(`"${d.department}","${l.name}","${l.totalValue}",${l.capacity},${l.newEquipments.length}`);
+                    });
+                  });
+                  const csv = 'data:text/csv;charset=utf-8,' + [header, ...rows].join('\n');
+                  const link = document.createElement('a');
+                  link.href = encodeURI(csv);
+                  link.download = 'Infrastructure_Laboratories_Report.csv';
+                  link.click();
+                }}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Export Report</span>
+              </Button>
+            </div>
           </div>
 
-          {/* Overview Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <Card className="border-l-4 border-l-blue-500">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs">Total Investment</CardDescription>
-                  <DollarSign className="w-5 h-5 text-blue-600" />
+          {/* 5 Executive KPI Metric Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2f4692] to-blue-500" />
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Labs</p>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2f4692] flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Building2 className="w-4 h-4" />
                 </div>
-                <CardTitle className="text-2xl font-bold text-blue-600">₹{totalInvestment.toFixed(2)} L</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">In new equipment</p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{totalLabs}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">Specialized labs</p>
+            </div>
 
-            <Card className="border-l-4 border-l-green-500">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs">Total Labs</CardDescription>
-                  <Building2 className="w-5 h-5 text-green-600" />
+            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Capital Value</p>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <DollarSign className="w-4 h-4" />
                 </div>
-                <CardTitle className="text-3xl font-bold text-green-600">{totalLabs}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">Across all departments</p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-2xl font-black text-emerald-700 tracking-tight mt-2">₹7.79 Cr</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">Installed apparatus</p>
+            </div>
 
-            <Card className="border-l-4 border-l-purple-500">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs">New Equipment</CardDescription>
-                  <Cpu className="w-5 h-5 text-purple-600" />
+            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-500" />
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Equipment Items</p>
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Cpu className="w-4 h-4" />
                 </div>
-                <CardTitle className="text-3xl font-bold text-purple-600">{totalEquipments}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">Categories acquired</p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-2xl font-black text-purple-700 tracking-tight mt-2">{totalEquipments}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">Advanced test units</p>
+            </div>
 
-            <Card className="border-l-4 border-l-orange-500">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs">Departments</CardDescription>
-                  <Layers className="w-5 h-5 text-orange-600" />
+            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lab Capacity</p>
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Microscope className="w-4 h-4" />
                 </div>
-                <CardTitle className="text-3xl font-bold text-orange-600">{departmentInfrastructure.length}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">Engineering streams</p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">550+</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">Simultaneous seats</p>
+            </div>
+
+            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Engineering Depts</p>
+                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Layers className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{filteredDepts.length}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">Disciplines outfitted</p>
+            </div>
           </div>
 
-          {/* Department-wise Infrastructure */}
-          <div className="space-y-6">
-            {departmentInfrastructure.map((dept, deptIdx) => (
-              <Card key={deptIdx} className="overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 border-b">
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Building2 className="w-6 h-6 text-blue-600" />
-                    {dept.department}
-                  </CardTitle>
-                  <CardDescription>{dept.labs.length} specialized laboratories</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="space-y-6">
+          {/* Unified Filter Bar & View Switcher */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[300px]">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Search labs, equipment, GPU cluster, department..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-8 pr-8 text-xs h-9 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <select
+                value={departmentFilter}
+                onChange={e => setDepartmentFilter(e.target.value)}
+                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
+              >
+                <option value="All">All Departments</option>
+                {allDepartmentsList.map((d, i) => (
+                  <option key={i} value={d}>{d}</option>
+                ))}
+              </select>
+
+              {(searchTerm || departmentFilter !== 'All') && (
+                <Button
+                  onClick={() => { setSearchTerm(''); setDepartmentFilter('All'); }}
+                  variant="ghost"
+                  className="h-9 text-xs font-semibold text-slate-500 hover:text-slate-900 flex items-center gap-1 px-2.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                onClick={() => setViewMode('cards')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === 'cards' ? 'bg-white text-[#2f4692] shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Lab Grid</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode('table')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === 'table' ? 'bg-white text-[#2f4692] shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <TableIcon className="w-3.5 h-3.5" />
+                <span>Equipment Matrix</span>
+              </button>
+            </div>
+          </div>
+
+          {/* View Mode 1: Lab Cards Grid */}
+          {viewMode === 'cards' && (
+            <div className="space-y-6">
+              {filteredDepts.map((dept, deptIdx) => (
+                <div key={deptIdx} className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden p-6">
+                  <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#2f4692] flex items-center justify-center font-bold">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-base font-black text-slate-900">{dept.department}</h2>
+                        <p className="text-xs text-slate-500">{dept.labs.length} specialized laboratory installations</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {dept.labs.map((lab, labIdx) => (
-                      <div key={labIdx} className="p-5 bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <Microscope className="w-5 h-5 text-purple-600" />
-                              <h4 className="font-semibold text-lg">{lab.name}</h4>
-                              <Badge className="bg-green-600 text-white">
-                                {lab.totalValue}
-                              </Badge>
+                      <div key={labIdx} className="bg-slate-50/50 rounded-2xl p-5 border border-slate-200/80 hover:bg-white hover:shadow-md transition-all">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                              <Microscope className="w-4 h-4" />
                             </div>
-                            <p className="text-sm text-gray-600">Student Capacity: {lab.capacity}</p>
+                            <div>
+                              <h3 className="font-bold text-slate-900 text-sm">{lab.name}</h3>
+                              <p className="text-[11px] text-slate-500">Student Capacity: <strong className="text-slate-800">{lab.capacity} seats</strong></p>
+                            </div>
                           </div>
+                          <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                            {lab.totalValue}
+                          </span>
                         </div>
 
-                        <div className="space-y-3">
-                          <h5 className="font-semibold text-sm text-gray-700 mb-3">New Equipment Acquired:</h5>
-                          {lab.newEquipments.map((equipment, eqIdx) => (
-                            <div key={eqIdx} className="flex items-center justify-between p-3 bg-white rounded border border-gray-200 hover:shadow-sm transition-shadow">
-                              <div className="flex-1">
-                                <p className="font-medium">{equipment.item}</p>
-                                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                                  <span className="flex items-center gap-1">
-                                    <Cpu className="w-3 h-3" />
-                                    Qty: {equipment.quantity}
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3" />
-                                    {new Date(equipment.acquired).toLocaleDateString()}
-                                  </span>
-                                </div>
+                        <div className="space-y-2 mt-4 pt-3 border-t border-slate-200/60">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Key Capital Equipment</p>
+                          {lab.newEquipments.map((eq, eqIdx) => (
+                            <div key={eqIdx} className="bg-white rounded-xl p-2.5 border border-slate-200/60 flex items-center justify-between text-xs">
+                              <div>
+                                <p className="font-bold text-slate-800">{eq.item}</p>
+                                <p className="text-[10px] text-slate-400">Qty: {eq.quantity} | Acquired: {eq.acquired}</p>
                               </div>
-                              <div className="text-right">
-                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                  {equipment.value}
-                                </Badge>
-                              </div>
+                              <span className="text-xs font-mono font-bold text-[#2f4692]">{eq.value}</span>
                             </div>
                           ))}
                         </div>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* View Mode 2: Table Matrix */}
+          {viewMode === 'table' && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-3.5 px-4">Department</th>
+                    <th className="py-3.5 px-4">Lab Name</th>
+                    <th className="py-3.5 px-4">Apparatus / Equipment</th>
+                    <th className="py-3.5 px-4 text-center">Qty</th>
+                    <th className="py-3.5 px-4 text-center">Acquired Date</th>
+                    <th className="py-3.5 px-4 text-right">Equipment Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {filteredDepts.flatMap((dept) =>
+                    dept.labs.flatMap((lab) =>
+                      lab.newEquipments.map((eq, idx) => (
+                        <tr key={`${dept.department}-${lab.name}-${idx}`} className="hover:bg-blue-50/30 transition-colors">
+                          <td className="py-3 px-4 font-semibold text-slate-900">{dept.department}</td>
+                          <td className="py-3 px-4 font-bold text-[#2f4692]">{lab.name}</td>
+                          <td className="py-3 px-4 font-medium">{eq.item}</td>
+                          <td className="py-3 px-4 text-center font-mono font-bold">{eq.quantity}</td>
+                          <td className="py-3 px-4 text-center font-mono text-slate-500">{eq.acquired}</td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">{eq.value}</td>
+                        </tr>
+                      ))
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </main>
     </div>
