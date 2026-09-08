@@ -24,7 +24,40 @@ const autoSeed = async (sequelize) => {
           END;
 
           BEGIN
+            ALTER TABLE "patents" ALTER COLUMN "filedDate" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "publishedDate" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "grantedDate" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "licenseDate" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "applicationNo" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "patentNo" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "department" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "partner" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "revenue" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "patentUrl" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "description" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "approvalStatus" DROP NOT NULL;
+          EXCEPTION WHEN OTHERS THEN
+            NULL;
+          END;
+
+          BEGIN
             ALTER TABLE "publications" ALTER COLUMN "status" TYPE VARCHAR(50);
+          EXCEPTION WHEN OTHERS THEN
+            NULL;
+          END;
+
+          BEGIN
+            ALTER TABLE "publications" ALTER COLUMN "publicationDate" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "doi" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "issn" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "volume" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "issue" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "pageNumber" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "impactFactor" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "citationCount" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "paperUrl" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "abstract" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "status" DROP NOT NULL;
           EXCEPTION WHEN OTHERS THEN
             NULL;
           END;
