@@ -6,7 +6,7 @@ import {
   DollarSign, TrendingUp, Briefcase, Plus, Upload, Pencil, Trash2,
   CheckCircle, Clock, AlertCircle, X, Building, Calendar, Search,
   Download, Eye, Filter, LayoutGrid, Table as TableIcon, BarChart3,
-  ExternalLink, Sparkles, UserCheck, ChevronRight
+  ExternalLink, Sparkles, UserCheck, ChevronRight, RefreshCw
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -803,6 +803,17 @@ export function ConsultancyProjectsPage({
                   <span>Dept Analytics</span>
                 </button>
               </div>
+
+              {/* Refresh Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchProjects}
+                className="h-9 w-9 p-0 text-gray-500 hover:text-gray-900"
+                title="Refresh Consultancy Data"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
             </CardContent>
           </Card>
 

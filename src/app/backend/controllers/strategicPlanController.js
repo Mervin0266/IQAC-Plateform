@@ -208,3 +208,24 @@ exports.getStrategicPlanStats = async (req, res) => {
     });
   }
 };
+
+// @desc    Clear all strategic plans
+// @route   DELETE /api/strategic-plans/clear-all
+// @access  Private (Admin/Coordinator/HOD)
+exports.clearAllStrategicPlans = async (req, res) => {
+  try {
+    const deletedCount = await StrategicPlan.destroy({ where: {} });
+    res.json({
+      success: true,
+      message: `All strategic plans (${deletedCount}) cleared successfully`,
+      count: deletedCount
+    });
+  } catch (error) {
+    console.error('Clear all strategic plans error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+

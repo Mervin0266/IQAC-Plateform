@@ -368,3 +368,24 @@ exports.bulkCreateStudent = async (req, res) => {
     });
   }
 };
+
+// @desc    Clear all student records
+// @route   DELETE /api/students/clear-all
+// @access  Private (Admin/Coordinator/HOD)
+exports.clearAllStudents = async (req, res) => {
+  try {
+    const deletedCount = await Student.destroy({ where: {} });
+    res.json({
+      success: true,
+      message: `All student records (${deletedCount}) cleared successfully`,
+      count: deletedCount
+    });
+  } catch (error) {
+    console.error('Clear all students error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+

@@ -7,7 +7,7 @@ import {
   Filter, Plus, Edit, Trash2, Eye, Download, Sparkles, Building2,
   Calendar, DollarSign, Users, ChevronRight, BarChart3, LayoutGrid,
   Table as TableIcon, X, RotateCcw, FileSpreadsheet, ShieldCheck,
-  ArrowUpRight, Layers
+  ArrowUpRight, Layers, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -183,6 +183,56 @@ export function StrategicPlanPage({
   const isAdminOrCoordinator = user?.role === 'admin' || user?.role === 'coordinator' || user?.role === 'hod';
 
   const [goals, setGoals] = useState<StrategicGoal[]>(INITIAL_GOALS);
+  const [loading, setLoading] = useState(false);
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
+
+  const fetchGoals = async () => {
+    if (!user?.token) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/strategic-plans`, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+        setGoals(data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching strategic plans:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchGoals();
+  }, [user]);
+
+  const handleClearAll = async () => {
+    try {
+      setClearLoading(true);
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/strategic-plans/clear-all`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${user?.token || localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setGoals([]);
+        setIsClearOpen(false);
+      } else {
+        alert(data.message || 'Failed to clear strategic plans');
+      }
+    } catch (err) {
+      console.error('Error clearing strategic plans:', err);
+      alert('Network error while clearing strategic plans');
+    } finally {
+      setClearLoading(false);
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -216,17 +266,17 @@ export function StrategicPlanPage({
     goals.forEach(g => { if (g.department) set.add(normalizeDepartmentName(g.department)); });
     if (set.size === 0) {
       return [
-        'AI and Data Science Engineering',
         'Civil Engineering',
         'Computer Science and Engineering',
-        'Electrical and Electronics Engineering',
         'Electronics and Communication Engineering',
+        'Electrical and Electronics Engineering',
         'Mechanical and Automobile Engineering',
-        'School of Architecture',
-        'Sciences and Humanities (Engineering)'
+        'Sciences and Humanities (Engineering)',
+        'AI and Data Science Engineering',
+        'School of Architecture'
       ];
     }
-    return Array.from(set).sort();
+    return Array.from(set).filter(Boolean).sort();
   }, [dbDepts, goals]);
 
   // Filtered Goals
@@ -455,6 +505,18 @@ export function StrategicPlanPage({
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
+              {/* Refresh Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchGoals}
+                className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-2 shadow-sm"
+                title="Refresh Strategic Goals"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </Button>
+
               {/* Export Toolbar */}
               <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
                 <Button
@@ -479,6 +541,20 @@ export function StrategicPlanPage({
                   <span>CSV</span>
                 </Button>
               </div>
+
+              {/* Clear Data Button */}
+              {isAdminOrCoordinator && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsClearOpen(true)}
+                  className="h-9 px-3.5 text-xs font-semibold border-red-200 text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-2 shadow-sm"
+                  title="Clear All Strategic Goals"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Data</span>
+                </Button>
+              )}
 
               {/* Add Goal Button */}
               {isAdminOrCoordinator && (
@@ -1228,6 +1304,39 @@ export function StrategicPlanPage({
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear Goals Confirmation Dialog */}
+      <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Clear All Strategic Goals & Milestones
+            </DialogTitle>
+            <DialogDescription className="py-2 text-slate-600">
+              Are you sure you want to permanently delete all strategic goals and milestones data? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setIsClearOpen(false)}
+              disabled={clearLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleClearAll}
+              disabled={clearLoading}
+              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+            >
+              {clearLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
+              <span>{clearLoading ? 'Clearing...' : 'Confirm Clear Data'}</span>
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

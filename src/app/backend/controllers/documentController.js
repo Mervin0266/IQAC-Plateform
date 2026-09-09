@@ -173,3 +173,28 @@ exports.deleteDocument = async (req, res) => {
     });
   }
 };
+
+// @desc    Clear all documents
+// @route   DELETE /api/documents/clear-all
+// @access  Private (Admin / Coordinator)
+exports.clearAllDocuments = async (req, res) => {
+  try {
+    const where = {};
+    if (req.user.role === 'faculty' && req.user.department) {
+      where.department = req.user.department;
+    }
+    const count = await Document.destroy({ where, truncate: req.user.role === 'admin' && !req.user.department });
+    res.json({
+      success: true,
+      message: 'All documents cleared successfully',
+      deletedCount: count
+    });
+  } catch (error) {
+    console.error('Clear documents error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+

@@ -6,12 +6,15 @@ const {
   createStrategicPlan,
   updateStrategicPlan,
   deleteStrategicPlan,
-  getStrategicPlanStats
+  getStrategicPlanStats,
+  clearAllStrategicPlans
 } = require('../controllers/strategicPlanController');
 const { auth, authorize } = require('../middleware/auth');
 
 // All routes require authentication
 router.use(auth);
+
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllStrategicPlans);
 
 router.get('/stats', getStrategicPlanStats);
 

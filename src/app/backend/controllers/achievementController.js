@@ -463,3 +463,24 @@ exports.bulkCreateAchievements = async (req, res) => {
   }
 };
 
+// @desc    Clear all achievement records
+// @route   DELETE /api/achievements/clear-all
+// @access  Private (Admin/Coordinator/HOD)
+exports.clearAllAchievements = async (req, res) => {
+  try {
+    const deletedCount = await Achievement.destroy({ where: {} });
+    res.json({
+      success: true,
+      message: `All achievement records (${deletedCount}) cleared successfully`,
+      count: deletedCount
+    });
+  } catch (error) {
+    console.error('Clear all achievements error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+
+

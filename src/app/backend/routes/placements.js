@@ -6,12 +6,15 @@ const {
   createPlacement,
   updatePlacement,
   deletePlacement,
-  bulkCreatePlacements
+  bulkCreatePlacements,
+  clearAllPlacements
 } = require('../controllers/placementController');
 const { auth, authorize } = require('../middleware/auth');
 
 // All routes require authentication
 router.use(auth);
+
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllPlacements);
 
 router.get('/stats', getPlacementStats);
 router.post('/bulk', authorize('admin', 'coordinator'), bulkCreatePlacements);

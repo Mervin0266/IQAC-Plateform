@@ -33,6 +33,7 @@ import { BulkUploadDialog } from './BulkUploadDialog';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { normalizeAcademicYear, normalizeDepartmentName } from './FacultyDetailsPage';
 
 export interface DepartmentalActivity {
   id: string;
@@ -53,14 +54,14 @@ export interface DepartmentalActivity {
 }
 
 const DEPARTMENTS = [
-  'AI and Data Science Engineering',
   'Civil Engineering',
   'Computer Science and Engineering',
-  'Electrical and Electronics Engineering',
   'Electronics and Communication Engineering',
+  'Electrical and Electronics Engineering',
   'Mechanical and Automobile Engineering',
-  'School of Architecture',
-  'Science and Humanities (Engineering)'
+  'Sciences and Humanities (Engineering)',
+  'AI and Data Science Engineering',
+  'School of Architecture'
 ];
 
 const ACTIVITY_CATEGORIES = [
@@ -175,15 +176,13 @@ export function DepartmentalActivitiesPage({ onNavigate }: DepartmentalActivitie
 
   // Dynamically compute available Academic Years from departmental activities records
   const availableAcademicYears = useMemo(() => {
-    const yearsSet = new Set<string>();
+    const yearsSet = new Set<string>(['2026-2027', '2025-2026', '2024-2025', '2023-2024', '2022-2023', '2021-2022']);
     activities.forEach(act => {
-      if (act.academicYear) {
-        yearsSet.add(act.academicYear);
+      const norm = normalizeAcademicYear(act.academicYear);
+      if (norm) {
+        yearsSet.add(norm);
       }
     });
-    if (yearsSet.size === 0) {
-      return ['2025-2026', '2024-2025', '2023-2024', '2022-2023', '2021-2022'];
-    }
     return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
   }, [activities]);
 
@@ -196,10 +195,10 @@ export function DepartmentalActivitiesPage({ onNavigate }: DepartmentalActivitie
         act.activityCategory.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (act.reportDetails && act.reportDetails.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      const matchesYear = academicYearFilter === 'All' || act.academicYear === academicYearFilter;
+      const matchesYear = academicYearFilter === 'All' || normalizeAcademicYear(act.academicYear) === normalizeAcademicYear(academicYearFilter);
       const matchesCampus = campusFilter === 'All' || act.campus === campusFilter;
       const matchesSchool = schoolFilter === 'All' || act.school === schoolFilter;
-      const matchesDept = departmentFilter === 'All' || act.department === departmentFilter;
+      const matchesDept = departmentFilter === 'All' || normalizeDepartmentName(act.department) === normalizeDepartmentName(departmentFilter);
       const matchesCat = categoryFilter === 'All' || act.activityCategory === categoryFilter;
       const matchesStatus = statusFilter === 'All' || act.status === statusFilter;
 

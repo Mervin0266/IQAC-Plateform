@@ -5,13 +5,14 @@ import { AchievementTabs } from './AchievementTabs';
 import { AchievementGrid } from './AchievementGrid';
 import { AddProjectButton } from './AddProjectButton';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Award, Upload } from 'lucide-react';
+import { Award, Upload, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/AuthContext';
 import { AchievementDialog } from './AchievementDialog';
 import { EditRequestDialog } from './EditRequestDialog';
 import { BulkUploadDialog } from './BulkUploadDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 
 interface AchievementsPageProps {
   onNavigate: (page: string) => void;
@@ -41,6 +42,32 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
   const [achievementForRequestEdit, setAchievementForRequestEdit] = useState<any>(null);
 
   const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
+
+  const handleClearAll = async () => {
+    try {
+      setClearLoading(true);
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements/clear-all`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${user?.token || localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAchievements([]);
+        setIsClearOpen(false);
+      } else {
+        alert(data.message || 'Failed to clear achievements');
+      }
+    } catch (err) {
+      console.error('Error clearing achievements:', err);
+      alert('Network error while clearing achievements');
+    } finally {
+      setClearLoading(false);
+    }
+  };
 
   // Set default department filter for HODs and Coordinators
   useEffect(() => {
@@ -276,20 +303,46 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
       <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Page Title & Action Buttons */}
-          <div className="flex justify-between items-start mb-6">
+          <div className="flex justify-between items-start mb-6 flex-wrap gap-3">
             <div>
               <h1 className="text-2xl font-medium text-gray-900 mb-1">ACHIEVEMENTS</h1>
               <p className="text-sm text-gray-500">View all achievements of our faculty, students & school.</p>
             </div>
-            {user && (user.role === 'admin' || user.role === 'coordinator' || user.role === 'hod') && (
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
-                onClick={() => setIsBulkOpen(true)}
-                className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 flex items-center space-x-2 shadow-sm rounded-lg"
+                variant="outline"
+                size="sm"
+                onClick={() => fetchAchievements(filters.department, filters.year)}
+                className="border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold h-9 rounded-lg flex items-center gap-1.5"
+                title="Refresh Achievements"
               >
-                <Upload className="w-4 h-4" />
-                <span>Bulk Upload (CSV/Excel)</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
               </Button>
-            )}
+
+              {user && (user.role === 'admin' || user.role === 'coordinator' || user.role === 'hod') && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsClearOpen(true)}
+                    className="border-red-200 hover:bg-red-50 text-red-600 text-xs font-semibold h-9 rounded-lg flex items-center gap-1.5"
+                    title="Clear All Achievements Data"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear Data</span>
+                  </Button>
+
+                  <Button
+                    onClick={() => setIsBulkOpen(true)}
+                    className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold h-9 px-4 flex items-center space-x-2 shadow-sm rounded-lg"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Bulk Upload (CSV/Excel)</span>
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Filters */}
@@ -365,6 +418,39 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
               }}
             />
           )}
+
+          {/* Clear Achievements Confirmation Dialog */}
+          <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                  Clear All Achievements Data
+                </DialogTitle>
+                <DialogDescription className="py-2 text-slate-600">
+                  Are you sure you want to delete all achievement records? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="flex gap-2 sm:justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsClearOpen(false)}
+                  disabled={clearLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleClearAll}
+                  disabled={clearLoading}
+                  className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                >
+                  {clearLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  <span>{clearLoading ? 'Clearing...' : 'Confirm Clear Data'}</span>
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </main>
     </div>

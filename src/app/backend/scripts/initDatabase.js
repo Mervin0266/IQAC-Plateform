@@ -118,6 +118,16 @@ const initDatabase = async () => {
       description: 'Department of Mechanical and Automobile Engineering'
     });
 
+    const soaDept = await Department.create({
+      code: 'SOA',
+      name: 'School of Architecture',
+      shortName: 'SOA',
+      schoolId: schoolOfEngineering.id,
+      establishedYear: 2017,
+      status: 'Active',
+      description: 'Department / School of Architecture'
+    });
+
     const shDept = await Department.create({
       code: 'S&H',
       name: 'Sciences and Humanities (Engineering)',
@@ -127,11 +137,15 @@ const initDatabase = async () => {
       status: 'Active',
       description: 'Department of Sciences and Humanities (Engineering)'
     });
-    console.log('✓ 7 Departments seeded');
+    console.log('✓ 8 Departments seeded');
 
     // 5. Create Courses / Programs
     await Course.bulkCreate([
-      // 7.1 AI and Data Science Engineering
+      // 7.1 School of Architecture
+      { code: 'BARCH', name: 'Bachelor of Architecture (B.Arch)', departmentId: soaDept.id, programLevelId: ugLevel.id, duration: '5 Years', status: 'Active' },
+      { code: 'PHD-ARCH', name: 'PhD in Architecture', departmentId: soaDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' },
+
+      // 7.2 AI and Data Science Engineering
       { code: 'BTECH-ADSE-AIML', name: 'BTech (Computer Science and Engineering - Artificial Intelligence and Machine Learning)', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
       { code: 'BTECH-ADSE-DS', name: 'BTech (Computer Science and Engineering - Data Science)', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
       { code: 'BTECH-AIML', name: 'BTech (Artificial Intelligence and Machine Learning)', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },

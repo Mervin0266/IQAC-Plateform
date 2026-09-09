@@ -138,6 +138,8 @@ export function SponsoredResearchPage({
   const [bulkSuccess, setBulkSuccess] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkErrorsList, setBulkErrorsList] = useState<string[]>([]);
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
 
   // Hierarchy departments
   const { departmentList } = useAcademicHierarchy();
@@ -331,6 +333,33 @@ export function SponsoredResearchPage({
     } catch (err) {
       console.error('Delete error:', err);
       alert('Failed to connect to backend server');
+    }
+  };
+
+  // Clear All Projects in scope
+  const handleClearAll = async () => {
+    setClearLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/sponsored-projects/clear-all`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token || localStorage.getItem('token') || ''}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIsClearOpen(false);
+        fetchProjects();
+        fetchStats();
+      } else {
+        alert(data.message || 'Failed to clear records');
+      }
+    } catch (err) {
+      console.error('Clear all error:', err);
+      alert('Failed to clear sponsored projects');
+    } finally {
+      setClearLoading(false);
     }
   };
 
@@ -811,6 +840,17 @@ export function SponsoredResearchPage({
                 </button>
               </div>
 
+              {/* Refresh Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { fetchProjects(); fetchStats(); }}
+                className="h-9 w-9 p-0 text-gray-500 hover:text-gray-900"
+                title="Refresh Sponsored Grants"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+
               {(selectedStatus !== 'all' || selectedAgencyType !== 'all' || selectedYear !== 'all' || selectedDept !== 'all' || searchQuery) && (
                 <Button
                   variant="ghost"
@@ -1106,6 +1146,19 @@ export function SponsoredResearchPage({
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="p-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex justify-between items-center px-4">
+            <span>Showing {projects.length} sponsored project records</span>
+            {isPrivileged && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsClearOpen(true)}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] h-7 px-2"
+              >
+                Clear All Grants
+              </Button>
+            )}
           </div>
         </Card>
       )}
@@ -1671,6 +1724,34 @@ export function SponsoredResearchPage({
               className="bg-teal-700 text-white hover:bg-teal-800 text-xs font-semibold"
             >
               {bulkLoading ? 'Importing Grants...' : `Upload ${bulkPreview.length} Records`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear All Confirmation Dialog */}
+      <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2 text-base">
+              <AlertCircle className="w-5 h-5" />
+              Clear Sponsored Project Records
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-600">
+              Are you sure you want to delete all sponsored project and grant records? This action is irreversible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsClearOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={clearLoading}
+              onClick={handleClearAll}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+            >
+              {clearLoading ? 'Clearing...' : 'Yes, Delete All'}
             </Button>
           </DialogFooter>
         </DialogContent>

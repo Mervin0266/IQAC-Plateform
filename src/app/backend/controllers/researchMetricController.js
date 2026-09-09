@@ -139,3 +139,24 @@ exports.bulkUpsertMetrics = async (req, res) => {
     });
   }
 };
+
+// @desc    Clear all research metrics
+// @route   DELETE /api/research-metrics/clear-all
+// @access  Private (Admin/Coordinator/HOD)
+exports.clearAllMetrics = async (req, res) => {
+  try {
+    const deletedCount = await ResearchMetric.destroy({ where: {} });
+    res.json({
+      success: true,
+      message: `All research metrics (${deletedCount}) cleared successfully`,
+      count: deletedCount
+    });
+  } catch (error) {
+    console.error('Clear all research metrics error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+

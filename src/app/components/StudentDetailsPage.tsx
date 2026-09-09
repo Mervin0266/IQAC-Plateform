@@ -31,11 +31,14 @@ import {
   Sparkles,
   FileSpreadsheet,
   BadgeCheck,
-  Layers
+  Layers,
+  AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { normalizeAcademicYear, normalizeDepartmentName } from './FacultyDetailsPage';
 
 interface StudentDetailsPageProps {
   onNavigate: (page: string) => void;
@@ -107,6 +110,33 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
     }
   };
 
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
+
+  const handleClearAll = async () => {
+    try {
+      setClearLoading(true);
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students/clear-all`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${user?.token || localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStudents([]);
+        setIsClearOpen(false);
+      } else {
+        alert(data.message || 'Failed to clear student records');
+      }
+    } catch (err) {
+      console.error('Error clearing students:', err);
+      alert('Network error while clearing student records');
+    } finally {
+      setClearLoading(false);
+    }
+  };
+
   React.useEffect(() => {
     fetchStudents();
   }, [user]);
@@ -173,15 +203,13 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
   });
 
   const availableAcademicYears = useMemo(() => {
-    const yearsSet = new Set<string>();
+    const yearsSet = new Set<string>(['2026-2027', '2025-2026', '2024-2025', '2023-2024', '2022-2023', '2021-2022']);
     students.forEach(st => {
-      if (st.academicYear) {
-        yearsSet.add(st.academicYear);
+      const norm = normalizeAcademicYear(st.academicYear);
+      if (norm) {
+        yearsSet.add(norm);
       }
     });
-    if (yearsSet.size === 0) {
-      return ['2025-2026', '2024-2025', '2023-2024', '2022-2023', '2021-2022'];
-    }
     return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
   }, [students]);
 
@@ -199,8 +227,8 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
         (student.className && student.className.toLowerCase().includes(searchLower)) ||
         (student.campus && student.campus.toLowerCase().includes(searchLower));
 
-      const matchesDept = departmentFilter === 'All' || (student.department || '').toLowerCase().trim() === departmentFilter.toLowerCase().trim();
-      const matchesYear = academicYearFilter === 'All' || (student.academicYear || '2024-2025').toLowerCase().trim() === academicYearFilter.toLowerCase().trim();
+      const matchesDept = departmentFilter === 'All' || normalizeDepartmentName(student.department) === normalizeDepartmentName(departmentFilter);
+      const matchesYear = academicYearFilter === 'All' || normalizeAcademicYear(student.academicYear || '2024-2025') === normalizeAcademicYear(academicYearFilter);
       const matchesLevel = programLevelFilter === 'All' || (student.programLevel || '').toLowerCase().trim() === programLevelFilter.toLowerCase().trim();
       const matchesStatus = statusFilter === 'All' || (student.status || '').toLowerCase().trim() === statusFilter.toLowerCase().trim();
 
@@ -446,6 +474,16 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
 
               {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
                 <>
+                  <Button
+                    onClick={() => setIsClearOpen(true)}
+                    variant="outline"
+                    className="border-red-200 hover:bg-red-50 text-red-600 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
+                    title="Clear All Student Records"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear Data</span>
+                  </Button>
+
                   <Button
                     onClick={() => setIsBulkUploadOpen(true)}
                     variant="outline"
@@ -1268,6 +1306,39 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
           </div>
         </div>
       )}
+
+      {/* Clear Data Confirmation Dialog */}
+      <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Clear All Student Records
+            </DialogTitle>
+            <DialogDescription className="py-2 text-slate-600">
+              Are you sure you want to permanently delete all student cohort and enrollment records? This action is irreversible and will remove all student data for this section.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setIsClearOpen(false)}
+              disabled={clearLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleClearAll}
+              disabled={clearLoading}
+              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+            >
+              {clearLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
+              <span>{clearLoading ? 'Clearing...' : 'Confirm Clear Data'}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

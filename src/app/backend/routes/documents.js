@@ -5,12 +5,15 @@ const {
   getDocument,
   createDocument,
   updateDocument,
-  deleteDocument
+  deleteDocument,
+  clearAllDocuments
 } = require('../controllers/documentController');
 const { auth, authorize } = require('../middleware/auth');
 
 // All routes require authentication
 router.use(auth);
+
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllDocuments);
 
 router.route('/')
   .get(getDocuments)

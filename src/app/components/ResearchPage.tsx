@@ -137,6 +137,33 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
     }
   };
 
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
+
+  const handleClearAll = async () => {
+    try {
+      setClearLoading(true);
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/research-metrics/clear-all`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${user?.token || localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setResearchMetrics([]);
+        setIsClearOpen(false);
+      } else {
+        alert(data.message || 'Failed to clear research metrics');
+      }
+    } catch (err) {
+      console.error('Error clearing metrics:', err);
+      alert('Network error while clearing research metrics');
+    } finally {
+      setClearLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchResearchMetrics();
   }, [user?.token, metricYear]);
@@ -603,6 +630,18 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
               {/* Actions on Metrics Grid View */}
               {activeTab === 'metrics' && (
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* Refresh Button */}
+                  <Button
+                    onClick={fetchResearchMetrics}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1.5 border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-sm"
+                    title="Refresh Research Metrics"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingGrid ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
+                  </Button>
+
                   {/* Export Excel (.xlsx) */}
                   <Button 
                     onClick={handleExportExcel}
@@ -628,6 +667,17 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                   
                   {isEditableRole && (
                     <>
+                      {/* Clear Data Button */}
+                      <Button
+                        onClick={() => setIsClearOpen(true)}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-1.5 border-red-200 text-red-600 bg-white hover:bg-red-50 text-xs font-semibold shadow-sm"
+                        title="Clear All Research Metrics"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Clear Data</span>
+                      </Button>
                       {/* Upload in Excel Button */}
                       <Button 
                         onClick={() => {
@@ -1455,6 +1505,39 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                   <span>Import {previewRows.length > 0 ? `(${previewRows.length} Records)` : ''} & Save</span>
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear Research Metrics Confirmation Dialog */}
+      <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Clear Research Metrics Data
+            </DialogTitle>
+            <DialogDescription className="py-2 text-slate-600">
+              Are you sure you want to permanently delete all aggregate research metrics data for academic year {metricYear}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setIsClearOpen(false)}
+              disabled={clearLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleClearAll}
+              disabled={clearLoading}
+              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+            >
+              {clearLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
+              <span>{clearLoading ? 'Clearing...' : 'Confirm Clear Data'}</span>
             </Button>
           </DialogFooter>
         </DialogContent>

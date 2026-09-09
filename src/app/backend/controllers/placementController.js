@@ -271,3 +271,24 @@ exports.bulkCreatePlacements = async (req, res) => {
   }
 };
 
+// @desc    Clear all placement records
+// @route   DELETE /api/placements/clear-all
+// @access  Private (Admin/Coordinator/HOD)
+exports.clearAllPlacements = async (req, res) => {
+  try {
+    const deletedCount = await Placement.destroy({ where: {} });
+    res.json({
+      success: true,
+      message: `All placement records (${deletedCount}) cleared successfully`,
+      count: deletedCount
+    });
+  } catch (error) {
+    console.error('Clear all placements error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+
+

@@ -316,17 +316,17 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     });
     if (set.size === 0) {
       return [
-        'AI and Data Science Engineering',
         'Civil Engineering',
         'Computer Science and Engineering',
-        'Electrical and Electronics Engineering',
         'Electronics and Communication Engineering',
+        'Electrical and Electronics Engineering',
         'Mechanical and Automobile Engineering',
-        'School of Architecture',
-        'Sciences and Humanities (Engineering)'
+        'Sciences and Humanities (Engineering)',
+        'AI and Data Science Engineering',
+        'School of Architecture'
       ];
     }
-    return Array.from(set).sort();
+    return Array.from(set).filter(Boolean).sort();
   }, [departmentList]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 

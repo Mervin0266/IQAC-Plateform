@@ -157,17 +157,17 @@ export function DynamicParameterMaster({
     dbDepts.forEach(d => { if (d) set.add(normalizeDepartmentName(d)); });
     if (set.size === 0) {
       return [
-        'AI and Data Science Engineering',
         'Civil Engineering',
         'Computer Science and Engineering',
-        'Electrical and Electronics Engineering',
         'Electronics and Communication Engineering',
+        'Electrical and Electronics Engineering',
         'Mechanical and Automobile Engineering',
-        'School of Architecture',
-        'Sciences and Humanities (Engineering)'
+        'Sciences and Humanities (Engineering)',
+        'AI and Data Science Engineering',
+        'School of Architecture'
       ];
     }
-    return Array.from(set).sort();
+    return Array.from(set).filter(Boolean).sort();
   }, [dbDepts]);
 
   const [selectedDept, setSelectedDept] = useState<string>(departments[0] || 'AI and Data Science Engineering');

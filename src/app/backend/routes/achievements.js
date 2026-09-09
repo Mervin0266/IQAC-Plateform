@@ -7,13 +7,15 @@ const {
   updateAchievement,
   deleteAchievement,
   getAchievementStats,
-  bulkCreateAchievements
+  bulkCreateAchievements,
+  clearAllAchievements
 } = require('../controllers/achievementController');
 const { auth, authorize } = require('../middleware/auth');
 
 // All routes require authentication
 router.use(auth);
 
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllAchievements);
 router.get('/stats', getAchievementStats);
 router.post('/bulk', authorize('admin', 'coordinator', 'hod'), bulkCreateAchievements);
 

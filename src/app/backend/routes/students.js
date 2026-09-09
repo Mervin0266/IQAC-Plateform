@@ -6,11 +6,14 @@ const {
   bulkCreateStudent,
   updateStudent,
   deleteStudent,
-  lookupStudentByRegNo
+  lookupStudentByRegNo,
+  clearAllStudents
 } = require('../controllers/studentController');
 const { auth, authorize } = require('../middleware/auth');
 
 router.use(auth);
+
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllStudents);
 
 router.route('/')
   .get(getStudents)

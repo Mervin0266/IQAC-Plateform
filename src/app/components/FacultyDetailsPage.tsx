@@ -84,6 +84,28 @@ export function normalizeDesignationName(desig?: string): string {
     .join(' ');
 }
 
+export function normalizeAcademicYear(year?: string): string {
+  if (!year) return '';
+  const clean = year.trim().replace(/\s+/g, '');
+  // Match range e.g. 2024-2025 or 2024-25 or 2024/2025
+  const matchRange = clean.match(/^(\d{4})[-/](\d{2,4})$/);
+  if (matchRange) {
+    const start = matchRange[1];
+    let end = matchRange[2];
+    if (end.length === 2) {
+      end = start.slice(0, 2) + end;
+    }
+    return `${start}-${end}`;
+  }
+  // If single 4-digit year like 2027
+  const matchSingle = clean.match(/^(\d{4})$/);
+  if (matchSingle) {
+    const y = parseInt(matchSingle[1], 10);
+    return `${y - 1}-${y}`;
+  }
+  return clean;
+}
+
 export interface Qualifications {
   ug: string;
   pg: string;
@@ -165,6 +187,8 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewingFaculty, setViewingFaculty] = useState<Faculty | null>(null);
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Omit<Faculty, 'id'>>({
@@ -456,6 +480,31 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     document.body.removeChild(link);
   };
 
+  const handleClearAll = async () => {
+    setClearLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/faculty/clear-all`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${user?.token || localStorage.getItem('token') || ''}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIsClearOpen(false);
+        fetchFaculty();
+      } else {
+        alert(data.message || 'Failed to clear faculty records');
+      }
+    } catch (err) {
+      console.error('Clear all faculty error:', err);
+      alert('Failed to connect to backend server');
+    } finally {
+      setClearLoading(false);
+    }
+  };
+
   const clearFilters = () => {
     setSearchTerm('');
     setDepartmentFilter('All');
@@ -509,6 +558,16 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
 
               {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
                 <>
+                  <Button
+                    onClick={() => setIsClearOpen(true)}
+                    variant="outline"
+                    className="border-red-200 hover:bg-red-50 text-red-600 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
+                    title="Clear All Faculty Data"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear Data</span>
+                  </Button>
+
                   <Button
                     onClick={() => setIsBulkUploadOpen(true)}
                     variant="outline"
@@ -1344,6 +1403,34 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
           </div>
         </div>
       )}
+
+      {/* Clear All Confirmation Dialog */}
+      <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2 text-base">
+              <AlertCircle className="w-5 h-5" />
+              Clear Faculty Records
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-600">
+              Are you sure you want to delete all faculty records in this section? This action is irreversible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsClearOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={clearLoading}
+              onClick={handleClearAll}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+            >
+              {clearLoading ? 'Clearing...' : 'Yes, Delete All'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

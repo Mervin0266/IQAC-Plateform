@@ -122,14 +122,14 @@ export function useAcademicHierarchy() {
   }, [departments]);
 
 const DEFAULT_DEPARTMENTS = [
-  'AI and Data Science Engineering',
   'Civil Engineering',
   'Computer Science and Engineering',
-  'Electrical and Electronics Engineering',
   'Electronics and Communication Engineering',
+  'Electrical and Electronics Engineering',
   'Mechanical and Automobile Engineering',
-  'School of Architecture',
-  'Sciences and Humanities (Engineering)'
+  'Sciences and Humanities (Engineering)',
+  'AI and Data Science Engineering',
+  'School of Architecture'
 ];
 
 const DEFAULT_CAMPUSES = [

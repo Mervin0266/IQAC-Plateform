@@ -5,11 +5,14 @@ const {
   createFaculty,
   bulkCreateFaculty,
   updateFaculty,
-  deleteFaculty
+  deleteFaculty,
+  clearAllFaculty
 } = require('../controllers/facultyController');
 const { auth, authorize } = require('../middleware/auth');
 
 router.use(auth);
+
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllFaculty);
 
 router.route('/')
   .get(getFaculty)

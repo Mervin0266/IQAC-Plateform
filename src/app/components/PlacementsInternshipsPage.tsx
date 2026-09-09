@@ -7,7 +7,7 @@ import {
   Users, BarChart3, Upload, Filter, RotateCcw, Search, Download,
   Plus, Edit, Trash2, Eye, X, CheckCircle, Clock, AlertCircle,
   LayoutGrid, Table as TableIcon, Calendar, GraduationCap, MapPin,
-  ExternalLink, Sparkles, ChevronRight, FileSpreadsheet
+  ExternalLink, Sparkles, ChevronRight, FileSpreadsheet, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -18,7 +18,7 @@ import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
-import { normalizeDepartmentName } from './FacultyDetailsPage';
+import { normalizeDepartmentName, normalizeAcademicYear } from './FacultyDetailsPage';
 
 interface PlacementsInternshipsPageProps {
   onNavigate: (page: string) => void;
@@ -114,6 +114,32 @@ export function PlacementsInternshipsPage({
   const [viewingItem, setViewingItem] = useState<PlacementItem | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showBulkDialog, setShowBulkDialog] = useState(false);
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
+
+  const handleClearAll = async () => {
+    try {
+      setClearLoading(true);
+      const res = await fetch(`${API_BASE}/api/placements/clear-all`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${effectiveToken}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPlacements([]);
+        setIsClearOpen(false);
+      } else {
+        alert(data.message || 'Failed to clear placement records');
+      }
+    } catch (err) {
+      console.error('Error clearing placements:', err);
+      alert('Network error while clearing placements');
+    } finally {
+      setClearLoading(false);
+    }
+  };
 
   const { departmentList: dbDepts } = useAcademicHierarchy();
 
@@ -163,33 +189,35 @@ export function PlacementsInternshipsPage({
     });
     if (set.size === 0) {
       return [
-        'AI and Data Science Engineering',
         'Civil Engineering',
         'Computer Science and Engineering',
-        'Electrical and Electronics Engineering',
         'Electronics and Communication Engineering',
+        'Electrical and Electronics Engineering',
         'Mechanical and Automobile Engineering',
-        'School of Architecture',
-        'Sciences and Humanities (Engineering)'
+        'Sciences and Humanities (Engineering)',
+        'AI and Data Science Engineering',
+        'School of Architecture'
       ];
     }
-    return Array.from(set).sort();
+    return Array.from(set).filter(Boolean).sort();
   }, [dbDepts, placements]);
 
   const uniqueCourses = useMemo(() => {
     const set = new Set<string>();
     placements.forEach(p => {
-      if (p.course && p.course.trim()) set.add(p.course.trim());
+      if (p.course && p.course.trim()) set.add(p.course.trim().replace(/\s+/g, ' '));
     });
     return Array.from(set).sort();
   }, [placements]);
 
   const uniqueBatches = useMemo(() => {
-    const set = new Set<string>(ACADEMIC_YEARS);
+    const set = new Set<string>();
+    ACADEMIC_YEARS.forEach(y => set.add(normalizeAcademicYear(y)));
     placements.forEach(p => {
-      if (p.batch && p.batch.trim()) set.add(p.batch.trim());
+      const norm = normalizeAcademicYear(p.batch);
+      if (norm) set.add(norm);
     });
-    return Array.from(set).sort().reverse();
+    return Array.from(set).filter(Boolean).sort().reverse();
   }, [placements]);
 
   // Format LPA
@@ -235,12 +263,12 @@ export function PlacementsInternshipsPage({
       }
 
       // Course Filter
-      if (selectedCourse !== 'all' && item.course !== selectedCourse) {
+      if (selectedCourse !== 'all' && (item.course || '').trim().replace(/\s+/g, ' ') !== selectedCourse) {
         return false;
       }
 
       // Batch Filter
-      if (selectedBatch !== 'all' && item.batch !== selectedBatch) {
+      if (selectedBatch !== 'all' && normalizeAcademicYear(item.batch) !== normalizeAcademicYear(selectedBatch)) {
         return false;
       }
 
@@ -552,6 +580,18 @@ export function PlacementsInternshipsPage({
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
+              {/* Refresh Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchPlacements}
+                className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-2 shadow-sm"
+                title="Refresh Placements & Internships"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </Button>
+
               {/* Export Button */}
               <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
                 <Button
@@ -576,6 +616,20 @@ export function PlacementsInternshipsPage({
                   <span>CSV</span>
                 </Button>
               </div>
+
+              {/* Clear Data Button */}
+              {isAdminOrCoordinator && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsClearOpen(true)}
+                  className="h-9 px-3.5 text-xs font-semibold border-red-200 text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-2 shadow-sm"
+                  title="Clear All Placements Data"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Data</span>
+                </Button>
+              )}
 
               {/* Bulk Upload Button */}
               {isAdminOrCoordinator && (
@@ -1605,6 +1659,39 @@ export function PlacementsInternshipsPage({
         onSuccess={fetchPlacements}
         uploadType="placements"
       />
+
+      {/* Clear Placements Confirmation Dialog */}
+      <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Clear All Placements & Internships Data
+            </DialogTitle>
+            <DialogDescription className="py-2 text-slate-600">
+              Are you sure you want to permanently delete all placement and internship records? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setIsClearOpen(false)}
+              disabled={clearLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleClearAll}
+              disabled={clearLoading}
+              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+            >
+              {clearLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
+              <span>{clearLoading ? 'Clearing...' : 'Confirm Clear Data'}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

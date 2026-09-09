@@ -5,7 +5,7 @@ import {
   Download, Mail, Phone, RefreshCw, Upload, Calendar, 
   AlertCircle, CheckCircle2, Award, Users, GraduationCap,
   Sparkles, FileSpreadsheet, LayoutGrid, Table as TableIcon,
-  BarChart3, RotateCcw, ArrowUpRight, ChevronRight
+  BarChart3, RotateCcw, ArrowUpRight, ChevronRight, AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Sidebar } from './Sidebar';
@@ -38,13 +38,13 @@ interface DepartmentDetailsPageProps {
 const INITIAL_DEPARTMENTS: Department[] = [
   {
     id: 'dept-1',
-    code: 'ADSE',
-    name: 'AI and Data Science Engineering',
-    hodName: 'Dr. Rajesh Kumar',
-    hodEmail: 'rajesh.kumar@christuniversity.in',
-    establishedYear: 2021,
-    phone: '+91 80 4012 9100',
-    description: 'Pioneering multidisciplinary artificial intelligence, machine learning, and big data engineering.',
+    code: 'CIVIL',
+    name: 'Civil Engineering',
+    hodName: 'Dr. Suresh Rao',
+    hodEmail: 'suresh.rao@christuniversity.in',
+    establishedYear: 2010,
+    phone: '+91 80 4012 9103',
+    description: 'Sustainable infrastructure, geopolymer materials, and smart urban construction technology.',
     status: 'Active'
   },
   {
@@ -71,17 +71,6 @@ const INITIAL_DEPARTMENTS: Department[] = [
   },
   {
     id: 'dept-4',
-    code: 'CIVIL',
-    name: 'Civil Engineering',
-    hodName: 'Dr. Suresh Rao',
-    hodEmail: 'suresh.rao@christuniversity.in',
-    establishedYear: 2010,
-    phone: '+91 80 4012 9103',
-    description: 'Sustainable infrastructure, geopolymer materials, and smart urban construction technology.',
-    status: 'Active'
-  },
-  {
-    id: 'dept-5',
     code: 'EEE',
     name: 'Electrical and Electronics Engineering',
     hodName: 'Dr. Lakshmi Prasad',
@@ -92,7 +81,7 @@ const INITIAL_DEPARTMENTS: Department[] = [
     status: 'Active'
   },
   {
-    id: 'dept-6',
+    id: 'dept-5',
     code: 'MECH',
     name: 'Mechanical and Automobile Engineering',
     hodName: 'Dr. Karthik Iyer',
@@ -103,7 +92,7 @@ const INITIAL_DEPARTMENTS: Department[] = [
     status: 'Active'
   },
   {
-    id: 'dept-7',
+    id: 'dept-6',
     code: 'S&H',
     name: 'Sciences and Humanities (Engineering)',
     hodName: 'Dr. Arun Menon',
@@ -111,6 +100,28 @@ const INITIAL_DEPARTMENTS: Department[] = [
     establishedYear: 2010,
     phone: '+91 80 4012 9106',
     description: 'Applied mathematics, physics, chemistry, and professional communication foundational studies.',
+    status: 'Active'
+  },
+  {
+    id: 'dept-7',
+    code: 'ADSE',
+    name: 'AI and Data Science Engineering',
+    hodName: 'Dr. Rajesh Kumar',
+    hodEmail: 'rajesh.kumar@christuniversity.in',
+    establishedYear: 2021,
+    phone: '+91 80 4012 9100',
+    description: 'Pioneering multidisciplinary artificial intelligence, machine learning, and big data engineering.',
+    status: 'Active'
+  },
+  {
+    id: 'dept-8',
+    code: 'SOA',
+    name: 'School of Architecture',
+    hodName: 'Prof. Meera Nair',
+    hodEmail: 'meera.nair@christuniversity.in',
+    establishedYear: 2017,
+    phone: '+91 80 4012 9107',
+    description: 'Architectural design, urban planning, sustainable built environment, and landscape architecture.',
     status: 'Active'
   }
 ];
@@ -131,6 +142,34 @@ export function DepartmentDetailsPage({ onNavigate, hideSidebar = false }: Depar
   const [viewingDept, setViewingDept] = useState<Department | null>(null);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
+
+  const handleClearAll = async () => {
+    try {
+      setClearLoading(true);
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departments/clear-all`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${user?.token || localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDepartments([]);
+        setIsClearOpen(false);
+      } else {
+        setDepartments([]);
+        setIsClearOpen(false);
+      }
+    } catch (err) {
+      console.error('Error clearing departments:', err);
+      setDepartments([]);
+      setIsClearOpen(false);
+    } finally {
+      setClearLoading(false);
+    }
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -296,6 +335,18 @@ export function DepartmentDetailsPage({ onNavigate, hideSidebar = false }: Depar
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
+              {/* Refresh Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchDepartments}
+                className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl flex items-center gap-2 shadow-sm"
+                title="Refresh Departments"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </Button>
+
               {/* Export Toolbar */}
               <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
                 <Button
@@ -320,6 +371,20 @@ export function DepartmentDetailsPage({ onNavigate, hideSidebar = false }: Depar
                   <span>CSV</span>
                 </Button>
               </div>
+
+              {/* Clear Data Button */}
+              {isAdminOrCoordinator && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsClearOpen(true)}
+                  className="h-9 px-3.5 text-xs font-semibold border-red-200 text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-2 shadow-sm"
+                  title="Clear All Department Records"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Data</span>
+                </Button>
+              )}
 
               {/* Bulk Upload Button */}
               {isAdminOrCoordinator && (
@@ -1008,6 +1073,39 @@ export function DepartmentDetailsPage({ onNavigate, hideSidebar = false }: Depar
         onSuccess={fetchDepartments}
         uploadType="departments"
       />
+
+      {/* Clear Department Records Confirmation Dialog */}
+      <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Clear All Department Records
+            </DialogTitle>
+            <DialogDescription className="py-2 text-slate-600">
+              Are you sure you want to delete all department records? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setIsClearOpen(false)}
+              disabled={clearLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleClearAll}
+              disabled={clearLoading}
+              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+            >
+              {clearLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
+              <span>{clearLoading ? 'Clearing...' : 'Confirm Clear Data'}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

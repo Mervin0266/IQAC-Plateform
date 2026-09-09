@@ -233,3 +233,24 @@ exports.deleteFaculty = async (req, res) => {
     });
   }
 };
+
+// @desc    Clear all faculty records
+// @route   DELETE /api/faculty/clear-all
+// @access  Private (Admin/Coordinator/HOD)
+exports.clearAllFaculty = async (req, res) => {
+  try {
+    const deletedCount = await Faculty.destroy({ where: {} });
+    res.json({
+      success: true,
+      message: `All faculty records (${deletedCount}) cleared successfully`,
+      count: deletedCount
+    });
+  } catch (error) {
+    console.error('Clear all faculty error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+
