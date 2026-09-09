@@ -32,11 +32,15 @@ import {
   ShieldCheck,
   Calendar,
   Layers,
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface FacultyDetailsPageProps {
   onNavigate: (page: string) => void;

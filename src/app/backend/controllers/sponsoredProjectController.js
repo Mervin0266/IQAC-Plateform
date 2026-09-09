@@ -83,7 +83,8 @@ exports.getSponsoredProjects = async (req, res) => {
       include: [{
         model: User,
         as: 'creator',
-        attributes: ['id', 'name', 'email', 'department']
+        attributes: ['id', 'name', 'email', 'department'],
+        required: false
       }],
       order: [
         ['academicYear', 'DESC'],
@@ -207,7 +208,8 @@ exports.getSponsoredProject = async (req, res) => {
       include: [{
         model: User,
         as: 'creator',
-        attributes: ['id', 'name', 'email', 'department']
+        attributes: ['id', 'name', 'email', 'department'],
+        required: false
       }]
     });
 

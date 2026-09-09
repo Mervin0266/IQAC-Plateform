@@ -98,7 +98,7 @@ export function SearchBar({ onNavigate, className = '', placeholder = 'Search' }
   return (
     <div ref={searchRef} className={`relative ${className}`}>
       <div className="relative">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-300" />
+        <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
         <input
           ref={inputRef}
           type="text"
@@ -111,14 +111,14 @@ export function SearchBar({ onNavigate, className = '', placeholder = 'Search' }
             }
           }}
           placeholder={placeholder}
-          className="w-full pl-9 pr-9 py-2 text-sm bg-[#243a7a] text-white placeholder-blue-300 border border-blue-700/30 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+          className="w-full pl-9 pr-9 py-1.5 text-xs bg-white/[0.06] hover:bg-white/[0.09] text-white placeholder-slate-400 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-all duration-150 backdrop-blur-sm shadow-inner"
         />
         {query && (
           <button
             onClick={clearSearch}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-300 hover:text-white transition-colors"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         )}
       </div>

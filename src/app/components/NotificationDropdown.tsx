@@ -86,24 +86,25 @@ export function NotificationDropdown() {
     <div className="relative">
       <button
         onClick={() => setShowNotifications(!showNotifications)}
-        className="p-2 hover:bg-[#3d5bb0] rounded-md transition-colors text-blue-100 relative"
+        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-slate-300 hover:text-white relative"
         title="Notifications"
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse border border-blue-900" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-pulse ring-2 ring-[#0c1638]" />
         )}
       </button>
 
       {showNotifications && (
-        <div className="absolute bottom-12 left-0 w-72 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 text-gray-800 p-3 max-h-96 overflow-y-auto">
+        <div className="absolute bottom-12 left-0 w-72 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-50 text-gray-800 p-3 max-h-96 overflow-y-auto">
           <div className="flex justify-between items-center mb-2 pb-2 border-b border-gray-100">
-            <span className="font-semibold text-xs text-gray-700">
+            <span className="font-semibold text-xs text-gray-700 flex items-center gap-1.5">
+              <Bell className="w-3.5 h-3.5 text-blue-600" />
               Notifications ({unreadCount})
             </span>
             <button
               onClick={() => setShowNotifications(false)}
-              className="text-gray-400 hover:text-gray-600 text-xs"
+              className="text-gray-400 hover:text-gray-600 text-xs px-1.5 py-0.5 rounded hover:bg-gray-100"
             >
               Close
             </button>
@@ -111,17 +112,17 @@ export function NotificationDropdown() {
           {notifications.length === 0 ? (
             <p className="text-xs text-gray-500 text-center py-4">No notifications</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {notifications.map((n) => (
                 <div
                   key={n.id}
                   onClick={() => {
                     if (!n.isRead) markAsRead(n.id);
                   }}
-                  className={`p-2 rounded text-xs transition-colors cursor-pointer text-left ${
+                  className={`p-2.5 rounded-xl text-xs transition-colors cursor-pointer text-left ${
                     n.isRead
-                      ? 'bg-gray-50 text-gray-500'
-                      : 'bg-blue-50 text-blue-900 font-medium hover:bg-blue-100'
+                      ? 'bg-gray-50/80 text-gray-500 hover:bg-gray-100/80'
+                      : 'bg-blue-50 text-blue-900 font-medium hover:bg-blue-100/90 border border-blue-200/50'
                   }`}
                 >
                   <p className="font-semibold text-gray-800">{n.title}</p>

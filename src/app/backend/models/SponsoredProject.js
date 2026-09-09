@@ -110,14 +110,10 @@ const SponsoredProject = sequelize.define('SponsoredProject', {
   },
   createdBy: {
     type: DataTypes.UUID,
-    allowNull: true,
-    references: {
-      model: 'Users',
-      key: 'id'
-    }
+    allowNull: true
   }
 }, {
-  tableName: 'SponsoredProjects',
+  tableName: 'sponsored_projects',
   timestamps: true,
   indexes: [
     { fields: ['department'] },
