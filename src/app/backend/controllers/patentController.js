@@ -4,6 +4,48 @@ const { sequelize } = require('../config/database');
 const { logAction } = require('../middleware/auditLogger');
 const { sendNotification } = require('../middleware/notificationHelper');
 
+let schemaMigrationDone = false;
+const ensurePatentTableSchema = async () => {
+  if (schemaMigrationDone) return;
+  try {
+    await sequelize.query(`
+      DO $$ 
+      BEGIN
+        BEGIN
+          ALTER TABLE "patents" ALTER COLUMN "status" TYPE VARCHAR(100) USING "status"::text;
+          ALTER TABLE "patents" ALTER COLUMN "patentType" TYPE VARCHAR(100) USING "patentType"::text;
+          ALTER TABLE "patents" ALTER COLUMN "academicYear" TYPE VARCHAR(50) USING "academicYear"::text;
+          ALTER TABLE "patents" ALTER COLUMN "department" TYPE VARCHAR(255) USING "department"::text;
+          ALTER TABLE "patents" ALTER COLUMN "approvalStatus" TYPE VARCHAR(50) USING "approvalStatus"::text;
+          ALTER TABLE "patents" ALTER COLUMN "inventors" TYPE TEXT;
+        EXCEPTION WHEN OTHERS THEN
+          NULL;
+        END;
+
+        BEGIN
+          ALTER TABLE "patents" ALTER COLUMN "status" DROP NOT NULL;
+          ALTER TABLE "patents" ALTER COLUMN "patentType" DROP NOT NULL;
+          ALTER TABLE "patents" ALTER COLUMN "academicYear" DROP NOT NULL;
+          ALTER TABLE "patents" ALTER COLUMN "department" DROP NOT NULL;
+          ALTER TABLE "patents" ALTER COLUMN "createdBy" DROP NOT NULL;
+        EXCEPTION WHEN OTHERS THEN
+          NULL;
+        END;
+
+        BEGIN
+          DROP TYPE IF EXISTS "enum_patents_status" CASCADE;
+          DROP TYPE IF EXISTS "enum_patents_patentType" CASCADE;
+        EXCEPTION WHEN OTHERS THEN
+          NULL;
+        END;
+      END $$;
+    `);
+    schemaMigrationDone = true;
+  } catch (err) {
+    console.warn('Patent schema migration error (ignoring):', err.message);
+  }
+};
+
 const sanitizeDate = (val) => {
   if (!val) return null;
   
@@ -90,6 +132,7 @@ const sanitizeAmount = (val) => {
 // @route   GET /api/patents
 // @access  Private / Public (optional)
 exports.getPatents = async (req, res) => {
+  await ensurePatentTableSchema();
   try {
     const {
       status,
@@ -320,16 +363,27 @@ exports.createPatent = async (req, res) => {
     } = req.body;
 
     // Validation for required fields
-    if (!title || !inventors) {
+    const missing = [];
+    if (!title || !String(title).trim()) missing.push('Patent Title');
+    if (!inventors || (Array.isArray(inventors) ? inventors.length === 0 : !String(inventors).trim())) missing.push('Inventor Name(s)');
+
+    if (missing.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields: Patent Title and Inventor Name(s).'
+        message: `Validation Error: Missing required field(s): ${missing.join(', ')}. Please provide all required information before submitting.`,
+        missingFields: missing
       });
     }
 
     const rawInventors = Array.isArray(inventors) ? inventors.join(', ') : String(inventors);
     const assignedDept = department || req.user.department || 'General';
     const assignedYear = academicYear || '2024-2025';
+
+    let creatorId = req.user?.id;
+    if (!creatorId) {
+      const admin = await User.findOne({ where: { role: 'admin' } });
+      creatorId = admin ? admin.id : null;
+    }
 
     const patent = await Patent.create({
       title: title.trim(),
@@ -348,19 +402,25 @@ exports.createPatent = async (req, res) => {
       revenue: sanitizeAmount(revenue),
       patentUrl: patentUrl ? patentUrl.trim() : null,
       description: description ? description.trim() : null,
-      approvalStatus: approvalStatus || (req.user.role === 'admin' ? 'approved' : 'submitted'),
-      createdBy: req.user.id
+      approvalStatus: approvalStatus || (req.user?.role === 'admin' ? 'approved' : 'submitted'),
+      createdBy: creatorId
     });
 
-    await logAction(
-      req.user.id,
-      'CREATE_PATENT',
-      'Patent',
-      patent.id,
-      null,
-      patent.toJSON(),
-      req
-    );
+    try {
+      if (creatorId) {
+        await logAction(
+          creatorId,
+          'CREATE_PATENT',
+          'Patent',
+          patent.id,
+          null,
+          patent.toJSON(),
+          req
+        );
+      }
+    } catch (auditErr) {
+      console.warn('Audit logging failed for create patent (ignoring):', auditErr.message);
+    }
 
     res.status(201).json({
       success: true,
@@ -495,10 +555,26 @@ exports.deletePatent = async (req, res) => {
   }
 };
 
+const extractField = (obj, ...keys) => {
+  if (!obj || typeof obj !== 'object') return '';
+  const objKeys = Object.keys(obj);
+  for (const k of keys) {
+    const cleanTarget = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const ok of objKeys) {
+      const cleanOk = ok.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanOk === cleanTarget && obj[ok] !== undefined && obj[ok] !== null && String(obj[ok]).trim() !== '') {
+        return obj[ok];
+      }
+    }
+  }
+  return '';
+};
+
 // @desc    Bulk Upload Patents (from parsed CSV / Excel)
 // @route   POST /api/patents/bulk
 // @access  Private (Admin, HOD, Coordinator, Faculty)
 exports.bulkUploadPatents = async (req, res) => {
+  await ensurePatentTableSchema();
   const t = await sequelize.transaction();
   try {
     const { items, defaultDepartment, defaultYear } = req.body;
@@ -511,34 +587,99 @@ exports.bulkUploadPatents = async (req, res) => {
       });
     }
 
+    let creatorId = req.user?.id;
+    if (!creatorId) {
+      const admin = await User.findOne({ where: { role: 'admin' } });
+      creatorId = admin ? admin.id : null;
+    }
+
     const validRecords = [];
     const errors = [];
 
     items.forEach((item, index) => {
       const rowNum = index + 1;
-      const title = item.title || item['Title'] || item['Patent Title'] || item['Title of Invention'] || item['Invention Title'] || '';
-      const rawInventors = item.inventors || item['Inventors'] || item['Inventor Name'] || item['Inventor Names'] || item['Authors'] || '';
-      const applicationNo = item.applicationNo || item['Application No'] || item['Application Number'] || item['Application No.'] || '';
-      const patentNo = item.patentNo || item['Patent No'] || item['Patent Number'] || item['Patent No.'] || item['Grant No'] || '';
-      const rawStatus = item.status || item['Status'] || item['Patent Status'] || item['Stage'] || 'Published';
-      const rawType = item.patentType || item['Patent Type'] || item['Type'] || item['Jurisdiction'] || 'National (Indian)';
-      const academicYear = item.academicYear || item['Academic Year'] || item['Year'] || defaultYear || '2024-2025';
-      const department = item.department || item['Department'] || defaultDepartment || req.user?.department || 'General';
-      const filedDate = item.filedDate || item['Filing Date'] || item['Filed Date'] || item['Date of Filing'] || null;
-      const publishedDate = item.publishedDate || item['Publication Date'] || item['Published Date'] || item['Date of Publication'] || null;
-      const grantedDate = item.grantedDate || item['Grant Date'] || item['Granted Date'] || item['Date of Grant'] || null;
-      const licenseDate = item.licenseDate || item['License Date'] || item['Commercialized Date'] || null;
-      const partner = item.partner || item['Partner'] || item['Commercial Partner'] || item['Licensee'] || item['Industry Partner'] || '';
-      const revenue = item.revenue || item['Revenue'] || item['Revenue Generated'] || item['Royalty'] || 0;
-      const patentUrl = item.patentUrl || item['URL'] || item['Patent Link'] || item['Document URL'] || '';
-      const description = item.description || item['Abstract'] || item['Description'] || item['Summary'] || '';
+      const title = extractField(
+        item,
+        'title', 'patentTitle', 'titleOfInvention', 'inventionTitle',
+        'nameOfInvention', 'patentName', 'titleOfPatent', 'nameOfTheInvention',
+        'nameOfProject', 'projectName', 'projectTitle', 'workTitle', 'invention'
+      );
+      const rawInventors = extractField(
+        item,
+        'inventors', 'inventorName', 'inventorNames', 'nameOfInventors',
+        'nameOfTheInventors', 'authors', 'authorName', 'facultyName',
+        'nameOfFaculty', 'faculty', 'investigators', 'investigatorName',
+        'applicant', 'applicants', 'nameOfApplicant'
+      );
+      const applicationNo = extractField(
+        item,
+        'applicationNo', 'applicationNumber', 'appNo', 'appNumber',
+        'applicationId', 'applNo', 'applNumber', 'filingNo', 'filingNumber'
+      );
+      const patentNo = extractField(
+        item,
+        'patentNo', 'patentNumber', 'grantNo', 'grantNumber', 'awardNo', 'patentGrantNo'
+      );
+      const rawStatus = extractField(
+        item,
+        'status', 'patentStatus', 'stage', 'currentStatus', 'filingStatus', 'progressStatus'
+      ) || 'Published';
+      const rawType = extractField(
+        item,
+        'patentType', 'type', 'jurisdiction', 'typeOfPatent', 'category', 'patentCategory'
+      ) || 'National (Indian)';
+      const academicYear = extractField(
+        item,
+        'academicYear', 'year', 'ay', 'period', 'academicSession'
+      ) || defaultYear || '2024-2025';
+      const department = extractField(
+        item,
+        'department', 'dept', 'hostDepartment', 'departmentName', 'school', 'branch'
+      ) || defaultDepartment || req.user?.department || 'General';
+      const filedDate = extractField(
+        item,
+        'filedDate', 'filingDate', 'dateOfFiling', 'applicationDate', 'dateOfApplication'
+      );
+      const publishedDate = extractField(
+        item,
+        'publishedDate', 'publicationDate', 'dateOfPublication', 'dateOfPublishing'
+      );
+      const grantedDate = extractField(
+        item,
+        'grantedDate', 'grantDate', 'dateOfGrant', 'awardDate', 'dateOfAward'
+      );
+      const licenseDate = extractField(
+        item,
+        'licenseDate', 'commercializedDate', 'commercializationDate', 'dateOfCommercialization'
+      );
+      const partner = extractField(
+        item,
+        'partner', 'commercialPartner', 'licensee', 'industryPartner', 'collaboratingIndustry', 'collaborator'
+      );
+      const revenue = extractField(
+        item,
+        'revenue', 'revenueGenerated', 'royalty', 'amount', 'earnings', 'revenueInr', 'revenueInLakhs'
+      );
+      const patentUrl = extractField(
+        item,
+        'patentUrl', 'patentLink', 'url', 'link', 'documentUrl', 'gazetteUrl', 'googlePatentsLink'
+      );
+      const description = extractField(
+        item,
+        'description', 'abstract', 'summary', 'claims', 'briefDescription'
+      );
+
+      // Check if entire row is empty
+      if (!String(title).trim() && !String(rawInventors).trim() && !String(applicationNo).trim() && !String(patentNo).trim()) {
+        return; // silently skip blank row
+      }
 
       if (!String(title).trim()) {
         errors.push(`Row ${rowNum}: Patent Title is required.`);
         return;
       }
       if (!String(rawInventors).trim()) {
-        errors.push(`Row ${rowNum}: Inventor Name(s) is required.`);
+        errors.push(`Row ${rowNum}: Inventor Name(s) are required for "${String(title).trim()}".`);
         return;
       }
 
@@ -591,7 +732,7 @@ exports.bulkUploadPatents = async (req, res) => {
         patentUrl: patentUrl ? String(patentUrl).trim() : null,
         description: description ? String(description).trim() : null,
         approvalStatus: req.user?.role === 'admin' ? 'approved' : 'submitted',
-        createdBy: req.user?.id
+        createdBy: creatorId
       });
     });
 
@@ -599,7 +740,7 @@ exports.bulkUploadPatents = async (req, res) => {
       await t.rollback();
       return res.status(400).json({
         success: false,
-        message: 'No valid patent records found to insert.',
+        message: errors.length > 0 ? errors[0] : 'No valid patent records found to insert.',
         errors
       });
     }
@@ -611,15 +752,21 @@ exports.bulkUploadPatents = async (req, res) => {
 
     await t.commit();
 
-    await logAction(
-      req.user.id,
-      'BULK_UPLOAD_PATENTS',
-      'Patent',
-      null,
-      null,
-      { count: created.length, errorsCount: errors.length },
-      req
-    );
+    try {
+      if (creatorId) {
+        await logAction(
+          creatorId,
+          'BULK_UPLOAD_PATENTS',
+          'Patent',
+          null,
+          null,
+          { count: created.length, errorsCount: errors.length },
+          req
+        );
+      }
+    } catch (auditErr) {
+      console.warn('Audit logging failed for bulk patents (ignoring):', auditErr.message);
+    }
 
     res.status(201).json({
       success: true,
@@ -629,11 +776,17 @@ exports.bulkUploadPatents = async (req, res) => {
       data: created
     });
   } catch (error) {
-    await t.rollback();
+    if (t && !t.finished) {
+      try {
+        await t.rollback();
+      } catch (rbErr) {
+        // ignore rollback errors if already committed
+      }
+    }
     console.error('Bulk upload patents error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to process bulk upload for patents.',
+      message: `Failed to process bulk upload for patents: ${error.message}`,
       error: error.message
     });
   }

@@ -121,6 +121,7 @@ export function PatentsPage({
   const [editingPatent, setEditingPatent] = useState<PatentItem | null>(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+  const [formServerError, setFormServerError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // Bulk Upload Modal
@@ -130,7 +131,6 @@ export function PatentsPage({
   const [bulkErrors, setBulkErrors] = useState<string[]>([]);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkSuccess, setBulkSuccess] = useState('');
-  const [bulkDefaultDept, setBulkDefaultDept] = useState('');
   const [bulkDefaultYear, setBulkDefaultYear] = useState('2024-2025');
 
   // Details Sheet
@@ -249,6 +249,7 @@ export function PatentsPage({
       academicYear: '2024-2025'
     });
     setFormErrors({});
+    setFormServerError('');
     setIsAddModalOpen(true);
   };
 
@@ -274,6 +275,7 @@ export function PatentsPage({
       approvalStatus: patent.approvalStatus || 'approved'
     });
     setFormErrors({});
+    setFormServerError('');
     setIsAddModalOpen(true);
   };
 
@@ -290,6 +292,7 @@ export function PatentsPage({
 
   const handleSavePatent = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormServerError('');
     if (!validateForm()) return;
 
     setSubmitting(true);
@@ -317,13 +320,15 @@ export function PatentsPage({
       const data = await res.json();
       if (data.success) {
         setIsAddModalOpen(false);
+        setFormServerError('');
         setRefreshKey(k => k + 1);
       } else {
-        alert(data.message || 'Failed to save patent');
+        const errorDetails = data.missingFields ? `Missing: ${data.missingFields.join(', ')}` : (data.errors ? data.errors.join(' | ') : '');
+        setFormServerError(`${data.message || 'Failed to save patent record.'}${errorDetails ? ` (${errorDetails})` : ''}`);
       }
     } catch (err: any) {
       console.error('Save patent error:', err);
-      alert('An error occurred while saving the patent record.');
+      setFormServerError('An unexpected network error occurred while communicating with the server.');
     } finally {
       setSubmitting(false);
     }
@@ -376,8 +381,67 @@ export function PatentsPage({
   };
 
   // ----------------------------------------------------
-  // BULK UPLOAD HANDLING (BOTH EXCEL & CSV)
+  // ROBUST BULK UPLOAD HANDLING (EXCEL & CSV)
   // ----------------------------------------------------
+  const extractPatentValue = (row: any, ...aliases: string[]): any => {
+    if (!row || typeof row !== 'object') return '';
+    const rowKeys = Object.keys(row);
+    for (const alias of aliases) {
+      const cleanAlias = alias.toLowerCase().replace(/[^a-z0-9]/g, '');
+      for (const rk of rowKeys) {
+        const cleanRk = rk.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanRk === cleanAlias && row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== '') {
+          return row[rk];
+        }
+      }
+    }
+    return '';
+  };
+
+  const formatPatentDate = (val: any): string | null => {
+    if (!val) return null;
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      return val.toISOString().split('T')[0];
+    }
+    if (typeof val === 'number') {
+      const d = new Date((val - 25569) * 86400 * 1000);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    const lower = str.toLowerCase();
+    if (['n/a', 'na', 'nil', 'null', '-', '--', 'pending', 'under examination', 'not applicable', 'none', 'tbd', 'ongoing'].includes(lower)) {
+      return null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+    const parts = str.split(/[\/\-\.]/);
+    if (parts.length === 3) {
+      let p1 = parts[0].trim();
+      let p2 = parts[1].trim();
+      let p3 = parts[2].trim();
+      if (p1.length === 4) {
+        return `${p1}-${p2.padStart(2, '0')}-${p3.padStart(2, '0')}`;
+      }
+      let day = p1.padStart(2, '0');
+      let month = p2.padStart(2, '0');
+      let year = p3.length === 2 ? '20' + p3 : p3;
+      const m = parseInt(month, 10);
+      const d = parseInt(day, 10);
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${year}-${month}-${day}`;
+      }
+    }
+    if (/^\d{4}$/.test(str)) return `${str}-01-01`;
+
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const iso = d.toISOString().split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+    }
+    return null;
+  };
+
   const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -398,41 +462,100 @@ export function PatentsPage({
         const buffer = event.target?.result;
         if (!buffer) return;
 
-        let parsedRows: any[] = [];
-        if (lower.endsWith('.csv')) {
-          const text = new TextDecoder('utf-8').decode(buffer as ArrayBuffer);
-          const workbook = XLSX.read(text, { type: 'string' });
-          const sheetName = workbook.SheetNames[0];
-          parsedRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
-        } else {
-          const workbook = XLSX.read(buffer, { type: 'array' });
-          const sheetName = workbook.SheetNames[0];
-          parsedRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
-        }
+        const workbook = XLSX.read(new Uint8Array(buffer as ArrayBuffer), {
+          type: 'array',
+          cellDates: true,
+          dateNF: 'yyyy-mm-dd'
+        });
+        const sheetName = workbook.SheetNames[0];
+        const rawParsedRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
 
-        if (parsedRows.length === 0) {
+        if (rawParsedRows.length === 0) {
           setBulkErrors(['The uploaded file contains no data rows.']);
           setBulkPreview([]);
           return;
         }
 
         const errors: string[] = [];
-        const validated = parsedRows.map((row: any, idx: number) => {
-          const title = row['Title'] || row['Patent Title'] || row['Title of Invention'] || row['title'] || '';
-          const rawInventors = row['Inventors'] || row['Inventor Name'] || row['Inventor Names'] || row['Authors'] || row['inventors'] || '';
-          const applicationNo = row['Application No'] || row['Application Number'] || row['Application No.'] || row['applicationNo'] || '';
-          const patentNo = row['Patent No'] || row['Patent Number'] || row['Patent No.'] || row['patentNo'] || '';
-          const rawStatus = row['Status'] || row['Patent Status'] || row['Stage'] || row['status'] || 'Published';
-          const rawType = row['Patent Type'] || row['Type'] || row['Jurisdiction'] || row['patentType'] || 'National (Indian)';
-          const academicYear = row['Academic Year'] || row['Year'] || row['academicYear'] || bulkDefaultYear || '2024-2025';
-          const department = row['Department'] || row['department'] || bulkDefaultDept || '';
-          const filedDate = row['Filing Date'] || row['Filed Date'] || row['Date of Filing'] || row['filedDate'] || '';
-          const publishedDate = row['Publication Date'] || row['Published Date'] || row['Date of Publication'] || row['publishedDate'] || '';
-          const grantedDate = row['Grant Date'] || row['Granted Date'] || row['Date of Grant'] || row['grantedDate'] || '';
-          const partner = row['Commercial Partner'] || row['Partner'] || row['Licensee'] || row['partner'] || '';
-          const revenue = row['Revenue'] || row['Revenue Generated'] || row['Royalty'] || row['revenue'] || 0;
-          const patentUrl = row['URL'] || row['Patent Link'] || row['Document URL'] || row['patentUrl'] || '';
-          const description = row['Abstract'] || row['Description'] || row['Summary'] || row['description'] || '';
+        const validated: any[] = [];
+
+        rawParsedRows.forEach((row: any, idx: number) => {
+          const title = extractPatentValue(
+            row,
+            'Title', 'Patent Title', 'Title of Invention', 'Invention Title',
+            'Name of Invention', 'Patent Name', 'Title of Patent', 'Name of Project',
+            'Project Title', 'Invention', 'Work Title'
+          );
+          const rawInventors = extractPatentValue(
+            row,
+            'Inventors', 'Inventor Name', 'Inventor Names', 'Name of Inventors',
+            'Name of the Inventors', 'Authors', 'Author Name', 'Faculty Name',
+            'Name of Faculty', 'Faculty', 'Investigators', 'Investigator Name',
+            'Applicant', 'Applicants'
+          );
+          const applicationNo = extractPatentValue(
+            row,
+            'Application No', 'Application Number', 'App No', 'Application No.',
+            'Application Id', 'Appl No', 'Filing Number', 'Filing No'
+          );
+          const patentNo = extractPatentValue(
+            row,
+            'Patent No', 'Patent Number', 'Grant No', 'Grant Number', 'Patent No.',
+            'Award No', 'Patent Grant No'
+          );
+          const rawStatus = extractPatentValue(
+            row,
+            'Status', 'Patent Status', 'Stage', 'Current Status', 'Filing Status'
+          ) || 'Published';
+          const rawType = extractPatentValue(
+            row,
+            'Patent Type', 'Type', 'Jurisdiction', 'Type of Patent', 'Category', 'Patent Category'
+          ) || 'National (Indian)';
+          const rawDept = extractPatentValue(
+            row,
+            'Department', 'Dept', 'Host Department', 'Department Name', 'School', 'Branch'
+          ) || user?.department || 'General';
+          const rawYear = extractPatentValue(
+            row,
+            'Academic Year', 'Year', 'AY', 'Period', 'Session'
+          ) || bulkDefaultYear || '2024-2025';
+          const filedDate = extractPatentValue(
+            row,
+            'Filing Date', 'Filed Date', 'Date of Filing', 'Application Date', 'Date of Application'
+          );
+          const publishedDate = extractPatentValue(
+            row,
+            'Publication Date', 'Published Date', 'Date of Publication', 'Date of Publishing'
+          );
+          const grantedDate = extractPatentValue(
+            row,
+            'Grant Date', 'Granted Date', 'Date of Grant', 'Award Date', 'Date of Award'
+          );
+          const licenseDate = extractPatentValue(
+            row,
+            'License Date', 'Commercialized Date', 'Commercialization Date', 'Date of Commercialization'
+          );
+          const partner = extractPatentValue(
+            row,
+            'Commercial Partner', 'Partner', 'Industry Partner', 'Licensee', 'Collaborating Industry', 'Collaborator'
+          );
+          const rawRevenue = extractPatentValue(
+            row,
+            'Revenue', 'Revenue Generated', 'Royalty', 'Amount', 'Earnings', 'Revenue (INR)', 'Revenue Generated (INR)'
+          );
+          const patentUrl = extractPatentValue(
+            row,
+            'Patent Link', 'Patent URL', 'URL', 'Link', 'Document URL', 'Gazette URL', 'Google Patents Link'
+          );
+          const description = extractPatentValue(
+            row,
+            'Abstract', 'Description', 'Summary', 'Claims', 'Brief Description'
+          );
+
+          // Skip completely empty rows
+          if (!String(title).trim() && !String(rawInventors).trim() && !String(applicationNo).trim() && !String(patentNo).trim()) {
+            return;
+          }
 
           const rowNum = idx + 1;
           const missing: string[] = [];
@@ -471,26 +594,36 @@ export function PatentsPage({
           }
 
           const inventorsStr = Array.isArray(rawInventors) ? rawInventors.join(', ') : String(rawInventors);
+          const normalizedDept = rawDept ? normalizeDepartmentName(String(rawDept)) : (user?.department || 'General');
+          const revenueNum = typeof rawRevenue === 'number' ? (isNaN(rawRevenue) ? 0 : rawRevenue) : parseFloat(String(rawRevenue).replace(/[^0-9.]/g, '')) || 0;
 
-          return {
+          validated.push({
             title: String(title).trim(),
             inventors: inventorsStr.trim(),
             applicationNo: applicationNo ? String(applicationNo).trim() : null,
             patentNo: patentNo ? String(patentNo).trim() : null,
             status: normalizedStatus,
             patentType: normalizedType,
-            department: String(department).trim(),
-            academicYear: String(academicYear).trim(),
-            filedDate: filedDate ? String(filedDate).trim() : null,
-            publishedDate: publishedDate ? String(publishedDate).trim() : null,
-            grantedDate: grantedDate ? String(grantedDate).trim() : null,
+            department: normalizedDept,
+            academicYear: String(rawYear).trim(),
+            filedDate: formatPatentDate(filedDate),
+            publishedDate: formatPatentDate(publishedDate),
+            grantedDate: formatPatentDate(grantedDate),
+            licenseDate: formatPatentDate(licenseDate),
             partner: partner ? String(partner).trim() : null,
-            revenue: revenue ? parseFloat(String(revenue).replace(/[^0-9.]/g, '')) || 0 : 0,
+            revenue: revenueNum,
             patentUrl: patentUrl ? String(patentUrl).trim() : null,
             description: description ? String(description).trim() : null,
-            isValid: missing.length === 0
-          };
+            isValid: missing.length === 0,
+            missingFields: missing
+          });
         });
+
+        if (validated.length === 0) {
+          setBulkErrors(['No valid data rows found in the uploaded file.']);
+          setBulkPreview([]);
+          return;
+        }
 
         setBulkPreview(validated);
         setBulkErrors(errors);
@@ -516,7 +649,6 @@ export function PatentsPage({
         },
         body: JSON.stringify({
           items: bulkPreview,
-          defaultDepartment: bulkDefaultDept,
           defaultYear: bulkDefaultYear
         })
       });
@@ -554,9 +686,10 @@ export function PatentsPage({
       'Filing Date',
       'Publication Date',
       'Grant Date',
+      'License Date',
       'Commercial Partner',
-      'Revenue',
-      'URL',
+      'Revenue (INR)',
+      'Patent Link',
       'Abstract'
     ];
 
@@ -573,6 +706,7 @@ export function PatentsPage({
         '2023-04-12',
         '2023-10-15',
         '2024-05-20',
+        '2024-08-01',
         'AgriTech Automation Solutions Pvt. Ltd.',
         '450000',
         'https://ipindiaservices.gov.in',
@@ -590,6 +724,7 @@ export function PatentsPage({
         '2022-08-10',
         '2023-02-14',
         '2023-11-28',
+        '2024-02-15',
         'Qualcomm Technologies Inc. (Global Licensing)',
         '1250000',
         'https://patents.google.com',
@@ -1245,13 +1380,26 @@ export function PatentsPage({
           </DialogHeader>
 
           <form onSubmit={handleSavePatent} className="p-5 space-y-4 text-xs">
+            {formServerError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-bold text-red-800">Submission Error</p>
+                  <p className="text-[11px] leading-relaxed">{formServerError}</p>
+                </div>
+              </div>
+            )}
+
             {/* Title */}
             <div className="space-y-1.5">
               <Label className="font-semibold text-gray-700">Title of Invention / Patent *</Label>
               <Input
                 placeholder="e.g. IoT-Based Edge Computational Device for Agricultural Sensing"
                 value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, title: e.target.value });
+                  if (formErrors.title) setFormErrors({ ...formErrors, title: '' });
+                }}
                 className={`h-9 text-xs border-gray-200 focus-visible:ring-[#2f4692] ${
                   formErrors.title ? 'border-red-500 bg-red-50/20' : ''
                 }`}
@@ -1267,7 +1415,10 @@ export function PatentsPage({
               <Input
                 placeholder="e.g. Dr. Rajesh Kumar, Dr. Priya Sharma, Dr. Anand V"
                 value={formData.inventors}
-                onChange={(e) => setFormData({ ...formData, inventors: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, inventors: e.target.value });
+                  if (formErrors.inventors) setFormErrors({ ...formErrors, inventors: '' });
+                }}
                 className={`h-9 text-xs border-gray-200 focus-visible:ring-[#2f4692] ${
                   formErrors.inventors ? 'border-red-500 bg-red-50/20' : ''
                 }`}
@@ -1490,70 +1641,87 @@ export function PatentsPage({
       {/* ---------------------------------------------------- */}
       {/* BULK UPLOAD MODAL (EXCEL & CSV) */}
       {/* ---------------------------------------------------- */}
+      {/* ---------------------------------------------------- */}
+      {/* BULK UPLOAD MODAL (EXCEL & CSV) - REDESIGNED */}
+      {/* ---------------------------------------------------- */}
       <Dialog open={isBulkOpen} onOpenChange={setIsBulkOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
-          <DialogHeader className="p-5 pb-3 border-b border-gray-100 bg-gray-50/50">
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <Upload className="w-5 h-5 text-[#2f4692]" />
-              Bulk Upload Patents (Excel & CSV)
-            </DialogTitle>
-            <DialogDescription className="text-xs text-gray-500">
-              Upload multi-row patent spreadsheets (.xlsx, .xls, .csv). Required columns: Title, Inventors.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="p-5 space-y-5 text-xs">
-            {/* Step 1: Download Templates */}
-            <div className="p-3.5 bg-blue-50/60 rounded-lg border border-blue-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <p className="font-semibold text-blue-900">Need the template format?</p>
-                <p className="text-[11px] text-blue-700 mt-0.5">
-                  Download a pre-formatted template with sample patent rows and column structure.
-                </p>
+        <DialogContent className="sm:max-w-4xl max-w-[95vw] max-h-[90vh] overflow-hidden p-0 rounded-2xl border border-slate-200 shadow-2xl bg-white flex flex-col">
+          {/* Header */}
+          <DialogHeader className="p-5 px-6 border-b border-slate-100 bg-gradient-to-r from-[#1b2b5a] via-[#2f4692] to-[#3b57af] text-white flex flex-row items-center justify-between space-y-0">
+            <div className="flex items-center gap-3 text-left">
+              <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-inner">
+                <Upload className="w-5 h-5 text-white" />
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDownloadTemplate('xlsx')}
-                  className="text-xs bg-white border-blue-200 text-blue-800 hover:bg-blue-50"
-                >
-                  <Download className="w-3.5 h-3.5 mr-1 text-green-600" />
-                  Excel Template (.xlsx)
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDownloadTemplate('csv')}
-                  className="text-xs bg-white border-blue-200 text-blue-800 hover:bg-blue-50"
-                >
-                  <Download className="w-3.5 h-3.5 mr-1 text-blue-600" />
-                  CSV Template (.csv)
-                </Button>
+              <div>
+                <DialogTitle className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                  Bulk Upload Patents & Intellectual Property
+                </DialogTitle>
+                <DialogDescription className="text-xs text-blue-100/90 mt-0.5">
+                  Import multi-row spreadsheets (.xlsx, .xls, .csv). Department is auto-extracted from each row.
+                </DialogDescription>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsBulkOpen(false)}
+              className="rounded-lg p-1.5 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </DialogHeader>
 
-            {/* Step 2: Defaults selection */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Default Department (if blank in file)</Label>
-                <Select value={bulkDefaultDept} onValueChange={setBulkDefaultDept}>
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Select Default Department" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-56">
-                    {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {/* Body Content */}
+          <div className="p-6 space-y-5 text-xs overflow-y-auto max-h-[calc(90vh-140px)]">
+            {/* Top Config Row: Templates & Academic Year */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Card 1: Templates Download */}
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 flex flex-col justify-between space-y-3">
+                <div className="flex items-center gap-2 text-slate-800 font-semibold">
+                  <FileText className="w-4 h-4 text-[#2f4692]" />
+                  <span>Download Sample Template</span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Pre-formatted columns including Title, Inventors, Application No, Department, Dates & Revenue.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadTemplate('xlsx')}
+                    className="flex-1 h-8 text-xs bg-white border-slate-200 hover:border-green-400 hover:bg-green-50/40 text-slate-700 shadow-sm"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5 text-green-600" />
+                    Excel (.xlsx)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadTemplate('csv')}
+                    className="flex-1 h-8 text-xs bg-white border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 text-slate-700 shadow-sm"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+                    CSV (.csv)
+                  </Button>
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Default Academic Year (if blank in file)</Label>
+              {/* Card 2: Academic Year Configuration */}
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 flex flex-col justify-between space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-800 font-semibold">
+                    <Calendar className="w-4 h-4 text-[#2f4692]" />
+                    <span>Default Academic Year</span>
+                  </div>
+                  <span className="text-[10px] bg-blue-100 text-[#2f4692] px-2 py-0.5 rounded-full font-semibold">
+                    Fallback
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Applied to records in your file that do not explicitly specify an academic year.
+                </p>
                 <Select value={bulkDefaultYear} onValueChange={setBulkDefaultYear}>
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Select Default Year" />
+                  <SelectTrigger className="h-8 text-xs border-slate-200 bg-white shadow-sm font-medium">
+                    <SelectValue placeholder="Select Academic Year" />
                   </SelectTrigger>
                   <SelectContent>
                     {academicYears.map((yr) => (
@@ -1564,43 +1732,77 @@ export function PatentsPage({
               </div>
             </div>
 
-            {/* Step 3: File Drop / Select */}
-            <div className="border-2 border-dashed border-gray-300 hover:border-[#2f4692] rounded-xl p-6 text-center transition-colors bg-gray-50/50">
-              <Upload className="w-8 h-8 text-[#2f4692] mx-auto mb-2" />
-              <p className="text-xs font-semibold text-gray-700">
-                {bulkFile ? bulkFile.name : 'Select or drag your .xlsx, .xls, or .csv file here'}
-              </p>
-              <p className="text-[11px] text-gray-400 mt-1">
-                Maximum file size: 10MB
-              </p>
-              <label className="mt-3 inline-block">
-                <input
-                  type="file"
-                  accept=".csv, .xlsx, .xls"
-                  onChange={handleBulkFileSelect}
-                  className="hidden"
-                />
-                <span className="px-4 py-1.5 bg-[#2f4692] text-white rounded-md text-xs font-semibold cursor-pointer hover:bg-[#243877] shadow-sm inline-block">
-                  Browse File
-                </span>
-              </label>
+            {/* Dropzone Card */}
+            <div className="p-5 border-2 border-dashed border-slate-300 hover:border-[#2f4692] rounded-2xl text-center transition-all bg-slate-50/40 hover:bg-blue-50/10 relative group">
+              <input
+                type="file"
+                accept=".csv, .xlsx, .xls"
+                onChange={handleBulkFileSelect}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+              />
+              {bulkFile ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-12 h-12 rounded-2xl bg-green-50 text-green-600 border border-green-200 flex items-center justify-center shadow-sm">
+                    <CheckCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{bulkFile.name}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {(bulkFile.size / 1024).toFixed(1)} KB • {bulkPreview.length} rows parsed
+                    </p>
+                  </div>
+                  <span className="mt-1 px-3 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold shadow-sm border border-slate-200 cursor-pointer">
+                    Replace Spreadsheet
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#2f4692] border border-blue-100 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      Drag and drop your spreadsheet here, or click to browse
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Supports Excel files (.xlsx, .xls) and standard CSV (.csv) up to 10MB
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="px-3.5 py-1.5 bg-[#2f4692] text-white rounded-lg text-xs font-semibold shadow-sm group-hover:bg-[#243877] transition-colors">
+                      Select Spreadsheet
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Validation errors */}
+            {/* Validation Issues Alert */}
             {bulkErrors.length > 0 && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs space-y-1 max-h-36 overflow-y-auto">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <AlertCircle className="w-4 h-4 text-red-600" />
-                  <span>Validation Warnings ({bulkErrors.length})</span>
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs space-y-2 max-h-48 overflow-y-auto shadow-sm">
+                <div className="flex items-center gap-2 font-bold text-red-900">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>Validation Issues Detected ({bulkErrors.length})</span>
                 </div>
-                {bulkErrors.map((err, idx) => (
-                  <p key={idx} className="text-[11px] ml-5">• {err}</p>
-                ))}
+                <p className="text-[11px] text-red-700">
+                  The following issues were identified in the uploaded file:
+                </p>
+                <div className="space-y-1 bg-white/80 p-2.5 rounded-lg border border-red-150">
+                  {bulkErrors.map((err, idx) => (
+                    <div key={idx} className="text-[11px] text-red-700 flex items-start gap-1.5 font-mono">
+                      <span className="text-red-500 font-bold">•</span>
+                      <span>{err}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500 italic mt-1">
+                  Tip: Every valid patent row requires a <strong>Title</strong> and <strong>Inventor Name(s)</strong>.
+                </p>
               </div>
             )}
 
             {bulkSuccess && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-xs flex items-center gap-2">
+              <div className="p-3.5 bg-green-50 border border-green-200 rounded-xl text-green-800 text-xs flex items-center gap-2.5 shadow-sm">
                 <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
                 <span className="font-semibold">{bulkSuccess}</span>
               </div>
@@ -1608,45 +1810,79 @@ export function PatentsPage({
 
             {/* Preview Table */}
             {bulkPreview.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between">
-                  <p className="font-bold text-gray-800">
-                    Preview Data ({bulkPreview.length} records parsed)
-                  </p>
-                  <span className="text-[11px] text-gray-500">
-                    {bulkPreview.filter(r => r.isValid).length} valid records ready
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                      Live Data Preview
+                    </p>
+                    <span className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono">
+                      {bulkPreview.length} records
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className="text-green-700 font-medium bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                      ✓ {bulkPreview.filter(r => r.isValid).length} ready
+                    </span>
+                    {bulkPreview.some(r => !r.isValid) && (
+                      <span className="text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                        ⚠ {bulkPreview.filter(r => !r.isValid).length} need attention
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="border border-gray-200 rounded-lg max-h-56 overflow-y-auto overflow-x-auto">
-                  <table className="w-full text-left text-[11px] border-collapse">
-                    <thead className="bg-gray-100 text-gray-700 sticky top-0">
+                <div className="border border-slate-200 rounded-xl max-h-56 overflow-y-auto overflow-x-auto shadow-sm bg-white">
+                  <table className="w-full text-left text-[11px] border-collapse min-w-[700px]">
+                    <thead className="bg-slate-100/90 text-slate-700 sticky top-0 z-10 border-b border-slate-200">
                       <tr>
-                        <th className="p-2 pl-3">#</th>
-                        <th className="p-2">Title</th>
-                        <th className="p-2">Inventors</th>
-                        <th className="p-2">Status</th>
-                        <th className="p-2">Type</th>
-                        <th className="p-2">Year</th>
-                        <th className="p-2">Status</th>
+                        <th className="p-2.5 pl-3 font-semibold w-10">#</th>
+                        <th className="p-2.5 font-semibold min-w-[200px]">Patent Title</th>
+                        <th className="p-2.5 font-semibold min-w-[150px]">Inventors</th>
+                        <th className="p-2.5 font-semibold min-w-[140px]">Department (From File)</th>
+                        <th className="p-2.5 font-semibold w-24">Status</th>
+                        <th className="p-2.5 font-semibold w-24">Academic Year</th>
+                        <th className="p-2.5 font-semibold w-28 text-right pr-3">Validation</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {bulkPreview.slice(0, 50).map((row, idx) => (
-                        <tr key={idx} className={row.isValid ? 'hover:bg-gray-50' : 'bg-red-50/30'}>
-                          <td className="p-2 pl-3 text-gray-400 font-mono">{idx + 1}</td>
-                          <td className="p-2 font-medium text-gray-800 max-w-[200px] truncate" title={row.title}>{row.title || '-'}</td>
-                          <td className="p-2 text-gray-700 max-w-[150px] truncate">{row.inventors || '-'}</td>
-                          <td className="p-2 font-semibold capitalize text-blue-700">{row.status}</td>
-                          <td className="p-2">{row.patentType || 'National (Indian)'}</td>
-                          <td className="p-2">{row.academicYear || '-'}</td>
-                          <td className="p-2">
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {bulkPreview.map((row, idx) => (
+                        <tr key={idx} className={row.isValid ? 'hover:bg-slate-50/80 transition-colors' : 'bg-red-50/40 hover:bg-red-50/60 transition-colors'}>
+                          <td className="p-2.5 pl-3 text-slate-400 font-mono">{idx + 1}</td>
+                          <td className="p-2.5 font-medium max-w-[220px]">
+                            {row.title ? (
+                              <span className="text-slate-800 truncate block" title={row.title}>{row.title}</span>
+                            ) : (
+                              <span className="text-red-600 font-bold bg-red-100 px-1.5 py-0.5 rounded border border-red-200 inline-block text-[10px]">
+                                ⚠ Missing Title
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2.5 max-w-[180px]">
+                            {row.inventors ? (
+                              <span className="text-slate-700 truncate block" title={row.inventors}>{row.inventors}</span>
+                            ) : (
+                              <span className="text-red-600 font-bold bg-red-100 px-1.5 py-0.5 rounded border border-red-200 inline-block text-[10px]">
+                                ⚠ Missing Inventors
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2.5 max-w-[160px]">
+                            <span className="text-slate-700 truncate block font-medium" title={row.department || 'General'}>
+                              {row.department || 'General'}
+                            </span>
+                          </td>
+                          <td className="p-2.5 font-medium capitalize text-blue-700">{row.status}</td>
+                          <td className="p-2.5 text-slate-600 font-mono">{row.academicYear || '-'}</td>
+                          <td className="p-2.5 text-right pr-3">
                             {row.isValid ? (
-                              <span className="text-green-600 flex items-center gap-1 font-semibold">
+                              <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full font-semibold text-[10px]">
                                 <Check className="w-3 h-3" /> Valid
                               </span>
                             ) : (
-                              <span className="text-red-500 font-semibold">Incomplete</span>
+                              <span className="inline-flex items-center gap-1 text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded-full font-semibold text-[10px]">
+                                ⚠ {row.missingFields?.join(', ')}
+                              </span>
                             )}
                           </td>
                         </tr>
@@ -1658,25 +1894,36 @@ export function PatentsPage({
             )}
           </div>
 
-          <DialogFooter className="p-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsBulkOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={bulkLoading || bulkPreview.length === 0}
-              onClick={handleExecuteBulkUpload}
-              className="bg-[#2f4692] text-white hover:bg-[#243877] px-5"
-            >
-              {bulkLoading ? 'Uploading...' : `Upload ${bulkPreview.filter(r => r.isValid).length} Records`}
-            </Button>
-          </DialogFooter>
+          {/* Footer */}
+          <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3">
+            <div className="text-[11px] text-slate-500">
+              {bulkPreview.length > 0 && (
+                <span>
+                  <strong>{bulkPreview.filter(r => r.isValid).length}</strong> of <strong>{bulkPreview.length}</strong> records ready to import
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsBulkOpen(false)}
+                className="h-9 px-4 text-xs border-slate-200 text-slate-700 hover:bg-slate-100"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={bulkLoading || bulkPreview.length === 0 || bulkPreview.filter(r => r.isValid).length === 0}
+                onClick={handleExecuteBulkUpload}
+                className="h-9 bg-gradient-to-r from-[#1b2b5a] to-[#2f4692] hover:from-[#15234a] hover:to-[#243877] text-white px-5 text-xs font-semibold shadow-md shadow-blue-900/10"
+              >
+                {bulkLoading ? 'Uploading...' : `Upload ${bulkPreview.filter(r => r.isValid).length} Patent Records`}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

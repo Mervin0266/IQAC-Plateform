@@ -783,7 +783,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         );
       }));
     } else if (isPatent) {
-      missing = PATENTS_REQUIRED.filter(field => !headers.some(h => h.toLowerCase().trim() === field.toLowerCase().trim() || (field === 'Title' && h.toLowerCase().includes('title')) || (field === 'Inventors' && (h.toLowerCase().includes('inventor') || h.toLowerCase().includes('author')))));
+      missing = PATENTS_REQUIRED.filter(field => !headers.some(h => {
+        const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (field === 'Title') {
+          return cleanH.includes('title') || cleanH.includes('invention') || cleanH.includes('patent') || cleanH.includes('project');
+        }
+        if (field === 'Inventors') {
+          return cleanH.includes('inventor') || cleanH.includes('author') || cleanH.includes('faculty') || cleanH.includes('investigator') || cleanH.includes('applicant');
+        }
+        return cleanH === field.toLowerCase().replace(/[^a-z0-9]/g, '');
+      }));
     } else if (isPublication) {
       missing = PUBLICATIONS_REQUIRED.filter(field => !headers.some(h => h.toLowerCase().trim() === field.toLowerCase().trim() || (field === 'Title' && h.toLowerCase().includes('title')) || (field === 'Author Name' && (h.toLowerCase().includes('author') || h.toLowerCase().includes('participants'))) || (field === 'Journal Name' && (h.toLowerCase().includes('journal') || h.toLowerCase().includes('organization') || h.toLowerCase().includes('publisher')))));
     } else {
@@ -996,15 +1005,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             }
           } else if (isPatent) {
             const lh = header.toLowerCase().trim();
-            if (lh.includes('title')) {
+            const clh = lh.replace(/[^a-z0-9]/g, '');
+            if (clh.includes('title') || clh.includes('invention') || clh.includes('patentname')) {
               record['title'] = val;
-            } else if (lh.includes('inventor') || lh.includes('author')) {
+            } else if (clh.includes('inventor') || clh.includes('author') || clh.includes('faculty') || clh.includes('investigator') || clh.includes('applicant')) {
               record['inventors'] = val;
-            } else if (lh.includes('application') || lh === 'app no' || lh === 'appno' || lh === 'applicationno') {
+            } else if (clh.includes('application') || clh.includes('appno') || clh.includes('applno') || clh.includes('filingno')) {
               record['applicationNo'] = val;
-            } else if (lh.includes('patent no') || lh === 'patentno' || lh === 'grant no' || lh === 'patent number') {
+            } else if (clh.includes('patentno') || clh.includes('grantno') || clh.includes('awardno') || clh.includes('patentnumber')) {
               record['patentNo'] = val;
-            } else if (lh === 'status' || lh === 'stage' || lh.includes('patent status')) {
+            } else if (clh.includes('status') || clh.includes('stage')) {
               const sl = (val || '').toLowerCase().trim();
               if (sl.includes('grant')) record['status'] = 'granted';
               else if (sl.includes('publish')) record['status'] = 'published';
@@ -1012,27 +1022,27 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               else if (sl.includes('exam')) record['status'] = 'under_examination';
               else if (sl.includes('file') || sl.includes('submit')) record['status'] = 'filed';
               else record['status'] = val || 'published';
-            } else if (lh.includes('type') || lh.includes('jurisdiction')) {
+            } else if (clh.includes('type') || clh.includes('jurisdiction') || clh.includes('category')) {
               record['patentType'] = val || 'National (Indian)';
-            } else if (lh.includes('department')) {
+            } else if (clh.includes('dept') || clh.includes('department') || clh.includes('school')) {
               record['department'] = val;
-            } else if (lh.includes('academic year') || lh === 'year') {
+            } else if (clh.includes('year') || clh.includes('ay') || clh.includes('period') || clh.includes('session')) {
               record['academicYear'] = val;
-            } else if (lh.includes('file') || lh.includes('filing')) {
+            } else if (clh.includes('filing') || clh.includes('filedate') || clh.includes('dateoffiling') || clh.includes('applicationdate')) {
               record['filedDate'] = formatDateToISO(val);
-            } else if (lh.includes('publish') || lh.includes('publication')) {
+            } else if (clh.includes('publish') || clh.includes('publication') || clh.includes('dateofpub')) {
               record['publishedDate'] = formatDateToISO(val);
-            } else if (lh.includes('grant')) {
+            } else if (clh.includes('grant') || clh.includes('dateofgrant') || clh.includes('awarddate')) {
               record['grantedDate'] = formatDateToISO(val);
-            } else if (lh.includes('licens')) {
+            } else if (clh.includes('licens') || clh.includes('commercial')) {
               record['licenseDate'] = formatDateToISO(val);
-            } else if (lh.includes('partner') || lh.includes('commercial partner') || lh.includes('industry')) {
+            } else if (clh.includes('partner') || clh.includes('licensee') || clh.includes('industry') || clh.includes('collaborat')) {
               record['partner'] = val;
-            } else if (lh.includes('revenue') || lh.includes('royalt') || lh.includes('amount') || lh.includes('earning')) {
+            } else if (clh.includes('revenue') || clh.includes('royalt') || clh.includes('amount') || clh.includes('earning')) {
               record['revenue'] = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
-            } else if (lh.includes('url') || lh.includes('link')) {
+            } else if (clh.includes('url') || clh.includes('link') || clh.includes('gazette')) {
               record['patentUrl'] = val;
-            } else if (lh.includes('abstract') || lh.includes('description') || lh.includes('summary')) {
+            } else if (clh.includes('abstract') || clh.includes('desc') || clh.includes('summary') || clh.includes('claim')) {
               record['description'] = val;
             } else {
               record[header] = val;

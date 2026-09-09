@@ -18,7 +18,11 @@ const autoSeed = async (sequelize) => {
           END;
 
           BEGIN
-            ALTER TABLE "patents" ALTER COLUMN "approvalStatus" TYPE VARCHAR(50);
+            ALTER TABLE "patents" ALTER COLUMN "status" TYPE VARCHAR(100) USING "status"::text;
+            ALTER TABLE "patents" ALTER COLUMN "patentType" TYPE VARCHAR(100) USING "patentType"::text;
+            ALTER TABLE "patents" ALTER COLUMN "academicYear" TYPE VARCHAR(50) USING "academicYear"::text;
+            ALTER TABLE "patents" ALTER COLUMN "department" TYPE VARCHAR(255) USING "department"::text;
+            ALTER TABLE "patents" ALTER COLUMN "approvalStatus" TYPE VARCHAR(50) USING "approvalStatus"::text;
           EXCEPTION WHEN OTHERS THEN
             NULL;
           END;
@@ -36,6 +40,10 @@ const autoSeed = async (sequelize) => {
             ALTER TABLE "patents" ALTER COLUMN "patentUrl" DROP NOT NULL;
             ALTER TABLE "patents" ALTER COLUMN "description" DROP NOT NULL;
             ALTER TABLE "patents" ALTER COLUMN "approvalStatus" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "createdBy" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "patentType" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "academicYear" DROP NOT NULL;
+            ALTER TABLE "patents" ALTER COLUMN "status" DROP NOT NULL;
           EXCEPTION WHEN OTHERS THEN
             NULL;
           END;

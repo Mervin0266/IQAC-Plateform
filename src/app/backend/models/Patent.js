@@ -88,7 +88,7 @@ const Patent = sequelize.define('Patent', {
   },
   createdBy: {
     type: DataTypes.UUID,
-    allowNull: false
+    allowNull: true
   }
 }, {
   tableName: 'patents',
