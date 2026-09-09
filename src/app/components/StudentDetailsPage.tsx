@@ -405,7 +405,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar currentPage="student-details" onNavigate={onNavigate} />
 
-      <main className="ml-64 flex-1 p-8">
+      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
         <div className="max-w-7xl mx-auto space-y-6">
           
           {/* Header Bar */}

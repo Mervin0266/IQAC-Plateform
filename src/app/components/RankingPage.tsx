@@ -539,8 +539,8 @@ export function RankingPage({
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar currentPage={currentPage} onNavigate={onNavigate} />
 
-      <div className="flex-1 ml-64 p-8">
-        <main className="max-w-7xl mx-auto space-y-6">
+      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
+        <div className="max-w-7xl mx-auto space-y-6">
           
           {/* Top Page Banner */}
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
@@ -1181,8 +1181,8 @@ export function RankingPage({
             </div>
           )}
 
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

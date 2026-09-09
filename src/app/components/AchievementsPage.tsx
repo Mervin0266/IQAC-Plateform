@@ -271,10 +271,10 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex">
       <Sidebar currentPage="achievements" onNavigate={onNavigate} />
-      <main className="ml-64 p-8">
-        <div className="p-6">
+      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
+        <div className="max-w-7xl mx-auto space-y-6">
           {/* Page Title & Action Buttons */}
           <div className="flex justify-between items-start mb-6">
             <div>

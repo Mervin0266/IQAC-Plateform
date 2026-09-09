@@ -513,7 +513,7 @@ export function ConsultancyProjectsPage({
     <div className={hideSidebar ? 'space-y-6' : 'min-h-screen bg-gray-50 flex'}>
       {!hideSidebar && <Sidebar currentPage="consultancy-projects" onNavigate={onNavigate} />}
 
-      <main className={hideSidebar ? 'w-full' : 'flex-1 ml-64 p-8'}>
+      <main className={hideSidebar ? 'w-full p-4 sm:p-6 lg:p-8' : 'ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300'}>
         <div className={hideSidebar ? 'space-y-6' : 'max-w-7xl mx-auto space-y-6'}>
 
           {/* Top Section Header */}

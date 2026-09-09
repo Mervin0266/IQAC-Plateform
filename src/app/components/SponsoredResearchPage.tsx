@@ -642,7 +642,7 @@ export function SponsoredResearchPage({
       </div>
 
       {/* KPI Stats Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         <Card className="border-l-4 border-l-blue-600 shadow-sm bg-white hover:shadow-md transition-shadow">
           <CardHeader className="pb-1.5 pt-4">
             <div className="flex items-center justify-between">
@@ -720,7 +720,7 @@ export function SponsoredResearchPage({
       {/* Filter & Search Bar */}
       <Card className="border-gray-200 shadow-sm bg-white">
         <CardContent className="p-4">
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
             {/* Search Input */}
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
@@ -1685,9 +1685,11 @@ export function SponsoredResearchPage({
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar currentPage="sponsored-research" onNavigate={onNavigate} />
-      <div className="flex-1 p-6 lg:p-8 max-w-7xl mx-auto w-full">
-        {content}
-      </div>
+      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
+        <div className="max-w-7xl mx-auto w-full space-y-6">
+          {content}
+        </div>
+      </main>
     </div>
   );
 }

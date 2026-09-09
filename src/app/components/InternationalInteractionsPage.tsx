@@ -198,7 +198,7 @@ export function InternationalInteractionsPage({ onNavigate, isPublicView = false
     <div className="min-h-screen bg-slate-50 flex">
       {!isPublicView && <Sidebar currentPage="international-interactions" onNavigate={onNavigate} />}
 
-      <main className={`${isPublicView ? 'w-full' : 'ml-64 flex-1'} p-8`}>
+      <main className={`${isPublicView ? 'w-full' : 'ml-64 flex-1 min-w-0'} p-4 sm:p-6 lg:p-8 transition-all duration-300`}>
         <div className="max-w-7xl mx-auto space-y-6">
           
           {/* Header Bar */}

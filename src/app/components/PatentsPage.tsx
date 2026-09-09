@@ -775,7 +775,7 @@ export function PatentsPage({
       </div>
 
       {/* KPI Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="border-l-4 border-l-[#2f4692] shadow-sm bg-white">
           <CardHeader className="p-4 pb-1">
             <CardDescription className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Patents</CardDescription>
@@ -821,9 +821,9 @@ export function PatentsPage({
 
       {/* Filter and Search Bar */}
       <Card className="shadow-sm border-gray-200 bg-white">
-        <CardContent className="p-4 flex flex-col lg:flex-row items-center justify-between gap-3">
+        <CardContent className="p-4 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
           {/* Search Box */}
-          <div className="relative w-full lg:w-80">
+          <div className="relative w-full xl:w-80">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
               type="text"
@@ -843,7 +843,7 @@ export function PatentsPage({
           </div>
 
           {/* Filters Row */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
+          <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto justify-start sm:justify-end">
             {/* Status Filter */}
             <div className="w-36">
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
@@ -1841,9 +1841,11 @@ export function PatentsPage({
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar currentPage="research-innovation" onNavigate={onNavigate} />
-      <div className="flex-1 p-6 lg:p-8 max-w-7xl mx-auto w-full">
-        {content}
-      </div>
+      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
+        <div className="max-w-7xl mx-auto w-full space-y-6">
+          {content}
+        </div>
+      </main>
     </div>
   );
 }

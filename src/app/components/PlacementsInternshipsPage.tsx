@@ -525,10 +525,10 @@ export function PlacementsInternshipsPage({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50">
+    <div className="min-h-screen bg-slate-50/50 flex">
       {!hideSidebar && <Sidebar currentPage="placements-internships" onNavigate={onNavigate} />}
 
-      <main className={hideSidebar ? 'p-0' : 'ml-64 p-8 transition-all duration-300'}>
+      <main className={hideSidebar ? 'p-4 sm:p-6 lg:p-8 w-full' : 'ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300'}>
         <div className="max-w-7xl mx-auto space-y-6">
 
           {/* ========================================================================= */}

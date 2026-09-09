@@ -344,7 +344,7 @@ export function DepartmentalActivitiesPage({ onNavigate }: DepartmentalActivitie
     <div className="min-h-screen bg-gray-50 flex">
       <Sidebar currentPage="departmental-activities" onNavigate={onNavigate} />
 
-      <main className="ml-64 flex-1 p-6 md:p-8 pt-20 space-y-6 min-w-0">
+      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 space-y-6 transition-all duration-300">
           {/* Top Title Banner */}
           <div className="bg-gradient-to-r from-[#2f4692] via-[#3b5998] to-[#1e2e60] text-white p-5 md:p-6 rounded-2xl shadow-md space-y-4">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
