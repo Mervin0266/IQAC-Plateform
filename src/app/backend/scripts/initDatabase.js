@@ -11,9 +11,22 @@ const initDatabase = async () => {
     await sequelize.authenticate();
     console.log('✓ Database connection established');
 
-    // Sync all models
-    await sequelize.sync({ force: true });
-    console.log('✓ Database tables created');
+    // Sync all models safely (force: false prevents destructive DROP TABLE CASCADE and lock timeouts)
+    await sequelize.sync({ force: false });
+    console.log('✓ Database tables verified and created if not present');
+
+    // Check if database already contains academic hierarchy and administrative users
+    const deptCount = await Department.count();
+    const adminExists = await User.findOne({ where: { role: 'admin' } });
+
+    if (deptCount > 0 && adminExists) {
+      console.log('✓ Database already contains academic hierarchy and administrative users.');
+      console.log('✓ Skipping initial seed insertion to preserve existing data.');
+      console.log('========================================');
+      console.log('Database initialization completed successfully!');
+      console.log('========================================\n');
+      process.exit(0);
+    }
 
     // 1. Create Campus
     const kengeriCampus = await Campus.create({
