@@ -513,7 +513,7 @@ exports.bulkUploadSponsoredProjects = async (req, res) => {
       });
     }
 
-    const createdRecords = [];
+    const validRecords = [];
     const errorRows = [];
 
     const sanitizeDate = (val) => {
