@@ -127,10 +127,10 @@ export function LoginPage({ onBack }: LoginPageProps) {
     try {
       const success = await login(username, password, selectedRole);
       if (!success) {
-        setError('Invalid credentials. Please verify your email and password.');
+        setError('Login failed. Please verify credentials, or if the backend was sleeping on Render Free Tier, wait 30 seconds and try again.');
       }
     } catch {
-      setError('A connection error occurred while communicating with the authentication service.');
+      setError('Unable to connect to backend API. Please verify backend status and VITE_API_URL.');
     } finally {
       setIsSubmitting(false);
     }

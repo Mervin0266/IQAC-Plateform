@@ -60,7 +60,11 @@ app.use(cors({
     if (!origin) return callback(null, true);
 
     const normalizedOrigin = origin.trim().replace(/\/$/, '');
-    if (allowedOrigins.includes(normalizedOrigin)) {
+    if (
+      allowedOrigins.includes(normalizedOrigin) ||
+      /\.vercel\.app$/i.test(normalizedOrigin) ||
+      /\.onrender\.com$/i.test(normalizedOrigin)
+    ) {
       return callback(null, true);
     }
 
