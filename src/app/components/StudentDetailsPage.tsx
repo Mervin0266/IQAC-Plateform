@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Users, 
   GraduationCap, 
@@ -105,11 +105,66 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 50;
 
-  const fetchStudents = async (page = currentPage) => {
+  // Dynamic KPI Stats from backend
+  const [stats, setStats] = useState({
+    total: 0,
+    ugCount: 0,
+    ugPercent: '0',
+    pgCount: 0,
+    pgPercent: '0',
+    activeCount: 0,
+    activePercent: '0',
+    depts: 0
+  });
+
+  const [departmentCounts, setDepartmentCounts] = useState<Record<string, number>>({});
+  const [levelCounts, setLevelCounts] = useState<Record<string, number>>({});
+  const [dbAcademicYears, setDbAcademicYears] = useState<string[]>([]);
+
+  // Filters & Search State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('All');
+  const [academicYearFilter, setAcademicYearFilter] = useState('All');
+  const [programLevelFilter, setProgramLevelFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [sortBy, setSortBy] = useState<string>('registerNumber-asc');
+
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  const fetchStudents = async (page = 1) => {
     if (!user?.token) return;
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students?page=${page}&limit=${pageSize}`, {
+      const params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('limit', String(pageSize));
+      if (academicYearFilter !== 'All') {
+        params.append('academicYear', academicYearFilter);
+      }
+      if (departmentFilter !== 'All') {
+        params.append('department', departmentFilter);
+      }
+      if (programLevelFilter !== 'All') {
+        params.append('programLevel', programLevelFilter);
+      }
+      if (statusFilter !== 'All') {
+        params.append('status', statusFilter);
+      }
+      if (debouncedSearch.trim()) {
+        params.append('search', debouncedSearch.trim());
+      }
+      if (sortBy) {
+        params.append('sortBy', sortBy);
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       if (response.status === 401) {
@@ -124,7 +179,15 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
           setTotalPages(data.pagination.totalPages);
           setCurrentPage(data.pagination.page);
         } else {
-          setTotalCount((data.data || []).length);
+          setTotalCount(data.total || (data.data || []).length);
+        }
+        if (data.stats) {
+          setStats(data.stats);
+        }
+        if (data.distribution) {
+          if (data.distribution.departments) setDepartmentCounts(data.distribution.departments);
+          if (data.distribution.levels) setLevelCounts(data.distribution.levels);
+          if (data.distribution.academicYears) setDbAcademicYears(data.distribution.academicYears);
         }
       }
     } catch (err) {
@@ -133,6 +196,11 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       setLoading(false);
     }
   };
+
+  // Re-fetch whenever filters, sort or debounced search change
+  useEffect(() => {
+    fetchStudents(1);
+  }, [user, academicYearFilter, departmentFilter, programLevelFilter, statusFilter, sortBy, debouncedSearch]);
 
   const [isClearOpen, setIsClearOpen] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
@@ -149,6 +217,19 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       const data = await res.json();
       if (data.success) {
         setStudents([]);
+        setTotalCount(0);
+        setStats({
+          total: 0,
+          ugCount: 0,
+          ugPercent: '0',
+          pgCount: 0,
+          pgPercent: '0',
+          activeCount: 0,
+          activePercent: '0',
+          depts: 0
+        });
+        setDepartmentCounts({});
+        setLevelCounts({});
         setIsClearOpen(false);
       } else {
         alert(data.message || 'Failed to clear student records');
@@ -160,18 +241,6 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       setClearLoading(false);
     }
   };
-
-  React.useEffect(() => {
-    fetchStudents();
-  }, [user]);
-
-  // Filters & Search State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('All');
-  const [academicYearFilter, setAcademicYearFilter] = useState('All');
-  const [programLevelFilter, setProgramLevelFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [sortBy, setSortBy] = useState<string>('registerNumber-asc');
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -228,66 +297,33 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
 
   const availableAcademicYears = useMemo(() => {
     const yearsSet = new Set<string>(['2026-2027', '2025-2026', '2024-2025', '2023-2024', '2022-2023', '2021-2022']);
+    dbAcademicYears.forEach(y => {
+      const norm = normalizeAcademicYear(y);
+      if (norm) yearsSet.add(norm);
+    });
     students.forEach(st => {
       const norm = normalizeAcademicYear(st.academicYear);
-      if (norm) {
-        yearsSet.add(norm);
-      }
+      if (norm) yearsSet.add(norm);
     });
     return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
-  }, [students]);
+  }, [dbAcademicYears, students]);
 
-  // Filtered Students List
-  const filteredStudents = useMemo(() => {
-    let list = students.filter(student => {
-      const searchLower = searchTerm.toLowerCase().trim();
-      const matchesSearch = 
-        !searchLower ||
-        student.name.toLowerCase().includes(searchLower) ||
-        student.registerNumber.toLowerCase().includes(searchLower) ||
-        (student.email && student.email.toLowerCase().includes(searchLower)) ||
-        (student.course && student.course.toLowerCase().includes(searchLower)) ||
-        (student.department && student.department.toLowerCase().includes(searchLower)) ||
-        (student.className && student.className.toLowerCase().includes(searchLower)) ||
-        (student.campus && student.campus.toLowerCase().includes(searchLower));
+  // Current page records (already filtered & sorted by backend)
+  const filteredStudents = students;
 
-      const matchesDept = departmentFilter === 'All' || normalizeDepartmentName(student.department) === normalizeDepartmentName(departmentFilter);
-      const matchesYear = academicYearFilter === 'All' || normalizeAcademicYear(student.academicYear || '2024-2025') === normalizeAcademicYear(academicYearFilter);
-      const matchesLevel = programLevelFilter === 'All' || (student.programLevel || '').toLowerCase().trim() === programLevelFilter.toLowerCase().trim();
-      const matchesStatus = statusFilter === 'All' || (student.status || '').toLowerCase().trim() === statusFilter.toLowerCase().trim();
-
-      return matchesSearch && matchesDept && matchesYear && matchesLevel && matchesStatus;
-    });
-
-    return list.sort((a, b) => {
-      const [field, order] = sortBy.split('-');
-      const isAsc = order === 'asc';
-
-      let valA: any = a[field as keyof Student];
-      let valB: any = b[field as keyof Student];
-
-      if (valA === undefined || valA === null) valA = '';
-      if (valB === undefined || valB === null) valB = '';
-
-      valA = String(valA).toLowerCase().trim();
-      valB = String(valB).toLowerCase().trim();
-
-      if (valA < valB) return isAsc ? -1 : 1;
-      if (valA > valB) return isAsc ? 1 : -1;
-      return 0;
-    });
-  }, [students, searchTerm, departmentFilter, academicYearFilter, programLevelFilter, statusFilter, sortBy]);
-
-  // Executive KPI Stats
-  const stats = useMemo(() => {
-    const total = filteredStudents.length;
-    const ugCount = filteredStudents.filter(s => (s.programLevel || '').toUpperCase() === 'UG').length;
-    const pgCount = filteredStudents.filter(s => {
+  // Active KPI Stats (server-provided dynamic stats, with fallback)
+  const activeStats = useMemo(() => {
+    if (stats.total > 0 || totalCount > 0) {
+      return stats;
+    }
+    const total = students.length;
+    const ugCount = students.filter(s => (s.programLevel || '').toUpperCase() === 'UG').length;
+    const pgCount = students.filter(s => {
       const lvl = (s.programLevel || '').toUpperCase();
       return lvl === 'PG' || lvl === 'PHD';
     }).length;
-    const activeCount = filteredStudents.filter(s => s.status === 'Active').length;
-    const depts = new Set(filteredStudents.map(s => s.department).filter(Boolean)).size;
+    const activeCount = students.filter(s => s.status === 'Active').length;
+    const depts = new Set(students.map(s => s.department).filter(Boolean)).size;
 
     return {
       total,
@@ -299,26 +335,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       activePercent: total > 0 ? ((activeCount / total) * 100).toFixed(1) : '0',
       depts
     };
-  }, [filteredStudents]);
-
-  const departmentCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredStudents.forEach(st => {
-      if (st.department) {
-        counts[st.department] = (counts[st.department] || 0) + 1;
-      }
-    });
-    return counts;
-  }, [filteredStudents]);
-
-  const levelCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredStudents.forEach(st => {
-      const lvl = st.programLevel || 'UG';
-      counts[lvl] = (counts[lvl] || 0) + 1;
-    });
-    return counts;
-  }, [filteredStudents]);
+  }, [stats, totalCount, students]);
 
   const resetForm = () => {
     setFormData({
@@ -431,24 +448,23 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
 
   const exportToCSV = async () => {
     try {
-      let exportDataset = filteredStudents;
+      let exportDataset = students;
       if (user?.token) {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students?export=true`, {
+        const params = new URLSearchParams();
+        params.append('export', 'true');
+        if (academicYearFilter !== 'All') params.append('academicYear', academicYearFilter);
+        if (departmentFilter !== 'All') params.append('department', departmentFilter);
+        if (programLevelFilter !== 'All') params.append('programLevel', programLevelFilter);
+        if (statusFilter !== 'All') params.append('status', statusFilter);
+        if (debouncedSearch.trim()) params.append('search', debouncedSearch.trim());
+        if (sortBy) params.append('sortBy', sortBy);
+
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students?${params.toString()}`, {
           headers: { 'Authorization': `Bearer ${user.token}` }
         });
         const data = await res.json();
         if (data.success && Array.isArray(data.data)) {
           exportDataset = data.data;
-          if (academicYearFilter !== 'All') {
-            exportDataset = exportDataset.filter(s => s.academicYear === academicYearFilter);
-          }
-          if (departmentFilter !== 'All') {
-            exportDataset = exportDataset.filter(s => s.department === departmentFilter);
-          }
-          if (searchTerm) {
-            const q = searchTerm.toLowerCase();
-            exportDataset = exportDataset.filter(s => (s.name || '').toLowerCase().includes(q) || (s.registerNumber || '').toLowerCase().includes(q));
-          }
         }
       }
 
@@ -472,7 +488,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
       link.setAttribute('href', encodedUri);
-      link.setAttribute('download', `Student_Directory_${academicYearFilter}.csv`);
+      link.setAttribute('download', `Student_Directory_${academicYearFilter !== 'All' ? academicYearFilter : 'All_Years'}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -483,6 +499,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
 
   const clearFilters = () => {
     setSearchTerm('');
+    setDebouncedSearch('');
     setDepartmentFilter('All');
     setAcademicYearFilter('All');
     setProgramLevelFilter('All');
@@ -499,7 +516,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
           { label: 'Student Census', active: true },
         ]}
         title="Student Enrollment Intelligence"
-        badge={`${students.length} Students`}
+        badge={`${(totalCount || activeStats.total).toLocaleString()} Students`}
         description="Undergraduate, postgraduate & doctoral cohort records, admission status and class lineages across academic schools."
         actions={
           <>
@@ -562,31 +579,31 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
           title="Total Enrollment"
-          value={stats.total}
+          value={activeStats.total.toLocaleString()}
           subtitle="Active & registered students"
           icon={Users}
         />
         <StatCard
           title="UG Cohort"
-          value={stats.ugCount}
-          subtitle={`${stats.ugPercent}% undergraduate share`}
+          value={activeStats.ugCount.toLocaleString()}
+          subtitle={`${activeStats.ugPercent}% undergraduate share`}
           icon={School}
         />
         <StatCard
           title="PG & Scholars"
-          value={stats.pgCount}
-          subtitle={`${stats.pgPercent}% post-grad cohort`}
+          value={activeStats.pgCount.toLocaleString()}
+          subtitle={`${activeStats.pgPercent}% post-grad cohort`}
           icon={GraduationCap}
         />
         <StatCard
           title="Good Standing"
-          value={stats.activeCount}
-          subtitle={`${stats.activePercent}% active status`}
+          value={activeStats.activeCount.toLocaleString()}
+          subtitle={`${activeStats.activePercent}% active status`}
           icon={UserCheck}
         />
         <StatCard
           title="Disciplines"
-          value={stats.depts}
+          value={activeStats.depts}
           subtitle="Academic departments"
           icon={Building2}
         />
@@ -605,8 +622,8 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
           programLevelFilter !== 'All' ||
           statusFilter !== 'All'
         }
-        totalResults={filteredStudents.length}
-        resultLabel={`students (of ${students.length} total)`}
+        totalResults={totalCount}
+        resultLabel={`students (of ${(activeStats.total || totalCount).toLocaleString()} total)`}
         actions={
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
@@ -717,7 +734,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-700">Displaying Students:</span>
                   <span className="text-xs font-black text-[#2f4692] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                    {filteredStudents.length} of {students.length}
+                    {students.length} of {totalCount.toLocaleString()}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400">Official student registry and enrollment metrics</p>
@@ -859,7 +876,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                 </table>
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
                   <div className="text-xs text-slate-500 font-medium">
-                    Showing <span className="font-bold text-slate-700">{totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span className="font-bold text-slate-700">{Math.min(currentPage * pageSize, totalCount)}</span> of <span className="font-bold text-slate-700">{totalCount}</span> students
+                    Showing <span className="font-bold text-slate-700">{totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span className="font-bold text-slate-700">{Math.min(currentPage * pageSize, totalCount)}</span> of <span className="font-bold text-slate-700">{totalCount.toLocaleString()}</span> students
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -1001,12 +1018,12 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
 
                 <div className="space-y-3">
                   {Object.entries(departmentCounts).map(([dept, count]) => {
-                    const pct = ((count / (stats.total || 1)) * 100).toFixed(0);
+                    const pct = ((count / (activeStats.total || 1)) * 100).toFixed(1);
                     return (
                       <div key={dept} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-semibold text-slate-700 truncate pr-2">{dept}</span>
-                          <span className="font-bold text-slate-900">{count} ({pct}%)</span>
+                          <span className="font-bold text-slate-900">{count.toLocaleString()} ({pct}%)</span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                           <div
@@ -1032,12 +1049,12 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
 
                 <div className="space-y-3">
                   {Object.entries(levelCounts).map(([lvl, count]) => {
-                    const pct = ((count / (stats.total || 1)) * 100).toFixed(0);
+                    const pct = ((count / (activeStats.total || 1)) * 100).toFixed(1);
                     return (
                       <div key={lvl} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-semibold text-slate-700 truncate pr-2">{lvl} Cohort</span>
-                          <span className="font-bold text-slate-900">{count} ({pct}%)</span>
+                          <span className="font-bold text-slate-900">{count.toLocaleString()} ({pct}%)</span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                           <div

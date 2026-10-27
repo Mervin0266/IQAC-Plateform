@@ -107,33 +107,112 @@ const enrichFromHistory = async (targetRecord, user) => {
 };
 
 // @desc    Get all students (optionally filter by academicYear, department, school, campus, programLevel, course)
+/**
+ * Build query conditions from request for student querying & dynamic statistics
+ */
+const buildStudentFilterWhere = (req, scopeWhere) => {
+  const andConditions = [];
+  if (scopeWhere && Object.keys(scopeWhere).length > 0) {
+    andConditions.push(scopeWhere);
+  }
+
+  // Academic Year Filter
+  if (req.query.academicYear && req.query.academicYear !== 'all' && req.query.academicYear !== 'All') {
+    const y = req.query.academicYear.trim();
+    andConditions.push({
+      [Op.or]: [
+        { academicYear: y },
+        { academicYear: { [Op.iLike]: `${y.slice(0, 4)}%` } }
+      ]
+    });
+  }
+
+  // Department Filter (Admins/Authorities can filter any; others already scoped by scopeWhere)
+  if ((req.user?.role === 'admin' || req.user?.role === 'authority') &&
+      req.query.department && req.query.department !== 'all' && req.query.department !== 'All') {
+    andConditions.push({
+      department: { [Op.iLike]: req.query.department.trim() }
+    });
+  }
+
+  // Program Level Filter (UG, PG, PhD)
+  if (req.query.programLevel && req.query.programLevel !== 'all' && req.query.programLevel !== 'All') {
+    andConditions.push({
+      programLevel: { [Op.iLike]: req.query.programLevel.trim() }
+    });
+  }
+
+  // Status Filter (Active, Graduated, On Leave)
+  if (req.query.status && req.query.status !== 'all' && req.query.status !== 'All') {
+    andConditions.push({
+      status: { [Op.iLike]: req.query.status.trim() }
+    });
+  }
+
+  // Campus Filter
+  if (req.query.campus && req.query.campus !== 'all' && req.query.campus !== 'All') {
+    andConditions.push({
+      campus: { [Op.iLike]: req.query.campus.trim() }
+    });
+  }
+
+  // School Filter
+  if (req.query.school && req.query.school !== 'all' && req.query.school !== 'All') {
+    andConditions.push({
+      school: { [Op.iLike]: req.query.school.trim() }
+    });
+  }
+
+  // Course Filter
+  if (req.query.course && req.query.course !== 'all' && req.query.course !== 'All') {
+    andConditions.push({
+      course: { [Op.iLike]: req.query.course.trim() }
+    });
+  }
+
+  // Full-Text Search across major student identifiers
+  const searchVal = (req.query.search || req.query.q || '').trim();
+  if (searchVal) {
+    const term = `%${searchVal}%`;
+    andConditions.push({
+      [Op.or]: [
+        { name: { [Op.iLike]: term } },
+        { registerNumber: { [Op.iLike]: term } },
+        { email: { [Op.iLike]: term } },
+        { course: { [Op.iLike]: term } },
+        { department: { [Op.iLike]: term } },
+        { className: { [Op.iLike]: term } }
+      ]
+    });
+  }
+
+  return {
+    andConditions,
+    where: andConditions.length > 0 ? { [Op.and]: andConditions } : {}
+  };
+};
+
+const buildStudentSortOrder = (req) => {
+  let order = [['registerNumber', 'ASC'], ['academicYear', 'DESC'], ['id', 'ASC']];
+  if (req.query.sortBy) {
+    const [field, dir] = req.query.sortBy.split('-');
+    const validFields = ['registerNumber', 'name', 'department', 'academicYear', 'programLevel', 'status', 'className'];
+    const direction = (dir && dir.toLowerCase() === 'desc') ? 'DESC' : 'ASC';
+    if (validFields.includes(field)) {
+      order = [[field, direction], ['registerNumber', 'ASC'], ['id', 'ASC']];
+    }
+  }
+  return order;
+};
+
+// @desc    Get all students with filter support, pagination, and dynamic KPI analytics
 // @route   GET /api/students
 // @access  Private
 exports.getStudents = async (req, res) => {
   try {
     const { where: scopeWhere } = await resolveDepartmentScope(req, 'Student', false);
-    const where = { ...scopeWhere };
-
-    if (req.query.academicYear && req.query.academicYear !== 'all' && req.query.academicYear !== 'All') {
-      where.academicYear = req.query.academicYear;
-    }
-    // Only admin and authority can select/filter arbitrary department
-    if ((req.user.role === 'admin' || req.user.role === 'authority') &&
-        req.query.department && req.query.department !== 'all' && req.query.department !== 'All') {
-      where.department = req.query.department;
-    }
-    if (req.query.campus && req.query.campus !== 'all' && req.query.campus !== 'All') {
-      where.campus = req.query.campus;
-    }
-    if (req.query.school && req.query.school !== 'all' && req.query.school !== 'All') {
-      where.school = req.query.school;
-    }
-    if (req.query.programLevel && req.query.programLevel !== 'all' && req.query.programLevel !== 'All') {
-      where.programLevel = req.query.programLevel;
-    }
-    if (req.query.course && req.query.course !== 'all' && req.query.course !== 'All') {
-      where.course = req.query.course;
-    }
+    const { andConditions, where } = buildStudentFilterWhere(req, scopeWhere);
+    const order = buildStudentSortOrder(req);
 
     const pagination = parsePagination(req.query);
 
@@ -141,7 +220,7 @@ exports.getStudents = async (req, res) => {
       return await streamBatchedExport(res, {
         model: Student,
         where,
-        order: [['registerNumber', 'ASC'], ['academicYear', 'DESC'], ['id', 'ASC']],
+        order,
         batchSize: 1000,
         maxRecords: pagination.limit || 1000000,
         format: req.query.format === 'csv' ? 'csv' : 'json',
@@ -152,24 +231,186 @@ exports.getStudents = async (req, res) => {
 
     const { page, limit, offset } = pagination;
 
-    const { count, rows: students } = await Student.findAndCountAll({
-      where,
-      order: [['registerNumber', 'ASC'], ['academicYear', 'DESC'], ['id', 'ASC']],
-      limit,
-      offset
+    // Concurrently fetch students page and compute dynamic distribution metrics on the EXACT filtered where
+    const [
+      studentsResult,
+      activeCount,
+      deptRows,
+      levelRows,
+      allYearsRows
+    ] = await Promise.all([
+      Student.findAndCountAll({
+        where,
+        order,
+        limit,
+        offset
+      }),
+      Student.count({
+        where: {
+          [Op.and]: [...andConditions, { status: 'Active' }]
+        }
+      }),
+      Student.findAll({
+        attributes: ['department', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        where,
+        group: ['department'],
+        raw: true
+      }),
+      Student.findAll({
+        attributes: ['programLevel', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        where,
+        group: ['programLevel'],
+        raw: true
+      }),
+      Student.findAll({
+        attributes: ['academicYear'],
+        group: ['academicYear'],
+        raw: true
+      })
+    ]);
+
+    const total = studentsResult.count;
+    const deptCounts = {};
+    deptRows.forEach(r => {
+      if (r.department && r.department !== 'NIL' && r.department !== 'N/A') {
+        deptCounts[r.department] = parseInt(r.count, 10);
+      }
     });
 
-    const sanitized = sanitizeStudentData(students, req.user);
+    const levelCounts = {};
+    let ugCount = 0;
+    let pgCount = 0;
+    levelRows.forEach(r => {
+      const lvl = r.programLevel || 'UG';
+      const c = parseInt(r.count, 10);
+      levelCounts[lvl] = c;
+      if (lvl.toUpperCase() === 'UG') {
+        ugCount += c;
+      } else {
+        pgCount += c;
+      }
+    });
 
-    res.json(formatPaginationResponse({
-      count,
+    const stats = {
+      total,
+      ugCount,
+      ugPercent: total > 0 ? ((ugCount / total) * 100).toFixed(1) : '0',
+      pgCount,
+      pgPercent: total > 0 ? ((pgCount / total) * 100).toFixed(1) : '0',
+      activeCount,
+      activePercent: total > 0 ? ((activeCount / total) * 100).toFixed(1) : '0',
+      depts: Object.keys(deptCounts).length
+    };
+
+    const sanitized = sanitizeStudentData(studentsResult.rows, req.user);
+    const responsePayload = formatPaginationResponse({
+      count: total,
       rows: sanitized,
       page,
       limit
-    }));
+    });
+
+    responsePayload.stats = stats;
+    responsePayload.distribution = {
+      departments: deptCounts,
+      levels: levelCounts,
+      academicYears: allYearsRows.map(r => r.academicYear).filter(Boolean)
+    };
+
+    res.json(responsePayload);
   } catch (error) {
     console.error('Get students error:', error);
     res.status(error.status || 500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Get standalone student census stats matching active filters
+// @route   GET /api/students/stats
+// @access  Private
+exports.getStudentStats = async (req, res) => {
+  try {
+    const { where: scopeWhere } = await resolveDepartmentScope(req, 'Student', false);
+    const { andConditions, where } = buildStudentFilterWhere(req, scopeWhere);
+
+    const [
+      total,
+      activeCount,
+      deptRows,
+      levelRows,
+      allYearsRows
+    ] = await Promise.all([
+      Student.count({ where }),
+      Student.count({
+        where: {
+          [Op.and]: [...andConditions, { status: 'Active' }]
+        }
+      }),
+      Student.findAll({
+        attributes: ['department', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        where,
+        group: ['department'],
+        raw: true
+      }),
+      Student.findAll({
+        attributes: ['programLevel', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        where,
+        group: ['programLevel'],
+        raw: true
+      }),
+      Student.findAll({
+        attributes: ['academicYear'],
+        group: ['academicYear'],
+        raw: true
+      })
+    ]);
+
+    const deptCounts = {};
+    deptRows.forEach(r => {
+      if (r.department && r.department !== 'NIL' && r.department !== 'N/A') {
+        deptCounts[r.department] = parseInt(r.count, 10);
+      }
+    });
+
+    const levelCounts = {};
+    let ugCount = 0;
+    let pgCount = 0;
+    levelRows.forEach(r => {
+      const lvl = r.programLevel || 'UG';
+      const c = parseInt(r.count, 10);
+      levelCounts[lvl] = c;
+      if (lvl.toUpperCase() === 'UG') {
+        ugCount += c;
+      } else {
+        pgCount += c;
+      }
+    });
+
+    const stats = {
+      total,
+      ugCount,
+      ugPercent: total > 0 ? ((ugCount / total) * 100).toFixed(1) : '0',
+      pgCount,
+      pgPercent: total > 0 ? ((pgCount / total) * 100).toFixed(1) : '0',
+      activeCount,
+      activePercent: total > 0 ? ((activeCount / total) * 100).toFixed(1) : '0',
+      depts: Object.keys(deptCounts).length
+    };
+
+    res.json({
+      success: true,
+      stats,
+      distribution: {
+        departments: deptCounts,
+        levels: levelCounts,
+        academicYears: allYearsRows.map(r => r.academicYear).filter(Boolean)
+      }
+    });
+  } catch (error) {
+    console.error('Get student stats error:', error);
+    res.status(500).json({
       success: false,
       message: error.message || 'Server error'
     });
