@@ -141,7 +141,10 @@ exports.bulkCreateFaculty = async (req, res) => {
 
     const errors = [];
     const created = [];
+    const validRows = [];
+    const empIds = new Set();
 
+    // Step 1: Pre-process and sanitize records in memory
     for (let i = 0; i < facultyList.length; i++) {
       const raw = facultyList[i];
       if (!raw || !raw.employeeId) {
@@ -195,8 +198,13 @@ exports.bulkCreateFaculty = async (req, res) => {
         }
       });
 
-    // Batch look up all employeeIds in 1 query
-    const allEmpIds = faculty.map(f => f && f.employeeId ? String(f.employeeId).trim() : null).filter(Boolean);
+      const empId = String(record.employeeId).trim();
+      empIds.add(empId);
+      validRows.push({ index: i, record });
+    }
+
+    // Step 2: Batch look up all employeeIds in 1 query
+    const allEmpIds = Array.from(empIds);
     const existingFacultyRecords = await Faculty.findAll({
       where: { employeeId: { [Op.in]: allEmpIds } },
       transaction: t
@@ -213,17 +221,15 @@ exports.bulkCreateFaculty = async (req, res) => {
 
     const toCreate = [];
 
-    for (let i = 0; i < faculty.length; i++) {
-      const record = faculty[i];
-      if (!record.employeeId) continue;
-
+    // Step 3: Fast in-memory matching and updates
+    for (const { index, record } of validRows) {
       try {
         const compKey = `${record.employeeId}_${record.academicYear}`;
         const existing = compositeMap.get(compKey);
 
         if (existing) {
           if (req.user && req.user.role !== 'admin' && existing.department !== req.user.department) {
-            errors.push(`Row ${i + 1} (${record.employeeId}): Not authorized to update faculty in another department.`);
+            errors.push(`Row ${index + 1} (${record.employeeId}): Not authorized to update faculty in another department.`);
             continue;
           }
           if (existing.sNo === null || existing.sNo === undefined) {
@@ -236,7 +242,7 @@ exports.bulkCreateFaculty = async (req, res) => {
         } else {
           const anyDept = anyDeptMap.get(record.employeeId);
           if (anyDept && req.user && req.user.role !== 'admin' && anyDept !== req.user.department) {
-            errors.push(`Row ${i + 1} (${record.employeeId}): Faculty belongs to another department (${anyDept}).`);
+            errors.push(`Row ${index + 1} (${record.employeeId}): Faculty belongs to another department (${anyDept}).`);
             continue;
           }
 
@@ -246,7 +252,7 @@ exports.bulkCreateFaculty = async (req, res) => {
           toCreate.push(record);
         }
       } catch (err) {
-        errors.push(`Row ${i + 1} (${record.employeeId || 'unknown'}): ${err.message || 'Validation error'}`);
+        errors.push(`Row ${index + 1} (${record.employeeId || 'unknown'}): ${err.message || 'Validation error'}`);
       }
     }
 
