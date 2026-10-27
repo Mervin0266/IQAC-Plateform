@@ -513,7 +513,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       <PageHeader
         breadcrumbs={[
           { label: 'Academics' },
-          { label: 'Student Census', active: true },
+          { label: 'Student Details', active: true },
         ]}
         title="Student Enrollment Intelligence"
         badge={`${(totalCount || activeStats.total).toLocaleString()} Students`}

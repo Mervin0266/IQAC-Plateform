@@ -520,7 +520,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
         ]}
         title="Faculty Intelligence Directory"
         badge={`${totalCount.toLocaleString()} Members`}
-        description="Institutional faculty census, doctorate cadre, qualifications hierarchy, and academic profiles across engineering disciplines."
+        description="Institutional faculty Details, doctorate cadre, qualifications hierarchy, and academic profiles across engineering disciplines."
         actions={
           <>
             <button
@@ -581,7 +581,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
       {/* 2. 5 Unified Institutional KPI Metric Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
-          title="Faculty Census"
+          title="Faculty Details"
           value={stats.total.toLocaleString()}
           subtitle="100% active profiles"
           icon={Users}

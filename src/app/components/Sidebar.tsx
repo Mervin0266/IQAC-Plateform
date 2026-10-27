@@ -57,7 +57,7 @@ export function Sidebar({
             key: 'academics',
             children: [
               { label: 'Faculty Management', key: 'faculty-details', icon: Users },
-              { label: 'Student Census', key: 'student-details', icon: BookOpen },
+              { label: 'Student Details', key: 'student-details', icon: BookOpen },
               { label: 'Department Details', key: 'department-details', icon: Building2 },
               { label: 'Departmental Activities', key: 'departmental-activities', icon: Calendar },
               {

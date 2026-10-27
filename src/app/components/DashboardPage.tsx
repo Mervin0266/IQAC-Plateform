@@ -117,7 +117,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         breadcrumbs={[{ label: 'Home' }, { label: 'Executive Dashboard', active: true }]}
         title="Institutional Intelligence & Quality Dashboard"
         badge="Accreditation Cycle 4"
-        description="Comprehensive institutional analytics covering academic census, faculty metrics, research outputs, accreditation readiness, and campus recruitment."
+        description="Comprehensive institutional analytics covering academic Details, faculty metrics, research outputs, accreditation readiness, and campus recruitment."
         actions={
           <div className="flex items-center gap-2.5">
             <button
@@ -149,7 +149,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       {/* 2. 5 Core Institutional KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 items-stretch">
         <StatCard
-          title="Student Census"
+          title="Student Details"
           value={(dashboard.liveStats.totalStudents ?? 0).toLocaleString()}
           subtitle={`${dashboard.liveStats.totalFaculty ?? 0} Faculty • SFR ${dashboard.liveStats.sfr || '—'}`}
           icon={GraduationCap}
