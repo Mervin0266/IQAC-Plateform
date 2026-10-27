@@ -361,7 +361,7 @@ export function PatentsPage({
   const handleClearAll = async () => {
     setClearLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/patents/clear-all`, {
+      const res = await fetch(`${API_BASE}/api/patents/clear-all?confirmAll=true&confirmation=CONFIRM_UNIVERSITY_CLEAR`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

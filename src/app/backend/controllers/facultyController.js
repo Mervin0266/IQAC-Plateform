@@ -1,4 +1,5 @@
 const { Faculty } = require('../models');
+const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { resolveDepartmentScope } = require('../utils/scopeHelper');
 const { sanitizeFacultyData } = require('../utils/dataSanitizer');
@@ -194,21 +195,31 @@ exports.bulkCreateFaculty = async (req, res) => {
         }
       });
 
-      try {
-        const lockKey = `faculty_${record.employeeId}_${record.academicYear}`;
-        await sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:lockKey))', {
-          replacements: { lockKey },
-          transaction: t
-        });
+    // Batch look up all employeeIds in 1 query
+    const allEmpIds = faculty.map(f => f && f.employeeId ? String(f.employeeId).trim() : null).filter(Boolean);
+    const existingFacultyRecords = await Faculty.findAll({
+      where: { employeeId: { [Op.in]: allEmpIds } },
+      transaction: t
+    });
 
-        const existing = await Faculty.findOne({
-          where: { 
-            employeeId: record.employeeId,
-            academicYear: record.academicYear
-          },
-          transaction: t,
-          lock: t.LOCK.UPDATE
-        });
+    const compositeMap = new Map();
+    const anyDeptMap = new Map();
+    for (const ef of existingFacultyRecords) {
+      compositeMap.set(`${ef.employeeId}_${ef.academicYear}`, ef);
+      if (!anyDeptMap.has(ef.employeeId)) {
+        anyDeptMap.set(ef.employeeId, ef.department);
+      }
+    }
+
+    const toCreate = [];
+
+    for (let i = 0; i < faculty.length; i++) {
+      const record = faculty[i];
+      if (!record.employeeId) continue;
+
+      try {
+        const compKey = `${record.employeeId}_${record.academicYear}`;
+        const existing = compositeMap.get(compKey);
 
         if (existing) {
           if (req.user && req.user.role !== 'admin' && existing.department !== req.user.department) {
@@ -223,29 +234,25 @@ exports.bulkCreateFaculty = async (req, res) => {
           await existing.update(record, { transaction: t });
           created.push(existing);
         } else {
-          // Check for cross-department conflict across any academic year
-          const existingAnyFaculty = await Faculty.findOne({
-            where: { employeeId: record.employeeId },
-            transaction: t
-          });
-
-          if (existingAnyFaculty && req.user && req.user.role !== 'admin' && existingAnyFaculty.department !== req.user.department) {
-            errors.push(`Row ${i + 1} (${record.employeeId}): Faculty belongs to another department (${existingAnyFaculty.department}).`);
+          const anyDept = anyDeptMap.get(record.employeeId);
+          if (anyDept && req.user && req.user.role !== 'admin' && anyDept !== req.user.department) {
+            errors.push(`Row ${i + 1} (${record.employeeId}): Faculty belongs to another department (${anyDept}).`);
             continue;
           }
 
           if (!record.sNo) {
             record.sNo = nextSNo++;
           }
-          const fac = await Faculty.create(record, { transaction: t });
-          created.push(fac);
+          toCreate.push(record);
         }
       } catch (err) {
-        const detail = err.errors && Array.isArray(err.errors)
-          ? err.errors.map(e => e.message || e.path).join(', ')
-          : (err.message || 'Validation error');
-        errors.push(`Row ${i + 1} (${record.employeeId || 'unknown'}): ${detail}`);
+        errors.push(`Row ${i + 1} (${record.employeeId || 'unknown'}): ${err.message || 'Validation error'}`);
       }
+    }
+
+    if (toCreate.length > 0) {
+      const inserted = await Faculty.bulkCreate(toCreate, { transaction: t, returning: true });
+      created.push(...inserted);
     }
 
     if (created.length === 0 && errors.length > 0) {

@@ -1163,7 +1163,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     setUploadError('');
     setUploadErrorsList([]);
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const rawApi = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const baseUrl = rawApi.replace(/\/+$/, '');
     const endpoint = isDepartmentalActivity
       ? `${baseUrl}/api/departmental-activities/bulk`
       : isPublication

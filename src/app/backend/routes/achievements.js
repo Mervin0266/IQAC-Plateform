@@ -26,6 +26,6 @@ router.route('/')
 router.route('/:id')
   .get(getAchievement)
   .put(authorize('admin', 'coordinator', 'hod', 'faculty'), updateAchievement)
-  .delete(authorize('admin', 'coordinator'), deleteAchievement);
+  .delete(authorize('admin', 'coordinator', 'hod'), deleteAchievement);
 
 module.exports = router;

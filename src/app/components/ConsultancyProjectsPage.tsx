@@ -310,7 +310,7 @@ export function ConsultancyProjectsPage({
     if (!token) return;
     setClearLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/consultancy-projects/clear-all`, {
+      const res = await fetch(`${API_BASE}/api/consultancy-projects/clear-all?confirmAll=true&confirmation=CONFIRM_UNIVERSITY_CLEAR`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });

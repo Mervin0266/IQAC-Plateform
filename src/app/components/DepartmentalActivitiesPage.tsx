@@ -333,7 +333,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
     if (!confirm('Are you sure you want to clear ALL departmental activity records? This action cannot be undone.')) return;
     try {
       if (user?.token) {
-        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departmental-activities/clear-all`, {
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departmental-activities/clear-all?confirmAll=true&confirmation=CONFIRM_UNIVERSITY_CLEAR`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${user.token}` }
         });

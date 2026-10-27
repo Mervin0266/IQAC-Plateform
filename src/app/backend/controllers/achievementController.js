@@ -457,7 +457,7 @@ exports.bulkCreateAchievements = async (req, res) => {
 
     const dept = req.user.role === 'admin' || req.user.role === 'authority' ? null : req.user.department;
 
-    const createdRecords = [];
+    const validToCreate = [];
     const errors = [];
 
     for (let i = 0; i < achievements.length; i++) {
@@ -470,28 +470,28 @@ exports.bulkCreateAchievements = async (req, res) => {
       // Force coordinator/HOD department
       const finalDept = dept || record.department || 'Computer Science and Engineering';
 
-      try {
-        const achievement = await Achievement.create({
-          ...record,
-          department: finalDept,
-          status: record.status || 'draft',
-          createdBy: req.user.id
-        });
+      validToCreate.push({
+        ...record,
+        department: finalDept,
+        status: record.status || 'draft',
+        createdBy: req.user.id
+      });
+    }
 
-        // Log action
-        await logAction({
-          recordId: achievement.id,
-          achievementTitle: achievement.title,
+    let createdRecords = [];
+    if (validToCreate.length > 0) {
+      createdRecords = await Achievement.bulkCreate(validToCreate, { returning: true });
+
+      // Log bulk action once for entire batch
+      try {
+        await logActionSafe({
           user: req.user,
           action: 'ACHIEVEMENT_BULK_IMPORTED',
-          previousValue: null,
-          updatedValue: achievement.toJSON()
+          title: `Bulk imported ${createdRecords.length} achievements`,
+          remarks: `Imported ${createdRecords.length} records. Errors: ${errors.length}`,
+          ipAddress: req.ip
         });
-
-        createdRecords.push(achievement);
-      } catch (err) {
-        errors.push(`Row ${i + 1}: ${err.message || 'Validation error'}`);
-      }
+      } catch (logErr) {}
     }
 
     if (errors.length > 0 && createdRecords.length === 0) {

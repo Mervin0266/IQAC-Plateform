@@ -238,7 +238,7 @@ exports.bulkCreatePlacements = async (req, res) => {
 
     const userDept = req.user.role === 'admin' ? null : req.user.department;
 
-    const createdRecords = [];
+    const validRecords = [];
     const errors = [];
 
     for (let i = 0; i < placements.length; i++) {
@@ -280,27 +280,24 @@ exports.bulkCreatePlacements = async (req, res) => {
         continue;
       }
 
-      try {
-        const newRecord = await Placement.create({
-          studentName,
-          studentId,
-          batch,
-          department: userDept || department,
-          course,
-          company,
-          package: parsedPackage,
-          placementType: record.placementType || record['Placement Type'] || 'On-Campus',
-          offerLetterUrl: record.offerLetterUrl || null,
-          remarks: record.remarks || null,
-          createdBy: req.user.id
-        });
-        createdRecords.push(newRecord);
-      } catch (err) {
-        errors.push({
-          row: i + 1,
-          message: err.message || 'Database insert failed'
-        });
-      }
+      validRecords.push({
+        studentName,
+        studentId,
+        batch,
+        department: userDept || department,
+        course,
+        company,
+        package: parsedPackage,
+        placementType: record.placementType || record['Placement Type'] || 'On-Campus',
+        offerLetterUrl: record.offerLetterUrl || null,
+        remarks: record.remarks || null,
+        createdBy: req.user.id
+      });
+    }
+
+    let createdRecords = [];
+    if (validRecords.length > 0) {
+      createdRecords = await Placement.bulkCreate(validRecords, { returning: true });
     }
 
     if (errors.length > 0 && createdRecords.length === 0) {

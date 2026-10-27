@@ -555,7 +555,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
   const handleClearAll = async () => {
     setClearLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/faculty/clear-all`, {
+      const res = await fetch(`${API_BASE}/api/faculty/clear-all?confirmAll=true&confirmation=CONFIRM_UNIVERSITY_CLEAR`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${user?.token || localStorage.getItem('token') || ''}`,

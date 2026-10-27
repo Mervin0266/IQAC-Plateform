@@ -21,7 +21,7 @@ router.route('/')
 
 router.route('/:id')
   .get(getDocument)
-  .put(authorize('admin', 'coordinator', 'faculty'), updateDocument)
-  .delete(authorize('admin', 'coordinator'), deleteDocument);
+  .put(authorize('admin', 'coordinator', 'hod', 'faculty'), updateDocument)
+  .delete(authorize('admin', 'coordinator', 'hod'), deleteDocument);
 
 module.exports = router;

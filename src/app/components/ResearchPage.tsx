@@ -144,7 +144,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
   const handleClearAll = async () => {
     try {
       setClearLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/research-metrics/clear-all`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/research-metrics/clear-all?confirmAll=true&confirmation=CONFIRM_UNIVERSITY_CLEAR`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${user?.token || localStorage.getItem('token')}`

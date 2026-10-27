@@ -453,7 +453,7 @@ exports.bulkCreateConsultancyProjects = async (req, res) => {
 
     const dept = req.user.role === 'admin' || req.user.role === 'authority' ? null : req.user.department;
 
-    const createdRecords = [];
+    const validRecords = [];
     const errors = [];
 
     for (let i = 0; i < consultancyProjects.length; i++) {
@@ -465,32 +465,31 @@ exports.bulkCreateConsultancyProjects = async (req, res) => {
 
       const finalDept = dept || record.department || 'Not Specified';
 
-      try {
-        const project = await ConsultancyProject.create({
-          teacherConsultant: record.teacherConsultant,
-          projectName: record.projectName,
-          sponsoringAgency: record.sponsoringAgency,
-          year: record.year,
-          revenueInLakhs: parseFloat(record.revenueInLakhs) || 0,
-          department: finalDept,
-          status: record.status || 'draft',
-          createdBy: req.user.id
-        });
+      validRecords.push({
+        teacherConsultant: record.teacherConsultant,
+        projectName: record.projectName,
+        sponsoringAgency: record.sponsoringAgency,
+        year: record.year,
+        revenueInLakhs: parseFloat(record.revenueInLakhs) || 0,
+        department: finalDept,
+        status: record.status || 'draft',
+        createdBy: req.user.id
+      });
+    }
 
-        // Log action
+    let createdRecords = [];
+    if (validRecords.length > 0) {
+      createdRecords = await ConsultancyProject.bulkCreate(validRecords, { returning: true });
+
+      try {
         await logAction({
-          recordId: project.id,
-          achievementTitle: project.projectName,
           user: req.user,
           action: 'CONSULTANCY_PROJECT_BULK_IMPORTED',
-          previousValue: null,
-          updatedValue: project.toJSON()
+          title: `Bulk imported ${createdRecords.length} consultancy projects`,
+          remarks: `Imported ${createdRecords.length} records. Errors: ${errors.length}`,
+          ipAddress: req.ip
         });
-
-        createdRecords.push(project);
-      } catch (err) {
-        errors.push(`Row ${i + 1}: ${err.message || 'Validation error'}`);
-      }
+      } catch (logErr) {}
     }
 
     if (errors.length > 0 && createdRecords.length === 0) {

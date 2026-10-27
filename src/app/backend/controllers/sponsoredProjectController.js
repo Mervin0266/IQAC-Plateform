@@ -624,34 +624,33 @@ exports.bulkUploadSponsoredProjects = async (req, res) => {
       const projectUrl = row.projectUrl || row.url || row['Project URL'] || row['URL'] || row['Document Link'] || null;
       const description = row.description || row.abstract || row['Description'] || row['Project Summary'] || row['Objectives'] || null;
 
-      try {
-        const created = await SponsoredProject.create({
-          title: String(title).trim(),
-          principalInvestigator: String(pi).trim(),
-          coInvestigators: coPi ? String(coPi).trim() : null,
-          fundingAgency: String(agency).trim(),
-          scheme: scheme ? String(scheme).trim() : null,
-          agencyType,
-          sanctionOrderNo: sanctionRef ? String(sanctionRef).trim() : null,
-          sanctionDate,
-          startDate,
-          endDate,
-          sanctionedAmount: sanctionAmount,
-          amountReceived: fundsRec,
-          status,
-          progressPercentage: progress,
-          department: dept,
-          academicYear: year,
-          projectUrl: projectUrl ? String(projectUrl).trim() : null,
-          description: description ? String(description).trim() : null,
-          approvalStatus: 'approved',
-          createdBy: req.user?.id
-        }, { transaction: t });
+      validRecords.push({
+        title: String(title).trim(),
+        principalInvestigator: String(pi).trim(),
+        coInvestigators: coPi ? String(coPi).trim() : null,
+        fundingAgency: String(agency).trim(),
+        scheme: scheme ? String(scheme).trim() : null,
+        agencyType,
+        sanctionOrderNo: sanctionRef ? String(sanctionRef).trim() : null,
+        sanctionDate,
+        startDate,
+        endDate,
+        sanctionedAmount: sanctionAmount,
+        amountReceived: fundsRec,
+        status,
+        progressPercentage: progress,
+        department: dept,
+        academicYear: year,
+        projectUrl: projectUrl ? String(projectUrl).trim() : null,
+        description: description ? String(description).trim() : null,
+        approvalStatus: 'approved',
+        createdBy: req.user?.id
+      });
+    }
 
-        createdRecords.push(created);
-      } catch (rowErr) {
-        errorRows.push(`Row #${i + 1} (${String(title).substring(0, 30)}...): ${rowErr.message}`);
-      }
+    let createdRecords = [];
+    if (validRecords.length > 0) {
+      createdRecords = await SponsoredProject.bulkCreate(validRecords, { transaction: t, returning: true });
     }
 
     if (createdRecords.length === 0 && errorRows.length > 0) {

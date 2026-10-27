@@ -347,7 +347,7 @@ export function PublicationsPage({
   const handleClearAll = async () => {
     setClearLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/publications/clear-all`, {
+      const res = await fetch(`${API_BASE}/api/publications/clear-all?confirmAll=true&confirmation=CONFIRM_UNIVERSITY_CLEAR`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

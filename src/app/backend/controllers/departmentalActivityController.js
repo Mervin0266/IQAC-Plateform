@@ -246,7 +246,7 @@ exports.bulkUploadActivities = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No activity records provided' });
     }
 
-    const created = [];
+    const validRecords = [];
     const errors = [];
 
     for (let i = 0; i < activityList.length; i++) {
@@ -257,11 +257,15 @@ exports.bulkUploadActivities = async (req, res) => {
             item[field] = 'NIL';
           }
         });
-        const record = await DepartmentalActivity.create(item);
-        created.push(record);
+        validRecords.push(item);
       } catch (err) {
         errors.push(`Row ${i + 1}: ${err.message}`);
       }
+    }
+
+    let created = [];
+    if (validRecords.length > 0) {
+      created = await DepartmentalActivity.bulkCreate(validRecords, { returning: true });
     }
 
     res.json({

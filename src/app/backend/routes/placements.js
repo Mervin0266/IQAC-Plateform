@@ -24,7 +24,7 @@ router.route('/')
   .post(authorize('admin', 'coordinator'), createPlacement);
 
 router.route('/:id')
-  .put(authorize('admin', 'coordinator'), updatePlacement)
-  .delete(authorize('admin', 'coordinator'), deletePlacement);
+  .put(authorize('admin', 'coordinator', 'hod'), updatePlacement)
+  .delete(authorize('admin', 'coordinator', 'hod'), deletePlacement);
 
 module.exports = router;

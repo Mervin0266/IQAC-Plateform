@@ -1,4 +1,5 @@
 const { Student } = require('../models');
+const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { resolveDepartmentScope } = require('../utils/scopeHelper');
 const { sanitizeStudentData } = require('../utils/dataSanitizer');
@@ -358,7 +359,7 @@ exports.deleteStudent = async (req, res) => {
   }
 };
 
-// @desc    Bulk create students from CSV upload
+// @desc    Bulk create students from CSV upload (High-Performance Batched)
 // @route   POST /api/students/bulk
 // @access  Private (admin/coordinator/hod)
 exports.bulkCreateStudent = async (req, res) => {
@@ -374,21 +375,81 @@ exports.bulkCreateStudent = async (req, res) => {
     }
 
     const errors = [];
-    const created = [];
+    const validRows = [];
 
+    // Step 1: Pre-validate in memory and collect unique register numbers
+    const regNos = new Set();
     for (let i = 0; i < studentList.length; i++) {
       const rawRecord = studentList[i];
       if (!rawRecord || !rawRecord.registerNumber) {
         errors.push(`Row ${i + 1}: registerNumber is required.`);
         continue;
       }
+      const regNo = String(rawRecord.registerNumber).trim();
+      regNos.add(regNo);
+      validRows.push({ index: i, raw: rawRecord, regNo });
+    }
 
+    // Step 2: Batch fetch all historical records for all register numbers in 1 single query
+    const allRegNosArray = Array.from(regNos);
+    const whereScope = { registerNumber: { [Op.in]: allRegNosArray } };
+    if (req.user && req.user.role !== 'admin' && req.user.role !== 'authority' && req.user.department) {
+      whereScope.department = req.user.department;
+    }
+
+    const existingRecords = await Student.findAll({
+      where: whereScope,
+      order: [['createdAt', 'DESC']],
+      transaction: t
+    });
+
+    // Step 3: Index existing records in memory by regNo and by composite (regNo + academicYear)
+    const historyByRegNo = new Map();
+    const existingByComposite = new Map();
+
+    for (const rec of existingRecords) {
+      if (!historyByRegNo.has(rec.registerNumber)) {
+        historyByRegNo.set(rec.registerNumber, []);
+      }
+      historyByRegNo.get(rec.registerNumber).push(rec);
+
+      const compKey = `${rec.registerNumber}_${rec.academicYear}`;
+      existingByComposite.set(compKey, rec);
+    }
+
+    // Fields for historical enrichment
+    const mapFields = [
+      'name', 'email', 'phone', 'mobileNo', 'parentMobileNo',
+      'guardianName', 'guardianPhone', 'gender', 'dob', 'bloodGroup',
+      'nationality', 'caste', 'currentCity', 'currentState',
+      'permanentCity', 'permanentState', 'address', 'handicapped',
+      'handicappedDescription', 'disability', 'campus', 'school',
+      'department', 'programLevel', 'course', 'className', 'applicationNo', 'previousSchool'
+    ];
+
+    const toCreate = [];
+    const created = [];
+
+    // Step 4: Process rows in memory without per-row DB roundtrips
+    for (const { index, raw, regNo } of validRows) {
       try {
-        const enriched = await enrichFromHistory(rawRecord, req.user);
-        const normalized = normalizeStudentRecord(enriched);
+        // Fast in-memory enrichment from pre-fetched history
+        const enriched = { ...raw };
+        const histRecords = historyByRegNo.get(regNo) || [];
+        for (const hist of histRecords) {
+          for (const field of mapFields) {
+            const currentVal = enriched[field];
+            const isMissing = !currentVal || currentVal === 'N/A' || currentVal === 'NIL' || currentVal === '';
+            const histVal = hist[field];
+            if (isMissing && histVal && histVal !== 'N/A' && histVal !== 'NIL' && histVal !== '') {
+              enriched[field] = histVal;
+            }
+          }
+        }
 
+        const normalized = normalizeStudentRecord(enriched);
         if (!normalized.name || String(normalized.name).trim() === '') {
-          errors.push(`Row ${i + 1} (${rawRecord.registerNumber}): name is required.`);
+          errors.push(`Row ${index + 1} (${regNo}): name is required.`);
           continue;
         }
 
@@ -396,52 +457,38 @@ exports.bulkCreateStudent = async (req, res) => {
           normalized.department = req.user.department;
         }
 
-        const regNo = normalized.registerNumber;
         const academicYear = normalized.academicYear || '2024-2025';
         normalized.academicYear = academicYear;
 
-        // Deterministic transaction-scoped advisory lock on composite key
-        const lockKey = `student_${regNo}_${academicYear}`;
-        await sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:lockKey))', {
-          replacements: { lockKey },
-          transaction: t
-        });
-
-        // Check if student record exists for this composite key: (registerNumber, academicYear)
-        const existingYearRecord = await Student.findOne({
-          where: { registerNumber: regNo, academicYear: academicYear },
-          transaction: t,
-          lock: t.LOCK.UPDATE
-        });
+        const compKey = `${regNo}_${academicYear}`;
+        const existingYearRecord = existingByComposite.get(compKey);
 
         if (existingYearRecord) {
           if (req.user && req.user.role !== 'admin' && existingYearRecord.department !== req.user.department) {
-            errors.push(`Row ${i + 1} (${regNo}): Not authorized to update student in another department.`);
+            errors.push(`Row ${index + 1} (${regNo}): Not authorized to update student in another department.`);
             continue;
           }
           await existingYearRecord.update(normalized, { transaction: t });
           created.push(existingYearRecord);
         } else {
-          // Check for cross-department conflict across any academic year
-          const existingAnyRecord = await Student.findOne({
-            where: { registerNumber: regNo },
-            transaction: t
-          });
-
-          if (existingAnyRecord && req.user && req.user.role !== 'admin' && existingAnyRecord.department !== req.user.department) {
-            errors.push(`Row ${i + 1} (${regNo}): Student belongs to another department (${existingAnyRecord.department}).`);
+          // Check cross-department conflict across any year
+          const anyExisting = histRecords[0];
+          if (anyExisting && req.user && req.user.role !== 'admin' && anyExisting.department !== req.user.department) {
+            errors.push(`Row ${index + 1} (${regNo}): Student belongs to another department (${anyExisting.department}).`);
             continue;
           }
 
-          const std = await Student.create(normalized, { transaction: t });
-          created.push(std);
+          toCreate.push(normalized);
         }
-      } catch (err) {
-        const detail = err.errors && Array.isArray(err.errors)
-          ? err.errors.map(e => e.message || e.path).join(', ')
-          : (err.message || 'Validation error');
-        errors.push(`Row ${i + 1} (${rawRecord.registerNumber || 'unknown'}): ${detail}`);
+      } catch (rowErr) {
+        errors.push(`Row ${index + 1} (${regNo}): ${rowErr.message || 'Validation error'}`);
       }
+    }
+
+    // Step 5: Fast single-query bulk insert for all new student records
+    if (toCreate.length > 0) {
+      const inserted = await Student.bulkCreate(toCreate, { transaction: t, returning: true });
+      created.push(...inserted);
     }
 
     if (created.length === 0 && errors.length > 0) {
