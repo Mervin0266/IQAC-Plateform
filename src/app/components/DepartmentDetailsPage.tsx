@@ -17,6 +17,7 @@ import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { BulkUploadDialog } from './BulkUploadDialog';
+import { AppShell, PageHeader, StatCard } from './design-system';
 
 interface Department {
   id: string;
@@ -32,6 +33,7 @@ interface Department {
 
 interface DepartmentDetailsPageProps {
   onNavigate: (page: string) => void;
+  currentPage?: string;
   hideSidebar?: boolean;
 }
 
@@ -126,7 +128,7 @@ const INITIAL_DEPARTMENTS: Department[] = [
   }
 ];
 
-export function DepartmentDetailsPage({ onNavigate, hideSidebar = false }: DepartmentDetailsPageProps) {
+export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-details', hideSidebar = false }: DepartmentDetailsPageProps) {
   const { user } = useAuth();
   const isAdminOrCoordinator = user?.role === 'admin' || user?.role === 'coordinator' || user?.role === 'hod';
 
@@ -307,234 +309,149 @@ export function DepartmentDetailsPage({ onNavigate, hideSidebar = false }: Depar
     document.body.removeChild(link);
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50/50 flex">
-      {!hideSidebar && <Sidebar currentPage="department-details" onNavigate={onNavigate} />}
+  const pageContent = (
+    <div className="space-y-6">
+      {/* 1. MASTER HEADER & ACTION BAR */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Academic Governance' },
+          { label: 'Department Directory' },
+        ]}
+        badge="INSTITUTIONAL DIRECTORY"
+        title="Academic Department Directory"
+        description="Comprehensive directory of institutional engineering departments, appointed HODs, established milestones, and program lineages."
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Refresh Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchDepartments}
+              className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl flex items-center gap-2 shadow-xs"
+              title="Refresh Departments"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </Button>
 
-      <main className={hideSidebar ? 'p-4 sm:p-6 lg:p-8 w-full' : 'ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300'}>
-        <div className="max-w-7xl mx-auto space-y-6">
-
-          {/* ========================================================================= */}
-          {/* 1. MASTER HEADER & ACTION BAR                                             */}
-          {/* ========================================================================= */}
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase">
-                  Academic Structure & Governance
-                </Badge>
-                <span className="text-xs text-slate-400">•</span>
-                <span className="text-xs text-slate-500 font-medium">Faculty Schools & Department Lineage</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-                Academic Department Directory
-              </h1>
-              <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-                Comprehensive directory of institutional engineering departments, appointed HODs, established milestones, and program lineages.
-              </p>
+            {/* Export Toolbar */}
+            <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-xs">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleExportExcel}
+                className="h-8 px-2.5 text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg flex items-center gap-1.5"
+                title="Export to Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Excel</span>
+              </Button>
+              <div className="h-4 w-px bg-slate-200" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleExportCSV}
+                className="h-8 px-2.5 text-xs font-semibold text-slate-700 hover:text-[#2F4692] hover:bg-[#2F4692]/10 rounded-lg flex items-center gap-1.5"
+                title="Export to CSV (.csv)"
+              >
+                <Download className="w-3.5 h-3.5 text-[#2F4692]" />
+                <span>CSV</span>
+              </Button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Refresh Button */}
+            {/* Clear Data Button */}
+            {isAdminOrCoordinator && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={fetchDepartments}
-                className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl flex items-center gap-2 shadow-sm"
-                title="Refresh Departments"
+                onClick={() => setIsClearOpen(true)}
+                className="h-9 px-3.5 text-xs font-semibold border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 shadow-xs"
+                title="Clear All Department Records"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear Data</span>
               </Button>
+            )}
 
-              {/* Export Toolbar */}
-              <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleExportExcel}
-                  className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg flex items-center gap-1.5"
-                  title="Export to Excel (.xlsx)"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                  <span>Excel</span>
-                </Button>
-                <div className="h-4 w-px bg-slate-200" />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleExportCSV}
-                  className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-1.5"
-                  title="Export to CSV (.csv)"
-                >
-                  <Download className="w-4 h-4 text-blue-600" />
-                  <span>CSV</span>
-                </Button>
-              </div>
+            {/* Bulk Upload Button */}
+            {isAdminOrCoordinator && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsBulkUploadOpen(true)}
+                className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl flex items-center gap-2 shadow-xs"
+              >
+                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                <span>Bulk Upload</span>
+              </Button>
+            )}
 
-              {/* Clear Data Button */}
-              {isAdminOrCoordinator && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsClearOpen(true)}
-                  className="h-9 px-3.5 text-xs font-semibold border-red-200 text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-2 shadow-sm"
-                  title="Clear All Department Records"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear Data</span>
-                </Button>
-              )}
-
-              {/* Bulk Upload Button */}
-              {isAdminOrCoordinator && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsBulkUploadOpen(true)}
-                  className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl flex items-center gap-2 shadow-sm"
-                >
-                  <Upload className="w-4 h-4 text-slate-600" />
-                  <span>Bulk Upload</span>
-                </Button>
-              )}
-
-              {/* Add Department Button */}
-              {isAdminOrCoordinator && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingDept(null);
-                    setFormData({
-                      code: '',
-                      name: '',
-                      hodName: '',
-                      hodEmail: '',
-                      establishedYear: 2024,
-                      phone: '',
-                      description: '',
-                      status: 'Active'
-                    });
-                    setIsAddModalOpen(true);
-                  }}
-                  className="h-9 px-4 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm flex items-center gap-2 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Department</span>
-                </Button>
-              )}
-            </div>
+            {/* Add Department Button */}
+            {isAdminOrCoordinator && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingDept(null);
+                  setFormData({
+                    code: '',
+                    name: '',
+                    hodName: '',
+                    hodEmail: '',
+                    establishedYear: 2024,
+                    phone: '',
+                    description: '',
+                    status: 'Active'
+                  });
+                  setIsAddModalOpen(true);
+                }}
+                className="h-9 px-4 text-xs font-semibold bg-[#2F4692] hover:bg-[#243A7A] text-white rounded-xl shadow-xs flex items-center gap-2 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Department</span>
+              </Button>
+            )}
           </div>
+        }
+      />
 
-          {/* ========================================================================= */}
-          {/* 2. 5 KPI METRIC CARDS                                                     */}
-          {/* ========================================================================= */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Card 1: Total Departments */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Departments</span>
-                  <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
-                    <Building2 className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.total} Units
-                  </div>
-                  <div className="text-[11px] text-blue-700 font-medium mt-1">
-                    School of Engineering
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 2: Active Operational */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Operational Status</span>
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-emerald-600 tracking-tight">
-                    {kpiStats.active} Active
-                  </div>
-                  <div className="text-[11px] text-emerald-700 font-medium mt-1">
-                    {kpiStats.activeRate}% Operational
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 3: Appointed HODs */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Department Heads</span>
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-                    <Users className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.withHod} HODs
-                  </div>
-                  <div className="text-[11px] text-indigo-700 font-medium mt-1">
-                    Appointed Department Chairs
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 4: Degree Programs */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-purple-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Degree Programs</span>
-                  <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
-                    <GraduationCap className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    27 Courses
-                  </div>
-                  <div className="text-[11px] text-purple-700 font-medium mt-1">
-                    UG, PG & Doctoral Programs
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 5: Campus Hub */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Campus Location</span>
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
-                    <Award className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    Kengeri
-                  </div>
-                  <div className="text-[11px] text-amber-700 font-medium mt-1">
-                    Bangalore, Karnataka
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+      {/* 2. 5 KPI METRIC CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard
+          title="Total Departments"
+          value={`${kpiStats.total} Units`}
+          icon={Building2}
+          badge="Total"
+          subtitle="School of Engineering"
+        />
+        <StatCard
+          title="Operational Status"
+          value={`${kpiStats.active} Active`}
+          icon={CheckCircle2}
+          badge={`${kpiStats.activeRate}% Operational`}
+          subtitle="Active academic divisions"
+        />
+        <StatCard
+          title="Department Heads"
+          value={`${kpiStats.withHod} HODs`}
+          icon={Users}
+          badge="Leadership"
+          subtitle="Appointed Department Chairs"
+        />
+        <StatCard
+          title="Degree Programs"
+          value="27 Courses"
+          icon={GraduationCap}
+          badge="Curriculum"
+          subtitle="UG, PG & Doctoral Programs"
+        />
+        <StatCard
+          title="Campus Location"
+          value="Kengeri"
+          icon={Award}
+          badge="Bangalore"
+          subtitle="Faculty of Engineering"
+        />
+      </div>
 
           {/* ========================================================================= */}
           {/* 3. TOOLBAR & VIEW MODE SWITCHER                                           */}
@@ -852,9 +769,6 @@ export function DepartmentDetailsPage({ onNavigate, hideSidebar = false }: Depar
             </div>
           )}
 
-        </div>
-      </main>
-
       {/* ========================================================================= */}
       {/* 5. ADD / EDIT DEPARTMENT MODAL DIALOG                                     */}
       {/* ========================================================================= */}
@@ -1107,5 +1021,19 @@ export function DepartmentDetailsPage({ onNavigate, hideSidebar = false }: Depar
         </DialogContent>
       </Dialog>
     </div>
+  );
+
+  if (hideSidebar) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto space-y-6">
+        {pageContent}
+      </div>
+    );
+  }
+
+  return (
+    <AppShell currentPage={currentPage} onNavigate={onNavigate}>
+      {pageContent}
+    </AppShell>
   );
 }

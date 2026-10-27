@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sidebar } from './Sidebar';
+import { AppShell } from './design-system';
 import { Construction, ArrowRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -13,10 +13,7 @@ interface PlaceholderPageProps {
 
 export function PlaceholderPage({ title, description, onNavigate, currentPage }: PlaceholderPageProps) {
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar currentPage={currentPage} onNavigate={onNavigate} />
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        <div className="max-w-7xl mx-auto space-y-6">
+    <AppShell currentPage={currentPage} onNavigate={onNavigate}>
           {/* Page Title */}
           <div className="mb-8">
             <h1 className="text-2xl font-medium text-gray-900 mb-2">{title}</h1>
@@ -90,8 +87,6 @@ export function PlaceholderPage({ title, description, onNavigate, currentPage }:
               </Card>
             </div>
           </div>
-        </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }

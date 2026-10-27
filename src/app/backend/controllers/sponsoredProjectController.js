@@ -1,8 +1,10 @@
 const { SponsoredProject, User } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { logAction } = require('../middleware/auditLogger');
+const { logAction, logActionSafe } = require('../middleware/auditLogger');
 const { sendNotification } = require('../middleware/notificationHelper');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
+const { parsePagination, formatPaginationResponse } = require('../utils/paginationHelper');
 
 // @desc    Get all sponsored research projects with filtering, searching, and role isolation
 // @route   GET /api/sponsored-projects
@@ -78,7 +80,9 @@ exports.getSponsoredProjects = async (req, res) => {
       ];
     }
 
-    const projects = await SponsoredProject.findAll({
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const { count, rows: projects } = await SponsoredProject.findAndCountAll({
       where,
       include: [{
         model: User,
@@ -89,15 +93,19 @@ exports.getSponsoredProjects = async (req, res) => {
       order: [
         ['academicYear', 'DESC'],
         ['sanctionDate', 'DESC'],
-        ['createdAt', 'DESC']
-      ]
+        ['id', 'ASC']
+      ],
+      limit,
+      offset,
+      distinct: true
     });
 
-    res.json({
-      success: true,
-      count: projects.length,
-      data: projects
-    });
+    res.json(formatPaginationResponse({
+      count,
+      rows: projects,
+      page,
+      limit
+    }));
   } catch (error) {
     console.error('Get sponsored projects error:', error);
     res.status(500).json({
@@ -282,7 +290,10 @@ exports.createSponsoredProject = async (req, res) => {
       });
     }
 
-    const assignedDept = department || req.user?.department || 'General';
+    const assignedDept = req.user?.role === 'admin' ? (department || 'General') : (req.user?.department || 'General');
+    const finalApproval = (['admin', 'coordinator', 'hod'].includes(req.user?.role) && approvalStatus)
+      ? approvalStatus
+      : (req.user?.role === 'admin' ? 'approved' : 'submitted');
 
     const project = await SponsoredProject.create({
       title: title.trim(),
@@ -303,7 +314,7 @@ exports.createSponsoredProject = async (req, res) => {
       academicYear: academicYear || '2024-2025',
       projectUrl: projectUrl ? projectUrl.trim() : null,
       description: description ? description.trim() : null,
-      approvalStatus: approvalStatus || 'approved',
+      approvalStatus: finalApproval,
       createdBy: req.user?.id
     });
 
@@ -356,6 +367,13 @@ exports.updateSponsoredProject = async (req, res) => {
       }
     }
 
+    if (req.user && ['coordinator', 'hod'].includes(req.user.role) && req.user.department && project.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot edit sponsored project outside your department'
+      });
+    }
+
     const {
       title,
       principalInvestigator,
@@ -378,6 +396,9 @@ exports.updateSponsoredProject = async (req, res) => {
       approvalStatus
     } = req.body;
 
+    const canChangeApproval = ['admin', 'hod', 'coordinator'].includes(req.user?.role);
+    const canChangeDept = req.user?.role === 'admin';
+
     await project.update({
       title: title !== undefined ? title.trim() : project.title,
       principalInvestigator: principalInvestigator !== undefined ? principalInvestigator.trim() : project.principalInvestigator,
@@ -393,11 +414,11 @@ exports.updateSponsoredProject = async (req, res) => {
       amountReceived: amountReceived !== undefined ? (parseFloat(amountReceived) || 0.00) : project.amountReceived,
       status: status !== undefined ? status : project.status,
       progressPercentage: progressPercentage !== undefined ? (parseInt(progressPercentage, 10) || 0) : project.progressPercentage,
-      department: department !== undefined ? department : project.department,
+      department: (canChangeDept && department !== undefined) ? department : project.department,
       academicYear: academicYear !== undefined ? academicYear : project.academicYear,
       projectUrl: projectUrl !== undefined ? (projectUrl ? projectUrl.trim() : null) : project.projectUrl,
       description: description !== undefined ? (description ? description.trim() : null) : project.description,
-      approvalStatus: approvalStatus !== undefined ? approvalStatus : project.approvalStatus
+      approvalStatus: (canChangeApproval && approvalStatus !== undefined) ? approvalStatus : project.approvalStatus
     });
 
     if (req.user) {
@@ -675,34 +696,30 @@ exports.bulkUploadSponsoredProjects = async (req, res) => {
 // @access  Private (Admin, HOD, Coordinator)
 exports.clearAllSponsoredProjects = async (req, res) => {
   try {
-    const where = {};
-    if (req.user && req.user.role !== 'admin') {
-      if (req.user.department && req.user.department !== 'All') {
-        where.department = req.user.department;
-      }
-    }
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'SponsoredProject', true);
 
-    const count = await SponsoredProject.destroy({ where });
+    let count = 0;
+    await sequelize.transaction(async (t) => {
+      count = await SponsoredProject.destroy({ where, transaction: t });
+    });
 
-    if (req.user) {
-      await logAction({
-        userId: req.user.id,
-        action: 'DELETE',
-        resourceType: 'SponsoredProject',
-        details: `Cleared ${count} sponsored research project records`
-      });
-    }
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_SPONSORED_PROJECTS',
+      title: `Cleared sponsored projects: ${scopeDescription}`,
+      remarks: `Deleted ${count} sponsored research project records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
 
     res.json({
       success: true,
-      message: `Successfully deleted ${count} sponsored research records.`
+      message: `Successfully deleted ${count} sponsored research records for ${scopeDescription}.`
     });
   } catch (error) {
     console.error('Clear all sponsored projects error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Failed to clear sponsored project records',
-      error: error.message
+      message: error.message || 'Failed to clear sponsored project records'
     });
   }
 };

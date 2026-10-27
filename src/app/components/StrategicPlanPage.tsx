@@ -19,9 +19,11 @@ import { Progress } from './ui/progress';
 import { useAuth } from '../contexts/AuthContext';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
+import { AppShell, PageHeader, StatCard } from './design-system';
 
 interface StrategicPlanPageProps {
   onNavigate: (page: string) => void;
+  currentPage?: string;
   hideSidebar?: boolean;
 }
 
@@ -177,6 +179,7 @@ const INITIAL_GOALS: StrategicGoal[] = [
 
 export function StrategicPlanPage({
   onNavigate,
+  currentPage = 'strategic-plan',
   hideSidebar = false
 }: StrategicPlanPageProps) {
   const { user } = useAuth();
@@ -477,224 +480,139 @@ export function StrategicPlanPage({
     document.body.removeChild(link);
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50/50 flex">
-      {!hideSidebar && <Sidebar currentPage="strategic-plan" onNavigate={onNavigate} />}
+  const pageContent = (
+    <div className="space-y-6">
+      {/* 1. MASTER HEADER & ACTION BAR */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Institutional Governance' },
+          { label: 'Strategic Plan & Milestones' },
+        ]}
+        badge="VISION 2030"
+        title="Strategic Plan & Milestone Tracking"
+        description="Monitor multi-year strategic objectives, milestone timelines, allocated capital budgets, and department-level goal attainment."
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Refresh Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchGoals}
+              className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-2 shadow-xs"
+              title="Refresh Strategic Goals"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </Button>
 
-      <main className={hideSidebar ? 'p-4 sm:p-6 lg:p-8 w-full' : 'ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300'}>
-        <div className="max-w-7xl mx-auto space-y-6">
-
-          {/* ========================================================================= */}
-          {/* 1. MASTER HEADER & ACTION BAR                                             */}
-          {/* ========================================================================= */}
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase">
-                  Institutional Governance
-                </Badge>
-                <span className="text-xs text-slate-400">•</span>
-                <span className="text-xs text-slate-500 font-medium">Strategic Vision & Milestone Execution</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-                Strategic Plan & Milestone Tracking
-              </h1>
-              <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-                Monitor multi-year strategic objectives, milestone timelines, allocated capital budgets, and department-level goal attainment.
-              </p>
+            {/* Export Toolbar */}
+            <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-xs">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleExportExcel}
+                className="h-8 px-2.5 text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg flex items-center gap-1.5"
+                title="Export to Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Excel</span>
+              </Button>
+              <div className="h-4 w-px bg-slate-200" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleExportCSV}
+                className="h-8 px-2.5 text-xs font-semibold text-slate-700 hover:text-[#2F4692] hover:bg-[#2F4692]/10 rounded-lg flex items-center gap-1.5"
+                title="Export to CSV (.csv)"
+              >
+                <Download className="w-3.5 h-3.5 text-[#2F4692]" />
+                <span>CSV</span>
+              </Button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Refresh Button */}
+            {/* Clear Data Button */}
+            {isAdminOrCoordinator && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={fetchGoals}
-                className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-2 shadow-sm"
-                title="Refresh Strategic Goals"
+                onClick={() => setIsClearOpen(true)}
+                className="h-9 px-3.5 text-xs font-semibold border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 shadow-xs"
+                title="Clear All Strategic Goals"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear Data</span>
               </Button>
+            )}
 
-              {/* Export Toolbar */}
-              <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleExportExcel}
-                  className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg flex items-center gap-1.5"
-                  title="Export to Excel (.xlsx)"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                  <span>Excel</span>
-                </Button>
-                <div className="h-4 w-px bg-slate-200" />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleExportCSV}
-                  className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-1.5"
-                  title="Export to CSV (.csv)"
-                >
-                  <Download className="w-4 h-4 text-blue-600" />
-                  <span>CSV</span>
-                </Button>
-              </div>
-
-              {/* Clear Data Button */}
-              {isAdminOrCoordinator && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsClearOpen(true)}
-                  className="h-9 px-3.5 text-xs font-semibold border-red-200 text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-2 shadow-sm"
-                  title="Clear All Strategic Goals"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear Data</span>
-                </Button>
-              )}
-
-              {/* Add Goal Button */}
-              {isAdminOrCoordinator && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingGoal(null);
-                    setFormData({
-                      department: departments[0] || 'AI and Data Science Engineering',
-                      academicYear: '2024-2025',
-                      category: 'academic-excellence',
-                      objective: '',
-                      description: '',
-                      targetDate: new Date().toISOString().split('T')[0],
-                      status: 'in-progress',
-                      progress: 50,
-                      budget: 1500000,
-                      responsible: '',
-                      kpiTarget: ''
-                    });
-                    setShowAddModal(true);
-                  }}
-                  className="h-9 px-4 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm flex items-center gap-2 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Strategic Goal</span>
-                </Button>
-              )}
-            </div>
+            {/* Add Goal Button */}
+            {isAdminOrCoordinator && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingGoal(null);
+                  setFormData({
+                    department: departments[0] || 'AI and Data Science Engineering',
+                    academicYear: '2024-2025',
+                    category: 'academic-excellence',
+                    objective: '',
+                    description: '',
+                    targetDate: new Date().toISOString().split('T')[0],
+                    status: 'in-progress',
+                    progress: 50,
+                    budget: 1500000,
+                    responsible: '',
+                    kpiTarget: ''
+                  });
+                  setShowAddModal(true);
+                }}
+                className="h-9 px-4 text-xs font-semibold bg-[#2F4692] hover:bg-[#243A7A] text-white rounded-xl shadow-xs flex items-center gap-2 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Strategic Goal</span>
+              </Button>
+            )}
           </div>
+        }
+      />
 
-          {/* ========================================================================= */}
-          {/* 2. 5 KPI METRIC CARDS                                                     */}
-          {/* ========================================================================= */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Card 1: Goal Attainment */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Goal Attainment</span>
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-                    <TrendingUp className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-emerald-600 tracking-tight">
-                    {kpiStats.avgProgress}%
-                  </div>
-                  <div className="text-[11px] text-emerald-700 font-medium mt-1">
-                    Overall Completion Index
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 2: Total Goals */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Targets</span>
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-                    <Target className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.totalCount} Goals
-                  </div>
-                  <div className="text-[11px] text-indigo-700 font-medium mt-1">
-                    Strategic Milestones Tracked
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 3: Goals Achieved */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Completed</span>
-                  <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.completedCount} Delivered
-                  </div>
-                  <div className="text-[11px] text-blue-700 font-medium mt-1">
-                    Verified Deliverables
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 4: In Progress */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">In Progress</span>
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.inProgressCount} Active
-                  </div>
-                  <div className="text-[11px] text-amber-700 font-medium mt-1">
-                    Ongoing Sprint Execution
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 5: Strategic Capital Budget */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-purple-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Allocated Capital</span>
-                  <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
-                    <DollarSign className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    ₹ {kpiStats.totalBudgetLakhs} L
-                  </div>
-                  <div className="text-[11px] text-purple-700 font-medium mt-1">
-                    Total Strategic Allocation
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+      {/* 2. 5 KPI METRIC CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard
+          title="Goal Attainment"
+          value={`${kpiStats.avgProgress}%`}
+          icon={TrendingUp}
+          badge="Attainment"
+          subtitle="Overall completion index"
+        />
+        <StatCard
+          title="Total Targets"
+          value={`${kpiStats.totalCount} Goals`}
+          icon={Target}
+          badge="Total"
+          subtitle="Strategic milestones tracked"
+        />
+        <StatCard
+          title="Completed"
+          value={`${kpiStats.completedCount} Delivered`}
+          icon={CheckCircle2}
+          badge="Delivered"
+          subtitle="Verified deliverables"
+        />
+        <StatCard
+          title="In Progress"
+          value={`${kpiStats.inProgressCount} Active`}
+          icon={Clock}
+          badge="Active"
+          subtitle="Ongoing sprint execution"
+        />
+        <StatCard
+          title="Allocated Capital"
+          value={`₹ ${kpiStats.totalBudgetLakhs} L`}
+          icon={DollarSign}
+          badge="Capital"
+          subtitle="Total strategic allocation"
+        />
+      </div>
 
           {/* ========================================================================= */}
           {/* 3. TOOLBAR & VIEW MODE SWITCHER                                           */}
@@ -1093,9 +1011,6 @@ export function StrategicPlanPage({
             </div>
           )}
 
-        </div>
-      </main>
-
       {/* ========================================================================= */}
       {/* 5. ADD / EDIT STRATEGIC GOAL MODAL                                        */}
       {/* ========================================================================= */}
@@ -1340,5 +1255,19 @@ export function StrategicPlanPage({
         </DialogContent>
       </Dialog>
     </div>
+  );
+
+  if (hideSidebar) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto space-y-6">
+        {pageContent}
+      </div>
+    );
+  }
+
+  return (
+    <AppShell currentPage={currentPage} onNavigate={onNavigate}>
+      {pageContent}
+    </AppShell>
   );
 }

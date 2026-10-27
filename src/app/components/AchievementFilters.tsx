@@ -32,7 +32,7 @@ export function AchievementFilters({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+    <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 mb-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
         {/* Select Campus 
         <div>
@@ -145,7 +145,7 @@ export function AchievementFilters({
         <div>
           <Button
             onClick={handleApplyFilters}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            className="w-full bg-[#2F4692] hover:bg-[#243A7A] text-white font-semibold text-xs tracking-wide shadow-xs"
           >
             APPLY FILTERS
           </Button>

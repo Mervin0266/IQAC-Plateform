@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
-import { Shield, User, Users, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Shield, User, Users, AlertCircle, ArrowLeft, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import christLogo from 'figma:asset/e4f652b12ffea64be11193ae1ce02c65502fc8ea.png';
@@ -55,189 +55,203 @@ export function LoginPage({ onBack }: LoginPageProps) {
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
     setError('');
-    // Pre-fill credentials for easy demo
-    const credentials = {
-      admin: { username: 'admin@christuniversity.in', password: 'Admin@123' },
-      authority: { username: 'dean@christuniversity.in', password: 'Authority@123' },
-      hod: { username: 'hod.cse@christuniversity.in', password: 'Hod@123' },
-      coordinator: { username: 'coord.cse@christuniversity.in', password: 'Coordinator@123' },
-      faculty: { username: 'faculty.cse@christuniversity.in', password: 'Faculty@123' },
-    };
-    setUsername(credentials[role]?.username || '');
-    setPassword(credentials[role]?.password || '');
+    // In production builds, credentials must never be embedded, exposed, or prefilled
+    if (import.meta.env.DEV) {
+      const devCredentials: Record<UserRole, { username: string; password?: string }> = {
+        admin: { username: 'admin@christuniversity.in', password: 'Admin@123' },
+        authority: { username: 'dean@christuniversity.in', password: 'Authority@123' },
+        hod: { username: 'hod.cse@christuniversity.in', password: 'Hod@123' },
+        coordinator: { username: 'coord.cse@christuniversity.in', password: 'Coordinator@123' },
+        faculty: { username: 'faculty.cse@christuniversity.in', password: 'Faculty@123' },
+      };
+      setUsername(devCredentials[role]?.username || '');
+      setPassword(devCredentials[role]?.password || '');
+    } else {
+      setUsername('');
+      setPassword('');
+    }
   };
 
   const roles = [
     {
       id: 'admin' as UserRole,
-      title: 'Admin Login',
-      description: 'Full system access and management',
+      title: 'Administrator',
+      roleTag: 'SYSTEM ADMIN',
+      description: 'Institutional management, user roles, security, and database controls',
       icon: Shield,
-      bgColor: '#0f1746',
-      iconColor: '#e8c84a',
-      borderColor: 'rgba(232,200,74,0.4)',
-      hoverShadow: 'rgba(232,200,74,0.25) 0px 8px 32px',
-      selectedBorder: '#e8c84a',
     },
     {
       id: 'authority' as UserRole,
-      title: 'Institutional Authority Login',
-      description: 'Read-only access to browse records and reports',
+      title: 'Dean / Director',
+      roleTag: 'AUTHORITY',
+      description: 'Executive oversight, read-only institutional inspection, analytics, and audits',
       icon: Shield,
-      bgColor: 'linear-gradient(135deg, #312e81, #3730a3)',
-      iconColor: '#ffffff',
-      borderColor: 'rgba(255,255,255,0.2)',
-      hoverShadow: 'rgba(79,70,229,0.4) 0px 8px 32px',
-      selectedBorder: '#6366f1',
     },
     {
       id: 'hod' as UserRole,
-      title: 'HOD Login',
-      description: 'Departmental administrator access',
+      title: 'Head of Department',
+      roleTag: 'HOD',
+      description: 'Departmental administration, academic reviews, faculty allocations, and approvals',
       icon: Users,
-      bgColor: 'linear-gradient(135deg, #854d0e, #a16207)',
-      iconColor: '#ffffff',
-      borderColor: 'rgba(255,255,255,0.2)',
-      hoverShadow: 'rgba(234,179,8,0.4) 0px 8px 32px',
-      selectedBorder: '#eab308',
     },
     {
       id: 'coordinator' as UserRole,
-      title: 'Coordinator Login',
-      description: 'Department verification and bulk upload',
+      title: 'IQAC Coordinator',
+      roleTag: 'COORDINATOR',
+      description: 'Criterion verification, data validation, and departmental bulk uploads',
       icon: Users,
-      bgColor: 'linear-gradient(135deg, #0f766e, #0d9488)',
-      iconColor: '#ffffff',
-      borderColor: 'rgba(255,255,255,0.15)',
-      hoverShadow: 'rgba(20,184,166,0.4) 0px 8px 32px',
-      selectedBorder: '#14b8a6',
     },
     {
       id: 'faculty' as UserRole,
-      title: 'Faculty Login',
-      description: 'Submit achievement records and request edits',
+      title: 'Faculty Member',
+      roleTag: 'FACULTY',
+      description: 'Profile management, publications, research grants, and student achievements',
       icon: User,
-      bgColor: 'linear-gradient(135deg, #1e40af, #1d4ed8)',
-      iconColor: '#ffffff',
-      borderColor: 'rgba(255,255,255,0.2)',
-      hoverShadow: 'rgba(59,130,246,0.4) 0px 8px 32px',
-      selectedBorder: '#3b82f6',
     },
   ];
 
   if (!selectedRole) {
     return (
-      <div className="min-h-screen flex flex-col md:flex-row">
-        {/* Left Half - Rotating Background */}
+      <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
+        {/* Left Half - Christ Identity Showcase */}
         <div
-          className="relative w-full md:w-1/2 min-h-[300px] md:min-h-screen flex items-center justify-center overflow-hidden"
-          style={{ borderLeft: '5px solid #e8c84a' }}
+          className="relative w-full md:w-1/2 min-h-[320px] md:min-h-screen flex items-center justify-center overflow-hidden bg-[#0B132B]"
+          style={{ borderLeft: '6px solid #E8C84A' }}
         >
-          {/* Background Image with Rotation */}
+          {/* Background Slideshow with overlay */}
           <div className="absolute inset-0">
             {heroImages.map((image, index) => (
               <div
                 key={image}
                 className="absolute inset-0 transition-opacity duration-1000"
                 style={{
-                  opacity: currentImageIndex === index ? 1 : 0,
+                  opacity: currentImageIndex === index ? 0.25 : 0,
                   backgroundImage: `url(${image})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                 }}
               />
             ))}
-            <div className="absolute inset-0 bg-[#0f1746] opacity-80" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0B132B]/80 via-[#0B132B]/90 to-[#0B132B]" />
           </div>
 
-          {/* Logo and Text */}
-          <div className="relative z-10 text-center px-8">
+          {/* Institutional Emblem & Typography */}
+          <div className="relative z-10 text-center px-8 py-10 max-w-md mx-auto">
             <ImageWithFallback
               src={christLogo}
-              alt="Christ University Logo"
-              className="w-48 h-48 mx-auto mb-6 object-contain"
+              alt="CHRIST (Deemed to be University) Logo"
+              className="w-40 h-40 mx-auto mb-6 object-contain drop-shadow-md"
             />
-            <h1 className="text-4xl font-bold text-white mb-2">Christ University</h1>
-            <h2 className="text-2xl font-semibold text-white/90">IQAC Portal</h2>
+            <div className="inline-block px-3 py-1 bg-white/10 border border-white/15 rounded-full mb-3">
+              <span className="text-[11px] font-bold text-[#E8C84A] uppercase tracking-wider">
+                Accreditation & Benchmarking
+              </span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">CHRIST</h1>
+            <p className="text-xs sm:text-sm text-slate-300 font-medium tracking-widest uppercase mt-0.5">
+              (Deemed to be University)
+            </p>
+            <div className="h-0.5 w-16 bg-[#E8C84A] mx-auto my-4" />
+            <h2 className="text-lg sm:text-xl font-bold text-white/95">
+              Internal Quality Assurance Cell
+            </h2>
+            <p className="text-xs text-slate-300 mt-1 max-w-xs mx-auto">
+              Unified institutional platform for NAAC, NIRF, and academic quality auditing
+            </p>
           </div>
         </div>
 
-        {/* Right Half - Role Cards */}
-        <div className="w-full md:w-1/2 bg-white flex items-center justify-center p-8 md:p-12 overflow-y-auto">
-          <div className="w-full max-w-md my-auto py-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2 text-center">Welcome Back</h2>
-            <p className="text-gray-600 mb-8 text-center">Select your role to continue</p>
+        {/* Right Half - Institutional Role Selection */}
+        <div className="w-full md:w-1/2 bg-white flex items-center justify-center p-6 sm:p-10 md:p-12 overflow-y-auto">
+          <div className="w-full max-w-md my-auto py-6">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 mb-6 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Return to Public Portal</span>
+              </button>
+            )}
 
-            {/* Role Cards */}
-            <div className="space-y-4">
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#2F4692] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  INSTITUTIONAL PORTAL
+                </span>
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Sign In to IQAC</h2>
+              <p className="text-xs text-slate-500 mt-1">Select your authorized role to access the workspace</p>
+            </div>
+
+            {/* Role Cards List */}
+            <div className="space-y-3">
               {roles.map((role) => {
                 const Icon = role.icon;
                 return (
                   <div
                     key={role.id}
                     onClick={() => handleRoleSelect(role.id)}
-                    className="cursor-pointer transition-all duration-300"
-                    style={{
-                      background: role.bgColor,
-                      borderRadius: '16px',
-                      padding: '18px 24px',
-                      border: `1px solid ${role.borderColor}`,
-                      transform: 'scale(1)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.boxShadow = role.hoverShadow;
-                      e.currentTarget.style.transform = 'scale(1.02)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.boxShadow = 'none';
-                      e.currentTarget.style.transform = 'scale(1)';
-                    }}
+                    className="cursor-pointer p-3.5 sm:p-4 rounded-xl border border-slate-200 bg-white hover:border-[#2F4692] hover:bg-slate-50/80 transition-all shadow-xs flex items-center justify-between group"
                   >
-                    <div className="flex items-center gap-4">
-                      <Icon className="w-6 h-6 flex-shrink-0" style={{ color: role.iconColor }} />
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-bold text-white mb-0.5">{role.title}</h3>
-                        <p className="text-xs text-white/70 truncate">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-slate-100 group-hover:bg-blue-50 text-slate-700 group-hover:text-[#2F4692] flex items-center justify-center transition-colors flex-shrink-0">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#2F4692] transition-colors">
+                            {role.title}
+                          </h3>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded font-semibold border border-slate-200">
+                            {role.roleTag}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 truncate">
                           {role.description}
                         </p>
                       </div>
                     </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#2F4692] group-hover:translate-x-0.5 transition-all flex-shrink-0 ml-2" />
                   </div>
                 );
               })}
             </div>
 
-            {/* Demo Credentials */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <p className="text-xs text-gray-600 font-semibold mb-2">Demo Credentials:</p>
-              <div className="grid grid-cols-2 gap-3 text-xs text-gray-600">
-                <div>
-                  <p className="font-medium text-[#0f1746]">Admin</p>
-                  <p className="truncate">admin@christuniversity.in</p>
-                  <p className="text-gray-400">Admin@123</p>
+            {/* Dev-Only Synthetic Test Accounts Box (Completely removed in production builds) */}
+            {import.meta.env.DEV && (
+              <div className="mt-6 p-4 bg-amber-50/50 rounded-xl border border-amber-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded border border-amber-300">
+                      DEV ONLY
+                    </span>
+                    <span className="text-xs font-bold text-slate-800">
+                      Synthetic Test Accounts
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500">Local environment only</span>
                 </div>
-                <div>
-                  <p className="font-medium text-indigo-700">Dean (Authority)</p>
-                  <p className="truncate">dean@christuniversity.in</p>
-                  <p className="text-gray-400">Authority@123</p>
-                </div>
-                <div>
-                  <p className="font-medium text-yellow-700">HOD (CSE)</p>
-                  <p className="truncate">hod.cse@christuniversity.in</p>
-                  <p className="text-gray-400">Hod@123</p>
-                </div>
-                <div>
-                  <p className="font-medium text-teal-700">Coordinator (CSE)</p>
-                  <p className="truncate">coord.cse@christuniversity.in</p>
-                  <p className="text-gray-400">Coordinator@123</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="font-medium text-blue-700">Faculty (CSE)</p>
-                  <p className="truncate">faculty.cse@christuniversity.in</p>
-                  <p className="text-gray-400">Faculty@123</p>
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                  <div className="p-2 bg-white rounded border border-slate-200">
+                    <p className="font-semibold text-slate-900 text-[11px]">Admin</p>
+                    <p className="text-[10px] font-mono text-slate-500 truncate">admin@christuniversity.in</p>
+                  </div>
+                  <div className="p-2 bg-white rounded border border-slate-200">
+                    <p className="font-semibold text-slate-900 text-[11px]">Dean (Authority)</p>
+                    <p className="text-[10px] font-mono text-slate-500 truncate">dean@christuniversity.in</p>
+                  </div>
+                  <div className="p-2 bg-white rounded border border-slate-200">
+                    <p className="font-semibold text-slate-900 text-[11px]">HOD (CSE)</p>
+                    <p className="text-[10px] font-mono text-slate-500 truncate">hod.cse@christuniversity.in</p>
+                  </div>
+                  <div className="p-2 bg-white rounded border border-slate-200">
+                    <p className="font-semibold text-slate-900 text-[11px]">Coordinator (CSE)</p>
+                    <p className="text-[10px] font-mono text-slate-500 truncate">coord.cse@christuniversity.in</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -248,43 +262,54 @@ export function LoginPage({ onBack }: LoginPageProps) {
   const Icon = selectedRoleData.icon;
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Left Half - Rotating Background */}
+    <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
+      {/* Left Half - Christ Identity Showcase */}
       <div
-        className="relative w-full md:w-1/2 min-h-[300px] md:min-h-screen flex items-center justify-center overflow-hidden"
-        style={{ borderLeft: '5px solid #e8c84a' }}
+        className="relative w-full md:w-1/2 min-h-[320px] md:min-h-screen flex items-center justify-center overflow-hidden bg-[#0B132B]"
+        style={{ borderLeft: '6px solid #E8C84A' }}
       >
-        {/* Background Image with Rotation */}
+        {/* Background Slideshow with overlay */}
         <div className="absolute inset-0">
           {heroImages.map((image, index) => (
             <div
               key={image}
               className="absolute inset-0 transition-opacity duration-1000"
               style={{
-                opacity: currentImageIndex === index ? 1 : 0,
+                opacity: currentImageIndex === index ? 0.25 : 0,
                 backgroundImage: `url(${image})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
               }}
             />
           ))}
-          <div className="absolute inset-0 bg-[#0f1746] opacity-80" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0B132B]/80 via-[#0B132B]/90 to-[#0B132B]" />
         </div>
 
-        {/* Logo and Text */}
-        <div className="relative z-10 text-center px-8">
+        {/* Institutional Emblem & Typography */}
+        <div className="relative z-10 text-center px-8 py-10 max-w-md mx-auto">
           <ImageWithFallback
             src={christLogo}
-            alt="Christ University Logo"
-            className="w-48 h-48 mx-auto mb-6 object-contain"
+            alt="CHRIST (Deemed to be University) Logo"
+            className="w-40 h-40 mx-auto mb-6 object-contain drop-shadow-md"
           />
-          <h1 className="text-4xl font-bold text-white mb-2">Christ University</h1>
-          <h2 className="text-2xl font-semibold text-white/90">IQAC Portal</h2>
+          <div className="inline-block px-3 py-1 bg-white/10 border border-white/15 rounded-full mb-3">
+            <span className="text-[11px] font-bold text-[#E8C84A] uppercase tracking-wider">
+              Accreditation & Benchmarking
+            </span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">CHRIST</h1>
+          <p className="text-xs sm:text-sm text-slate-300 font-medium tracking-widest uppercase mt-0.5">
+            (Deemed to be University)
+          </p>
+          <div className="h-0.5 w-16 bg-[#E8C84A] mx-auto my-4" />
+          <h2 className="text-lg sm:text-xl font-bold text-white/95">
+            Internal Quality Assurance Cell
+          </h2>
         </div>
       </div>
 
       {/* Right Half - Login Form */}
-      <div className="w-full md:w-1/2 bg-white flex items-center justify-center p-8 md:p-12">
+      <div className="w-full md:w-1/2 bg-white flex items-center justify-center p-6 sm:p-10 md:p-12">
         <div className="w-full max-w-md">
           {/* Back Arrow */}
           <button
@@ -294,24 +319,26 @@ export function LoginPage({ onBack }: LoginPageProps) {
               setPassword('');
               setError('');
             }}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 mb-6 transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
             <span>Back to role selection</span>
           </button>
 
           {/* Role Header */}
-          <div className="mb-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div
-                className="w-12 h-12 rounded-lg flex items-center justify-center"
-                style={{ background: selectedRoleData.bgColor }}
-              >
-                <Icon className="w-6 h-6" style={{ color: selectedRoleData.iconColor }} />
+          <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#0B132B] text-white flex items-center justify-center flex-shrink-0">
+                <Icon className="w-5 h-5 text-[#E8C84A]" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">{selectedRoleData.title}</h2>
-                <p className="text-sm text-gray-600">{selectedRoleData.description}</p>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-slate-900">{selectedRoleData.title}</h2>
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 bg-white text-slate-700 rounded font-semibold border border-slate-200">
+                    {selectedRoleData.roleTag}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">{selectedRoleData.description}</p>
               </div>
             </div>
           </div>
@@ -325,21 +352,22 @@ export function LoginPage({ onBack }: LoginPageProps) {
               </Alert>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="username">Email Address</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="username" className="text-xs font-semibold text-slate-700">Email Address</Label>
               <Input
                 id="username"
                 type="email"
-                placeholder="Enter email address"
+                placeholder="Enter official email address"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 autoFocus
+                className="border-slate-300 focus:border-[#2F4692] focus:ring-[#2F4692] text-xs h-9"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-xs font-semibold text-slate-700">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -347,35 +375,28 @@ export function LoginPage({ onBack }: LoginPageProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                className="border-slate-300 focus:border-[#2F4692] focus:ring-[#2F4692] text-xs h-9"
               />
             </div>
 
             <div className="pt-2">
               <Button
                 type="submit"
-                className="w-full text-white transition-all"
-                style={{
-                  background: selectedRoleData.bgColor,
-                  borderColor: selectedRoleData.selectedBorder,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.boxShadow = selectedRoleData.hoverShadow;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
+                className="w-full bg-[#2F4692] hover:bg-[#243A7A] text-white font-semibold py-2.5 rounded-lg shadow-xs text-xs tracking-wider uppercase transition-colors"
               >
-                Sign In
+                Sign In to Workspace
               </Button>
             </div>
           </form>
 
-          {/* Demo Info */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <p className="text-xs text-gray-600 text-center">
-              <span className="font-semibold">Demo Mode:</span> Credentials are pre-filled for testing
-            </p>
-          </div>
+          {/* Dev Info (Stripped in production builds) */}
+          {import.meta.env.DEV && (
+            <div className="mt-6 p-3 bg-amber-50/50 rounded-lg border border-amber-200">
+              <p className="text-[11px] text-amber-800 text-center font-medium">
+                [DEV MODE] Synthetic test credentials loaded for local role verification.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

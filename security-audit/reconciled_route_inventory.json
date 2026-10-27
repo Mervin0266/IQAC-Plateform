@@ -1,0 +1,1502 @@
+{
+  "summary": {
+    "totalRoutes": 139,
+    "totalMutative": 84,
+    "totalRead": 55,
+    "testedRoutes": 64,
+    "testedMutative": 37,
+    "testedRead": 27,
+    "coveragePercent": 46
+  },
+  "routes": [
+    {
+      "id": "R-001",
+      "method": "POST",
+      "endpoint": "/api/auth/login",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 7,
+      "linkedTestIds": [
+        "POST (phase_a_e2e_supertest.test.cjs)",
+        "1 (phase_b_workstreams_b1_b2.test.cjs)",
+        "2 (phase_b_workstreams_b1_b2.test.cjs)",
+        "3 (phase_b_workstreams_b1_b2.test.cjs)",
+        "4 (phase_b_workstreams_b1_b2.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-002",
+      "method": "GET",
+      "endpoint": "/api/auth/me",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 10,
+      "linkedTestIds": [
+        "GET (phase_a_e2e_supertest.test.cjs)",
+        "Account (phase_a_e2e_supertest.test.cjs)",
+        "Deactivated (phase_a_e2e_supertest.test.cjs)",
+        "1 (phase_b_workstreams_b1_b2.test.cjs)",
+        "2 (phase_b_workstreams_b1_b2.test.cjs)",
+        "3 (phase_b_workstreams_b1_b2.test.cjs)",
+        "4 (phase_b_workstreams_b1_b2.test.cjs)",
+        "6 (phase_b_workstreams_b1_b2.test.cjs)",
+        "HDR-07 (phase_d_security_headers.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-003",
+      "method": "PUT",
+      "endpoint": "/api/auth/password",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "Account (phase_a_e2e_supertest.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-004",
+      "method": "GET",
+      "endpoint": "/api/users",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 15,
+      "linkedTestIds": [
+        "B7-01 (phase_b_full_matrix.test.cjs)",
+        "B7-04 (phase_b_full_matrix.test.cjs)",
+        "B7-07 (phase_b_full_matrix.test.cjs)",
+        "B7-09 (phase_b_full_matrix.test.cjs)",
+        "AUTH-01 (phase_c_authorization_inventory.test.cjs)",
+        "FAC-01 (phase_c_authorization_inventory.test.cjs)",
+        "ADM-01 (phase_c_authorization_inventory.test.cjs)",
+        "ADM-OP-01 (phase_d_authorization_matrix.test.cjs)",
+        "ADM-OP-03 (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-005",
+      "method": "POST",
+      "endpoint": "/api/users",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "ADM-OP-02 (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-006",
+      "method": "GET",
+      "endpoint": "/api/users/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-007",
+      "method": "PUT",
+      "endpoint": "/api/users/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 3,
+      "linkedTestIds": [
+        "ESC-01 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-008",
+      "method": "DELETE",
+      "endpoint": "/api/users/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 4,
+      "linkedTestIds": [
+        "AUTH-FINAL-01 (phase_e_authorization_matrix_final.test.cjs)",
+        "AUTH-FINAL-02 (phase_e_authorization_matrix_final.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-009",
+      "method": "DELETE",
+      "endpoint": "/api/achievements/clear-all",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "ACH-03 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-010",
+      "method": "GET",
+      "endpoint": "/api/achievements/stats",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-011",
+      "method": "POST",
+      "endpoint": "/api/achievements/bulk",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 4,
+      "linkedTestIds": [
+        "ACH-01 (phase_e_authorization_matrix_expanded.test.cjs)",
+        "ACH-02 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-012",
+      "method": "GET",
+      "endpoint": "/api/achievements",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-013",
+      "method": "POST",
+      "endpoint": "/api/achievements",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "C3-01 (phase_c_concurrency_and_exports.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-014",
+      "method": "GET",
+      "endpoint": "/api/achievements/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-015",
+      "method": "PUT",
+      "endpoint": "/api/achievements/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "ESC-02 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-016",
+      "method": "DELETE",
+      "endpoint": "/api/achievements/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "ACH-03 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-017",
+      "method": "DELETE",
+      "endpoint": "/api/documents/clear-all",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "C3-06 (phase_c_concurrency_and_exports.test.cjs)",
+        "DOC-03 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-018",
+      "method": "GET",
+      "endpoint": "/api/documents",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 4,
+      "linkedTestIds": [
+        "DOC-01 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-019",
+      "method": "POST",
+      "endpoint": "/api/documents",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 3,
+      "linkedTestIds": [
+        "B6-04 (phase_b_workstreams_b4_b6.test.cjs)",
+        "DOC-02 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-020",
+      "method": "GET",
+      "endpoint": "/api/documents/:id",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "C3-05 (phase_c_concurrency_and_exports.test.cjs)",
+        "DOC-04 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-021",
+      "method": "PUT",
+      "endpoint": "/api/documents/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "B6-05 (phase_b_workstreams_b4_b6.test.cjs)",
+        "B6-06 (phase_b_workstreams_b4_b6.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-022",
+      "method": "DELETE",
+      "endpoint": "/api/documents/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 3,
+      "linkedTestIds": [
+        "C3-06 (phase_c_concurrency_and_exports.test.cjs)",
+        "DOC-03 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-023",
+      "method": "GET",
+      "endpoint": "/api/patents/stats",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-024",
+      "method": "POST",
+      "endpoint": "/api/patents/bulk",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-025",
+      "method": "DELETE",
+      "endpoint": "/api/patents/clear-all",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-026",
+      "method": "GET",
+      "endpoint": "/api/patents",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-027",
+      "method": "POST",
+      "endpoint": "/api/patents",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 3,
+      "linkedTestIds": [
+        "C3-03 (phase_c_concurrency_and_exports.test.cjs)",
+        "ENT-MUT-02 (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-028",
+      "method": "GET",
+      "endpoint": "/api/patents/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-029",
+      "method": "PUT",
+      "endpoint": "/api/patents/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-030",
+      "method": "DELETE",
+      "endpoint": "/api/patents/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-031",
+      "method": "DELETE",
+      "endpoint": "/api/placements/clear-all",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-032",
+      "method": "GET",
+      "endpoint": "/api/placements/stats",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-033",
+      "method": "POST",
+      "endpoint": "/api/placements/bulk",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-034",
+      "method": "GET",
+      "endpoint": "/api/placements",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-035",
+      "method": "POST",
+      "endpoint": "/api/placements",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 6,
+      "linkedTestIds": [
+        "AUTH-04 (phase_c_authorization_inventory.test.cjs)",
+        "AUTH-ROLE-03 (phase_c_authorization_inventory.test.cjs)",
+        "PLC-01 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-036",
+      "method": "PUT",
+      "endpoint": "/api/placements/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-037",
+      "method": "DELETE",
+      "endpoint": "/api/placements/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-038",
+      "method": "DELETE",
+      "endpoint": "/api/strategic-plans/clear-all",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "FAC-03 (phase_c_authorization_inventory.test.cjs)",
+        "PLN-02 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-039",
+      "method": "GET",
+      "endpoint": "/api/strategic-plans/stats",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-040",
+      "method": "GET",
+      "endpoint": "/api/strategic-plans",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 5,
+      "linkedTestIds": [
+        "AUTH-02 (phase_c_authorization_inventory.test.cjs)",
+        "HOD-01 (phase_c_authorization_inventory.test.cjs)",
+        "AUTH-ROLE-01 (phase_c_authorization_inventory.test.cjs)",
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-041",
+      "method": "POST",
+      "endpoint": "/api/strategic-plans",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 4,
+      "linkedTestIds": [
+        "HOD-02 (phase_c_authorization_inventory.test.cjs)",
+        "AUTH-ROLE-02 (phase_c_authorization_inventory.test.cjs)",
+        "PLN-01 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-042",
+      "method": "GET",
+      "endpoint": "/api/strategic-plans/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-043",
+      "method": "PUT",
+      "endpoint": "/api/strategic-plans/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "PLN-03 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-044",
+      "method": "DELETE",
+      "endpoint": "/api/strategic-plans/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 3,
+      "linkedTestIds": [
+        "FAC-03 (phase_c_authorization_inventory.test.cjs)",
+        "PLN-02 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-045",
+      "method": "POST",
+      "endpoint": "/api/edit-requests",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 7,
+      "linkedTestIds": [
+        "FAC-04 (phase_c_authorization_inventory.test.cjs)",
+        "EDT-01 (phase_e_authorization_matrix_expanded.test.cjs)",
+        "EDT-02 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-046",
+      "method": "GET",
+      "endpoint": "/api/edit-requests",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 8,
+      "linkedTestIds": [
+        "AUTH-03 (phase_c_authorization_inventory.test.cjs)",
+        "COORD-03 (phase_c_authorization_inventory.test.cjs)",
+        "EDT-03 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-047",
+      "method": "PUT",
+      "endpoint": "/api/edit-requests/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "FAC-05 (phase_c_authorization_inventory.test.cjs)",
+        "COORD-04 (phase_c_authorization_inventory.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-048",
+      "method": "GET",
+      "endpoint": "/api/notifications",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-049",
+      "method": "PUT",
+      "endpoint": "/api/notifications/:id/read",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-050",
+      "method": "DELETE",
+      "endpoint": "/api/students/clear-all",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 17,
+      "linkedTestIds": [
+        "HOD (phase_a_e2e_supertest.test.cjs)",
+        "Faculty (phase_a_e2e_supertest.test.cjs)",
+        "Admin (phase_a_e2e_supertest.test.cjs)",
+        "Destructive (phase_a_e2e_supertest.test.cjs)",
+        "B7-01 (phase_b_full_matrix.test.cjs)",
+        "B7-04 (phase_b_full_matrix.test.cjs)",
+        "B7-06 (phase_b_full_matrix.test.cjs)",
+        "B7-08 (phase_b_full_matrix.test.cjs)",
+        "XDEPT-03 (phase_d_authorization_matrix.test.cjs)",
+        "CLR-01 (phase_e_authorization_matrix_expanded.test.cjs)",
+        "CLR-02 (phase_e_authorization_matrix_expanded.test.cjs)",
+        "CLR-03 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-051",
+      "method": "GET",
+      "endpoint": "/api/students",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 20,
+      "linkedTestIds": [
+        "Account (phase_a_e2e_supertest.test.cjs)",
+        "HOD (phase_a_e2e_supertest.test.cjs)",
+        "Coordinator (phase_a_e2e_supertest.test.cjs)",
+        "Admin (phase_a_e2e_supertest.test.cjs)",
+        "Authority (phase_a_e2e_supertest.test.cjs)",
+        "GET (phase_a_e2e_supertest.test.cjs)",
+        "B7-01 (phase_b_full_matrix.test.cjs)",
+        "B7-02 (phase_b_full_matrix.test.cjs)",
+        "B4-02 (phase_b_workstreams_b4_b6.test.cjs)",
+        "B4-03 (phase_b_workstreams_b4_b6.test.cjs)",
+        "B4-04 (phase_b_workstreams_b4_b6.test.cjs)",
+        "B4-05 (phase_b_workstreams_b4_b6.test.cjs)",
+        "EXP-02 (phase_d_export_streaming.test.cjs)",
+        "EXP-03 (phase_d_export_streaming.test.cjs)",
+        "EXP-04 (phase_d_export_streaming.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-052",
+      "method": "POST",
+      "endpoint": "/api/students",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 4,
+      "linkedTestIds": [
+        "Authority (phase_a_e2e_supertest.test.cjs)",
+        "B7-07 (phase_b_full_matrix.test.cjs)",
+        "B7-08 (phase_b_full_matrix.test.cjs)",
+        "B7-09 (phase_b_full_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-053",
+      "method": "POST",
+      "endpoint": "/api/students/bulk",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 13,
+      "linkedTestIds": [
+        "B7-04 (phase_b_full_matrix.test.cjs)",
+        "B7-05 (phase_b_full_matrix.test.cjs)",
+        "B5-01 (phase_b_workstream_b5.test.cjs)",
+        "B5-02 (phase_b_workstream_b5.test.cjs)",
+        "B5-03 (phase_b_workstream_b5.test.cjs)",
+        "B5-04 (phase_b_workstream_b5.test.cjs)",
+        "B5-05 (phase_b_workstream_b5.test.cjs)",
+        "B5-08 (phase_b_workstream_b5.test.cjs)",
+        "C1-01 (phase_c_concurrency_and_exports.test.cjs)",
+        "C1-03 (phase_c_concurrency_and_exports.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-054",
+      "method": "GET",
+      "endpoint": "/api/students/lookup/:regNo",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "Historical (phase_a_e2e_supertest.test.cjs)",
+        "XDEPT-01 (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-055",
+      "method": "PUT",
+      "endpoint": "/api/students/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "XDEPT-02 (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-056",
+      "method": "DELETE",
+      "endpoint": "/api/students/:id",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 17,
+      "linkedTestIds": [
+        "HOD (phase_a_e2e_supertest.test.cjs)",
+        "Faculty (phase_a_e2e_supertest.test.cjs)",
+        "Admin (phase_a_e2e_supertest.test.cjs)",
+        "Destructive (phase_a_e2e_supertest.test.cjs)",
+        "B7-01 (phase_b_full_matrix.test.cjs)",
+        "B7-04 (phase_b_full_matrix.test.cjs)",
+        "B7-06 (phase_b_full_matrix.test.cjs)",
+        "B7-08 (phase_b_full_matrix.test.cjs)",
+        "XDEPT-03 (phase_d_authorization_matrix.test.cjs)",
+        "CLR-01 (phase_e_authorization_matrix_expanded.test.cjs)",
+        "CLR-02 (phase_e_authorization_matrix_expanded.test.cjs)",
+        "CLR-03 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-057",
+      "method": "DELETE",
+      "endpoint": "/api/faculty/clear-all",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-058",
+      "method": "GET",
+      "endpoint": "/api/faculty",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 6,
+      "linkedTestIds": [
+        "GET (phase_a_e2e_supertest.test.cjs)",
+        "B7-01 (phase_b_full_matrix.test.cjs)",
+        "B7-03 (phase_b_full_matrix.test.cjs)",
+        "B7-08 (phase_b_full_matrix.test.cjs)",
+        "EXP-05 (phase_d_export_streaming.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-059",
+      "method": "POST",
+      "endpoint": "/api/faculty",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-060",
+      "method": "POST",
+      "endpoint": "/api/faculty/bulk",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 5,
+      "linkedTestIds": [
+        "B5-06 (phase_b_workstream_b5.test.cjs)",
+        "B5-07 (phase_b_workstream_b5.test.cjs)",
+        "C1-02 (phase_c_concurrency_and_exports.test.cjs)",
+        "C1-04 (phase_c_concurrency_and_exports.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-061",
+      "method": "PUT",
+      "endpoint": "/api/faculty/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-062",
+      "method": "DELETE",
+      "endpoint": "/api/faculty/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-063",
+      "method": "GET",
+      "endpoint": "/api/departments",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-064",
+      "method": "POST",
+      "endpoint": "/api/departments",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-065",
+      "method": "POST",
+      "endpoint": "/api/departments/bulk",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-066",
+      "method": "GET",
+      "endpoint": "/api/departments/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-067",
+      "method": "PUT",
+      "endpoint": "/api/departments/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-068",
+      "method": "DELETE",
+      "endpoint": "/api/departments/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-069",
+      "method": "GET",
+      "endpoint": "/api/departments/:id/courses",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-070",
+      "method": "GET",
+      "endpoint": "/api/departments/:id/program-levels",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-071",
+      "method": "DELETE",
+      "endpoint": "/api/research-metrics/clear-all",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-072",
+      "method": "GET",
+      "endpoint": "/api/research-metrics",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-073",
+      "method": "POST",
+      "endpoint": "/api/research-metrics/bulk",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-074",
+      "method": "GET",
+      "endpoint": "/api/publications/stats",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-075",
+      "method": "POST",
+      "endpoint": "/api/publications/bulk",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "AUTH-FINAL-07 (phase_e_authorization_matrix_final.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-076",
+      "method": "DELETE",
+      "endpoint": "/api/publications/clear-all",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-077",
+      "method": "GET",
+      "endpoint": "/api/publications",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-078",
+      "method": "POST",
+      "endpoint": "/api/publications",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 3,
+      "linkedTestIds": [
+        "C3-02 (phase_c_concurrency_and_exports.test.cjs)",
+        "ENT-MUT-01 (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-079",
+      "method": "GET",
+      "endpoint": "/api/publications/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-080",
+      "method": "PUT",
+      "endpoint": "/api/publications/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-081",
+      "method": "DELETE",
+      "endpoint": "/api/publications/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-082",
+      "method": "GET",
+      "endpoint": "/api/sponsored-projects/stats",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-083",
+      "method": "POST",
+      "endpoint": "/api/sponsored-projects/bulk",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-084",
+      "method": "DELETE",
+      "endpoint": "/api/sponsored-projects/clear-all",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-085",
+      "method": "GET",
+      "endpoint": "/api/sponsored-projects",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-086",
+      "method": "POST",
+      "endpoint": "/api/sponsored-projects",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 3,
+      "linkedTestIds": [
+        "C3-04 (phase_c_concurrency_and_exports.test.cjs)",
+        "ENT-MUT-03 (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-087",
+      "method": "GET",
+      "endpoint": "/api/sponsored-projects/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-088",
+      "method": "PUT",
+      "endpoint": "/api/sponsored-projects/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-089",
+      "method": "DELETE",
+      "endpoint": "/api/sponsored-projects/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-090",
+      "method": "GET",
+      "endpoint": "/api/consultancy-projects/stats",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-091",
+      "method": "POST",
+      "endpoint": "/api/consultancy-projects/bulk",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-092",
+      "method": "DELETE",
+      "endpoint": "/api/consultancy-projects/clear-all",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-093",
+      "method": "GET",
+      "endpoint": "/api/consultancy-projects",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-094",
+      "method": "POST",
+      "endpoint": "/api/consultancy-projects",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-095",
+      "method": "GET",
+      "endpoint": "/api/consultancy-projects/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-096",
+      "method": "PUT",
+      "endpoint": "/api/consultancy-projects/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-097",
+      "method": "DELETE",
+      "endpoint": "/api/consultancy-projects/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-098",
+      "method": "GET",
+      "endpoint": "/api/departmental-activities",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-099",
+      "method": "POST",
+      "endpoint": "/api/departmental-activities",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "COORD-01 (phase_c_authorization_inventory.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-100",
+      "method": "GET",
+      "endpoint": "/api/departmental-activities/matrix",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-101",
+      "method": "POST",
+      "endpoint": "/api/departmental-activities/bulk",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-102",
+      "method": "DELETE",
+      "endpoint": "/api/departmental-activities/clear-all",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-103",
+      "method": "PUT",
+      "endpoint": "/api/departmental-activities/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-104",
+      "method": "DELETE",
+      "endpoint": "/api/departmental-activities/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-105",
+      "method": "GET",
+      "endpoint": "/api/parameter-master/frameworks",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-106",
+      "method": "POST",
+      "endpoint": "/api/parameter-master/frameworks",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 4,
+      "linkedTestIds": [
+        "COORD-02 (phase_c_authorization_inventory.test.cjs)",
+        "ADM-03 (phase_c_authorization_inventory.test.cjs)",
+        "MSTR-MUT-02 (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-107",
+      "method": "GET",
+      "endpoint": "/api/parameter-master/parameters",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-108",
+      "method": "POST",
+      "endpoint": "/api/parameter-master/parameters",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 4,
+      "linkedTestIds": [
+        "AUTH-FINAL-08 (phase_e_authorization_matrix_final.test.cjs)",
+        "AUTH-FINAL-09 (phase_e_authorization_matrix_final.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-109",
+      "method": "POST",
+      "endpoint": "/api/parameter-master/submissions",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-110",
+      "method": "PUT",
+      "endpoint": "/api/parameter-master/submissions/:id/verify",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "AUTH-FINAL-10 (phase_e_authorization_matrix_final.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-111",
+      "method": "GET",
+      "endpoint": "/api/department-lineage/domain-trends",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-112",
+      "method": "GET",
+      "endpoint": "/api/department-lineage/users/:userId/history",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-113",
+      "method": "GET",
+      "endpoint": "/api/campuses",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-114",
+      "method": "POST",
+      "endpoint": "/api/campuses",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 2,
+      "linkedTestIds": [
+        "MSTR-MUT-01 (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-115",
+      "method": "GET",
+      "endpoint": "/api/campuses/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-116",
+      "method": "PUT",
+      "endpoint": "/api/campuses/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-117",
+      "method": "DELETE",
+      "endpoint": "/api/campuses/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-118",
+      "method": "GET",
+      "endpoint": "/api/campuses/:id/schools",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-119",
+      "method": "GET",
+      "endpoint": "/api/schools",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-120",
+      "method": "POST",
+      "endpoint": "/api/schools",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-121",
+      "method": "GET",
+      "endpoint": "/api/schools/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-122",
+      "method": "PUT",
+      "endpoint": "/api/schools/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-123",
+      "method": "DELETE",
+      "endpoint": "/api/schools/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-124",
+      "method": "GET",
+      "endpoint": "/api/schools/:id/departments",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-125",
+      "method": "GET",
+      "endpoint": "/api/program-levels",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-126",
+      "method": "POST",
+      "endpoint": "/api/program-levels",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-127",
+      "method": "GET",
+      "endpoint": "/api/program-levels/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-128",
+      "method": "PUT",
+      "endpoint": "/api/program-levels/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-129",
+      "method": "DELETE",
+      "endpoint": "/api/program-levels/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-130",
+      "method": "GET",
+      "endpoint": "/api/courses",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-131",
+      "method": "POST",
+      "endpoint": "/api/courses",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-132",
+      "method": "GET",
+      "endpoint": "/api/courses/:id",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-133",
+      "method": "PUT",
+      "endpoint": "/api/courses/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-134",
+      "method": "DELETE",
+      "endpoint": "/api/courses/:id",
+      "isMutative": true,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-135",
+      "method": "GET",
+      "endpoint": "/api/hierarchy/stats",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    },
+    {
+      "id": "R-136",
+      "method": "GET",
+      "endpoint": "/api/hierarchy/tree",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "TABLE_phase_d_authorization_matrix (phase_d_authorization_matrix.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-137",
+      "method": "POST",
+      "endpoint": "/api/system/clear-database",
+      "isMutative": true,
+      "isTested": true,
+      "testCount": 18,
+      "linkedTestIds": [
+        "POST (phase_a_e2e_supertest.test.cjs)",
+        "B7-01 (phase_b_full_matrix.test.cjs)",
+        "B7-10 (phase_b_full_matrix.test.cjs)",
+        "AUTH-05 (phase_c_authorization_inventory.test.cjs)",
+        "FAC-02 (phase_c_authorization_inventory.test.cjs)",
+        "HOD-03 (phase_c_authorization_inventory.test.cjs)",
+        "SYS-01 (phase_e_authorization_matrix_expanded.test.cjs)",
+        "SYS-02 (phase_e_authorization_matrix_expanded.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-138",
+      "method": "GET",
+      "endpoint": "/api/system/dashboard-stats",
+      "isMutative": false,
+      "isTested": true,
+      "testCount": 1,
+      "linkedTestIds": [
+        "ADM-02 (phase_c_authorization_inventory.test.cjs)"
+      ]
+    },
+    {
+      "id": "R-139",
+      "method": "GET",
+      "endpoint": "/health",
+      "isMutative": false,
+      "isTested": false,
+      "testCount": 0,
+      "linkedTestIds": []
+    }
+  ]
+}

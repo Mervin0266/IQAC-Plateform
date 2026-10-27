@@ -1,0 +1,222 @@
+[
+  {
+    "id": "SEC-AUTH-01",
+    "name": "Authority Read Dashboard Live Stats",
+    "role": "authority",
+    "method": "GET",
+    "url": "http://localhost:5000/api/system/dashboard-stats",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "status": "PASS",
+    "description": "Authority role should have university-wide read access to dashboard stats"
+  },
+  {
+    "id": "SEC-AUTH-02",
+    "name": "Authority Read Student Census",
+    "role": "authority",
+    "method": "GET",
+    "url": "http://localhost:5000/api/students",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "status": "PASS",
+    "description": "Authority role should have university-wide read access to student census"
+  },
+  {
+    "id": "SEC-AUTH-03",
+    "name": "Authority Read Faculty Directory",
+    "role": "authority",
+    "method": "GET",
+    "url": "http://localhost:5000/api/faculty",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "status": "PASS",
+    "description": "Authority role should have university-wide read access to faculty directory"
+  },
+  {
+    "id": "SEC-AUTH-04",
+    "name": "Authority Prohibited from Creating Student Record",
+    "role": "authority",
+    "method": "POST",
+    "url": "http://localhost:5000/api/students",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting to create a student"
+  },
+  {
+    "id": "SEC-AUTH-05",
+    "name": "Authority Prohibited from Bulk Uploading Students",
+    "role": "authority",
+    "method": "POST",
+    "url": "http://localhost:5000/api/students/bulk",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting student bulk upload"
+  },
+  {
+    "id": "SEC-AUTH-06",
+    "name": "Authority Prohibited from Clearing All Students",
+    "role": "authority",
+    "method": "DELETE",
+    "url": "http://localhost:5000/api/students/clear-all",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting to clear all students"
+  },
+  {
+    "id": "SEC-AUTH-07",
+    "name": "Authority Prohibited from Creating Faculty Record",
+    "role": "authority",
+    "method": "POST",
+    "url": "http://localhost:5000/api/faculty",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting to create faculty"
+  },
+  {
+    "id": "SEC-AUTH-08",
+    "name": "Authority Prohibited from Bulk Uploading Faculty",
+    "role": "authority",
+    "method": "POST",
+    "url": "http://localhost:5000/api/faculty/bulk",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting bulk faculty upload"
+  },
+  {
+    "id": "SEC-AUTH-09",
+    "name": "Authority Prohibited from Clearing All Faculty",
+    "role": "authority",
+    "method": "DELETE",
+    "url": "http://localhost:5000/api/faculty/clear-all",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting to clear all faculty"
+  },
+  {
+    "id": "SEC-AUTH-10",
+    "name": "Authority Prohibited from Creating Publication",
+    "role": "authority",
+    "method": "POST",
+    "url": "http://localhost:5000/api/publications",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting to create publication"
+  },
+  {
+    "id": "SEC-AUTH-11",
+    "name": "Authority Prohibited from Bulk Uploading Publications",
+    "role": "authority",
+    "method": "POST",
+    "url": "http://localhost:5000/api/publications/bulk",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting bulk publication upload"
+  },
+  {
+    "id": "SEC-AUTH-12",
+    "name": "Authority Prohibited from Creating Patent",
+    "role": "authority",
+    "method": "POST",
+    "url": "http://localhost:5000/api/patents",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting to create patent"
+  },
+  {
+    "id": "SEC-AUTH-13",
+    "name": "Authority Prohibited from Creating Strategic Plan",
+    "role": "authority",
+    "method": "POST",
+    "url": "http://localhost:5000/api/strategic-plans",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting to create strategic plan"
+  },
+  {
+    "id": "SEC-AUTH-14",
+    "name": "Authority Prohibited from Clearing Strategic Plans",
+    "role": "authority",
+    "method": "DELETE",
+    "url": "http://localhost:5000/api/strategic-plans/clear-all",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting to clear strategic plans"
+  },
+  {
+    "id": "SEC-AUTH-15",
+    "name": "Authority Prohibited from Accessing User Management",
+    "role": "authority",
+    "method": "GET",
+    "url": "http://localhost:5000/api/users",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting to access user management"
+  },
+  {
+    "id": "SEC-AUTH-16",
+    "name": "Authority Prohibited from Clearing Entire Database",
+    "role": "authority",
+    "method": "POST",
+    "url": "http://localhost:5000/api/system/clear-database",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Authority role must be rejected with 403 Forbidden when attempting to invoke clear-database"
+  },
+  {
+    "id": "SEC-AUTH-17",
+    "name": "Admin Permitted to Read User Management",
+    "role": "admin",
+    "method": "GET",
+    "url": "http://localhost:5000/api/users",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "status": "PASS",
+    "description": "Admin role must be permitted to read user management"
+  },
+  {
+    "id": "SEC-AUTH-18",
+    "name": "HOD Prohibited from Clearing Entire Database",
+    "role": "hod",
+    "method": "POST",
+    "url": "http://localhost:5000/api/system/clear-database",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "HOD role must be blocked (403) from clearing entire database"
+  },
+  {
+    "id": "SEC-AUTH-19",
+    "name": "Coordinator Prohibited from Clearing Entire Database",
+    "role": "coordinator",
+    "method": "POST",
+    "url": "http://localhost:5000/api/system/clear-database",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Coordinator role must be blocked (403) from clearing entire database"
+  },
+  {
+    "id": "SEC-AUTH-20",
+    "name": "Faculty Prohibited from Clearing Entire Database",
+    "role": "faculty",
+    "method": "POST",
+    "url": "http://localhost:5000/api/system/clear-database",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "status": "PASS",
+    "description": "Faculty role must be blocked (403) from clearing entire database"
+  }
+]

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Sidebar } from './Sidebar';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -33,6 +32,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { getRoleDisplayName } from '../config/permissions';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
+import { AppShell, PageHeader, StatCard } from './design-system';
 
 interface User {
   id: string;
@@ -46,7 +46,12 @@ interface User {
   createdAt?: string;
 }
 
-export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) => void }) {
+interface UserManagementPageProps {
+  onNavigate: (page: string) => void;
+  currentPage?: string;
+}
+
+export function UserManagementPage({ onNavigate, currentPage = 'user-management' }: UserManagementPageProps) {
   const { user, logout } = useAuth();
   
   const [users, setUsers] = useState<User[]>([]);
@@ -326,28 +331,18 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      <Sidebar currentPage="user-management" onNavigate={onNavigate} />
-
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        <div className="max-w-7xl mx-auto space-y-6">
-          
-          {/* Header Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-[#2f4692]/20 ring-4 ring-[#2f4692]/10">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                  User Accounts & Governance
-                </h1>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Institutional user directory, role assignments, department scopes, and system access controls
-                </p>
-              </div>
-            </div>
-
+    <AppShell currentPage={currentPage} onNavigate={onNavigate}>
+      <div className="space-y-6">
+        {/* Header Bar */}
+        <PageHeader
+          breadcrumbs={[
+            { label: 'Administration' },
+            { label: 'User Accounts & RBAC' },
+          ]}
+          title="User Accounts & Governance"
+          badge="RBAC DIRECTORY"
+          description="Institutional user directory, role assignments, department scopes, and system access controls"
+          actions={
             <div className="flex items-center gap-2.5 flex-wrap">
               <Button
                 onClick={fetchUsers}
@@ -372,105 +367,67 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
 
               <Button
                 onClick={handleOpenCreate}
-                className="bg-gradient-to-r from-[#2f4692] to-[#1e2f65] hover:from-[#243a7a] hover:to-[#172450] text-white text-xs font-bold h-9 rounded-xl shadow-md shadow-[#2f4692]/20 flex items-center gap-1.5"
+                className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 rounded-xl shadow-xs flex items-center gap-1.5"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>Add User Account</span>
               </Button>
             </div>
+          }
+        />
+
+        {clearSuccessMsg && (
+          <div className="bg-emerald-50 text-emerald-800 p-4 rounded-xl text-xs font-semibold border border-emerald-200 flex items-center gap-2.5 shadow-xs">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <span>{clearSuccessMsg}</span>
           </div>
+        )}
 
-          {clearSuccessMsg && (
-            <div className="bg-emerald-50 text-emerald-800 p-4 rounded-2xl text-xs font-semibold border border-emerald-200 flex items-center gap-2.5 shadow-sm">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>{clearSuccessMsg}</span>
-            </div>
-          )}
-
-          {error && (
-            <div className="bg-rose-50 text-rose-700 p-4 rounded-2xl text-xs font-semibold border border-rose-200 flex items-center gap-2.5 shadow-sm">
-              <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* 5 Executive KPI Metric Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {/* Card 1: Total Users */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2f4692] to-blue-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Accounts</p>
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2f4692] flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Users className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.total}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                Registered profiles
-              </p>
-            </div>
-
-            {/* Card 2: Admins & Authority */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-red-600" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Admins & Authorities</p>
-                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Shield className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-rose-700 tracking-tight mt-2">{stats.admins}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                Full governance access
-              </p>
-            </div>
-
-            {/* Card 3: Department Leadership */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">HODs & Coordinators</p>
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Building2 className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.hods}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                Department supervisors
-              </p>
-            </div>
-
-            {/* Card 4: Faculty Users */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Faculty Users</p>
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <GraduationCap className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.faculty}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                Academic contributors
-              </p>
-            </div>
-
-            {/* Card 5: Active Rate */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Rate</p>
-                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.activePercent}%</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                <span className="text-emerald-600 font-bold">{stats.active}</span> active accounts
-              </p>
-            </div>
+        {error && (
+          <div className="bg-rose-50 text-rose-700 p-4 rounded-xl text-xs font-semibold border border-rose-200 flex items-center gap-2.5 shadow-xs">
+            <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0" />
+            <span>{error}</span>
           </div>
+        )}
+
+        {/* 5 Executive KPI Metric Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <StatCard
+            title="Total Accounts"
+            value={stats.total}
+            icon={Users}
+            badge="Total"
+            subtitle="Registered profiles"
+          />
+          <StatCard
+            title="Admins & Authorities"
+            value={stats.admins}
+            icon={Shield}
+            badge="Superusers"
+            subtitle="Full governance access"
+          />
+          <StatCard
+            title="HODs & Coordinators"
+            value={stats.hods}
+            icon={Building2}
+            badge="Leadership"
+            subtitle="Department supervisors"
+          />
+          <StatCard
+            title="Faculty Users"
+            value={stats.faculty}
+            icon={GraduationCap}
+            badge="Faculty"
+            subtitle="Academic contributors"
+          />
+          <StatCard
+            title="Active Rate"
+            value={`${stats.activePercent}%`}
+            icon={CheckCircle2}
+            badge={`${stats.active} Active`}
+            subtitle="Operational accounts"
+          />
+        </div>
 
           {/* Unified Filter Bar & View Switcher */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
@@ -626,28 +583,13 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
                       </tr>
                     ) : (
                       filteredUsers.map((item) => {
-                        const initials = item.name
-                          .split(' ')
-                          .filter(Boolean)
-                          .map(w => w[0])
-                          .slice(0, 2)
-                          .join('')
-                          .toUpperCase() || 'US';
-
                         return (
-                          <tr key={item.id} className="hover:bg-blue-50/30 transition-colors group">
-                            <td className="py-3.5 px-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white flex items-center justify-center text-xs font-black shadow-sm">
-                                  {initials}
-                                </div>
-                                <div>
-                                  <p className="font-bold text-slate-900 group-hover:text-[#2f4692] transition-colors">
-                                    {item.name}
-                                  </p>
-                                  <p className="text-[11px] text-slate-400 font-mono">{item.email}</p>
-                                </div>
-                              </div>
+                          <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                            <td className="py-3 px-4">
+                              <p className="font-semibold text-slate-900 group-hover:text-[#2F4692] transition-colors">
+                                {item.name}
+                              </p>
+                              <p className="text-[11px] text-slate-500 font-mono">{item.email}</p>
                             </td>
 
                             <td className="py-3.5 px-4 font-mono font-bold text-slate-700 text-xs">
@@ -901,7 +843,6 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
             </div>
           )}
         </div>
-      </main>
 
       {/* Add / Edit User Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
@@ -1088,6 +1029,6 @@ export function UserManagementPage({ onNavigate }: { onNavigate: (page: string) 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AppShell>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Sidebar } from './Sidebar';
+import { AppShell } from './design-system';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import {
   Award, Users, Building, BookOpen, TrendingUp, Star, CheckCircle,
@@ -380,11 +380,7 @@ export function CentreExcellencePage({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 flex">
-      {!hideSidebar && <Sidebar currentPage="centre-excellence" onNavigate={onNavigate} />}
-
-      <main className={hideSidebar ? 'p-4 sm:p-6 lg:p-8 w-full' : 'ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300'}>
-        <div className="max-w-7xl mx-auto space-y-6">
+    <AppShell currentPage="centre-excellence" onNavigate={onNavigate} hideSidebar={hideSidebar}>
 
           {/* ========================================================================= */}
           {/* 1. MASTER HEADER & ACTION TOOLBAR                                         */}
@@ -933,9 +929,6 @@ export function CentreExcellencePage({
             </div>
           )}
 
-        </div>
-      </main>
-
       {/* ========================================================================= */}
       {/* 5. ADD / EDIT CENTRE MODAL DIALOG                                         */}
       {/* ========================================================================= */}
@@ -1116,6 +1109,6 @@ export function CentreExcellencePage({
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </AppShell>
   );
 }

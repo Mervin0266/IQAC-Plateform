@@ -1,0 +1,344 @@
+[
+  {
+    "file": "achievements.js",
+    "method": "DELETE",
+    "path": "/api/achievements/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "achievements.js",
+    "method": "GET",
+    "path": "/api/achievements/stats",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "achievements.js",
+    "method": "POST",
+    "path": "/api/achievements/bulk",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "auth.js",
+    "method": "POST",
+    "path": "/api/auth/login",
+    "authRequired": false,
+    "roles": "Public / Unauthenticated",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "auth.js",
+    "method": "GET",
+    "path": "/api/auth/me",
+    "authRequired": false,
+    "roles": "Public / Unauthenticated",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "auth.js",
+    "method": "PUT",
+    "path": "/api/auth/password",
+    "authRequired": false,
+    "roles": "Public / Unauthenticated",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "consultancyProjects.js",
+    "method": "GET",
+    "path": "/api/consultancy-projects/stats",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "consultancyProjects.js",
+    "method": "POST",
+    "path": "/api/consultancy-projects/bulk",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "consultancyProjects.js",
+    "method": "DELETE",
+    "path": "/api/consultancy-projects/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "departmentalActivities.js",
+    "method": "GET",
+    "path": "/api/departmental-activities/matrix",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Scoped to user.department for Non-Admin/Authority",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "departmentLineage.js",
+    "method": "GET",
+    "path": "/api/department-lineage/domain-trends",
+    "authRequired": false,
+    "roles": "Public / Unauthenticated",
+    "deptScope": "Scoped to user.department for Non-Admin/Authority",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "departmentLineage.js",
+    "method": "GET",
+    "path": "/api/department-lineage/users/:userId/history",
+    "authRequired": false,
+    "roles": "Public / Unauthenticated",
+    "deptScope": "Scoped to user.department for Non-Admin/Authority",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "documents.js",
+    "method": "DELETE",
+    "path": "/api/documents/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "editRequests.js",
+    "method": "POST",
+    "path": "/api/edit-requests",
+    "authRequired": false,
+    "roles": "faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "editRequests.js",
+    "method": "GET",
+    "path": "/api/edit-requests",
+    "authRequired": false,
+    "roles": "faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "editRequests.js",
+    "method": "PUT",
+    "path": "/api/edit-requests/:id",
+    "authRequired": false,
+    "roles": "faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "faculty.js",
+    "method": "DELETE",
+    "path": "/api/faculty/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "notifications.js",
+    "method": "GET",
+    "path": "/api/notifications",
+    "authRequired": false,
+    "roles": "Public / Unauthenticated",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "notifications.js",
+    "method": "PUT",
+    "path": "/api/notifications/:id/read",
+    "authRequired": false,
+    "roles": "Public / Unauthenticated",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "patents.js",
+    "method": "GET",
+    "path": "/api/patents/stats",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "patents.js",
+    "method": "POST",
+    "path": "/api/patents/bulk",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "patents.js",
+    "method": "DELETE",
+    "path": "/api/patents/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "placements.js",
+    "method": "DELETE",
+    "path": "/api/placements/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "placements.js",
+    "method": "GET",
+    "path": "/api/placements/stats",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "placements.js",
+    "method": "POST",
+    "path": "/api/placements/bulk",
+    "authRequired": false,
+    "roles": "admin, coordinator",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "publications.js",
+    "method": "GET",
+    "path": "/api/publications/stats",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "publications.js",
+    "method": "POST",
+    "path": "/api/publications/bulk",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "publications.js",
+    "method": "DELETE",
+    "path": "/api/publications/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "researchMetrics.js",
+    "method": "DELETE",
+    "path": "/api/research-metrics/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "sponsoredProjects.js",
+    "method": "GET",
+    "path": "/api/sponsored-projects/stats",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "sponsoredProjects.js",
+    "method": "POST",
+    "path": "/api/sponsored-projects/bulk",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "sponsoredProjects.js",
+    "method": "DELETE",
+    "path": "/api/sponsored-projects/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod, faculty",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "strategicPlans.js",
+    "method": "DELETE",
+    "path": "/api/strategic-plans/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "strategicPlans.js",
+    "method": "GET",
+    "path": "/api/strategic-plans/stats",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "students.js",
+    "method": "DELETE",
+    "path": "/api/students/clear-all",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "students.js",
+    "method": "GET",
+    "path": "/api/students/lookup/:regNo",
+    "authRequired": false,
+    "roles": "admin, coordinator, hod",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "system.js",
+    "method": "POST",
+    "path": "/api/system/clear-database",
+    "authRequired": false,
+    "roles": "admin",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  },
+  {
+    "file": "system.js",
+    "method": "GET",
+    "path": "/api/system/dashboard-stats",
+    "authRequired": false,
+    "roles": "Public / Unauthenticated",
+    "deptScope": "Global / Admin-only",
+    "ownership": "Role-Based"
+  }
+]

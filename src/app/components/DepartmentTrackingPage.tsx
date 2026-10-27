@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sidebar } from './Sidebar';
+import { AppShell } from './design-system';
 import { Card } from './ui/card';
 import { ArrowLeft, Download, Filter, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { Button } from './ui/button';
@@ -504,10 +504,7 @@ export function DepartmentTrackingPage({ onNavigate, departmentId }: DepartmentT
   const overallProgress = Math.round((totalAchieved / totalPlanned) * 100);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar currentPage="strategic-plan" onNavigate={onNavigate} />
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        <div className="max-w-7xl mx-auto space-y-6">
+    <AppShell currentPage="strategic-plan" onNavigate={onNavigate}>
         {/* Back Button */}
         <button
           onClick={() => onNavigate('strategic-plan')}
@@ -640,8 +637,6 @@ export function DepartmentTrackingPage({ onNavigate, departmentId }: DepartmentT
             </Table>
           </div>
         </Card>
-        </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }

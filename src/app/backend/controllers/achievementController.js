@@ -1,8 +1,10 @@
 const { Achievement, User } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { logAction } = require('../middleware/auditLogger');
+const { logAction, logActionSafe } = require('../middleware/auditLogger');
 const { sendNotification } = require('../middleware/notificationHelper');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
+const { parsePagination, formatPaginationResponse } = require('../utils/paginationHelper');
 
 // @desc    Get all achievements
 // @route   GET /api/achievements
@@ -36,21 +38,27 @@ exports.getAchievements = async (req, res) => {
       where.status = status;
     }
 
-    const achievements = await Achievement.findAll({
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const { count, rows: achievements } = await Achievement.findAndCountAll({
       where,
       include: [{
         model: User,
         as: 'creator',
         attributes: ['id', 'name', 'email', 'department']
       }],
-      order: [['date', 'DESC']]
+      order: [['date', 'DESC'], ['id', 'ASC']],
+      limit,
+      offset,
+      distinct: true
     });
 
-    res.json({
-      success: true,
-      count: achievements.length,
-      data: achievements
-    });
+    res.json(formatPaginationResponse({
+      count,
+      rows: achievements,
+      page,
+      limit
+    }));
   } catch (error) {
     console.error('Get achievements error:', error);
     res.status(500).json({
@@ -122,14 +130,30 @@ exports.createAchievement = async (req, res) => {
     if (req.user.role === 'faculty') {
       initialStatus = 'submitted';
     }
-    const dept = req.user.role === 'admin' || req.user.role === 'authority' ? req.body.department : req.user.department;
+    const dept = req.user.role === 'admin' || req.user.role === 'authority' ? (req.body.department || req.user.department || 'General') : req.user.department;
 
-    const achievement = await Achievement.create({
-      ...req.body,
-      department: dept,
-      status: initialStatus,
-      createdBy: req.user.id
+    const allowedCreateFields = [
+      'title', 'description', 'category', 'subcategory', 'achieverType',
+      'date', 'year', 'rank', 'score', 'organization', 'proofUrl',
+      'achievementDate', 'academicYear', 'studentName', 'registerNumber',
+      'facultyName', 'awardName', 'awardingAgency', 'level', 'venue',
+      'certificateUrl', 'remarks'
+    ];
+    const safeData = {};
+    allowedCreateFields.forEach(f => {
+      if (req.body[f] !== undefined) safeData[f] = req.body[f];
     });
+    if (!safeData.date && req.body.achievementDate) {
+      safeData.date = req.body.achievementDate;
+    }
+    if (!safeData.year && req.body.academicYear) {
+      safeData.year = req.body.academicYear;
+    }
+    safeData.department = dept;
+    safeData.status = initialStatus;
+    safeData.createdBy = req.user.id;
+
+    const achievement = await Achievement.create(safeData);
 
     // Log creation
     await logAction({
@@ -221,8 +245,39 @@ exports.updateAchievement = async (req, res) => {
       });
     }
 
+    const allowedUpdateFields = [
+      'title', 'description', 'category', 'subcategory', 'achieverType',
+      'date', 'year', 'rank', 'score', 'organization', 'proofUrl',
+      'achievementDate', 'academicYear', 'studentName', 'registerNumber',
+      'facultyName', 'awardName', 'awardingAgency', 'level', 'venue',
+      'certificateUrl', 'remarks'
+    ];
+    const updates = {};
+    allowedUpdateFields.forEach(f => {
+      if (req.body[f] !== undefined) updates[f] = req.body[f];
+    });
+    if (!updates.date && req.body.achievementDate) {
+      updates.date = req.body.achievementDate;
+    }
+    if (!updates.year && req.body.academicYear) {
+      updates.year = req.body.academicYear;
+    }
+
+    // Privileged status updates: only admin, hod, coordinator can change status
+    if (['admin', 'hod', 'coordinator'].includes(req.user.role) && req.body.status !== undefined) {
+      updates.status = req.body.status;
+    }
+
+    // Admin-only department updates
+    if (req.user.role === 'admin' && req.body.department !== undefined) {
+      updates.department = req.body.department;
+    }
+
+    delete updates.id;
+    delete updates.createdBy;
+
     const oldValues = achievement.toJSON();
-    await achievement.update(req.body);
+    await achievement.update(updates);
     const newValues = achievement.toJSON();
 
     // Log update
@@ -468,15 +523,29 @@ exports.bulkCreateAchievements = async (req, res) => {
 // @access  Private (Admin/Coordinator/HOD)
 exports.clearAllAchievements = async (req, res) => {
   try {
-    const deletedCount = await Achievement.destroy({ where: {} });
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'Achievement', true);
+
+    let deletedCount = 0;
+    await sequelize.transaction(async (t) => {
+      deletedCount = await Achievement.destroy({ where, transaction: t });
+    });
+
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_ACHIEVEMENTS',
+      title: `Cleared achievements: ${scopeDescription}`,
+      remarks: `Deleted ${deletedCount} achievement records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
+
     res.json({
       success: true,
-      message: `All achievement records (${deletedCount}) cleared successfully`,
+      message: `Achievement records (${deletedCount}) cleared successfully for ${scopeDescription}`,
       count: deletedCount
     });
   } catch (error) {
     console.error('Clear all achievements error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       message: error.message || 'Server error'
     });

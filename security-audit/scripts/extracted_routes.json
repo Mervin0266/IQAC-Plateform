@@ -1,0 +1,697 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/auth/login",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/auth/me",
+    "handleName": "auth"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/auth/password",
+    "handleName": "auth"
+  },
+  {
+    "method": "GET",
+    "path": "/api/users/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/users/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/users/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/users/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/users/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/achievements/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/achievements/stats",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/achievements/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/achievements/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/achievements/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/achievements/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/achievements/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/achievements/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/documents/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/documents/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/documents/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/documents/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/documents/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/documents/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/patents/stats",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/patents/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/patents/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/patents/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/patents/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/patents/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/patents/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/patents/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/placements/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/placements/stats",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/placements/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/placements/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/placements/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/placements/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/placements/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/strategic-plans/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/strategic-plans/stats",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/strategic-plans/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/strategic-plans/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/strategic-plans/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/strategic-plans/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/strategic-plans/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/edit-requests/",
+    "handleName": "auth"
+  },
+  {
+    "method": "GET",
+    "path": "/api/edit-requests/",
+    "handleName": "auth"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/edit-requests/:id",
+    "handleName": "auth"
+  },
+  {
+    "method": "GET",
+    "path": "/api/notifications/",
+    "handleName": "auth"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/notifications/:id/read",
+    "handleName": "auth"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/students/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/students/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/students/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/students/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/students/lookup/:regNo",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/students/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/students/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/faculty/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/faculty/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/faculty/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/faculty/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/faculty/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/faculty/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/departments/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/departments/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/departments/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/departments/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/departments/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/departments/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/departments/:id/courses",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/departments/:id/program-levels",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/research-metrics/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/research-metrics/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/research-metrics/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/publications/stats",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/publications/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/publications/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/publications/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/publications/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/publications/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/publications/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/publications/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sponsored-projects/stats",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sponsored-projects/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/sponsored-projects/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sponsored-projects/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sponsored-projects/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sponsored-projects/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/sponsored-projects/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/sponsored-projects/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/consultancy-projects/stats",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/consultancy-projects/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/consultancy-projects/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/consultancy-projects/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/consultancy-projects/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/consultancy-projects/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/consultancy-projects/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/consultancy-projects/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/departmental-activities/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/departmental-activities/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/departmental-activities/matrix",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/departmental-activities/bulk",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/departmental-activities/clear-all",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/departmental-activities/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/departmental-activities/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/parameter-master/frameworks",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/parameter-master/frameworks",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/parameter-master/parameters",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/parameter-master/parameters",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/parameter-master/submissions",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/parameter-master/submissions/:id/verify",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-lineage/domain-trends",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-lineage/users/:userId/history",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/campuses/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/campuses/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/campuses/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/campuses/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/campuses/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/campuses/:id/schools",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/schools/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/schools/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/schools/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/schools/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/schools/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/schools/:id/departments",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/program-levels/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/program-levels/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/program-levels/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/program-levels/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/program-levels/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/courses/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/courses/",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/courses/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/courses/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/courses/:id",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/hierarchy/stats",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/hierarchy/tree",
+    "handleName": "<anonymous>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/system/clear-database",
+    "handleName": "auth"
+  },
+  {
+    "method": "GET",
+    "path": "/api/system/dashboard-stats",
+    "handleName": "auth"
+  },
+  {
+    "method": "GET",
+    "path": "/health",
+    "handleName": "<anonymous>"
+  }
+]

@@ -641,23 +641,9 @@ const initDatabase = async () => {
     console.log('✓ Sample student records created');
 
     console.log('\n========================================');
-    console.log('Database initialization completed!');
+    console.log('Database structural initialization completed!');
     console.log('========================================');
-    console.log('\nDefault Credentials:');
-    console.log(`Admin Email: ${process.env.DEFAULT_ADMIN_EMAIL || 'admin@christuniversity.in'}`);
-    console.log(`Admin Password: ${process.env.DEFAULT_ADMIN_PASSWORD || 'Admin@123'}`);
-    console.log('\nSample Institutional Authority Login:');
-    console.log('Email: dean@christuniversity.in');
-    console.log('Password: Authority@123');
-    console.log('\nSample HOD Login:');
-    console.log('Email: hod.cse@christuniversity.in');
-    console.log('Password: Hod@123');
-    console.log('\nSample Coordinator Login:');
-    console.log('Email: coord.cse@christuniversity.in');
-    console.log('Password: Coordinator@123');
-    console.log('\nSample Faculty Login:');
-    console.log('Email: faculty.cse@christuniversity.in');
-    console.log('Password: Faculty@123');
+    console.log('Note: To provision an administrator, use "node scripts/provisionAdmin.js"');
     console.log('========================================\n');
 
     process.exit(0);

@@ -15,16 +15,22 @@ export function ClearDatabaseButton({ onSuccess, className }: ClearDatabaseButto
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [isClearing, setIsClearing] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  if (!user || user.role !== 'admin') {
+  // HARD DEFENSE: Only Admin in non-production local development environment may see or invoke database reset
+  if (import.meta.env.PROD || !user || user.role !== 'admin') {
     return null;
   }
 
   const handleClear = async () => {
-    if (confirmText.toUpperCase() !== 'CLEAR') {
-      alert('Please type "CLEAR" to confirm wiping the entire database.');
+    if (confirmText.toUpperCase() !== 'CONFIRM_RESET') {
+      alert('Please type "CONFIRM_RESET" to confirm resetting the disposable test database.');
+      return;
+    }
+    if (!adminPassword || adminPassword.trim() === '') {
+      alert('Please enter your administrator password for re-authentication.');
       return;
     }
 
@@ -35,13 +41,18 @@ export function ClearDatabaseButton({ onSuccess, className }: ClearDatabaseButto
         headers: {
           'Authorization': `Bearer ${user.token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+          adminPassword,
+          confirmation: 'CONFIRM_DISPOSABLE_DATABASE_RESET'
+        })
       });
       const data = await response.json();
       if (data.success) {
-        setSuccessMessage('Entire database cleared successfully! The website is now clean without initial data.');
+        setSuccessMessage('Disposable test database reset successfully. Audit logs and accreditation frameworks were safely preserved.');
         setIsOpen(false);
         setConfirmText('');
+        setAdminPassword('');
         if (onSuccess) onSuccess();
         setTimeout(() => {
           window.location.reload();
@@ -64,7 +75,7 @@ export function ClearDatabaseButton({ onSuccess, className }: ClearDatabaseButto
         className={className || 'bg-red-600 hover:bg-red-700 text-white text-xs font-semibold flex items-center space-x-2 px-3 py-1.5 shadow-sm rounded-lg'}
       >
         <Trash2 className="w-4 h-4" />
-        <span>Clear Entire Database</span>
+        <span>Reset Disposable Test DB</span>
       </Button>
 
       {successMessage && (
@@ -79,37 +90,44 @@ export function ClearDatabaseButton({ onSuccess, className }: ClearDatabaseButto
           <DialogHeader className="pb-3 border-b border-gray-150">
             <DialogTitle className="text-lg font-bold text-red-600 flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-red-600" />
-              <span>Clear Entire Database</span>
+              <span>Reset Disposable Test Database</span>
             </DialogTitle>
           </DialogHeader>
 
           <div className="py-4 space-y-3">
             <p className="text-xs text-gray-700 leading-relaxed font-medium">
-              This action will <strong>permanently delete all data</strong> from the database, including:
+              This action will reset transactional test data in this <strong>disposable local environment</strong>.
             </p>
-            <ul className="text-xs text-gray-600 list-disc pl-5 space-y-1">
-              <li>Student & Faculty Directories</li>
-              <li>Departmental Activities & Matrix Tables</li>
-              <li>Achievements, Publications, Patents & Research Metrics</li>
-              <li>Placements & Consultancy Projects</li>
-              <li>Departments, Schools, Campuses & Programs</li>
-            </ul>
-
-            <div className="bg-red-50 border border-red-200 p-3 rounded-lg text-[11px] text-red-800 font-semibold">
-              ⚠️ The website will be 100% clean without any initial seed data.
+            <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-[11px] text-amber-800 font-medium">
+              ℹ️ Security Preservation: <strong>Audit logs and accreditation frameworks are permanently preserved</strong> and will not be wiped.
             </div>
 
-            <div className="pt-2">
-              <Label className="text-xs font-bold text-gray-700 block mb-1">
-                Type <span className="text-red-600 font-mono">CLEAR</span> to confirm:
-              </Label>
-              <Input
-                type="text"
-                placeholder="CLEAR"
-                value={confirmText}
-                onChange={(e) => setConfirmText(e.target.value)}
-                className="w-full text-xs uppercase font-mono tracking-widest border-red-300 focus:ring-red-500"
-              />
+            <div className="pt-2 space-y-3">
+              <div>
+                <Label className="text-xs font-bold text-gray-700 block mb-1">
+                  Administrator Password (Re-authentication):
+                </Label>
+                <Input
+                  type="password"
+                  placeholder="Enter your admin password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full text-xs border-red-300 focus:ring-red-500"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold text-gray-700 block mb-1">
+                  Type <span className="text-red-600 font-mono">CONFIRM_RESET</span> to confirm:
+                </Label>
+                <Input
+                  type="text"
+                  placeholder="CONFIRM_RESET"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  className="w-full text-xs uppercase font-mono tracking-widest border-red-300 focus:ring-red-500"
+                />
+              </div>
             </div>
           </div>
 
@@ -117,7 +135,7 @@ export function ClearDatabaseButton({ onSuccess, className }: ClearDatabaseButto
             <Button
               type="button"
               variant="outline"
-              onClick={() => { setIsOpen(false); setConfirmText(''); }}
+              onClick={() => { setIsOpen(false); setConfirmText(''); setAdminPassword(''); }}
               className="text-xs"
               disabled={isClearing}
             >
@@ -126,10 +144,10 @@ export function ClearDatabaseButton({ onSuccess, className }: ClearDatabaseButto
             <Button
               type="button"
               onClick={handleClear}
-              disabled={confirmText.toUpperCase() !== 'CLEAR' || isClearing}
+              disabled={confirmText.toUpperCase() !== 'CONFIRM_RESET' || !adminPassword || isClearing}
               className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
             >
-              {isClearing ? 'Clearing Database...' : 'Wipe & Clear Database'}
+              {isClearing ? 'Resetting Database...' : 'Execute Reset'}
             </Button>
           </DialogFooter>
         </DialogContent>

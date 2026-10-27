@@ -70,6 +70,7 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
       <PublicNavBar 
         currentSection={currentSection} 
         onNavigate={setCurrentSection} 
+        onLoginClick={onLoginClick}
       />
       <main className="flex-1">
         <Suspense fallback={<PublicPageLoading />}>

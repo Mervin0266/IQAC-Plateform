@@ -1,50 +1,11 @@
 const { Patent, User } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { logAction } = require('../middleware/auditLogger');
+const { logAction, logActionSafe } = require('../middleware/auditLogger');
 const { sendNotification } = require('../middleware/notificationHelper');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
+const { parsePagination, formatPaginationResponse } = require('../utils/paginationHelper');
 
-let schemaMigrationDone = false;
-const ensurePatentTableSchema = async () => {
-  if (schemaMigrationDone) return;
-  try {
-    await sequelize.query(`
-      DO $$ 
-      BEGIN
-        BEGIN
-          ALTER TABLE "patents" ALTER COLUMN "status" TYPE VARCHAR(100) USING "status"::text;
-          ALTER TABLE "patents" ALTER COLUMN "patentType" TYPE VARCHAR(100) USING "patentType"::text;
-          ALTER TABLE "patents" ALTER COLUMN "academicYear" TYPE VARCHAR(50) USING "academicYear"::text;
-          ALTER TABLE "patents" ALTER COLUMN "department" TYPE VARCHAR(255) USING "department"::text;
-          ALTER TABLE "patents" ALTER COLUMN "approvalStatus" TYPE VARCHAR(50) USING "approvalStatus"::text;
-          ALTER TABLE "patents" ALTER COLUMN "inventors" TYPE TEXT;
-        EXCEPTION WHEN OTHERS THEN
-          NULL;
-        END;
-
-        BEGIN
-          ALTER TABLE "patents" ALTER COLUMN "status" DROP NOT NULL;
-          ALTER TABLE "patents" ALTER COLUMN "patentType" DROP NOT NULL;
-          ALTER TABLE "patents" ALTER COLUMN "academicYear" DROP NOT NULL;
-          ALTER TABLE "patents" ALTER COLUMN "department" DROP NOT NULL;
-          ALTER TABLE "patents" ALTER COLUMN "createdBy" DROP NOT NULL;
-        EXCEPTION WHEN OTHERS THEN
-          NULL;
-        END;
-
-        BEGIN
-          DROP TYPE IF EXISTS "enum_patents_status" CASCADE;
-          DROP TYPE IF EXISTS "enum_patents_patentType" CASCADE;
-        EXCEPTION WHEN OTHERS THEN
-          NULL;
-        END;
-      END $$;
-    `);
-    schemaMigrationDone = true;
-  } catch (err) {
-    console.warn('Patent schema migration error (ignoring):', err.message);
-  }
-};
 
 const sanitizeDate = (val) => {
   if (!val) return null;
@@ -132,7 +93,6 @@ const sanitizeAmount = (val) => {
 // @route   GET /api/patents
 // @access  Private / Public (optional)
 exports.getPatents = async (req, res) => {
-  await ensurePatentTableSchema();
   try {
     const {
       status,
@@ -195,7 +155,9 @@ exports.getPatents = async (req, res) => {
       ];
     }
 
-    const patents = await Patent.findAll({
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const { count, rows: patents } = await Patent.findAndCountAll({
       where,
       include: [{
         model: User,
@@ -205,15 +167,19 @@ exports.getPatents = async (req, res) => {
       order: [
         ['academicYear', 'DESC'],
         ['filedDate', 'DESC'],
-        ['createdAt', 'DESC']
-      ]
+        ['id', 'ASC']
+      ],
+      limit,
+      offset,
+      distinct: true
     });
 
-    res.json({
-      success: true,
-      count: patents.length,
-      data: patents
-    });
+    res.json(formatPaginationResponse({
+      count,
+      rows: patents,
+      page,
+      limit
+    }));
   } catch (error) {
     console.error('Get patents error:', error);
     res.status(500).json({
@@ -376,8 +342,11 @@ exports.createPatent = async (req, res) => {
     }
 
     const rawInventors = Array.isArray(inventors) ? inventors.join(', ') : String(inventors);
-    const assignedDept = department || req.user.department || 'General';
+    const assignedDept = req.user?.role === 'admin' ? (department || 'General') : (req.user?.department || 'General');
     const assignedYear = academicYear || '2024-2025';
+    const finalApproval = (['admin', 'coordinator', 'hod'].includes(req.user?.role) && approvalStatus)
+      ? approvalStatus
+      : (req.user?.role === 'admin' ? 'approved' : 'submitted');
 
     let creatorId = req.user?.id;
     if (!creatorId) {
@@ -402,7 +371,7 @@ exports.createPatent = async (req, res) => {
       revenue: sanitizeAmount(revenue),
       patentUrl: patentUrl ? patentUrl.trim() : null,
       description: description ? description.trim() : null,
-      approvalStatus: approvalStatus || (req.user?.role === 'admin' ? 'approved' : 'submitted'),
+      approvalStatus: finalApproval,
       createdBy: creatorId
     });
 
@@ -458,12 +427,19 @@ exports.updatePatent = async (req, res) => {
       });
     }
 
+    if (['coordinator', 'hod'].includes(req.user.role) && req.user.department && patent.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot update patents outside your department.'
+      });
+    }
+
     const oldValues = patent.toJSON();
 
     const allowedFields = [
       'title', 'inventors', 'applicationNo', 'patentNo', 'status', 'patentType',
-      'department', 'academicYear', 'filedDate', 'publishedDate', 'grantedDate',
-      'licenseDate', 'partner', 'revenue', 'patentUrl', 'description', 'approvalStatus'
+      'academicYear', 'filedDate', 'publishedDate', 'grantedDate',
+      'licenseDate', 'partner', 'revenue', 'patentUrl', 'description'
     ];
 
     allowedFields.forEach(field => {
@@ -479,6 +455,16 @@ exports.updatePatent = async (req, res) => {
         }
       }
     });
+
+    // Only coordinator, hod, and admin can change approval status
+    if (['admin', 'coordinator', 'hod'].includes(req.user.role) && req.body.approvalStatus !== undefined) {
+      patent.approvalStatus = req.body.approvalStatus;
+    }
+
+    // Only admin can change department
+    if (req.user.role === 'admin' && req.body.department !== undefined) {
+      patent.department = req.body.department;
+    }
 
     await patent.save();
 
@@ -574,7 +560,6 @@ const extractField = (obj, ...keys) => {
 // @route   POST /api/patents/bulk
 // @access  Private (Admin, HOD, Coordinator, Faculty)
 exports.bulkUploadPatents = async (req, res) => {
-  await ensurePatentTableSchema();
   const t = await sequelize.transaction();
   try {
     const { items, defaultDepartment, defaultYear } = req.body;
@@ -792,43 +777,35 @@ exports.bulkUploadPatents = async (req, res) => {
   }
 };
 
-// @desc    Clear all patents (Admin / HOD)
+// @desc    Clear all patents (Admin / HOD / Coordinator)
 // @route   DELETE /api/patents/clear-all
 // @access  Private (Admin / HOD)
 exports.clearAllPatents = async (req, res) => {
   try {
-    const where = {};
-    if (req.user.role === 'hod' && req.user.department) {
-      where.department = req.user.department;
-    } else if (req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only Administrators and HODs can clear patent records.'
-      });
-    }
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'Patent', true);
 
-    const count = await Patent.destroy({ where });
+    let count = 0;
+    await sequelize.transaction(async (t) => {
+      count = await Patent.destroy({ where, transaction: t });
+    });
 
-    await logAction(
-      req.user.id,
-      'CLEAR_ALL_PATENTS',
-      'Patent',
-      null,
-      null,
-      { clearedCount: count, scope: where },
-      req
-    );
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_PATENTS',
+      title: `Cleared patents: ${scopeDescription}`,
+      remarks: `Deleted ${count} patent records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
 
     res.json({
       success: true,
-      message: `Cleared ${count} patent records successfully.`
+      message: `Cleared ${count} patent records successfully for ${scopeDescription}.`
     });
   } catch (error) {
     console.error('Clear patents error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Failed to clear patents',
-      error: error.message
+      message: error.message || 'Failed to clear patents'
     });
   }
 };

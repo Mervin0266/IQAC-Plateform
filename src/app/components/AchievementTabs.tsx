@@ -13,16 +13,16 @@ export function AchievementTabs({ activeTab, setActiveTab }: AchievementTabsProp
   ];
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-      <div className="flex">
+    <div className="bg-slate-100 p-1.5 rounded-xl border border-slate-200 shadow-inner mb-6">
+      <div className="flex gap-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-4 px-6 text-sm font-medium transition-colors ${
+            className={`flex-1 py-2.5 px-4 text-xs font-semibold rounded-lg transition-all ${
               activeTab === tab.id
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? 'bg-[#0B132B] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
             {tab.label}

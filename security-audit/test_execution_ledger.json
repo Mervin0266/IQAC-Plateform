@@ -1,0 +1,229 @@
+{
+  "executionDate": "2026-10-21T08:33:01.214Z",
+  "environment": {
+    "nodeVersion": "v24.19.0",
+    "platform": "win32",
+    "arch": "x64",
+    "nodeEnv": "test",
+    "databaseUrl": "postgres://postgres:Mervin%400206@localhost:5432/iqac_test"
+  },
+  "summary": {
+    "totalSuites": 19,
+    "totalTests": 256,
+    "passed": 256,
+    "failed": 0,
+    "skipped": 0,
+    "totalDurationMs": 197273
+  },
+  "suites": [
+    {
+      "suiteIndex": 1,
+      "suiteFile": "test_database_safety.test.cjs",
+      "totalTests": 10,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 151,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 2,
+      "suiteFile": "phase_a_verification.test.cjs",
+      "totalTests": 16,
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 212,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 3,
+      "suiteFile": "phase_a_integration.test.cjs",
+      "totalTests": 15,
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 11728,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 4,
+      "suiteFile": "phase_a_e2e_supertest.test.cjs",
+      "totalTests": 24,
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 12912,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 5,
+      "suiteFile": "phase_b_workstreams_b1_b2.test.cjs",
+      "totalTests": 10,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 11919,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 6,
+      "suiteFile": "phase_b_workstreams_b4_b6.test.cjs",
+      "totalTests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 12011,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 7,
+      "suiteFile": "phase_b_workstream_b5.test.cjs",
+      "totalTests": 8,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 11969,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 8,
+      "suiteFile": "phase_b_full_matrix.test.cjs",
+      "totalTests": 10,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 11809,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 9,
+      "suiteFile": "phase_c_concurrency_and_exports.test.cjs",
+      "totalTests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 12145,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 10,
+      "suiteFile": "phase_c_authorization_inventory.test.cjs",
+      "totalTests": 23,
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 11766,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 11,
+      "suiteFile": "phase_d_export_streaming.test.cjs",
+      "totalTests": 7,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 12052,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 12,
+      "suiteFile": "phase_d_authorization_matrix.test.cjs",
+      "totalTests": 29,
+      "passed": 29,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 11805,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 13,
+      "suiteFile": "phase_d_security_headers.test.cjs",
+      "totalTests": 9,
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 10797,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 14,
+      "suiteFile": "phase_e_autoseed_safety.test.cjs",
+      "totalTests": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 10638,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 15,
+      "suiteFile": "phase_e_postgresql_least_privilege.test.cjs",
+      "totalTests": 6,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 10552,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 16,
+      "suiteFile": "phase_e_export_guarantees.test.cjs",
+      "totalTests": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 10553,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 17,
+      "suiteFile": "phase_e_authorization_matrix_expanded.test.cjs",
+      "totalTests": 21,
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 11816,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 18,
+      "suiteFile": "phase_e_authorization_matrix_final.test.cjs",
+      "totalTests": 24,
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 11810,
+      "exitCode": 0,
+      "status": "PASS"
+    },
+    {
+      "suiteIndex": 19,
+      "suiteFile": "post_phase_e_verification.test.cjs",
+      "totalTests": 10,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 10620,
+      "exitCode": 0,
+      "status": "PASS"
+    }
+  ]
+}

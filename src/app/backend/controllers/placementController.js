@@ -1,39 +1,53 @@
 const { Placement, User } = require('../models');
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
+const { logActionSafe } = require('../middleware/auditLogger');
+const { parsePagination, formatPaginationResponse } = require('../utils/paginationHelper');
 
 // @desc    Get all placements
 // @route   GET /api/placements
 // @access  Private
 exports.getPlacements = async (req, res) => {
   try {
-    const { department, batch, placementType, company } = req.query;
+    const { batch, placementType, company } = req.query;
+    const { where: scopeWhere } = await resolveDepartmentScope(req, 'Placement', false);
     
-    const where = {};
-    if (department) where.department = department;
+    const where = { ...scopeWhere };
+    if ((req.user.role === 'admin' || req.user.role === 'authority') &&
+        req.query.department && req.query.department !== 'all' && req.query.department !== 'All') {
+      where.department = req.query.department;
+    }
     if (batch) where.batch = batch;
     if (placementType) where.placementType = placementType;
     if (company) where.company = { [Op.iLike]: `%${company}%` };
 
-    const placements = await Placement.findAll({
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const { count, rows: placements } = await Placement.findAndCountAll({
       where,
       include: [{
         model: User,
         as: 'creator',
         attributes: ['id', 'name', 'email']
       }],
-      order: [['placementDate', 'DESC']]
+      order: [['placementDate', 'DESC'], ['id', 'ASC']],
+      limit,
+      offset,
+      distinct: true
     });
 
-    res.json({
-      success: true,
-      count: placements.length,
-      data: placements
-    });
+    res.json(formatPaginationResponse({
+      count,
+      rows: placements,
+      page,
+      limit
+    }));
   } catch (error) {
     console.error('Get placements error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Server error'
+      message: error.message || 'Server error'
     });
   }
 };
@@ -43,13 +57,15 @@ exports.getPlacements = async (req, res) => {
 // @access  Private
 exports.getPlacementStats = async (req, res) => {
   try {
-    const { batch, department } = req.query;
-    const where = {};
+    const { batch } = req.query;
+    const { where: scopeWhere } = await resolveDepartmentScope(req, 'Placement', false);
+    const where = { ...scopeWhere };
     
     if (batch) where.batch = batch;
-    if (department) where.department = department;
-
-    const { sequelize } = require('../config/database');
+    if ((req.user.role === 'admin' || req.user.role === 'authority') &&
+        req.query.department && req.query.department !== 'all' && req.query.department !== 'All') {
+      where.department = req.query.department;
+    }
 
     const stats = await Placement.findAll({
       where,
@@ -69,22 +85,31 @@ exports.getPlacementStats = async (req, res) => {
     });
   } catch (error) {
     console.error('Get placement stats error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Server error'
+      message: error.message || 'Server error'
     });
   }
 };
+
+const ALLOWED_PLACEMENT_FIELDS = [
+  'studentId', 'studentName', 'batch', 'course', 'company', 'package', 'offerLetterUrl'
+];
 
 // @desc    Create placement
 // @route   POST /api/placements
 // @access  Private
 exports.createPlacement = async (req, res) => {
   try {
-    const placement = await Placement.create({
-      ...req.body,
-      createdBy: req.user.id
+    const dept = req.user.role === 'admin' ? (req.body.department || 'General') : (req.user.department || 'General');
+    const record = {};
+    ALLOWED_PLACEMENT_FIELDS.forEach(f => {
+      if (req.body[f] !== undefined) record[f] = req.body[f];
     });
+    record.department = dept;
+    record.createdBy = req.user.id;
+
+    const placement = await Placement.create(record);
 
     res.status(201).json({
       success: true,
@@ -94,7 +119,7 @@ exports.createPlacement = async (req, res) => {
     console.error('Create placement error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: error.message || 'Server error'
     });
   }
 };
@@ -114,14 +139,32 @@ exports.updatePlacement = async (req, res) => {
     }
 
     // Check permissions
-    if (req.user.role !== 'admin' && req.user.role !== 'coordinator') {
+    if (req.user.role !== 'admin' && req.user.role !== 'coordinator' && req.user.role !== 'hod') {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update placements'
       });
     }
 
-    await placement.update(req.body);
+    if (req.user.role !== 'admin' && placement.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot update placements outside your department.'
+      });
+    }
+
+    const updateData = {};
+    ALLOWED_PLACEMENT_FIELDS.forEach(f => {
+      if (req.body[f] !== undefined) updateData[f] = req.body[f];
+    });
+    if (req.user.role === 'admin' && req.body.department !== undefined) {
+      updateData.department = req.body.department;
+    }
+
+    delete updateData.id;
+    delete updateData.createdBy;
+
+    await placement.update(updateData);
 
     res.json({
       success: true,
@@ -151,10 +194,17 @@ exports.deletePlacement = async (req, res) => {
     }
 
     // Check permissions
-    if (req.user.role !== 'admin' && req.user.role !== 'coordinator') {
+    if (req.user.role !== 'admin' && req.user.role !== 'coordinator' && req.user.role !== 'hod') {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete placements'
+      });
+    }
+
+    if (req.user.role !== 'admin' && placement.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot delete placements outside your department.'
       });
     }
 
@@ -186,7 +236,7 @@ exports.bulkCreatePlacements = async (req, res) => {
       });
     }
 
-    const dept = req.user.role === 'admin' ? null : req.user.department;
+    const userDept = req.user.role === 'admin' ? null : req.user.department;
 
     const createdRecords = [];
     const errors = [];
@@ -194,17 +244,14 @@ exports.bulkCreatePlacements = async (req, res) => {
     for (let i = 0; i < placements.length; i++) {
       const record = placements[i];
 
-      // Normalize keys based on user's format:
-      // Register Number, Name, AY (Academic Year), Department, Course, Company, Package
       const studentId = record.studentId || record['Register Number'];
       const studentName = record.studentName || record['Name'];
       const batch = record.batch || record['AY (Academic Year)'] || record['AY( Academic Year)'] || record['AY (Academic Year)'] || record['AY'] || record['Batch'];
-      const department = record.department || record['Department'];
+      const department = userDept || record.department || record['Department'];
       const course = record.course || record['Course'] || null;
       const company = record.company || record['Company'];
       let packageVal = record.package !== undefined ? record.package : record['Package'];
 
-      // Parse and normalize package/Salary (e.g. 8.5 LPA, 8,50,000, 8.5)
       let parsedPackage = 0;
       if (packageVal !== undefined && packageVal !== null) {
         if (typeof packageVal === 'string') {
@@ -213,37 +260,46 @@ exports.bulkCreatePlacements = async (req, res) => {
           parsedPackage = parseFloat(packageVal) || 0;
         }
         if (parsedPackage > 1000) {
-          parsedPackage = parsedPackage / 100000; // Convert 850000 to 8.5 LPA
+          parsedPackage = parsedPackage / 100000;
         }
       }
 
       if (!studentName || !studentId || !batch || !company) {
-        errors.push(`Row ${i + 1}: Missing required fields (Register Number, Name, AY (Academic Year), Company)`);
+        errors.push({
+          row: i + 1,
+          message: 'Missing mandatory fields: Name, Register Number, Batch, or Company.'
+        });
         continue;
       }
 
-      // Force coordinator department
-      const finalDept = dept || department || 'Computer Science and Engineering';
+      if (userDept && department && department !== userDept) {
+        errors.push({
+          row: i + 1,
+          message: `Cannot upload placement records for another department (${department}).`
+        });
+        continue;
+      }
 
       try {
-        const placement = await Placement.create({
+        const newRecord = await Placement.create({
           studentName,
           studentId,
           batch,
-          department: finalDept,
-          course: course || 'NIL',
+          department: userDept || department,
+          course,
           company,
-          role: (record.role && String(record.role).trim() !== '') ? record.role : 'NIL',
           package: parsedPackage,
-          placementType: record.placementType || 'placement',
-          placementDate: record.placementDate || new Date().toISOString().split('T')[0],
-          location: (record.location && String(record.location).trim() !== '') ? record.location : 'NIL',
+          placementType: record.placementType || record['Placement Type'] || 'On-Campus',
+          offerLetterUrl: record.offerLetterUrl || null,
+          remarks: record.remarks || null,
           createdBy: req.user.id
         });
-
-        createdRecords.push(placement);
+        createdRecords.push(newRecord);
       } catch (err) {
-        errors.push(`Row ${i + 1}: ${err.message || 'Validation error'}`);
+        errors.push({
+          row: i + 1,
+          message: err.message || 'Database insert failed'
+        });
       }
     }
 
@@ -276,19 +332,31 @@ exports.bulkCreatePlacements = async (req, res) => {
 // @access  Private (Admin/Coordinator/HOD)
 exports.clearAllPlacements = async (req, res) => {
   try {
-    const deletedCount = await Placement.destroy({ where: {} });
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'Placement', true);
+
+    let deletedCount = 0;
+    await sequelize.transaction(async (t) => {
+      deletedCount = await Placement.destroy({ where, transaction: t });
+    });
+
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_PLACEMENTS',
+      title: `Cleared placement records: ${scopeDescription}`,
+      remarks: `Deleted ${deletedCount} placement records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
+
     res.json({
       success: true,
-      message: `All placement records (${deletedCount}) cleared successfully`,
+      message: `Placement records (${deletedCount}) cleared successfully for ${scopeDescription}`,
       count: deletedCount
     });
   } catch (error) {
     console.error('Clear all placements error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       message: error.message || 'Server error'
     });
   }
 };
-
-

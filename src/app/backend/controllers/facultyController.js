@@ -1,23 +1,65 @@
 const { Faculty } = require('../models');
+const { sequelize } = require('../config/database');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
+const { sanitizeFacultyData } = require('../utils/dataSanitizer');
+const { logActionSafe } = require('../middleware/auditLogger');
+const { parsePagination, formatPaginationResponse, streamBatchedExport } = require('../utils/paginationHelper');
 
 // @desc    Get all faculty
 // @route   GET /api/faculty
 // @access  Private
 exports.getFaculty = async (req, res) => {
   try {
-    const faculty = await Faculty.findAll({
-      order: [['sNo', 'ASC'], ['createdAt', 'DESC']]
+    const { where: scopeWhere } = await resolveDepartmentScope(req, 'Faculty', false);
+    const where = { ...scopeWhere };
+
+    if (req.query.academicYear && req.query.academicYear !== 'all' && req.query.academicYear !== 'All') {
+      where.academicYear = req.query.academicYear;
+    }
+
+    if ((req.user.role === 'admin' || req.user.role === 'authority') &&
+        req.query.department && req.query.department !== 'all' && req.query.department !== 'All') {
+      where.department = req.query.department;
+    }
+
+    const pagination = parsePagination(req.query);
+
+    if (pagination.isExport || req.query.stream === 'true') {
+      return await streamBatchedExport(res, {
+        model: Faculty,
+        where,
+        order: [['sNo', 'ASC'], ['id', 'ASC']],
+        batchSize: 1000,
+        maxRecords: pagination.limit || 1000000,
+        format: req.query.format === 'csv' ? 'csv' : 'json',
+        filename: 'faculty_export',
+        transformRow: (rawRow) => sanitizeFacultyData([rawRow], req.user, false)[0]
+      });
+    }
+
+    const { page, limit, offset } = pagination;
+
+    const { count, rows: faculty } = await Faculty.findAndCountAll({
+      where,
+      order: [['sNo', 'ASC'], ['id', 'ASC']],
+      limit,
+      offset
     });
-    res.json({
-      success: true,
-      count: faculty.length,
-      data: faculty
-    });
+
+    // Sensitive field protection: Never expose PAN in ordinary faculty list responses (Phase A5)
+    const sanitized = sanitizeFacultyData(faculty, req.user, false);
+
+    res.json(formatPaginationResponse({
+      count,
+      rows: sanitized,
+      page,
+      limit
+    }));
   } catch (error) {
     console.error('Get faculty error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Server error'
+      message: error.message || 'Server error'
     });
   }
 };
@@ -38,6 +80,10 @@ exports.createFaculty = async (req, res) => {
       academicYear: req.body.academicYear || '2024-2025'
     };
 
+    if (req.user && req.user.role !== 'admin' && req.user.department) {
+      record.department = req.user.department;
+    }
+
     const existing = await Faculty.findOne({
       where: {
         employeeId: record.employeeId,
@@ -46,17 +92,20 @@ exports.createFaculty = async (req, res) => {
     });
 
     if (existing) {
+      if (req.user && req.user.role !== 'admin' && existing.department !== req.user.department) {
+        return res.status(403).json({ success: false, message: 'Not authorized to update faculty in another department.' });
+      }
       await existing.update(record);
       return res.json({
         success: true,
-        data: existing
+        data: sanitizeFacultyData(existing, req.user)
       });
     }
 
     const faculty = await Faculty.create(record);
     res.status(201).json({
       success: true,
-      data: faculty
+      data: sanitizeFacultyData(faculty, req.user)
     });
   } catch (error) {
     console.error('Create faculty error:', error);
@@ -68,30 +117,24 @@ exports.createFaculty = async (req, res) => {
 };
 
 // @desc    Bulk create faculty from CSV upload
-// @desc    Bulk create faculty from CSV upload
 // @route   POST /api/faculty/bulk
 // @access  Private (admin/coordinator)
 exports.bulkCreateFaculty = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { faculty: facultyList } = req.body;
     if (!Array.isArray(facultyList) || facultyList.length === 0) {
+      await t.rollback();
       return res.status(400).json({
         success: false,
         message: 'No faculty records provided'
       });
     }
 
-    // Drop legacy employeeId unique index/constraint if present in DB
-    try {
-      const { sequelize } = require('../config/database');
-      await sequelize.query('ALTER TABLE "faculties" DROP CONSTRAINT IF EXISTS "faculties_employeeId_key" CASCADE;').catch(() => {});
-      await sequelize.query('ALTER TABLE "faculties" DROP CONSTRAINT IF EXISTS "faculties_employee_id_key" CASCADE;').catch(() => {});
-      await sequelize.query('DROP INDEX IF EXISTS "faculties_employee_id_key";').catch(() => {});
-      await sequelize.query('DROP INDEX IF EXISTS "faculties_employeeId_key";').catch(() => {});
-    } catch (e) {}
-
     const maxSNoFaculty = await Faculty.findOne({
-      order: [['sNo', 'DESC']]
+      order: [['sNo', 'DESC']],
+      transaction: t,
+      lock: t.LOCK.UPDATE
     });
     let nextSNo = maxSNoFaculty && maxSNoFaculty.sNo ? maxSNoFaculty.sNo + 1 : 1;
 
@@ -100,9 +143,23 @@ exports.bulkCreateFaculty = async (req, res) => {
 
     for (let i = 0; i < facultyList.length; i++) {
       const raw = facultyList[i];
+      if (!raw || !raw.employeeId) {
+        errors.push(`Row ${i + 1}: employeeId is required.`);
+        continue;
+      }
+
       const record = { ...raw };
       if (!record.academicYear) {
         record.academicYear = '2024-2025';
+      }
+
+      if (!record.name || String(record.name).trim() === '') {
+        errors.push(`Row ${i + 1} (${record.employeeId}): name is required.`);
+        continue;
+      }
+
+      if (req.user && req.user.role !== 'admin' && req.user.department) {
+        record.department = req.user.department;
       }
 
       // Sanitize Date fields: dateOfBirth, dateOfJoining
@@ -138,25 +195,49 @@ exports.bulkCreateFaculty = async (req, res) => {
       });
 
       try {
+        const lockKey = `faculty_${record.employeeId}_${record.academicYear}`;
+        await sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:lockKey))', {
+          replacements: { lockKey },
+          transaction: t
+        });
+
         const existing = await Faculty.findOne({
           where: { 
             employeeId: record.employeeId,
             academicYear: record.academicYear
-          }
+          },
+          transaction: t,
+          lock: t.LOCK.UPDATE
         });
+
         if (existing) {
+          if (req.user && req.user.role !== 'admin' && existing.department !== req.user.department) {
+            errors.push(`Row ${i + 1} (${record.employeeId}): Not authorized to update faculty in another department.`);
+            continue;
+          }
           if (existing.sNo === null || existing.sNo === undefined) {
             record.sNo = nextSNo++;
           } else {
             record.sNo = existing.sNo;
           }
-          await existing.update(record);
+          await existing.update(record, { transaction: t });
           created.push(existing);
         } else {
+          // Check for cross-department conflict across any academic year
+          const existingAnyFaculty = await Faculty.findOne({
+            where: { employeeId: record.employeeId },
+            transaction: t
+          });
+
+          if (existingAnyFaculty && req.user && req.user.role !== 'admin' && existingAnyFaculty.department !== req.user.department) {
+            errors.push(`Row ${i + 1} (${record.employeeId}): Faculty belongs to another department (${existingAnyFaculty.department}).`);
+            continue;
+          }
+
           if (!record.sNo) {
             record.sNo = nextSNo++;
           }
-          const fac = await Faculty.create(record);
+          const fac = await Faculty.create(record, { transaction: t });
           created.push(fac);
         }
       } catch (err) {
@@ -167,6 +248,26 @@ exports.bulkCreateFaculty = async (req, res) => {
       }
     }
 
+    if (created.length === 0 && errors.length > 0) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'All faculty records failed validation or authorization.',
+        count: 0,
+        errors
+      });
+    }
+
+    await t.commit();
+
+    await logActionSafe({
+      user: req.user,
+      action: 'BULK_UPLOAD_FACULTY',
+      title: `Bulk uploaded faculty records`,
+      remarks: `Processed ${created.length} faculty members with ${errors.length} errors.`,
+      ipAddress: req.ip
+    });
+
     res.json({
       success: true,
       message: `${created.length} faculty record(s) uploaded successfully.${errors.length ? ` ${errors.length} error(s) encountered.` : ''}`,
@@ -174,6 +275,9 @@ exports.bulkCreateFaculty = async (req, res) => {
       errors: errors.length > 0 ? errors : undefined
     });
   } catch (error) {
+    if (t && !t.finished) {
+      await t.rollback();
+    }
     console.error('Bulk create faculty error:', error);
     res.status(500).json({
       success: false,
@@ -194,10 +298,23 @@ exports.updateFaculty = async (req, res) => {
         message: 'Faculty record not found'
       });
     }
-    await faculty.update(req.body);
+
+    if (req.user && req.user.role !== 'admin' && faculty.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot update faculty records outside your department.'
+      });
+    }
+
+    const updateData = { ...req.body };
+    if (req.user && req.user.role !== 'admin' && req.user.department) {
+      updateData.department = req.user.department;
+    }
+
+    await faculty.update(updateData);
     res.json({
       success: true,
-      data: faculty
+      data: sanitizeFacultyData(faculty, req.user)
     });
   } catch (error) {
     console.error('Update faculty error:', error);
@@ -220,6 +337,14 @@ exports.deleteFaculty = async (req, res) => {
         message: 'Faculty record not found'
       });
     }
+
+    if (req.user && req.user.role !== 'admin' && faculty.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot delete faculty records outside your department.'
+      });
+    }
+
     await faculty.destroy();
     res.json({
       success: true,
@@ -239,18 +364,31 @@ exports.deleteFaculty = async (req, res) => {
 // @access  Private (Admin/Coordinator/HOD)
 exports.clearAllFaculty = async (req, res) => {
   try {
-    const deletedCount = await Faculty.destroy({ where: {} });
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'Faculty', true);
+
+    let deletedCount = 0;
+    await sequelize.transaction(async (t) => {
+      deletedCount = await Faculty.destroy({ where, transaction: t });
+    });
+
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_FACULTY',
+      title: `Cleared faculty records: ${scopeDescription}`,
+      remarks: `Deleted ${deletedCount} faculty records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
+
     res.json({
       success: true,
-      message: `All faculty records (${deletedCount}) cleared successfully`,
+      message: `Faculty records (${deletedCount}) cleared successfully for ${scopeDescription}`,
       count: deletedCount
     });
   } catch (error) {
     console.error('Clear all faculty error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       message: error.message || 'Server error'
     });
   }
 };
-

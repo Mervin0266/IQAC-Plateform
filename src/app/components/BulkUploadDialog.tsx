@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info } from 'lucide-react';
+import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info, Download, RefreshCw } from 'lucide-react';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName, normalizeDesignationName } from './FacultyDetailsPage';
 
@@ -298,6 +298,16 @@ const FACULTY_HEADERS = [
 
 const FACULTY_REQUIRED = ['EmpId', 'Name', 'Designation', 'Department'];
 
+export type UploadStage = 'upload' | 'validation' | 'preview' | 'confirm' | 'summary';
+
+const UPLOAD_STAGES: { id: UploadStage; label: string; number: number }[] = [
+  { id: 'upload', label: '1. Upload', number: 1 },
+  { id: 'validation', label: '2. Validation', number: 2 },
+  { id: 'preview', label: '3. Preview', number: 3 },
+  { id: 'confirm', label: '4. Confirmation', number: 4 },
+  { id: 'summary', label: '5. Summary', number: 5 },
+];
+
 export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType = 'achievements' }: BulkUploadDialogProps) {
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
@@ -306,6 +316,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const [uploadErrorsList, setUploadErrorsList] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [currentStage, setCurrentStage] = useState<UploadStage>('upload');
+  const [importResult, setImportResult] = useState<{ count?: number; message?: string; success?: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { campusList, schoolList, departmentList } = useAcademicHierarchy();
@@ -351,6 +363,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     setUploadError('');
     setUploadErrorsList([]);
     setSuccessMsg('');
+    setCurrentStage('upload');
+    setImportResult(null);
     setSelectedDepartment('');
     setSelectedAcademicYear('2024-2025');
     setSelectedCampus('Kengeri Campus');
@@ -1232,26 +1246,28 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       const data = await response.json();
 
       if (data.success) {
+        setImportResult({ count: data.count, message: data.message || 'Bulk upload completed successfully.', success: true });
         if (data.errors && data.errors.length > 0) {
-          setUploadError(`${data.count} record(s) loaded successfully, but ${data.errors.length} failed. See errors below.`);
+          setUploadError(`${data.count} record(s) loaded successfully, but ${data.errors.length} failed.`);
           setUploadErrorsList(data.errors);
-          onSuccess(); // Refresh parent to display successfully uploaded ones
         } else {
-          setSuccessMsg(data.message);
-          setTimeout(() => {
-            onSuccess();
-            handleClose();
-          }, 1500);
+          setSuccessMsg(data.message || 'Records imported successfully.');
         }
+        onSuccess();
+        setCurrentStage('summary');
       } else {
         setUploadError(data.message || 'Bulk upload failed.');
+        setImportResult({ message: data.message || 'Bulk upload failed.', success: false });
         if (data.errors) {
           setUploadErrorsList(data.errors);
         }
+        setCurrentStage('summary');
       }
     } catch (err) {
       console.error(err);
-      setUploadError('Connection to backend failed. Please try again.');
+      setUploadError('Connection to backend failed. Please check network connectivity and try again.');
+      setImportResult({ message: 'Connection to backend failed. Please verify server status and try again.', success: false });
+      setCurrentStage('summary');
     } finally {
       setLoading(false);
     }
@@ -1259,78 +1275,135 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
 
   const uploadTypeLabel = isSponsored ? 'Sponsored Research & Grants' : isPatent ? 'Patents & Intellectual Property' : isPublication ? 'Publications (Scopus / WoS)' : isConsultancy ? 'Consultancy Projects (NIRF)' : isFaculty ? 'Faculty Details' : isStudent ? 'Student Details' : isDepartment ? 'Department Details' : isPlacement ? 'Placements & Internships' : 'Achievements';
 
+  const requiredHeaders = React.useMemo(() => {
+    if (isSponsored) return SPONSORED_RESEARCH_REQUIRED;
+    if (isPatent) return PATENTS_REQUIRED;
+    if (isPublication) return PUBLICATIONS_REQUIRED;
+    if (isConsultancy) return CONSULTANCY_REQUIRED;
+    if (isFaculty) return FACULTY_REQUIRED;
+    if (isStudent) return ['Register No', 'Student Name'];
+    if (isDepartment) return ['Code', 'Name'];
+    if (isPlacement) return ['Register Number', 'Name', 'AY (Academic Year)', 'Department', 'Company', 'Package'];
+    if (isDepartmentalActivity) return ['Department'];
+    return ['title', 'category', 'date', 'year'];
+  }, [isSponsored, isPatent, isPublication, isConsultancy, isFaculty, isStudent, isDepartment, isPlacement, isDepartmentalActivity]);
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="sm:max-w-[750px] max-h-[85vh] overflow-y-auto bg-white p-6 rounded-xl">
         <DialogHeader>
-          <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-teal-700" />
+          <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+            <FileSpreadsheet className="w-5 h-5 text-[#2F4692]" />
             <span>Bulk Upload {uploadTypeLabel} (CSV / Excel)</span>
           </DialogTitle>
-          <DialogDescription className="sr-only">
-            Upload {uploadTypeLabel} records in bulk via a CSV or Excel file.
+          <DialogDescription className="text-xs text-slate-500">
+            Upload and batch-validate {uploadTypeLabel} records in bulk via standard spreadsheet templates.
           </DialogDescription>
         </DialogHeader>
 
+        {/* 5-Stage Stepper Progress Bar */}
+        <div className="bg-slate-50 border-y border-slate-200/80 -mx-6 px-6 py-2.5 flex items-center justify-between gap-1 overflow-x-auto">
+          {UPLOAD_STAGES.map((s, idx) => {
+            const isCurrent = currentStage === s.id;
+            const isPassed = UPLOAD_STAGES.findIndex(item => item.id === currentStage) > idx;
+            return (
+              <div key={s.id} className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
+                    isCurrent
+                      ? 'bg-[#2F4692] text-white shadow-xs ring-2 ring-[#2F4692]/20'
+                      : isPassed
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-200 text-slate-500'
+                  }`}
+                >
+                  {isPassed ? '✓' : s.number}
+                </span>
+                <span
+                  className={`text-xs font-semibold ${
+                    isCurrent ? 'text-slate-900 font-bold' : isPassed ? 'text-emerald-700' : 'text-slate-400'
+                  }`}
+                >
+                  {s.label.replace(/^\d+\.\s*/, '')}
+                </span>
+                {idx < UPLOAD_STAGES.length - 1 && (
+                  <div className="w-4 sm:w-8 h-0.5 bg-slate-200 mx-1 hidden sm:block" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
         <div className="space-y-4 py-3 text-xs">
-          {/* Instructions */}
-          <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg flex gap-3 leading-normal">
-            <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-semibold">CSV / Excel Formatting Guidelines:</p>
-               <p>Your CSV or Excel file columns must map to the headers list below. The required fields are marked with **.</p>
-               {isSponsored ? (
-                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
-                    Project Title**, Principal Investigator**, Co-Investigators, Funding Agency**, Scheme / Program, Agency Type, Sanction Order No, Sanction Date, Start Date, End Date, Sanctioned Amount (INR), Amount Received (INR), Status, Progress (%), Department, Academic Year, Project URL, Description
-                 </p>
-               ) : isPatent ? (
-                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
-                    Title**, Inventors**, Application No, Patent No, Status, Patent Type, Department, Academic Year, Filing Date, Publication Date, Grant Date, License Date, Commercial Partner, Revenue Generated (INR), Patent URL, Abstract
-                 </p>
-               ) : isPublication ? (
-                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
-                    Author Name**, Title**, Journal Name**, Journal Type, Department, Academic Year, Publication Date, DOI, ISSN, Volume, Issue, Page Number, Impact Factor, Citations, URL, Abstract
-                 </p>
-               ) : isConsultancy ? (
-                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
-                    S. No., Name of the Teacher Consultant**, Name of Consultancy Project**, Consulting/Sponsoring Agency with Contact Details**, Year**, Revenue Generated (INR in Lakhs)
-                 </p>
-               ) : isFaculty ? (
-                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all">
-                    EmpId**, Name**, Designation**, Department**, Gender, Date of birth, PanCard No, Date Of Joining, Previous Teaching Experince Years, Previous Teaching Experince Months, Previous Industry Experince Years, Previous Industry Experince Months, Qualification Level, Highest Qualification, Experience in CU - Years, Experience in CU - Months
-                 </p>
-               ) : isStudent ? (
-                  <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[10px]">
-                    Register No**, Student Name**, Class Name, Application No, Gender, Date Of Birth, Mobile No, Nationality, Caste, Current City, Current State, Permanent City, Permanent State, Parent Mobile No, Handicapped, Handicapped Description, Campus, Disability: (YES/NO), Department, Program Level
-                  </p>
-               ) : isDepartment ? (
-                 <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all break-all text-[11px]">
-                    Code**, Name**, HOD Name, HOD Email, Established Year, Phone, Description
-                 </p>
-               ) : isPlacement ? (
-                <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all">
-                   Register Number**, Name**, AY (Academic Year)**, Department**, Course, Company**, Package**
+          {/* STAGE 1: UPLOAD */}
+          {currentStage === 'upload' && (
+            <div className="space-y-4">
+              {/* Instructions */}
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col sm:flex-row gap-3">
+            <Info className="w-5 h-5 text-[#2F4692] shrink-0 mt-0.5" />
+            <div className="space-y-2 flex-1">
+              <div>
+                <p className="font-bold text-slate-900 text-xs">Spreadsheet Column Requirements</p>
+                <p className="text-slate-500 text-[11px] mt-0.5">
+                  Your uploaded file columns must map to the standardized headers below. Mandatory fields are marked with **:
+                </p>
+              </div>
+
+              {isSponsored ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  Project Title**, Principal Investigator**, Co-Investigators, Funding Agency**, Scheme / Program, Agency Type, Sanction Order No, Sanction Date, Start Date, End Date, Sanctioned Amount (INR), Amount Received (INR), Status, Progress (%), Department, Academic Year, Project URL, Description
+                </p>
+              ) : isPatent ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  Title**, Inventors**, Application No, Patent No, Status, Patent Type, Department, Academic Year, Filing Date, Publication Date, Grant Date, License Date, Commercial Partner, Revenue Generated (INR), Patent URL, Abstract
+                </p>
+              ) : isPublication ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  Author Name**, Title**, Journal Name**, Journal Type, Department, Academic Year, Publication Date, DOI, ISSN, Volume, Issue, Page Number, Impact Factor, Citations, URL, Abstract
+                </p>
+              ) : isConsultancy ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  S. No., Name of the Teacher Consultant**, Name of Consultancy Project**, Consulting/Sponsoring Agency with Contact Details**, Year**, Revenue Generated (INR in Lakhs)
+                </p>
+              ) : isFaculty ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  EmpId**, Name**, Designation**, Department**, Gender, Date of birth, PanCard No, Date Of Joining, Previous Teaching Experince Years, Previous Teaching Experince Months, Previous Industry Experince Years, Previous Industry Experince Months, Qualification Level, Highest Qualification, Experience in CU - Years, Experience in CU - Months
+                </p>
+              ) : isStudent ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[10px] leading-relaxed">
+                  Register No**, Student Name**, Class Name, Application No, Gender, Date Of Birth, Mobile No, Nationality, Caste, Current City, Current State, Permanent City, Permanent State, Parent Mobile No, Handicapped, Handicapped Description, Campus, Disability: (YES/NO), Department, Program Level
+                </p>
+              ) : isDepartment ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  Code**, Name**, HOD Name, HOD Email, Established Year, Phone, Description
+                </p>
+              ) : isPlacement ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  Register Number**, Name**, AY (Academic Year)**, Department**, Course, Company**, Package**
                 </p>
               ) : (
-                <p className="font-mono bg-white bg-opacity-70 p-1.5 rounded border border-blue-150 mt-1 select-all">
-                   title**, category**, date**, year**, description, subcategory, achieverType, rank, score, organization, location, participants, impact, status
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  title**, category**, date**, year**, description, subcategory, achieverType, rank, score, organization, location, participants, impact, status
                 </p>
               )}
-              <div className="flex gap-4 mt-2 flex-wrap">
+
+              <div className="flex gap-4 pt-1 flex-wrap items-center">
                 <button
                   type="button"
                   onClick={handleDownloadTemplate}
-                  className="text-blue-700 hover:text-blue-900 font-semibold underline block"
+                  className="text-xs font-semibold text-[#2F4692] hover:underline flex items-center gap-1"
                 >
-                  Download Sample CSV Template
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Sample CSV Template</span>
                 </button>
-                <span className="text-gray-400 hidden sm:inline">|</span>
+                <span className="text-slate-300 hidden sm:inline">•</span>
                 <button
                   type="button"
                   onClick={handleDownloadExcelTemplate}
-                  className="text-blue-700 hover:text-blue-900 font-semibold underline block"
+                  className="text-xs font-semibold text-[#2F4692] hover:underline flex items-center gap-1"
                 >
-                  Download Sample Excel (.xlsx) Template
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Sample Excel (.xlsx)</span>
                 </button>
               </div>
             </div>
@@ -1415,67 +1488,121 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           )}
 
           {/* Upload Drop Zone */}
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition-colors text-center relative cursor-pointer">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".csv,.xls,.xlsx"
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                disabled={loading}
-              />
-            <UploadCloud className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+          <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-[#2F4692] hover:bg-slate-50/70 transition-all text-center relative cursor-pointer group">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".csv,.xls,.xlsx"
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              disabled={loading}
+            />
+            <div className="w-12 h-12 rounded-full bg-slate-100 group-hover:bg-blue-50 text-slate-500 group-hover:text-[#2F4692] flex items-center justify-center mx-auto mb-3 transition-colors">
+              <UploadCloud className="w-6 h-6" />
+            </div>
             {file ? (
               <div>
-                <p className="font-bold text-gray-800">{file.name}</p>
-                <p className="text-[10px] text-gray-400 mt-1">{(file.size / 1024).toFixed(1)} KB - Click to replace</p>
+                <p className="font-semibold text-slate-900 text-sm">{file.name}</p>
+                <p className="text-xs text-slate-500 mt-1">{(file.size / 1024).toFixed(1)} KB — Click to replace file</p>
               </div>
             ) : (
               <div>
-                <p className="font-semibold text-gray-700">Drag & drop your CSV or Excel file here, or click to browse</p>
-                <p className="text-[10px] text-gray-400 mt-1">Upload files ending with .csv, .xls, or .xlsx format</p>
+                <p className="font-medium text-slate-800 text-sm">Drag & drop your CSV or Excel file here, or <span className="text-[#2F4692] font-semibold underline underline-offset-2">browse files</span></p>
+                <p className="text-xs text-slate-500 mt-1">Supports standardized .csv, .xls, and .xlsx formats up to 10MB</p>
               </div>
             )}
           </div>
 
-          {/* Messages */}
-          {parseError && (
-            <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded-lg flex gap-2 font-semibold">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>{parseError}</span>
-            </div>
-          )}
+              {file && (
+                <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="font-semibold text-slate-900">{file.name}</span>
+                    <span className="text-slate-500 text-[11px]">({previewData.length} records parsed)</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-[#2F4692] bg-white px-2.5 py-0.5 rounded-md border border-blue-200 shadow-2xs">
+                    Ready for Validation
+                  </span>
+                </div>
+              )}
 
-          {uploadError && (
-            <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded-lg space-y-2">
-              <div className="flex gap-2 font-semibold">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>{uploadError}</span>
-              </div>
-              {uploadErrorsList.length > 0 && (
-                <ul className="list-disc pl-5 text-[10px] space-y-1 font-mono max-h-[120px] overflow-y-auto bg-white p-2 rounded border border-red-150">
-                  {uploadErrorsList.map((err, idx) => (
-                    <li key={idx} className="text-red-600">{err}</li>
-                  ))}
-                </ul>
+              {parseError && (
+                <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded-lg flex gap-2 font-semibold">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{parseError}</span>
+                </div>
               )}
             </div>
           )}
 
-          {successMsg && (
-            <div className="bg-green-50 text-green-700 border border-green-200 p-3 rounded-lg flex gap-2 font-semibold">
-              <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>{successMsg}</span>
+          {/* STAGE 2: VALIDATION */}
+          {currentStage === 'validation' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    <span>Spreadsheet Schema & Column Structure Validation</span>
+                  </h3>
+                  <span className="text-[10px] font-mono text-slate-500">{file?.name}</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Records</span>
+                    <span className="text-base font-bold text-slate-900 font-mono">{previewData.length}</span>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Academic Year</span>
+                    <span className="text-xs font-bold text-[#2F4692]">{selectedAcademicYear}</span>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Campus Scope</span>
+                    <span className="text-xs font-semibold text-slate-800 truncate block">{selectedCampus}</span>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Department Scope</span>
+                    <span className="text-xs font-semibold text-slate-800 truncate block">{selectedDepartment || 'Row-Assigned'}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-xs font-semibold text-slate-700 block mb-1.5">Required Headers Validated:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {requiredHeaders.map((hdr, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span>✓</span> {hdr}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {parseError ? (
+                <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded-lg flex gap-2 font-semibold">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{parseError}</span>
+                </div>
+              ) : (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-semibold text-xs">
+                    All mandatory columns matched successfully. No fatal syntax or structure anomalies found.
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
-          {/* CSV Preview */}
-          {previewData.length > 0 && !parseError && (
-            <div className="space-y-1.5">
-              <p className="font-semibold text-gray-700 flex items-center justify-between">
-                <span>Records Preview ({previewData.length} records detected)</span>
-                <span className="text-[10px] text-gray-400 font-normal">Previewing up to 5 records</span>
-              </p>
+          {/* STAGE 3: PREVIEW */}
+          {currentStage === 'preview' && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-gray-700 flex items-center justify-between w-full">
+                  <span>Records Preview ({previewData.length} records detected)</span>
+                  <span className="text-[10px] text-gray-400 font-normal">Previewing up to 5 records</span>
+                </p>
+              </div>
               <div className="overflow-x-auto border border-gray-200 rounded">
                 <table className="w-full text-left border-collapse text-[11px] text-gray-700">
                   {isFaculty ? (
@@ -1768,26 +1895,202 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               </div>
             </div>
           )}
+
+          {/* STAGE 4: CONFIRMATION */}
+          {currentStage === 'confirm' && (
+            <div className="space-y-4">
+              <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 text-[#2F4692] flex items-center justify-center shrink-0 shadow-2xs">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm">Review & Confirm Batch Upload</h3>
+                    <p className="text-xs text-slate-500">Verify upload details before initiating backend database commit</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-white rounded-xl border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Target Entity</span>
+                    <span className="font-bold text-slate-900 mt-0.5 block">{uploadTypeLabel}</span>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Source Spreadsheet</span>
+                    <span className="font-mono text-slate-800 mt-0.5 block truncate">{file?.name}</span>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Records to Commit</span>
+                    <span className="font-bold text-emerald-700 text-base font-mono mt-0.5 block">{previewData.length} records</span>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Academic Year</span>
+                    <span className="font-bold text-[#2F4692] mt-0.5 block">{selectedAcademicYear}</span>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl text-amber-900 text-xs space-y-1">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Statutory Data & Department Isolation Rules</span>
+                  </p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    By clicking Confirm, these records will be committed to the CHRIST University IQAC database. Existing records with identical primary identifiers will be updated or deduplicated per schema rules.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STAGE 5: SUMMARY */}
+          {currentStage === 'summary' && (
+            <div className="space-y-4">
+              {importResult?.success ? (
+                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-800">
+                    <CheckCircle className="w-6 h-6 text-emerald-600 shrink-0" />
+                    <h3 className="font-bold text-sm">Bulk Import Succeeded</h3>
+                  </div>
+                  <p className="text-xs text-emerald-700">
+                    {importResult.message || `Successfully processed ${importResult.count || previewData.length} records into the IQAC platform.`}
+                  </p>
+                </div>
+              ) : (
+                <div className="p-5 bg-red-50 border border-red-200 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-2 text-red-800">
+                    <AlertTriangle className="w-6 h-6 text-red-600 shrink-0" />
+                    <h3 className="font-bold text-sm">Import Failed</h3>
+                  </div>
+                  <p className="text-xs text-red-700">
+                    {importResult?.message || uploadError || 'An error occurred while communicating with the backend.'}
+                  </p>
+                </div>
+              )}
+
+              {uploadErrorsList.length > 0 && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+                  <span className="font-bold text-amber-900 text-xs block">
+                    Row-Level Warnings / Issues ({uploadErrorsList.length}):
+                  </span>
+                  <ul className="list-disc pl-5 text-[10px] space-y-1 font-mono max-h-[140px] overflow-y-auto bg-white p-2.5 rounded-lg border border-amber-200 text-red-600">
+                    {uploadErrorsList.map((err, idx) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <DialogFooter className="pt-4 border-t border-gray-150 flex justify-end space-x-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleClose}
-            className="text-xs"
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleUploadSubmit}
-            className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold"
-            disabled={loading || previewData.length === 0 || !!parseError}
-          >
-            {loading ? 'Processing...' : 'Upload & Save'}
-          </Button>
+        <DialogFooter className="pt-4 border-t border-slate-200 flex justify-between items-center sm:justify-between">
+          {currentStage === 'upload' && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                className="border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold h-9 px-4 rounded-xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setCurrentStage('validation')}
+                className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs transition-colors"
+                disabled={!file || previewData.length === 0 || !!parseError}
+              >
+                Analyze & Validate File →
+              </Button>
+            </>
+          )}
+
+          {currentStage === 'validation' && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStage('upload')}
+                className="border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold h-9 px-4 rounded-xl"
+              >
+                ← Back to Upload
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setCurrentStage('preview')}
+                className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs transition-colors"
+                disabled={!!parseError}
+              >
+                Inspect Records Preview →
+              </Button>
+            </>
+          )}
+
+          {currentStage === 'preview' && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStage('validation')}
+                className="border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold h-9 px-4 rounded-xl"
+              >
+                ← Back to Validation
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setCurrentStage('confirm')}
+                className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs transition-colors"
+              >
+                Proceed to Confirmation →
+              </Button>
+            </>
+          )}
+
+          {currentStage === 'confirm' && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStage('preview')}
+                disabled={loading}
+                className="border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold h-9 px-4 rounded-xl"
+              >
+                ← Back to Preview
+              </Button>
+              <Button
+                type="button"
+                onClick={handleUploadSubmit}
+                disabled={loading}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold h-9 px-5 rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+              >
+                {loading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>{loading ? 'Processing Upload...' : 'Confirm & Execute Import'}</span>
+              </Button>
+            </>
+          )}
+
+          {currentStage === 'summary' && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetState}
+                className="border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold h-9 px-4 rounded-xl"
+              >
+                Upload Another File
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  onSuccess();
+                  handleClose();
+                }}
+                className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-bold h-9 px-5 rounded-xl shadow-xs transition-colors"
+              >
+                Done
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

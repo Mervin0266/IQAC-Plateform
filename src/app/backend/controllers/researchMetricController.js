@@ -1,5 +1,8 @@
 const { Op } = require('sequelize');
 const { ResearchMetric } = require('../models');
+const { sequelize } = require('../config/database');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
+const { logActionSafe } = require('../middleware/auditLogger');
 
 const normalizePeriodType = (type) => {
   if (!type) return 'academic_year';
@@ -13,8 +16,10 @@ const normalizePeriodType = (type) => {
 // @route   GET /api/research-metrics
 exports.getMetrics = async (req, res) => {
   try {
-    const { academicYear, periodType, department } = req.query;
-    const filter = {};
+    const { academicYear, periodType } = req.query;
+    const { where: scopeWhere } = await resolveDepartmentScope(req, 'ResearchMetric', false);
+    const filter = { ...scopeWhere };
+
     if (academicYear) filter.academicYear = academicYear;
     if (periodType) {
       const norm = normalizePeriodType(periodType);
@@ -26,7 +31,10 @@ exports.getMetrics = async (req, res) => {
         filter.periodType = periodType;
       }
     }
-    if (department) filter.department = department;
+    if ((req.user.role === 'admin' || req.user.role === 'authority') &&
+        req.query.department && req.query.department !== 'All') {
+      filter.department = req.query.department;
+    }
 
     const data = await ResearchMetric.findAll({
       where: filter,
@@ -145,15 +153,29 @@ exports.bulkUpsertMetrics = async (req, res) => {
 // @access  Private (Admin/Coordinator/HOD)
 exports.clearAllMetrics = async (req, res) => {
   try {
-    const deletedCount = await ResearchMetric.destroy({ where: {} });
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'ResearchMetric', true);
+
+    let deletedCount = 0;
+    await sequelize.transaction(async (t) => {
+      deletedCount = await ResearchMetric.destroy({ where, transaction: t });
+    });
+
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_RESEARCH_METRICS',
+      title: `Cleared research metrics: ${scopeDescription}`,
+      remarks: `Deleted ${deletedCount} research metric records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
+
     res.json({
       success: true,
-      message: `All research metrics (${deletedCount}) cleared successfully`,
+      message: `All research metrics (${deletedCount}) cleared successfully for ${scopeDescription}`,
       count: deletedCount
     });
   } catch (error) {
     console.error('Clear all research metrics error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       message: error.message || 'Server error'
     });

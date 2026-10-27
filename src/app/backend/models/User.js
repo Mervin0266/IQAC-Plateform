@@ -49,6 +49,18 @@ const User = sequelize.define('User', {
   lastLogin: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  mustChangePassword: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  passwordChangedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  tokenVersion: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   }
 }, {
   tableName: 'users',

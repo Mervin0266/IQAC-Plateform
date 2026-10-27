@@ -18,6 +18,8 @@ import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
+import { AppShell, PageHeader, StatCard } from './design-system';
+import { BulkUploadDialog } from './BulkUploadDialog';
 
 export interface PublicationItem {
   id: string;
@@ -683,119 +685,93 @@ export function PublicationsPage({
   const content = (
     <div className="space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1">
-            <span>Academics</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-            <span>Research</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-[#2f4692] font-semibold">Publications</span>
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Academics' },
+          { label: 'Research' },
+          { label: 'Publications' }
+        ]}
+        title="Research Publications & Journal Articles"
+        description="Institutional repository tracking Scopus, Web of Science (WoS), and indexed scholarly publications."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExportData('xlsx')}
+              className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+              title="Export filtered records to Excel"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-600 mr-1.5" />
+              <span>Excel</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExportData('csv')}
+              className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+              title="Export filtered records to CSV"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-500 mr-1.5" />
+              <span>CSV</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setBulkFile(null);
+                setBulkPreview([]);
+                setBulkErrors([]);
+                setBulkSuccess('');
+                setIsBulkOpen(true);
+              }}
+              className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+            >
+              <Upload className="w-3.5 h-3.5 mr-1.5" />
+              <span>Bulk Upload</span>
+            </Button>
+
+            <Button
+              size="sm"
+              onClick={handleOpenAddModal}
+              className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              <span>Add Publication</span>
+            </Button>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2.5">
-            <BookOpen className="w-6 h-6 text-[#2f4692]" />
-            Research Publications & Journal Articles
-          </h1>
-          <p className="text-xs text-gray-500 mt-1">
-            Institutional repository tracking Scopus, Web of Science (WoS), and indexed scholarly publications.
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Export Dropdown / Buttons */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExportData('xlsx')}
-            className="text-xs border-gray-200 text-gray-700 hover:bg-gray-50 flex items-center gap-1.5"
-            title="Export filtered records to Excel"
-          >
-            <Download className="w-3.5 h-3.5 text-green-600" />
-            <span>Excel</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExportData('csv')}
-            className="text-xs border-gray-200 text-gray-700 hover:bg-gray-50 flex items-center gap-1.5"
-            title="Export filtered records to CSV"
-          >
-            <Download className="w-3.5 h-3.5 text-blue-600" />
-            <span>CSV</span>
-          </Button>
-
-          {/* Bulk Upload Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setBulkFile(null);
-              setBulkPreview([]);
-              setBulkErrors([]);
-              setBulkSuccess('');
-              setIsBulkOpen(true);
-            }}
-            className="text-xs border-[#2f4692] text-[#2f4692] hover:bg-blue-50 font-medium flex items-center gap-1.5"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Bulk Upload (Excel / CSV)</span>
-          </Button>
-
-          {/* Add Publication Button */}
-          <Button
-            size="sm"
-            onClick={handleOpenAddModal}
-            className="bg-[#2f4692] hover:bg-[#243877] text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Publication</span>
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-[#2f4692] shadow-sm bg-white">
-          <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Publications</CardDescription>
-            <CardTitle className="text-2xl font-extrabold text-[#2f4692] mt-1">{stats.total}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 text-[11px] text-gray-500">
-            Across all departments & academic years
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-blue-600 shadow-sm bg-white">
-          <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Scopus Indexed</CardDescription>
-            <CardTitle className="text-2xl font-extrabold text-blue-700 mt-1">{stats.scopus}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 text-[11px] text-gray-500">
-            {stats.total > 0 ? `${Math.round((stats.scopus / stats.total) * 100)}% of total indexed` : '0% of total'}
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-amber-500 shadow-sm bg-white">
-          <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Web of Science (WoS)</CardDescription>
-            <CardTitle className="text-2xl font-extrabold text-amber-600 mt-1">{stats.wos}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 text-[11px] text-gray-500">
-            Clarivate Analytics indexed papers
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-emerald-600 shadow-sm bg-white">
-          <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Total Citations</CardDescription>
-            <CardTitle className="text-2xl font-extrabold text-emerald-700 mt-1">{stats.totalCitations}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 text-[11px] text-gray-500">
-            Cumulative citation impact
-          </CardContent>
-        </Card>
+        <StatCard
+          title="Total Publications"
+          value={stats.total}
+          subtitle="Across all departments & academic years"
+          icon={BookOpen}
+        />
+        <StatCard
+          title="Scopus Indexed"
+          value={stats.scopus}
+          badge={stats.total > 0 ? `${Math.round((stats.scopus / stats.total) * 100)}%` : '0%'}
+          subtitle="Scopus indexed scholarly papers"
+          icon={FileText}
+        />
+        <StatCard
+          title="Web of Science (WoS)"
+          value={stats.wos}
+          subtitle="Clarivate Analytics indexed papers"
+          icon={Award}
+        />
+        <StatCard
+          title="Total Citations"
+          value={stats.totalCitations}
+          subtitle="Cumulative citation impact"
+          icon={TrendingUp}
+        />
       </div>
 
       {/* Filter and Search Bar */}
@@ -1449,195 +1425,13 @@ export function PublicationsPage({
       {/* ---------------------------------------------------- */}
       {/* BULK UPLOAD MODAL (EXCEL & CSV) */}
       {/* ---------------------------------------------------- */}
-      <Dialog open={isBulkOpen} onOpenChange={setIsBulkOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
-          <DialogHeader className="p-5 pb-3 border-b border-gray-100 bg-gray-50/50">
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <Upload className="w-5 h-5 text-[#2f4692]" />
-              Bulk Upload Publications (Excel & CSV)
-            </DialogTitle>
-            <DialogDescription className="text-xs text-gray-500">
-              Upload multi-row publication spreadsheets (.xlsx, .xls, .csv). Required headers: Author Name, Title, Journal Name, Journal Type.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="p-5 space-y-5 text-xs">
-            {/* Step 1: Download Templates */}
-            <div className="p-3.5 bg-blue-50/60 rounded-lg border border-blue-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <p className="font-semibold text-blue-900">Need the template format?</p>
-                <p className="text-[11px] text-blue-700 mt-0.5">
-                  Download a pre-formatted template with sample rows and column structure.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDownloadTemplate('xlsx')}
-                  className="text-xs bg-white border-blue-200 text-blue-800 hover:bg-blue-50"
-                >
-                  <Download className="w-3.5 h-3.5 mr-1 text-green-600" />
-                  Excel Template (.xlsx)
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDownloadTemplate('csv')}
-                  className="text-xs bg-white border-blue-200 text-blue-800 hover:bg-blue-50"
-                >
-                  <Download className="w-3.5 h-3.5 mr-1 text-blue-600" />
-                  CSV Template (.csv)
-                </Button>
-              </div>
-            </div>
-
-            {/* Step 2: Defaults selection */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Default Department (if blank in file)</Label>
-                <Select value={bulkDefaultDept} onValueChange={setBulkDefaultDept}>
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Select Default Department" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-56">
-                    {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Default Academic Year (if blank in file)</Label>
-                <Select value={bulkDefaultYear} onValueChange={setBulkDefaultYear}>
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Select Default Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {academicYears.map((yr) => (
-                      <SelectItem key={yr} value={yr}>{yr}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Step 3: File Drop / Select */}
-            <div className="border-2 border-dashed border-gray-300 hover:border-[#2f4692] rounded-xl p-6 text-center transition-colors bg-gray-50/50">
-              <Upload className="w-8 h-8 text-[#2f4692] mx-auto mb-2" />
-              <p className="text-xs font-semibold text-gray-700">
-                {bulkFile ? bulkFile.name : 'Select or drag your .xlsx, .xls, or .csv file here'}
-              </p>
-              <p className="text-[11px] text-gray-400 mt-1">
-                Maximum file size: 10MB
-              </p>
-              <label className="mt-3 inline-block">
-                <input
-                  type="file"
-                  accept=".csv, .xlsx, .xls"
-                  onChange={handleBulkFileSelect}
-                  className="hidden"
-                />
-                <span className="px-4 py-1.5 bg-[#2f4692] text-white rounded-md text-xs font-semibold cursor-pointer hover:bg-[#243877] shadow-sm inline-block">
-                  Browse File
-                </span>
-              </label>
-            </div>
-
-            {/* Validation errors / messages */}
-            {bulkErrors.length > 0 && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs space-y-1 max-h-36 overflow-y-auto">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <AlertCircle className="w-4 h-4 text-red-600" />
-                  <span>Validation Warnings ({bulkErrors.length})</span>
-                </div>
-                {bulkErrors.map((err, idx) => (
-                  <p key={idx} className="text-[11px] ml-5">• {err}</p>
-                ))}
-              </div>
-            )}
-
-            {bulkSuccess && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-xs flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
-                <span className="font-semibold">{bulkSuccess}</span>
-              </div>
-            )}
-
-            {/* Preview Table */}
-            {bulkPreview.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="font-bold text-gray-800">
-                    Preview Data ({bulkPreview.length} records parsed)
-                  </p>
-                  <span className="text-[11px] text-gray-500">
-                    {bulkPreview.filter(r => r.isValid).length} valid records ready
-                  </span>
-                </div>
-
-                <div className="border border-gray-200 rounded-lg max-h-56 overflow-y-auto overflow-x-auto">
-                  <table className="w-full text-left text-[11px] border-collapse">
-                    <thead className="bg-gray-100 text-gray-700 sticky top-0">
-                      <tr>
-                        <th className="p-2 pl-3">#</th>
-                        <th className="p-2">Author Name</th>
-                        <th className="p-2">Title</th>
-                        <th className="p-2">Journal Name</th>
-                        <th className="p-2">Type</th>
-                        <th className="p-2">Year</th>
-                        <th className="p-2">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {bulkPreview.slice(0, 50).map((row, idx) => (
-                        <tr key={idx} className={row.isValid ? 'hover:bg-gray-50' : 'bg-red-50/30'}>
-                          <td className="p-2 pl-3 text-gray-400 font-mono">{idx + 1}</td>
-                          <td className="p-2 font-medium text-gray-800">{row.authorName || '-'}</td>
-                          <td className="p-2 text-gray-700 max-w-[200px] truncate" title={row.title}>{row.title || '-'}</td>
-                          <td className="p-2 text-gray-600 truncate max-w-[150px]">{row.journalName || '-'}</td>
-                          <td className="p-2 font-semibold text-blue-700">{row.journalType || 'Scopus'}</td>
-                          <td className="p-2">{row.academicYear || '-'}</td>
-                          <td className="p-2">
-                            {row.isValid ? (
-                              <span className="text-green-600 flex items-center gap-1 font-semibold">
-                                <Check className="w-3 h-3" /> Valid
-                              </span>
-                            ) : (
-                              <span className="text-red-500 font-semibold">Incomplete</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="p-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsBulkOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={bulkLoading || bulkPreview.length === 0}
-              onClick={handleExecuteBulkUpload}
-              className="bg-[#2f4692] text-white hover:bg-[#243877] px-5"
-            >
-              {bulkLoading ? 'Uploading...' : `Upload ${bulkPreview.filter(r => r.isValid).length} Records`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <BulkUploadDialog
+        isOpen={isBulkOpen}
+        onClose={() => setIsBulkOpen(false)}
+        token={token}
+        onSuccess={fetchPublications}
+        uploadType="publications"
+      />
 
       {/* ---------------------------------------------------- */}
       {/* PUBLICATION DETAILS SHEET / MODAL */}
@@ -1802,13 +1596,8 @@ export function PublicationsPage({
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar currentPage="publications" onNavigate={onNavigate} />
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        <div className="max-w-7xl mx-auto w-full space-y-6">
-          {content}
-        </div>
-      </main>
-    </div>
+    <AppShell currentPage="publications" onNavigate={onNavigate}>
+      {content}
+    </AppShell>
   );
 }

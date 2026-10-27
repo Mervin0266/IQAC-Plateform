@@ -28,12 +28,12 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { Sidebar } from './Sidebar';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { normalizeAcademicYear, normalizeDepartmentName } from './FacultyDetailsPage';
+import { AppShell, PageHeader, StatCard, StatusBadge } from './design-system';
 
 export interface DepartmentalActivity {
   id: string;
@@ -101,9 +101,11 @@ const SCHOOLS = [
 
 interface DepartmentalActivitiesPageProps {
   onNavigate?: (page: string) => void;
+  currentPage?: string;
+  hideSidebar?: boolean;
 }
 
-export function DepartmentalActivitiesPage({ onNavigate }: DepartmentalActivitiesPageProps) {
+export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departmental-activities', hideSidebar = false }: DepartmentalActivitiesPageProps) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'matrix' | 'directory' | 'pending'>('matrix');
 
@@ -219,6 +221,10 @@ export function DepartmentalActivitiesPage({ onNavigate }: DepartmentalActivitie
 
   const pendingActivities = useMemo(() => {
     return filteredActivities.filter(a => a.status === 'Pending');
+  }, [filteredActivities]);
+
+  const totalParticipants = useMemo(() => {
+    return filteredActivities.reduce((acc, a) => acc + (a.participantsCount || 0), 0);
   }, [filteredActivities]);
 
   // Matrix calculation responding to filteredActivities & selected filters
@@ -339,316 +345,302 @@ export function DepartmentalActivitiesPage({ onNavigate }: DepartmentalActivitie
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar currentPage="departmental-activities" onNavigate={onNavigate} />
-
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 space-y-6 transition-all duration-300">
-          {/* Top Title Banner */}
-          <div className="bg-gradient-to-r from-[#2f4692] via-[#3b5998] to-[#1e2e60] text-white p-5 md:p-6 rounded-2xl shadow-md space-y-4">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">
-                  <span>CHRIST (Deemed to be University)</span>
-                  <span>•</span>
-                  <span>Bangalore Kengeri Campus</span>
-                </div>
-                <h1 className="text-xl md:text-2xl font-bold tracking-tight">School of Engineering and Technology</h1>
-                <p className="text-xs md:text-sm text-blue-100 mt-0.5">Departmental Activities Matrix & Pending Reports Tracker</p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={fetchActivities}
-                  className="bg-white/10 hover:bg-white/20 text-white border-0 text-xs font-medium"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleClearAll}
-                  className="bg-red-500/20 hover:bg-red-500/30 text-red-100 border border-red-400/30 text-xs font-medium"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1.5 text-red-300" /> Clear All Data
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setIsBulkUploadOpen(true)}
-                  className="bg-white/10 hover:bg-white/20 text-white border-0 text-xs font-medium"
-                >
-                  <Upload className="w-3.5 h-3.5 mr-1.5" /> Upload CSV / Excel
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingActivity(null);
-                    setFormData({
-                      academicYear: '2024-2025',
-                      campus: 'Bangalore Kengeri Campus',
-                      school: 'School of Engineering and Technology',
-                      department: 'AI and Data Science Engineering',
-                      activityCategory: 'Faculty Development Activities',
-                      title: '',
-                      reportDetails: 'Reports 2025',
-                      status: 'Completed'
-                    });
-                    setIsAddModalOpen(true);
-                  }}
-                  className="bg-white text-[#2f4692] hover:bg-blue-50 font-bold text-xs shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1.5" /> + Add Activity Record
-                </Button>
-              </div>
-            </div>
+  const pageContent = (
+    <div className="space-y-6">
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Departmental Administration' },
+          { label: 'Activities & Events Matrix', active: true }
+        ]}
+        title="Departmental Activities Matrix"
+        description="Event tracker, spreadsheet activity matrices, and pending documentation status across departments"
+        badge="EVENT TRACKER"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchActivities}
+              className="text-xs font-medium border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
+            </Button>
+            {user?.role === 'admin' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearAll}
+                className="text-xs font-medium border-rose-200 text-rose-700 hover:bg-rose-50"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5 text-rose-500" /> Clear All Data
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBulkUploadOpen(true)}
+              className="text-xs font-medium border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              <Upload className="w-3.5 h-3.5 mr-1.5" /> Upload CSV / Excel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingActivity(null);
+                setFormData({
+                  academicYear: '2024-2025',
+                  campus: 'Bangalore Kengeri Campus',
+                  school: 'School of Engineering and Technology',
+                  department: 'AI and Data Science Engineering',
+                  activityCategory: 'Faculty Development Activities',
+                  title: '',
+                  reportDetails: 'Reports 2025',
+                  status: 'Completed'
+                });
+                setIsAddModalOpen(true);
+              }}
+              className="bg-[#2F4692] hover:bg-[#243A7A] text-white font-medium text-xs shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Activity Record
+            </Button>
           </div>
+        }
+      />
 
-          {/* Dynamic Filter Options Panel */}
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-              <div className="flex items-center space-x-2 text-gray-800 font-bold text-xs uppercase tracking-wider">
-                <Filter className="w-4 h-4 text-[#2f4692]" />
-                <span>Filter Options</span>
-                {(academicYearFilter !== 'All' || campusFilter !== 'All' || schoolFilter !== 'All' || departmentFilter !== 'All' || categoryFilter !== 'All' || statusFilter !== 'All' || searchTerm !== '') && (
-                  <span className="ml-2 px-2 py-0.5 bg-blue-100 text-[#2f4692] text-[10px] font-extrabold rounded-full">
-                    Active Filters
-                  </span>
-                )}
-              </div>
+      {/* 5 Standard StatCards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <StatCard
+          title="Total Activities"
+          value={filteredActivities.length}
+          icon={Layers}
+          subtitle="Logged institutional events"
+        />
+        <StatCard
+          title="Active Departments"
+          value={activeDepartmentsCount}
+          icon={Building2}
+          subtitle="Departments reporting"
+        />
+        <StatCard
+          title="Completed Reports"
+          value={completedReportsCount}
+          icon={CheckCircle2}
+          badge="Archived"
+        />
+        <StatCard
+          title="Pending Documentation"
+          value={pendingActivities.length}
+          icon={Clock}
+          badge={pendingActivities.length > 0 ? "Action Required" : undefined}
+        />
+        <StatCard
+          title="Total Participants"
+          value={totalParticipants.toLocaleString()}
+          icon={Users}
+          subtitle="Faculty & student reach"
+        />
+      </div>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setAcademicYearFilter('All');
-                    setCampusFilter('All');
-                    setSchoolFilter('All');
-                    setDepartmentFilter('All');
-                    setCategoryFilter('All');
-                    setStatusFilter('All');
-                    setSearchTerm('');
-                  }}
-                  className="h-7 text-xs text-gray-600 hover:text-gray-900 border-gray-300"
-                >
-                  <RotateCcw className="w-3 h-3 mr-1" /> Reset Filters
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {/* Academic Year Filter */}
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Academic Year</label>
-                <select
-                  value={academicYearFilter}
-                  onChange={e => setAcademicYearFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="All">All Academic Years</option>
-                  {availableAcademicYears.map(yr => (
-                    <option key={yr} value={yr}>
-                      AY {yr}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Campus Filter */}
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Campus</label>
-                <select
-                  value={campusFilter}
-                  onChange={e => setCampusFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="All">All Campuses</option>
-                  {CAMPUSES.map((c, i) => (
-                    <option key={i} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* School Filter */}
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">School</label>
-                <select
-                  value={schoolFilter}
-                  onChange={e => setSchoolFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="All">All Schools</option>
-                  {SCHOOLS.map((s, i) => (
-                    <option key={i} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Department Filter */}
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Department</label>
-                <select
-                  value={departmentFilter}
-                  onChange={e => setDepartmentFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="All">All Departments</option>
-                  {DEPARTMENTS.map((d, i) => (
-                    <option key={i} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Activity Category Filter */}
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Activity Category</label>
-                <select
-                  value={categoryFilter}
-                  onChange={e => setCategoryFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="All">All Categories</option>
-                  {ACTIVITY_CATEGORIES.map((cat, i) => (
-                    <option key={i} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Status Filter */}
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Status</label>
-                <select
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="All">All Statuses</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Pending">Pending</option>
-                  <option value="In Progress">In Progress</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Dynamic KPI Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-white border border-gray-100 border-l-4 border-l-blue-600 shadow-sm hover:shadow-md transition-all duration-300">
-              <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-blue-50 rounded-xl text-[#2f4692]">
-                  <Layers className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Total Activities</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-0.5">{filteredActivities.length}</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white border border-gray-100 border-l-4 border-l-indigo-600 shadow-sm hover:shadow-md transition-all duration-300">
-              <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
-                  <Building2 className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Active Departments</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-0.5">{activeDepartmentsCount}</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white border border-gray-100 border-l-4 border-l-emerald-600 shadow-sm hover:shadow-md transition-all duration-300">
-              <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Completed Reports</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-0.5">
-                    {completedReportsCount}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white border border-gray-100 border-l-4 border-l-amber-500 shadow-sm hover:shadow-md transition-all duration-300">
-              <CardContent className="p-4 flex items-center space-x-4">
-                <div className="p-3 bg-amber-50 rounded-xl text-amber-600">
-                  <Clock className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Pending Reports</p>
-                  <p className="text-2xl font-bold text-amber-700 mt-0.5">{pendingActivities.length}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* View Tab Switcher & Search Bar */}
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-3">
-              {/* Tabs */}
-              <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg">
-                <button
-                  onClick={() => setActiveTab('matrix')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
-                    activeTab === 'matrix'
-                      ? 'bg-white text-[#2f4692] shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Spreadsheet Matrix View
-                </button>
-                <button
-                  onClick={() => setActiveTab('directory')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
-                    activeTab === 'directory'
-                      ? 'bg-white text-[#2f4692] shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Event Directory View ({filteredActivities.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab('pending')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all relative ${
-                    activeTab === 'pending'
-                      ? 'bg-amber-500 text-white shadow-sm'
-                      : 'text-amber-800 hover:bg-amber-100'
-                  }`}
-                >
-                  Pending Reports Tracker ({pendingActivities.length})
-                </button>
-              </div>
-
-              <div className="text-xs text-gray-500 font-medium">
-                Showing <strong className="text-gray-900">{filteredActivities.length}</strong> of {activities.length} total records
-              </div>
-            </div>
-
-            {activeTab === 'directory' && (
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <Input
-                  placeholder="Search by event title, department, activity category, or report details..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-9 pr-4 text-xs w-full"
-                />
-              </div>
+      {/* Dynamic Filter Options Panel */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div className="flex items-center space-x-2 text-slate-800 font-semibold text-xs tracking-wider uppercase">
+            <Filter className="w-4 h-4 text-[#2F4692]" />
+            <span>Filter Criteria</span>
+            {(academicYearFilter !== 'All' || campusFilter !== 'All' || schoolFilter !== 'All' || departmentFilter !== 'All' || categoryFilter !== 'All' || statusFilter !== 'All' || searchTerm !== '') && (
+              <span className="ml-2 px-2 py-0.5 bg-blue-50 text-[#2F4692] border border-blue-200 text-[10px] font-bold rounded-full">
+                Filters Active
+              </span>
             )}
           </div>
 
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setAcademicYearFilter('All');
+                setCampusFilter('All');
+                setSchoolFilter('All');
+                setDepartmentFilter('All');
+                setCategoryFilter('All');
+                setStatusFilter('All');
+                setSearchTerm('');
+              }}
+              className="h-7 text-xs text-slate-600 hover:text-slate-900 border-slate-300"
+            >
+              <RotateCcw className="w-3 h-3 mr-1" /> Reset Filters
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {/* Academic Year Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Academic Year</label>
+            <select
+              value={academicYearFilter}
+              onChange={e => setAcademicYearFilter(e.target.value)}
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+            >
+              <option value="All">All Academic Years</option>
+              {availableAcademicYears.map(yr => (
+                <option key={yr} value={yr}>
+                  AY {yr}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Campus Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Campus</label>
+            <select
+              value={campusFilter}
+              onChange={e => setCampusFilter(e.target.value)}
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+            >
+              <option value="All">All Campuses</option>
+              {CAMPUSES.map((c, i) => (
+                <option key={i} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* School Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">School</label>
+            <select
+              value={schoolFilter}
+              onChange={e => setSchoolFilter(e.target.value)}
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+            >
+              <option value="All">All Schools</option>
+              {SCHOOLS.map((s, i) => (
+                <option key={i} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Department Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Department</label>
+            <select
+              value={departmentFilter}
+              onChange={e => setDepartmentFilter(e.target.value)}
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+            >
+              <option value="All">All Departments</option>
+              {DEPARTMENTS.map((d, i) => (
+                <option key={i} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Activity Category Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Activity Category</label>
+            <select
+              value={categoryFilter}
+              onChange={e => setCategoryFilter(e.target.value)}
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+            >
+              <option value="All">All Categories</option>
+              {ACTIVITY_CATEGORIES.map((cat, i) => (
+                <option key={i} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Status</label>
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+            >
+              <option value="All">All Statuses</option>
+              <option value="Completed">Completed</option>
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* View Tab Switcher & Search Bar */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
+          {/* Tabs */}
+          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg">
+            <button
+              onClick={() => setActiveTab('matrix')}
+              className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                activeTab === 'matrix'
+                  ? 'bg-[#0B132B] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Spreadsheet Matrix View
+            </button>
+            <button
+              onClick={() => setActiveTab('directory')}
+              className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                activeTab === 'directory'
+                  ? 'bg-[#0B132B] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Event Directory ({filteredActivities.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('pending')}
+              className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === 'pending'
+                  ? 'bg-[#0B132B] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>Pending Documentation</span>
+              {pendingActivities.length > 0 && (
+                <span className="px-1.5 py-0.2 bg-amber-400 text-slate-900 font-bold text-[10px] rounded-full">
+                  {pendingActivities.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-500 font-medium">
+            Showing <strong className="text-slate-900">{filteredActivities.length}</strong> of {activities.length} total records
+          </div>
+        </div>
+
+        {activeTab === 'directory' && (
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search by event title, department, activity category, or report details..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="pl-9 pr-4 text-xs w-full border-slate-200"
+            />
+          </div>
+        )}
+      </div>
+
           {/* TAB 1: SPREADSHEET MATRIX VIEW */}
           {activeTab === 'matrix' && (
-            <Card className="bg-white border border-gray-200 shadow-md overflow-hidden">
+            <Card className="bg-white border border-slate-200 shadow-xs overflow-hidden">
               <CardContent className="p-0">
-                <div className="p-3.5 bg-emerald-800 text-white font-bold text-center text-xs md:text-sm uppercase tracking-wider shadow-sm flex items-center justify-center gap-2">
-                  <Sparkles className="w-4 h-4 text-emerald-300" />
-                  <span>Departmental Activities Matrix — School of Engineering and Technology</span>
+                <div className="p-3 bg-[#0B132B] text-white font-semibold text-xs md:text-sm tracking-wide border-b border-slate-800 flex items-center justify-between px-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#E8C84A]" />
+                    <span>Departmental Activities Matrix — School of Engineering and Technology</span>
+                  </div>
+                  <span className="text-[11px] text-slate-300 font-mono">
+                    AY: {academicYearFilter} • {matrixData.visibleDepts.length} Departments
+                  </span>
                 </div>
 
                 <div className="overflow-x-auto max-w-full">
@@ -900,7 +892,6 @@ export function DepartmentalActivitiesPage({ onNavigate }: DepartmentalActivitie
               </div>
             </div>
           )}
-        </main>
 
         {/* CELL DETAILS MODAL */}
       {selectedCellData && (
@@ -1098,6 +1089,16 @@ export function DepartmentalActivitiesPage({ onNavigate }: DepartmentalActivitie
         uploadType="departmental-activities"
       />
     </div>
+  );
+
+  if (hideSidebar) {
+    return <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto space-y-6">{pageContent}</div>;
+  }
+
+  return (
+    <AppShell currentPage={currentPage} onNavigate={onNavigate || (() => {})}>
+      {pageContent}
+    </AppShell>
   );
 }
 

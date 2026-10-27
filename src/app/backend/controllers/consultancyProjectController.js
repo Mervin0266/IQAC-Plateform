@@ -1,8 +1,9 @@
 const { ConsultancyProject, User } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { logAction } = require('../middleware/auditLogger');
+const { logAction, logActionSafe } = require('../middleware/auditLogger');
 const { sendNotification } = require('../middleware/notificationHelper');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
 
 // @desc    Get all consultancy projects
 // @route   GET /api/consultancy-projects
@@ -113,14 +114,22 @@ exports.createConsultancyProject = async (req, res) => {
     if (req.user.role === 'faculty') {
       initialStatus = 'submitted';
     }
-    const dept = req.user.role === 'admin' || req.user.role === 'authority' ? req.body.department : req.user.department;
+    const dept = req.user.role === 'admin' || req.user.role === 'authority' ? (req.body.department || req.user.department || 'General') : req.user.department;
 
-    const project = await ConsultancyProject.create({
-      ...req.body,
-      department: dept,
-      status: initialStatus,
-      createdBy: req.user.id
+    const allowedCreateFields = [
+      'projectName', 'clientName', 'clientAddress', 'principalConsultant', 'coConsultants',
+      'financialYear', 'academicYear', 'startDate', 'endDate', 'sanctionedAmount', 'amountReceived',
+      'remarks', 'proofUrl'
+    ];
+    const safeData = {};
+    allowedCreateFields.forEach(f => {
+      if (req.body[f] !== undefined) safeData[f] = req.body[f];
     });
+    safeData.department = dept;
+    safeData.status = initialStatus;
+    safeData.createdBy = req.user.id;
+
+    const project = await ConsultancyProject.create(safeData);
 
     // Log creation
     await logAction({
@@ -208,8 +217,31 @@ exports.updateConsultancyProject = async (req, res) => {
       });
     }
 
+    const allowedUpdateFields = [
+      'projectName', 'clientName', 'clientAddress', 'principalConsultant', 'coConsultants',
+      'financialYear', 'academicYear', 'startDate', 'endDate', 'sanctionedAmount', 'amountReceived',
+      'remarks', 'proofUrl'
+    ];
+    const updates = {};
+    allowedUpdateFields.forEach(f => {
+      if (req.body[f] !== undefined) updates[f] = req.body[f];
+    });
+
+    // Only coordinator, hod, and admin can change workflow status
+    if (['admin', 'hod', 'coordinator'].includes(req.user.role) && req.body.status !== undefined) {
+      updates.status = req.body.status;
+    }
+
+    // Only admin can change department
+    if (req.user.role === 'admin' && req.body.department !== undefined) {
+      updates.department = req.body.department;
+    }
+
+    delete updates.id;
+    delete updates.createdBy;
+
     const oldValues = project.toJSON();
-    await project.update(req.body);
+    await project.update(updates);
     const newValues = project.toJSON();
 
     // Log update
@@ -332,29 +364,30 @@ exports.deleteConsultancyProject = async (req, res) => {
 // @access  Private (Admin / Coordinator / HOD)
 exports.clearAllConsultancyProjects = async (req, res) => {
   try {
-    const whereClause = {};
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'ConsultancyProject', true);
 
-    if (req.user.role === 'faculty' || req.user.role === 'authority') {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. You do not have permission to clear consultancy records.'
-      });
-    } else if (req.user.role === 'coordinator' || req.user.role === 'hod') {
-      whereClause.department = req.user.department;
-    }
+    let count = 0;
+    await sequelize.transaction(async (t) => {
+      count = await ConsultancyProject.destroy({ where, transaction: t });
+    });
 
-    const count = await ConsultancyProject.count({ where: whereClause });
-    await ConsultancyProject.destroy({ where: whereClause, truncate: false });
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_CONSULTANCY_PROJECTS',
+      title: `Cleared consultancy projects: ${scopeDescription}`,
+      remarks: `Deleted ${count} consultancy project records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
 
     res.json({
       success: true,
-      message: `Successfully cleared ${count} consultancy project record(s).`
+      message: `Successfully cleared ${count} consultancy project record(s) for ${scopeDescription}.`
     });
   } catch (error) {
     console.error('Clear consultancy projects error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Failed to clear consultancy project records'
+      message: error.message || 'Failed to clear consultancy project records'
     });
   }
 };

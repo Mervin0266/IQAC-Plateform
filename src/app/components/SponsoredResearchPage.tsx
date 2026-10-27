@@ -18,6 +18,8 @@ import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
+import { BulkUploadDialog } from './BulkUploadDialog';
+import { AppShell, PageHeader, StatCard } from './design-system';
 
 export interface SponsoredProjectItem {
   id: string;
@@ -134,10 +136,10 @@ export function SponsoredResearchPage({
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkPreview, setBulkPreview] = useState<any[]>([]);
-  const [bulkError, setBulkError] = useState('');
-  const [bulkSuccess, setBulkSuccess] = useState('');
+  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkErrorsList, setBulkErrorsList] = useState<string[]>([]);
+  const [bulkSuccess, setBulkSuccess] = useState('');
+  const [bulkDefaultYear, setBulkDefaultYear] = useState('2024-2025');
   const [isClearOpen, setIsClearOpen] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
 
@@ -162,6 +164,15 @@ export function SponsoredResearchPage({
     }
     return Array.from(set).sort();
   }, [departmentList]);
+
+  const academicYears = useMemo(() => {
+    const current = new Date().getFullYear();
+    const list: string[] = [];
+    for (let y = current + 1; y >= current - 5; y--) {
+      list.push(`${y}-${y + 1}`);
+    }
+    return list;
+  }, []);
 
   // Fetch Projects from Backend
   const fetchProjects = useCallback(async () => {
@@ -443,6 +454,68 @@ export function SponsoredResearchPage({
     return <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 text-[10px]">Govt Grant</Badge>;
   };
 
+  // ----------------------------------------------------
+  // ROBUST BULK UPLOAD HANDLING (EXCEL & CSV)
+  // ----------------------------------------------------
+  const extractProjectValue = (row: any, ...aliases: string[]): any => {
+    if (!row || typeof row !== 'object') return '';
+    const rowKeys = Object.keys(row);
+    for (const alias of aliases) {
+      const cleanAlias = alias.toLowerCase().replace(/[^a-z0-9]/g, '');
+      for (const rk of rowKeys) {
+        const cleanRk = rk.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanRk === cleanAlias && row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== '') {
+          return row[rk];
+        }
+      }
+    }
+    return '';
+  };
+
+  const formatProjectDate = (val: any): string | null => {
+    if (!val) return null;
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      return val.toISOString().split('T')[0];
+    }
+    if (typeof val === 'number') {
+      const d = new Date((val - 25569) * 86400 * 1000);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    const lower = str.toLowerCase();
+    if (['n/a', 'na', 'nil', 'null', '-', '--', 'pending', 'under examination', 'not applicable', 'none', 'tbd', 'ongoing'].includes(lower)) {
+      return null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+    const parts = str.split(/[\/\-\.]/);
+    if (parts.length === 3) {
+      let p1 = parts[0].trim();
+      let p2 = parts[1].trim();
+      let p3 = parts[2].trim();
+      if (p1.length === 4) {
+        return `${p1}-${p2.padStart(2, '0')}-${p3.padStart(2, '0')}`;
+      }
+      let day = p1.padStart(2, '0');
+      let month = p2.padStart(2, '0');
+      let year = p3.length === 2 ? '20' + p3 : p3;
+      const m = parseInt(month, 10);
+      const d = parseInt(day, 10);
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${year}-${month}-${day}`;
+      }
+    }
+    if (/^\d{4}$/.test(str)) return `${str}-01-01`;
+
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const iso = d.toISOString().split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+    }
+    return null;
+  };
+
   // Download Sample Bulk Templates
   const handleDownloadBulkTemplate = (format: 'csv' | 'xlsx') => {
     const headers = [
@@ -528,58 +601,208 @@ export function SponsoredResearchPage({
     }
   };
 
-  // Handle Bulk File Upload Parse
-  const handleBulkFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Bulk File Upload Parse with Validation
+  const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith('.csv') && !lower.endsWith('.xlsx') && !lower.endsWith('.xls')) {
+      setBulkErrors(['Please upload a valid CSV or Excel file (.csv, .xlsx, .xls).']);
+      return;
+    }
+
     setBulkFile(file);
-    setBulkError('');
+    setBulkErrors([]);
     setBulkSuccess('');
-    setBulkErrorsList([]);
 
     const reader = new FileReader();
-    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-
-    reader.onload = (evt) => {
+    reader.onload = (event) => {
       try {
-        let rows: any[] = [];
-        if (isExcel) {
-          const wb = XLSX.read(evt.target?.result as ArrayBuffer, { type: 'array' });
-          const firstSheet = wb.Sheets[wb.SheetNames[0]];
-          rows = XLSX.utils.sheet_to_json(firstSheet);
-        } else {
-          const csvText = evt.target?.result as string;
-          const wb = XLSX.read(csvText, { type: 'string' });
-          const firstSheet = wb.Sheets[wb.SheetNames[0]];
-          rows = XLSX.utils.sheet_to_json(firstSheet);
-        }
+        const buffer = event.target?.result;
+        if (!buffer) return;
 
-        if (rows.length === 0) {
-          setBulkError('No rows found in the selected file.');
+        const workbook = XLSX.read(new Uint8Array(buffer as ArrayBuffer), {
+          type: 'array',
+          cellDates: true,
+          dateNF: 'yyyy-mm-dd'
+        });
+        const sheetName = workbook.SheetNames[0];
+        const rawParsedRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+
+        if (rawParsedRows.length === 0) {
+          setBulkErrors(['The uploaded file contains no data rows.']);
           setBulkPreview([]);
           return;
         }
 
-        setBulkPreview(rows);
+        const errors: string[] = [];
+        const validated: any[] = [];
+
+        rawParsedRows.forEach((row: any, idx: number) => {
+          const title = extractProjectValue(
+            row,
+            'Project Title', 'Title', 'Title of Project', 'Project Name',
+            'Research Title', 'Name of Project', 'Title of Research Project', 'Grant Title'
+          );
+          const pi = extractProjectValue(
+            row,
+            'Principal Investigator', 'PI', 'Principal Investigator (PI)', 'PI Name',
+            'Name of PI', 'Project Leader', 'Lead Investigator', 'Faculty Name',
+            'Name of Principal Investigator', 'Investigator', 'Author Name'
+          );
+          const coPi = extractProjectValue(
+            row,
+            'Co-Investigators', 'Co Investigators', 'Co-PI', 'Co-Principal Investigator',
+            'Co PIs', 'Co-PIs', 'Other Investigators', 'Team Members', 'Team'
+          );
+          const agency = extractProjectValue(
+            row,
+            'Funding Agency', 'Agency', 'Sponsoring Agency', 'Funding Organization',
+            'Organization', 'Sponsor', 'Funding Body', 'Name of Agency'
+          );
+          const scheme = extractProjectValue(
+            row,
+            'Scheme', 'Funding Scheme', 'Scheme / Program', 'Scheme Name',
+            'Call', 'Program', 'Subcategory', 'Grant Scheme'
+          );
+          const agencyType = extractProjectValue(
+            row,
+            'Agency Type', 'Funding Type', 'Type of Agency', 'Category', 'Sponsor Type'
+          ) || 'Government (National)';
+          const sanctionOrderNo = extractProjectValue(
+            row,
+            'Sanction Order No', 'Sanction Order Number', 'Sanction Number',
+            'Sanction No', 'Sanction Order No.', 'Project ID', 'Sanction Reference',
+            'Reference No', 'Ref No', 'Order No'
+          );
+          const sanctionDate = formatProjectDate(extractProjectValue(
+            row,
+            'Sanction Date', 'Award Date', 'Date of Sanction', 'Sanctioned Date', 'Grant Date'
+          ));
+          const startDate = formatProjectDate(extractProjectValue(
+            row,
+            'Start Date', 'Commencement Date', 'Date of Commencement', 'Project Start Date', 'Date'
+          ));
+          const endDate = formatProjectDate(extractProjectValue(
+            row,
+            'End Date', 'Completion Date', 'Date of Completion', 'Project End Date', 'Target Date'
+          ));
+          const rawSanctionedAmount = extractProjectValue(
+            row,
+            'Sanctioned Amount (INR)', 'Sanctioned Amount', 'Grant Amount', 'Sanction Amount',
+            'Total Grant (INR)', 'Amount Sanctioned', 'Amount', 'Total Grant', 'Grant Value'
+          );
+          const rawAmountReceived = extractProjectValue(
+            row,
+            'Amount Received (INR)', 'Amount Received', 'Funds Released', 'Funds Released (INR)',
+            'Funds Received', 'Received Amount (INR)', 'Released Amount'
+          );
+          const rawStatus = extractProjectValue(
+            row,
+            'Status', 'Project Status', 'Current Status', 'Stage'
+          ) || 'Ongoing';
+          const rawProgress = extractProjectValue(
+            row,
+            'Progress (%)', 'Progress', 'Milestone Progress', 'Completion (%)', 'Percentage'
+          );
+          const rawDept = extractProjectValue(
+            row,
+            'Department', 'Dept', 'Host Department', 'Department Name', 'School', 'Branch'
+          ) || authUser?.department || 'General';
+          const rawYear = extractProjectValue(
+            row,
+            'Academic Year', 'Year', 'AY', 'Period', 'Session'
+          ) || bulkDefaultYear || '2024-2025';
+          const projectUrl = extractProjectValue(
+            row,
+            'Project URL', 'URL', 'Link', 'Document URL', 'Website', 'Project Link', 'Project Portal URL'
+          );
+          const description = extractProjectValue(
+            row,
+            'Description', 'Project Summary', 'Abstract', 'Objectives', 'Brief Description', 'Summary', 'Description / Scope'
+          );
+
+          // Skip completely empty rows
+          if (!String(title).trim() && !String(pi).trim() && !String(agency).trim() && !String(rawSanctionedAmount).trim()) {
+            return;
+          }
+
+          const rowNum = idx + 1;
+          const missing: string[] = [];
+          if (!String(title).trim()) missing.push('Project Title');
+          if (!String(pi).trim()) missing.push('Principal Investigator');
+          if (!String(agency).trim()) missing.push('Funding Agency');
+
+          if (missing.length > 0) {
+            errors.push(`Row ${rowNum}: Missing required ${missing.join(', ')}`);
+          }
+
+          const sanctionedAmount = typeof rawSanctionedAmount === 'number'
+            ? rawSanctionedAmount
+            : parseFloat(String(rawSanctionedAmount || '0').replace(/[^0-9.]/g, '')) || 0;
+
+          const amountReceived = typeof rawAmountReceived === 'number'
+            ? rawAmountReceived
+            : (rawAmountReceived ? parseFloat(String(rawAmountReceived).replace(/[^0-9.]/g, '')) || 0 : sanctionedAmount);
+
+          let progress = parseInt(String(rawProgress || ''), 10);
+          if (isNaN(progress)) {
+            const stLower = String(rawStatus).toLowerCase();
+            progress = stLower.includes('complete') ? 100 : (stLower.includes('sanction') ? 10 : 50);
+          }
+
+          validated.push({
+            title: String(title).trim(),
+            principalInvestigator: String(pi).trim(),
+            coInvestigators: coPi ? String(coPi).trim() : null,
+            fundingAgency: String(agency).trim(),
+            scheme: scheme ? String(scheme).trim() : null,
+            agencyType: String(agencyType).trim(),
+            sanctionOrderNo: sanctionOrderNo ? String(sanctionOrderNo).trim() : null,
+            sanctionDate,
+            startDate,
+            endDate,
+            sanctionedAmount,
+            amountReceived,
+            status: String(rawStatus).trim(),
+            progressPercentage: progress,
+            department: String(rawDept).trim(),
+            academicYear: String(rawYear).trim(),
+            projectUrl: projectUrl ? String(projectUrl).trim() : null,
+            description: description ? String(description).trim() : null,
+            isValid: missing.length === 0,
+            missingFields: missing
+          });
+        });
+
+        if (validated.length === 0) {
+          setBulkErrors(['No valid data rows found. Please check your file content.']);
+          setBulkPreview([]);
+          return;
+        }
+
+        setBulkErrors(errors);
+        setBulkPreview(validated);
       } catch (err: any) {
-        setBulkError(`Failed to parse file: ${err.message}`);
+        console.error('File parsing error:', err);
+        setBulkErrors([`Failed to parse file: ${err.message || 'Unknown format error'}`]);
       }
     };
 
-    if (isExcel) {
-      reader.readAsArrayBuffer(file);
-    } else {
-      reader.readAsText(file);
-    }
+    reader.readAsArrayBuffer(file);
   };
 
   // Submit Bulk Upload
-  const handleBulkUploadSubmit = async () => {
-    if (bulkPreview.length === 0) return;
+  const handleExecuteBulkUpload = async () => {
+    const validRows = bulkPreview.filter(r => r.isValid);
+    if (validRows.length === 0) {
+      setBulkErrors(['No valid rows to upload. Please fix the missing required fields first.']);
+      return;
+    }
+
     setBulkLoading(true);
-    setBulkError('');
-    setBulkErrorsList([]);
+    setBulkErrors([]);
     setBulkSuccess('');
 
     try {
@@ -590,32 +813,31 @@ export function SponsoredResearchPage({
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          items: bulkPreview,
-          defaultDepartment: authUser?.department,
-          defaultYear: selectedYear !== 'all' ? selectedYear : '2024-2025'
+          items: validRows,
+          defaultDepartment: authUser?.department || 'General',
+          defaultYear: bulkDefaultYear
         })
       });
 
       const data = await res.json();
-      if (data.success) {
-        setBulkSuccess(`Successfully imported ${data.count} sponsored research project(s).`);
-        if (data.errors && data.errors.length > 0) {
-          setBulkErrorsList(data.errors);
-        } else {
-          setTimeout(() => {
-            setIsBulkOpen(false);
-            setBulkFile(null);
-            setBulkPreview([]);
-            fetchProjects();
-            fetchStats();
-          }, 1500);
-        }
+      if (res.ok && data.success) {
+        setBulkSuccess(`Successfully imported ${data.count || validRows.length} sponsored research project(s).`);
+        fetchProjects();
+        if (typeof fetchStats === 'function') fetchStats();
+        setTimeout(() => {
+          setIsBulkOpen(false);
+          setBulkFile(null);
+          setBulkPreview([]);
+          setBulkSuccess('');
+        }, 1500);
       } else {
-        setBulkError(data.message || 'Bulk upload failed.');
-        if (data.errors) setBulkErrorsList(data.errors);
+        const errorMsg = data.message || 'Failed to upload research records.';
+        const detailedErrors: string[] = data.errors && Array.isArray(data.errors) ? data.errors : [errorMsg];
+        setBulkErrors(detailedErrors);
       }
     } catch (err: any) {
-      setBulkError(err.message || 'Connection to server failed.');
+      console.error('Bulk upload execution error:', err);
+      setBulkErrors(['Server communication error during bulk upload.']);
     } finally {
       setBulkLoading(false);
     }
@@ -624,126 +846,81 @@ export function SponsoredResearchPage({
   const content = (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Sponsored Research Grants</h1>
-            <Badge variant="secondary" className="font-mono text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-              NAAC Criteria 3.1 & NIRF
-            </Badge>
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Academics' },
+          { label: 'Research' },
+          { label: 'Sponsored Research' }
+        ]}
+        title="Sponsored Research Grants"
+        badge="NAAC 3.1 & NIRF"
+        description="Track funded research projects, principal investigators, funding agencies, sanctioned grants, and milestone deliverables."
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={() => handleExport('xlsx')}
+              variant="outline"
+              size="sm"
+              className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+              <span>Export Excel</span>
+            </Button>
+
+            <Button
+              onClick={() => setIsBulkOpen(true)}
+              variant="outline"
+              size="sm"
+              className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+            >
+              <Upload className="w-3.5 h-3.5 mr-1.5" />
+              <span>Bulk Upload</span>
+            </Button>
+
+            <Button
+              onClick={handleOpenAdd}
+              size="sm"
+              className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              <span>Add Grant</span>
+            </Button>
           </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Track funded research projects, principal investigators, funding agencies, sanctioned grants, and milestone deliverables.
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button
-            onClick={() => handleExport('xlsx')}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-1.5 border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm"
-          >
-            <Download className="w-3.5 h-3.5 text-gray-500" />
-            <span>Export Excel</span>
-          </Button>
-
-          <Button
-            onClick={() => setIsBulkOpen(true)}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-1.5 border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm"
-          >
-            <Upload className="w-3.5 h-3.5 text-teal-600" />
-            <span>Bulk Upload</span>
-          </Button>
-
-          <Button
-            onClick={handleOpenAdd}
-            size="sm"
-            className="flex items-center gap-1.5 bg-[#2f4692] text-white hover:bg-[#243a7a] shadow-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Sponsored Grant</span>
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* KPI Stats Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        <Card className="border-l-4 border-l-blue-600 shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardHeader className="pb-1.5 pt-4">
-            <div className="flex items-center justify-between">
-              <CardDescription className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Grants</CardDescription>
-              <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600"><FileText className="w-4 h-4" /></div>
-            </div>
-            <CardTitle className="text-2xl font-bold text-[#2f4692] mt-1">{stats?.totalProjects ?? projects.length}</CardTitle>
-          </CardHeader>
-          <CardContent className="pb-3 text-[11px] text-gray-500">
-            Across active academic departments
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-teal-600 shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardHeader className="pb-1.5 pt-4">
-            <div className="flex items-center justify-between">
-              <CardDescription className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Sanctioned</CardDescription>
-              <div className="p-1.5 rounded-lg bg-teal-50 text-teal-600"><DollarSign className="w-4 h-4" /></div>
-            </div>
-            <CardTitle className="text-xl font-bold text-teal-700 mt-1">
-              {formatCurrency(stats?.totalSanctionedAmount ?? projects.reduce((sum, p) => sum + (Number(p.sanctionedAmount) || 0), 0))}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-3 text-[11px] text-gray-500">
-            Aggregate funding awarded
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-emerald-600 shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardHeader className="pb-1.5 pt-4">
-            <div className="flex items-center justify-between">
-              <CardDescription className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Funds Received</CardDescription>
-              <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600"><Landmark className="w-4 h-4" /></div>
-            </div>
-            <CardTitle className="text-xl font-bold text-emerald-700 mt-1">
-              {formatCurrency(stats?.totalFundsReceived ?? projects.reduce((sum, p) => sum + (Number(p.amountReceived) || 0), 0))}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-3 text-[11px] text-gray-500">
-            Installments credited to date
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500 shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardHeader className="pb-1.5 pt-4">
-            <div className="flex items-center justify-between">
-              <CardDescription className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ongoing Projects</CardDescription>
-              <div className="p-1.5 rounded-lg bg-orange-50 text-orange-600"><Clock className="w-4 h-4" /></div>
-            </div>
-            <CardTitle className="text-2xl font-bold text-orange-600 mt-1">
-              {stats?.ongoingCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('ongoing')).length}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-3 text-[11px] text-gray-500">
-            Active milestone tracking
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-600 shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardHeader className="pb-1.5 pt-4">
-            <div className="flex items-center justify-between">
-              <CardDescription className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Completed</CardDescription>
-              <div className="p-1.5 rounded-lg bg-green-50 text-green-600"><CheckCircle className="w-4 h-4" /></div>
-            </div>
-            <CardTitle className="text-2xl font-bold text-green-700 mt-1">
-              {stats?.completedCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('complete')).length}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-3 text-[11px] text-gray-500">
-            Finalized with UCs submitted
-          </CardContent>
-        </Card>
+        <StatCard
+          title="Total Grants"
+          value={stats?.totalProjects ?? projects.length}
+          subtitle="Across active departments"
+          icon={FileText}
+        />
+        <StatCard
+          title="Total Sanctioned"
+          value={formatCurrency(stats?.totalSanctionedAmount ?? projects.reduce((sum, p) => sum + (Number(p.sanctionedAmount) || 0), 0))}
+          subtitle="Aggregate awarded funding"
+          icon={DollarSign}
+        />
+        <StatCard
+          title="Funds Received"
+          value={formatCurrency(stats?.totalFundsReceived ?? projects.reduce((sum, p) => sum + (Number(p.amountReceived) || 0), 0))}
+          subtitle="Installments credited to date"
+          icon={Landmark}
+        />
+        <StatCard
+          title="Ongoing Projects"
+          value={stats?.ongoingCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('ongoing')).length}
+          subtitle="Active milestone tracking"
+          icon={Clock}
+        />
+        <StatCard
+          title="Completed"
+          value={stats?.completedCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('complete')).length}
+          subtitle="Finalized & UCs submitted"
+          icon={CheckCircle}
+        />
       </div>
 
       {/* Filter & Search Bar */}
@@ -1580,154 +1757,16 @@ export function SponsoredResearchPage({
         </DialogContent>
       </Dialog>
 
-      {/* BULK UPLOAD DIALOG (EXCEL & CSV) */}
-      <Dialog open={isBulkOpen} onOpenChange={setIsBulkOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto bg-white p-6 rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Upload className="w-5 h-5 text-teal-700" />
-              <span>Bulk Upload Sponsored Research Grants (Excel / CSV)</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-gray-500">
-              Import multiple research grant records simultaneously using spreadsheet templates.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2 text-xs">
-            {/* Guidelines & Download Links */}
-            <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3.5 rounded-lg space-y-2">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <p className="font-semibold">Spreadsheet Formatting Guidelines:</p>
-              </div>
-              <p className="text-[11px] leading-relaxed">
-                Ensure columns match: <strong>Project Title*</strong>, <strong>Principal Investigator*</strong>, <strong>Funding Agency*</strong>, <strong>Sanctioned Amount (INR)*</strong>, Scheme, Agency Type, Sanction Order No, Sanction Date, Status, Progress (%), Department, Academic Year.
-              </p>
-              <div className="flex items-center gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => handleDownloadBulkTemplate('csv')}
-                  className="text-xs font-semibold text-blue-700 underline hover:text-blue-900"
-                >
-                  Download Sample CSV Template
-                </button>
-                <span className="text-gray-400">|</span>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadBulkTemplate('xlsx')}
-                  className="text-xs font-semibold text-blue-700 underline hover:text-blue-900"
-                >
-                  Download Sample Excel (.xlsx) Template
-                </button>
-              </div>
-            </div>
-
-            {/* Drop Zone */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition-colors text-center relative cursor-pointer">
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleBulkFileChange}
-                disabled={bulkLoading}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-              />
-              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              {bulkFile ? (
-                <div>
-                  <p className="font-bold text-gray-800">{bulkFile.name}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{(bulkFile.size / 1024).toFixed(1)} KB - Click to replace</p>
-                </div>
-              ) : (
-                <div>
-                  <p className="font-semibold text-gray-700">Drag & drop your Excel (.xlsx) or CSV (.csv) file here</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Supports standard NIRF / NAAC research grant tabular formats</p>
-                </div>
-              )}
-            </div>
-
-            {bulkError && (
-              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg flex items-center gap-2 font-medium">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{bulkError}</span>
-              </div>
-            )}
-
-            {bulkErrorsList.length > 0 && (
-              <div className="bg-red-50 border border-red-200 p-3 rounded-lg space-y-1">
-                <p className="font-semibold text-red-800 text-[11px]">Upload Validation Warnings:</p>
-                <ul className="list-disc pl-5 text-[10px] text-red-600 font-mono max-h-[100px] overflow-y-auto">
-                  {bulkErrorsList.map((err, idx) => (
-                    <li key={idx}>{err}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {bulkSuccess && (
-              <div className="p-3 bg-green-50 text-green-700 border border-green-200 rounded-lg flex items-center gap-2 font-medium">
-                <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{bulkSuccess}</span>
-              </div>
-            )}
-
-            {/* Preview of Parsed Rows */}
-            {bulkPreview.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-gray-800">Preview ({bulkPreview.length} records detected)</span>
-                  <span className="text-[10px] text-gray-400">Showing top 5 rows</span>
-                </div>
-                <div className="border border-gray-200 rounded-lg overflow-x-auto max-h-[180px]">
-                  <table className="w-full text-left border-collapse text-[11px]">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold sticky top-0">
-                      <tr>
-                        <th className="py-2 px-3">Title</th>
-                        <th className="py-2 px-3">PI</th>
-                        <th className="py-2 px-3">Funding Agency</th>
-                        <th className="py-2 px-3">Sanction Amount</th>
-                        <th className="py-2 px-3">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 text-gray-700 bg-white">
-                      {bulkPreview.slice(0, 5).map((row, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="py-2 px-3 font-medium text-gray-900 truncate max-w-[180px]" title={row['Project Title'] || row.title}>
-                            {row['Project Title'] || row.title}
-                          </td>
-                          <td className="py-2 px-3 truncate max-w-[120px]">{row['Principal Investigator'] || row.principalInvestigator || row.pi}</td>
-                          <td className="py-2 px-3 truncate max-w-[120px]">{row['Funding Agency'] || row.fundingAgency || row.agency}</td>
-                          <td className="py-2 px-3 font-mono">{formatCurrency(row['Sanctioned Amount (INR)'] || row.sanctionedAmount || row.amount)}</td>
-                          <td className="py-2 px-3 capitalize">{row['Status'] || row.status || 'Ongoing'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="pt-3 border-t border-gray-150 flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsBulkOpen(false)}
-              disabled={bulkLoading}
-              className="text-xs"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleBulkUploadSubmit}
-              disabled={bulkLoading || bulkPreview.length === 0}
-              className="bg-teal-700 text-white hover:bg-teal-800 text-xs font-semibold"
-            >
-              {bulkLoading ? 'Importing Grants...' : `Upload ${bulkPreview.length} Records`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ---------------------------------------------------- */}
+      {/* BULK UPLOAD MODAL (EXCEL & CSV) - REDESIGNED */}
+      {/* ---------------------------------------------------- */}
+      <BulkUploadDialog
+        isOpen={isBulkOpen}
+        onClose={() => setIsBulkOpen(false)}
+        token={token || ''}
+        onSuccess={fetchProjects}
+        uploadType="sponsored-projects"
+      />
 
       {/* Clear All Confirmation Dialog */}
       <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
@@ -1764,13 +1803,8 @@ export function SponsoredResearchPage({
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar currentPage="sponsored-research" onNavigate={onNavigate} />
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        <div className="max-w-7xl mx-auto w-full space-y-6">
-          {content}
-        </div>
-      </main>
-    </div>
+    <AppShell currentPage="sponsored-research" onNavigate={onNavigate}>
+      {content}
+    </AppShell>
   );
 }

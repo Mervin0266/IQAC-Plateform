@@ -1,11 +1,74 @@
 const models = require('../models');
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
+const { isDisposableDatabase } = require('../utils/environmentGuard');
+const { logAction } = require('../middleware/auditLogger');
 
-// @desc    Clear entire database data (all tables clean without initial data)
+// @desc    Clear disposable development database data
 // @route   POST /api/system/clear-database
-// @access  Private (Admin)
+// @access  Private (Admin with Re-Authentication)
 exports.clearDatabase = async (req, res) => {
   try {
+    // 1. Mandatory Default-Deny Environment & Disposable Database Verification
+    const envCheck = isDisposableDatabase();
+    if (!envCheck.isDisposable) {
+      try {
+        await logAction({
+          user: req.user,
+          action: 'SECURITY_ALERT_DATABASE_WIPE_BLOCKED',
+          title: 'Database Reset Prohibited',
+          remarks: `Attempted database reset was blocked. Reason: ${envCheck.reason}`,
+          ipAddress: req.ip
+        });
+      } catch (logErr) {
+        // Continue to reject
+      }
+
+      return res.status(403).json({
+        success: false,
+        message: `Security Policy Violation: Full database reset is permanently disabled. (${envCheck.reason})`
+      });
+    }
+
+    // 2. Dual-Key Administrative Re-Authentication & Confirmation
+    const { adminPassword, confirmation } = req.body;
+
+    if (confirmation !== 'CONFIRM_DISPOSABLE_DATABASE_RESET') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid confirmation phrase. Required: "CONFIRM_DISPOSABLE_DATABASE_RESET"'
+      });
+    }
+
+    if (!adminPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Administrator password verification is required.'
+      });
+    }
+
+    const adminUser = await models.User.findByPk(req.user.id);
+    const isPasswordValid = await adminUser.comparePassword(adminPassword);
+    if (!isPasswordValid) {
+      try {
+        await logAction({
+          user: req.user,
+          action: 'FAILED_ADMIN_REAUTH_DURING_RESET',
+          title: 'Failed Reset Re-Authentication',
+          remarks: 'Invalid administrator password supplied during database wipe request.',
+          ipAddress: req.ip
+        });
+      } catch (e) {}
+
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid administrator password. Operation aborted.'
+      });
+    }
+
+    console.log(`⚠️ Disposable database reset authorized by ${req.user.email} from ${req.ip}`);
+
+    // 3. Transactional Deletion of Transactional Tables in Dependency Order
     const {
       Student,
       Faculty,
@@ -20,104 +83,53 @@ exports.clearDatabase = async (req, res) => {
       StrategicPlan,
       Document,
       EditRequest,
-      AuditLog,
       Notification,
-      UserDepartmentHistory,
-      DepartmentLineage,
-      ParameterDataSubmission,
-      AccreditationParameter,
-      AccreditationFramework,
-      Course,
-      Department,
-      School,
-      Campus,
-      ProgramLevel,
-      User
+      ParameterDataSubmission
     } = models;
 
-    console.log('⚠️ Clearing user upload data requested by admin:', req.user?.email || 'admin');
+    await sequelize.transaction(async (t) => {
+      // Child dependent records first
+      if (ParameterDataSubmission) await ParameterDataSubmission.destroy({ where: {}, transaction: t });
+      if (EditRequest) await EditRequest.destroy({ where: {}, transaction: t });
 
-    // 1. Clear transactional uploaded data
-    if (Student) await Student.destroy({ where: {}, truncate: false });
-    if (Faculty) await Faculty.destroy({ where: {}, truncate: false });
-    if (DepartmentalActivity) await DepartmentalActivity.destroy({ where: {}, truncate: false });
-    if (Achievement) await Achievement.destroy({ where: {}, truncate: false });
-    if (Placement) await Placement.destroy({ where: {}, truncate: false });
-    if (ConsultancyProject) await ConsultancyProject.destroy({ where: {}, truncate: false });
-    if (ResearchMetric) await ResearchMetric.destroy({ where: {}, truncate: false });
-    if (Patent) await Patent.destroy({ where: {}, truncate: false });
-    if (Publication) await Publication.destroy({ where: {}, truncate: false });
-    if (SponsoredProject) await SponsoredProject.destroy({ where: {}, truncate: false });
-    if (StrategicPlan) await StrategicPlan.destroy({ where: {}, truncate: false });
-    if (EditRequest) await EditRequest.destroy({ where: {}, truncate: false });
-    if (AuditLog) await AuditLog.destroy({ where: {}, truncate: false });
-    if (Notification) await Notification.destroy({ where: {}, truncate: false });
-    if (UserDepartmentHistory) await UserDepartmentHistory.destroy({ where: {}, truncate: false });
-    if (DepartmentLineage) await DepartmentLineage.destroy({ where: {}, truncate: false });
-    if (ParameterDataSubmission) await ParameterDataSubmission.destroy({ where: {}, truncate: false });
-    if (AccreditationParameter) await AccreditationParameter.destroy({ where: {}, truncate: false });
-    if (AccreditationFramework) await AccreditationFramework.destroy({ where: {}, truncate: false });
-    if (Document) await Document.destroy({ where: {}, truncate: false });
+      // Parent transactional records
+      if (Student) await Student.destroy({ where: {}, transaction: t });
+      if (Faculty) await Faculty.destroy({ where: {}, transaction: t });
+      if (DepartmentalActivity) await DepartmentalActivity.destroy({ where: {}, transaction: t });
+      if (Achievement) await Achievement.destroy({ where: {}, transaction: t });
+      if (Placement) await Placement.destroy({ where: {}, transaction: t });
+      if (ConsultancyProject) await ConsultancyProject.destroy({ where: {}, transaction: t });
+      if (ResearchMetric) await ResearchMetric.destroy({ where: {}, transaction: t });
+      if (Patent) await Patent.destroy({ where: {}, transaction: t });
+      if (Publication) await Publication.destroy({ where: {}, transaction: t });
+      if (SponsoredProject) await SponsoredProject.destroy({ where: {}, transaction: t });
+      if (StrategicPlan) await StrategicPlan.destroy({ where: {}, transaction: t });
+      if (Document) await Document.destroy({ where: {}, transaction: t });
+      if (Notification) await Notification.destroy({ where: {}, transaction: t });
 
-    // 2. Unlink HOD from Departments (since non-admin users will be cleared)
-    await Department.update({ hodId: null }, { where: {} });
+      // CRITICAL: NEVER DELETE AuditLog!
+      // CRITICAL: NEVER DELETE AccreditationFramework or AccreditationParameter!
+    });
 
-    // 3. Clear custom users EXCEPT default role accounts & current logged-in admin user
-    const autoSeed = require('../config/autoSeed');
-    await autoSeed.ensureDefaultUsers();
-
-    // Ensure non-default users are cleared while keeping default role accounts active
-
-    // 4. Ensure Basic Academic Hierarchy Structure exists (Campus, School, ProgramLevels, Departments, Courses)
-    const deptCount = await Department.count();
-    if (deptCount === 0) {
-      // Re-seed basic structural hierarchy if empty
-      const kengeriCampus = await Campus.create({
-        code: 'KENGERI', name: 'Kengeri Campus', description: 'Christ University Kengeri Campus, Bangalore', status: 'Active'
+    // 4. Log the completed operation outside the transaction so it permanently persists
+    try {
+      await logAction({
+        user: req.user,
+        action: 'DISPOSABLE_DATABASE_RESET_COMPLETED',
+        title: 'Disposable Database Reset',
+        remarks: 'Transactional tables cleared on verified disposable development database.',
+        ipAddress: req.ip
       });
-      const schoolOfEngineering = await School.create({
-        code: 'SOE', name: 'School of Engineering and Technology', description: 'School of Engineering and Technology', campusId: kengeriCampus.id, status: 'Active'
-      });
-      const ugLevel = await ProgramLevel.create({ code: 'UG', name: 'Undergraduate', description: 'Undergraduate Degree Programs', status: 'Active' });
-      const pgLevel = await ProgramLevel.create({ code: 'PG', name: 'Postgraduate', description: 'Postgraduate Master Programs', status: 'Active' });
-      const phdLevel = await ProgramLevel.create({ code: 'PHD', name: 'Doctoral', description: 'Doctoral Research Programs', status: 'Active' });
-
-      const adseDept = await Department.create({ code: 'ADSE', name: 'AI and Data Science Engineering', shortName: 'ADSE', schoolId: schoolOfEngineering.id, establishedYear: 2021, status: 'Active' });
-      const cseDept = await Department.create({ code: 'CSE', name: 'Computer Science and Engineering', shortName: 'CSE', schoolId: schoolOfEngineering.id, establishedYear: 2010, status: 'Active' });
-      const eceDept = await Department.create({ code: 'ECE', name: 'Electronics and Communication Engineering', shortName: 'ECE', schoolId: schoolOfEngineering.id, establishedYear: 2010, status: 'Active' });
-      const civilDept = await Department.create({ code: 'CIVIL', name: 'Civil Engineering', shortName: 'CIVIL', schoolId: schoolOfEngineering.id, establishedYear: 2010, status: 'Active' });
-      const eeeDept = await Department.create({ code: 'EEE', name: 'Electrical and Electronics Engineering', shortName: 'EEE', schoolId: schoolOfEngineering.id, establishedYear: 2010, status: 'Active' });
-      const mechDept = await Department.create({ code: 'MECH', name: 'Mechanical and Automobile Engineering', shortName: 'MECH', schoolId: schoolOfEngineering.id, establishedYear: 2010, status: 'Active' });
-      const soaDept = await Department.create({ code: 'SOA', name: 'School of Architecture', shortName: 'SOA', schoolId: schoolOfEngineering.id, establishedYear: 2017, status: 'Active' });
-      const shDept = await Department.create({ code: 'S&H', name: 'Sciences and Humanities (Engineering)', shortName: 'S&H', schoolId: schoolOfEngineering.id, establishedYear: 2010, status: 'Active' });
-
-      await Course.bulkCreate([
-        { code: 'BTECH-ADSE-AIML', name: 'BTech (Computer Science and Engineering - Artificial Intelligence and Machine Learning)', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
-        { code: 'BTECH-ADSE-DS', name: 'BTech (Computer Science and Engineering - Data Science)', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
-        { code: 'BTECH-AIML', name: 'BTech (Artificial Intelligence and Machine Learning)', departmentId: adseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
-        { code: 'BTECH-CSE', name: 'BTech in Computer Science and Engineering', departmentId: cseDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
-        { code: 'BTECH-ECE', name: 'BTech in Electronics and Communication Engineering', departmentId: eceDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
-        { code: 'BTECH-CIVIL', name: 'BTech in Civil Engineering', departmentId: civilDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
-        { code: 'BTECH-EEE', name: 'BTech in Electrical and Electronics Engineering', departmentId: eeeDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
-        { code: 'BTECH-MECH', name: 'BTech in Mechanical Engineering', departmentId: mechDept.id, programLevelId: ugLevel.id, duration: '4 Years', status: 'Active' },
-        { code: 'BARCH', name: 'Bachelor of Architecture (B.Arch)', departmentId: soaDept.id, programLevelId: ugLevel.id, duration: '5 Years', status: 'Active' },
-        { code: 'MARCH-URBAN', name: 'Master of Architecture (M.Arch)', departmentId: soaDept.id, programLevelId: pgLevel.id, duration: '2 Years', status: 'Active' },
-        { code: 'PHD-ARCH', name: 'PhD in Architecture', departmentId: soaDept.id, programLevelId: phdLevel.id, duration: '3-5 Years', status: 'Active' }
-      ]);
-    }
-
-    console.log('✓ Uploaded data cleared successfully! Basic department and academic hierarchy preserved.');
+    } catch (e) {}
 
     res.json({
       success: true,
-      message: 'All uploaded transactional data cleared successfully. Basic department details and structural hierarchy remain intact.'
+      message: 'Disposable database transactional records cleared successfully. Audit logs and institutional frameworks preserved.',
+      preserved: ['AuditLog', 'AccreditationFramework', 'AccreditationParameter', 'AcademicHierarchy']
     });
   } catch (error) {
     console.error('Clear database error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to clear database'
-    });
+    res.status(500).json({ success: false, message: 'Server error during database reset operation.' });
   }
 };
 
@@ -229,25 +241,31 @@ exports.getDashboardStats = async (req, res) => {
       }
     }
 
-    // Sponsored projects sum (Lakhs)
-    let totalSponsoredSanctioned = 0;
+    // Sponsored projects sum in INR (sanctionedAmount is stored in Indian Rupees)
+    let totalSponsoredSanctionedINR = 0;
     if (SponsoredProject) {
       try {
         const sps = await SponsoredProject.findAll();
         sps.forEach(sp => {
-          totalSponsoredSanctioned += Number(sp.sanctionedAmount) || 0;
+          totalSponsoredSanctionedINR += Number(sp.sanctionedAmount) || 0;
         });
       } catch (err) {
         console.warn('Dashboard sponsored projects fetch notice:', err.message);
       }
     }
 
-    const effectiveGrantsLakhs = totalSponsoredSanctioned > 0 
-      ? totalSponsoredSanctioned 
-      : totalResearchMetrics.externalProjectsAmount;
+    // Determine total grants in INR
+    const totalGrantsINR = totalSponsoredSanctionedINR > 0 
+      ? totalSponsoredSanctionedINR 
+      : (Number(totalResearchMetrics.externalProjectsAmount) || 0);
+
+    // Convert INR to Lakhs (1 Lakh = 100,000 INR) and Crores (1 Crore = 10,000,000 INR)
+    const effectiveGrantsLakhs = totalGrantsINR > 0
+      ? Number((totalGrantsINR / 100000).toFixed(2))
+      : 0;
     
-    const totalGrantsCrores = effectiveGrantsLakhs > 0
-      ? (effectiveGrantsLakhs / 100).toFixed(2)
+    const totalGrantsCrores = totalGrantsINR > 0
+      ? (totalGrantsINR / 10000000).toFixed(2)
       : '0.00';
 
     // Placements aggregation

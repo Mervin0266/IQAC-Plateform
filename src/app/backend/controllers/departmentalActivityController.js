@@ -1,4 +1,8 @@
 const { DepartmentalActivity } = require('../models');
+const { sequelize } = require('../config/database');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
+const { logActionSafe } = require('../middleware/auditLogger');
+const { parsePagination, formatPaginationResponse } = require('../utils/paginationHelper');
 
 const DEPARTMENTS = [
   'AI and Data Science Engineering',
@@ -34,11 +38,14 @@ const ACTIVITY_CATEGORIES = [
 // @access  Private
 exports.getActivities = async (req, res) => {
   try {
-    const where = {};
+    const { where: scopeWhere } = await resolveDepartmentScope(req, 'DepartmentalActivity', false);
+    const where = { ...scopeWhere };
+
     if (req.query.academicYear && req.query.academicYear !== 'All') {
       where.academicYear = req.query.academicYear;
     }
-    if (req.query.department && req.query.department !== 'All') {
+    if ((req.user.role === 'admin' || req.user.role === 'authority') &&
+        req.query.department && req.query.department !== 'All') {
       where.department = req.query.department;
     }
     if (req.query.activityCategory && req.query.activityCategory !== 'All') {
@@ -48,16 +55,21 @@ exports.getActivities = async (req, res) => {
       where.status = req.query.status;
     }
 
-    const activities = await DepartmentalActivity.findAll({
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const { count, rows: activities } = await DepartmentalActivity.findAndCountAll({
       where,
-      order: [['createdAt', 'DESC']],
+      order: [['createdAt', 'DESC'], ['id', 'ASC']],
+      limit,
+      offset
     });
 
-    res.json({
-      success: true,
-      count: activities.length,
-      data: activities,
-    });
+    res.json(formatPaginationResponse({
+      count,
+      rows: activities,
+      page,
+      limit
+    }));
   } catch (error) {
     console.error('Get departmental activities error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -121,12 +133,25 @@ exports.getMatrixSummary = async (req, res) => {
   }
 };
 
+const ALLOWED_ACTIVITY_FIELDS = [
+  'academicYear', 'campus', 'school', 'activityCategory', 'title',
+  'reportDetails', 'pendingNotes', 'resourcePersons', 'status', 'eventDate'
+];
+
 // @desc    Create departmental activity
 // @route   POST /api/departmental-activities
 // @access  Private
 exports.createActivity = async (req, res) => {
   try {
-    const activity = await DepartmentalActivity.create(req.body);
+    const dept = req.user?.role === 'admin' ? (req.body.department || 'General') : (req.user?.department || 'General');
+    const safeData = {};
+    ALLOWED_ACTIVITY_FIELDS.forEach(f => {
+      if (req.body[f] !== undefined) safeData[f] = req.body[f];
+    });
+    safeData.department = dept;
+    if (req.user?.id) safeData.createdBy = req.user.id;
+
+    const activity = await DepartmentalActivity.create(safeData);
     res.status(201).json({
       success: true,
       data: activity,
@@ -146,7 +171,30 @@ exports.updateActivity = async (req, res) => {
     if (!activity) {
       return res.status(404).json({ success: false, message: 'Activity record not found' });
     }
-    await activity.update(req.body);
+
+    // Role-based departmental check
+    if (req.user && req.user.role !== 'admin' && req.user.role !== 'authority') {
+      if (req.user.department && activity.department && activity.department !== req.user.department) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: Cannot update activities outside your department.'
+        });
+      }
+    }
+
+    const updates = {};
+    ALLOWED_ACTIVITY_FIELDS.forEach(f => {
+      if (req.body[f] !== undefined) updates[f] = req.body[f];
+    });
+
+    if (req.user?.role === 'admin' && req.body.department !== undefined) {
+      updates.department = req.body.department;
+    }
+
+    delete updates.id;
+    delete updates.createdBy;
+
+    await activity.update(updates);
     res.json({
       success: true,
       data: activity,
@@ -166,6 +214,17 @@ exports.deleteActivity = async (req, res) => {
     if (!activity) {
       return res.status(404).json({ success: false, message: 'Activity record not found' });
     }
+
+    // Role-based departmental check
+    if (req.user && req.user.role !== 'admin') {
+      if (req.user.department && activity.department && activity.department !== req.user.department) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: Cannot delete activities outside your department.'
+        });
+      }
+    }
+
     await activity.destroy();
     res.json({
       success: true,
@@ -222,14 +281,28 @@ exports.bulkUploadActivities = async (req, res) => {
 // @access  Private
 exports.clearAllActivities = async (req, res) => {
   try {
-    const deletedCount = await DepartmentalActivity.destroy({ where: {} });
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'DepartmentalActivity', true);
+
+    let deletedCount = 0;
+    await sequelize.transaction(async (t) => {
+      deletedCount = await DepartmentalActivity.destroy({ where, transaction: t });
+    });
+
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_DEPARTMENTAL_ACTIVITIES',
+      title: `Cleared departmental activities: ${scopeDescription}`,
+      remarks: `Deleted ${deletedCount} departmental activity records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
+
     res.json({
       success: true,
-      message: `Cleared ${deletedCount} departmental activity records.`,
+      message: `Cleared ${deletedCount} departmental activity records for ${scopeDescription}.`,
       count: deletedCount,
     });
   } catch (error) {
     console.error('Clear departmental activities error:', error);
-    res.status(500).json({ success: false, message: error.message || 'Server error' });
+    res.status(error.status || 500).json({ success: false, message: error.message || 'Server error' });
   }
 };

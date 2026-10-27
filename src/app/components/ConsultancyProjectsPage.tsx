@@ -17,6 +17,7 @@ import { Label } from './ui/label';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
+import { AppShell, PageHeader, StatCard } from './design-system';
 
 interface ConsultancyProjectsPageProps {
   onNavigate: (page: string) => void;
@@ -509,175 +510,112 @@ export function ConsultancyProjectsPage({
   }
 
   // ─── INTERNAL WORKSPACE VIEW ────────────────────────────────────────────────
-  return (
-    <div className={hideSidebar ? 'space-y-6' : 'min-h-screen bg-gray-50 flex'}>
-      {!hideSidebar && <Sidebar currentPage="consultancy-projects" onNavigate={onNavigate} />}
-
-      <main className={hideSidebar ? 'w-full p-4 sm:p-6 lg:p-8' : 'ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300'}>
-        <div className={hideSidebar ? 'space-y-6' : 'max-w-7xl mx-auto space-y-6'}>
+  const internalContent = (
+    <div className="space-y-6">
 
           {/* Top Section Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-200/80 shadow-sm">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2.5 bg-teal-50 text-teal-700 rounded-xl border border-teal-200/60 shadow-sm">
-                  <Briefcase className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Consultancy Projects</h1>
-                    <span className="bg-teal-100 text-teal-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      NIRF & NAAC 3.5
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Industry testing, professional advisory, and corporate research projects rendered by faculty
-                  </p>
-                </div>
-              </div>
-            </div>
+          <PageHeader
+            breadcrumbs={[
+              { label: 'Academics' },
+              { label: 'Research' },
+              { label: 'Consultancy Projects' }
+            ]}
+            title="Consultancy Projects & Advisory"
+            badge="NIRF & NAAC 3.5"
+            description="Industry testing, professional advisory, and corporate research projects rendered by faculty consultants."
+            actions={
+              <div className="flex items-center gap-2 flex-wrap">
+                {canDelete && projects.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowClearConfirm(true)}
+                    className="border-rose-200 bg-white text-rose-700 hover:bg-rose-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    <span>Clear Data</span>
+                  </Button>
+                )}
 
-            {/* Quick Action Buttons */}
-            <div className="flex items-center gap-2.5 flex-wrap">
-              {canDelete && projects.length > 0 && (
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={() => setShowClearConfirm(true)}
-                  className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 text-xs font-semibold shadow-sm"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                  <span>Clear All Data</span>
-                </Button>
-              )}
-
-              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                <Button
-                  variant="ghost"
                   size="sm"
                   onClick={handleExportCSV}
-                  className="text-xs text-gray-700 hover:bg-gray-100 px-3 py-1.5 h-8 font-medium rounded-none border-r border-gray-200"
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
                 >
-                  <Download className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                  <Download className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
                   <span>CSV</span>
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleExportExcel}
-                  className="text-xs text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 h-8 font-semibold rounded-none"
-                >
-                  <Download className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                  <span>Excel (.xlsx)</span>
-                </Button>
-              </div>
 
-              {canBulkUpload && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowBulkUpload(true)}
-                  className="border-teal-200 text-teal-700 bg-teal-50/50 hover:bg-teal-100/70 text-xs font-semibold shadow-sm"
+                  onClick={handleExportExcel}
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
                 >
-                  <Upload className="w-3.5 h-3.5 mr-1.5 text-teal-600" />
-                  <span>Bulk Upload</span>
+                  <Download className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+                  <span>Excel</span>
                 </Button>
-              )}
 
-              {canEdit && (
-                <Button
-                  size="sm"
-                  onClick={() => handleOpenForm()}
-                  className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1.5" />
-                  <span>Add Consultancy</span>
-                </Button>
-              )}
-            </div>
-          </div>
+                {canBulkUpload && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBulkUpload(true)}
+                    className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  >
+                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                    <span>Bulk Upload</span>
+                  </Button>
+                )}
+
+                {canEdit && (
+                  <Button
+                    size="sm"
+                    onClick={() => handleOpenForm()}
+                    className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1.5" />
+                    <span>Add Consultancy</span>
+                  </Button>
+                )}
+              </div>
+            }
+          />
 
           {/* Key Metric KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card className="border border-teal-100 bg-gradient-to-br from-teal-50/70 to-white shadow-sm rounded-xl">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-teal-800 uppercase tracking-wider">Total Projects</span>
-                  <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center">
-                    <Briefcase className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-2xl font-extrabold text-gray-900">{filteredProjects.length}</span>
-                  <span className="text-[10px] text-teal-600 font-medium">Assignments</span>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">Across all academic departments</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50/70 to-white shadow-sm rounded-xl">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Total Revenue</span>
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                    <DollarSign className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-2xl font-extrabold text-emerald-700">₹{totalRevenue.toFixed(2)}L</span>
-                  <span className="text-[10px] text-emerald-600 font-medium">INR Lakhs</span>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">Earned via external contracts</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white shadow-sm rounded-xl">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-indigo-800 uppercase tracking-wider">Faculty Consultants</span>
-                  <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
-                    <UserCheck className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-2xl font-extrabold text-gray-900">{uniqueConsultants}</span>
-                  <span className="text-[10px] text-indigo-600 font-medium">Experts</span>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">Active faculty advisors</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-purple-100 bg-gradient-to-br from-purple-50/70 to-white shadow-sm rounded-xl">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-purple-800 uppercase tracking-wider">Active Depts</span>
-                  <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
-                    <Building className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-2xl font-extrabold text-gray-900">{activeDepartmentsCount}</span>
-                  <span className="text-[10px] text-purple-600 font-medium">of {departments.length}</span>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">Engaged disciplines</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-amber-100 bg-gradient-to-br from-amber-50/70 to-white shadow-sm rounded-xl">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Avg / Project</span>
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-2xl font-extrabold text-gray-900">₹{avgRevenuePerProject.toFixed(2)}L</span>
-                  <span className="text-[10px] text-amber-600 font-medium">Avg Outlay</span>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">Average contract size</p>
-              </CardContent>
-            </Card>
+            <StatCard
+              title="Total Projects"
+              value={filteredProjects.length}
+              subtitle="Across all departments"
+              icon={Briefcase}
+            />
+            <StatCard
+              title="Total Revenue"
+              value={`₹${totalRevenue.toFixed(2)}L`}
+              subtitle="Earned via external contracts"
+              icon={DollarSign}
+            />
+            <StatCard
+              title="Faculty Consultants"
+              value={uniqueConsultants}
+              subtitle="Active faculty advisors"
+              icon={UserCheck}
+            />
+            <StatCard
+              title="Active Departments"
+              value={activeDepartmentsCount}
+              badge={`of ${departments.length}`}
+              subtitle="Engaged disciplines"
+              icon={Building}
+            />
+            <StatCard
+              title="Avg / Project"
+              value={`₹${avgRevenuePerProject.toFixed(2)}L`}
+              subtitle="Average contract size"
+              icon={TrendingUp}
+            />
           </div>
 
           {/* Search, Filter & View Controls */}
@@ -1044,8 +982,6 @@ export function ConsultancyProjectsPage({
             </div>
           )}
 
-        </div>
-      </main>
 
       {/* DIALOG: ADD/EDIT CONSULTANCY PROJECT */}
       {showForm && (
@@ -1387,5 +1323,15 @@ export function ConsultancyProjectsPage({
         />
       )}
     </div>
+  );
+
+  if (hideSidebar) {
+    return internalContent;
+  }
+
+  return (
+    <AppShell currentPage="consultancy-projects" onNavigate={onNavigate}>
+      {internalContent}
+    </AppShell>
   );
 }

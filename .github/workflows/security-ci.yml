@@ -1,0 +1,246 @@
+name: Security & Verification CI Pipeline
+
+on:
+  push:
+    branches: [ main, 'release/**', 'phase-**' ]
+  pull_request:
+    branches: [ main, 'release/**' ]
+  workflow_dispatch:
+    inputs:
+      run_full_regression:
+        description: 'Run full security test regression matrix'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================
+  # JOB 1: Static Analysis, Secrets & Dependency Audit
+  # ==========================================
+  security-scan:
+    name: Secret Scanning & Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'src/app/backend/package-lock.json'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Secret Scanning Guard
+        run: |
+          echo "Scanning for exposed credentials, private keys, and API tokens..."
+          # Reject tracked .env files
+          if git ls-files | grep -E "(^|/)\.env$|\.env\.local$|\.env\.production$"; then
+            echo "SECURITY GATE FAILURE: Tracked production or local .env file detected in git tree!"
+            exit 1
+          fi
+          # Check for hardcoded AWS, Render, or database credentials in tracked code
+          if git grep -E "(BEGIN RSA PRIVATE KEY|postgres:\/\/[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]{8,}@|sk_live_|ghp_[a-zA-Z0-9]{36})" ':!security-audit/tests/' ':!src/app/backend/.env.test'; then
+            echo "SECURITY GATE FAILURE: Sensitive secret or credential signature detected in source code!"
+            exit 1
+          fi
+          echo "✓ Secret scanning completed: Zero exposed production secrets."
+
+      - name: Backend Dependency Audit
+        working-directory: src/app/backend
+        run: |
+          echo "Auditing backend dependencies..."
+          npm audit --audit-level=critical
+          echo "✓ Backend audit passed (zero critical vulnerabilities)."
+
+      - name: Frontend Dependency Audit
+        run: |
+          echo "Auditing frontend dependencies..."
+          pnpm audit --audit-level=critical
+          echo "✓ Frontend audit passed (zero critical vulnerabilities)."
+
+  # ==========================================
+  # JOB 2: Build Validation & Type Checks
+  # ==========================================
+  build-validation:
+    name: Frontend Build & Type Validation
+    runs-on: ubuntu-latest
+    needs: security-scan
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install Frontend Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate TypeScript & Compile Frontend
+        run: pnpm build
+
+      - name: Generate Build Artifact Integrity Checksum
+        run: |
+          mkdir -p dist
+          tar -czf frontend-release-dist.tar.gz dist/
+          sha256sum frontend-release-dist.tar.gz > frontend-release-dist.sha256
+          echo "Release bundle checksum: $(cat frontend-release-dist.sha256)"
+
+      - name: Archive Production Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-release-dist.tar.gz
+          retention-days: 7
+
+  # ==========================================
+  # JOB 3: Security & Regression Test Matrix (Isolated PostgreSQL)
+  # ==========================================
+  security-tests:
+    name: Automated Security Regression Suites
+    runs-on: ubuntu-latest
+    needs: security-scan
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_ci_password_2026
+          POSTGRES_DB: iqac_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Backend Dependencies
+        working-directory: src/app/backend
+        run: npm ci
+
+      - name: Provision Disposable CI Test Database & Marker
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test_ci_password_2026@localhost:5432/iqac_test
+          NODE_ENV: test
+        run: |
+          echo "Provisioning disposable test database marker..."
+          node src/app/backend/scripts/provisionTestDatabase.js
+
+      - name: Run Test Database Safety Guard Suite
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test_ci_password_2026@localhost:5432/iqac_test
+          NODE_ENV: test
+          NODE_PATH: src/app/backend/node_modules
+        run: node --test security-audit/tests/test_database_safety.test.cjs
+
+      - name: Run Phase A Regression Tests
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test_ci_password_2026@localhost:5432/iqac_test
+          NODE_ENV: test
+          NODE_PATH: src/app/backend/node_modules
+        run: |
+          node --test security-audit/tests/phase_a_verification.test.cjs
+          node --test security-audit/tests/phase_a_integration.test.cjs
+          node --test security-audit/tests/phase_a_e2e_supertest.test.cjs
+
+      - name: Run Phase B Regression Tests
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test_ci_password_2026@localhost:5432/iqac_test
+          NODE_ENV: test
+          NODE_PATH: src/app/backend/node_modules
+        run: |
+          node --test security-audit/tests/phase_b_workstreams_b1_b2.test.cjs
+          node --test security-audit/tests/phase_b_workstreams_b4_b6.test.cjs
+          node --test security-audit/tests/phase_b_workstream_b5.test.cjs
+          node --test security-audit/tests/phase_b_full_matrix.test.cjs
+
+      - name: Run Phase C Regression Tests
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test_ci_password_2026@localhost:5432/iqac_test
+          NODE_ENV: test
+          NODE_PATH: src/app/backend/node_modules
+        run: |
+          node --test security-audit/tests/phase_c_authorization_inventory.test.cjs
+          node --test security-audit/tests/phase_c_concurrency_and_exports.test.cjs
+
+      - name: Run Phase D Security Tests (Headers, Streaming, Authorization)
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test_ci_password_2026@localhost:5432/iqac_test
+          NODE_ENV: test
+          NODE_PATH: src/app/backend/node_modules
+        run: |
+          node --test security-audit/tests/phase_d_export_streaming.test.cjs
+          node --test security-audit/tests/phase_d_authorization_matrix.test.cjs
+          node --test security-audit/tests/phase_d_security_headers.test.cjs
+
+      - name: Run Phase E & Post-Phase E Security Suites
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test_ci_password_2026@localhost:5432/iqac_test
+          NODE_ENV: test
+          NODE_PATH: src/app/backend/node_modules
+        run: |
+          node --test security-audit/tests/phase_e_autoseed_safety.test.cjs
+          node --test security-audit/tests/phase_e_postgresql_least_privilege.test.cjs
+          node --test security-audit/tests/phase_e_export_guarantees.test.cjs
+          node --test security-audit/tests/phase_e_authorization_matrix_expanded.test.cjs
+          node --test security-audit/tests/phase_e_authorization_matrix_final.test.cjs
+          node --test security-audit/tests/post_phase_e_verification.test.cjs
+
+      - name: Execute Master Test Runner & Verify Complete Ledger (19 Suites)
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test_ci_password_2026@localhost:5432/iqac_test
+          NODE_ENV: test
+          NODE_PATH: src/app/backend/node_modules
+        run: node security-audit/scripts/run_all_security_tests.cjs
+
+  # ==========================================
+  # JOB 4: Security Release Gate Evaluation
+  # ==========================================
+  security-release-gate:
+    name: Security Release Gate & Promotion
+    runs-on: ubuntu-latest
+    needs: [build-validation, security-tests]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+    steps:
+      - name: Verify Security Gate Conditions
+        run: |
+          echo "=========================================================="
+          echo "CHRIST University IQAC Platform — Security Release Gate"
+          echo "=========================================================="
+          echo "✓ All automated security regression suites PASSED."
+          echo "✓ Zero critical dependency vulnerabilities detected."
+          echo "✓ Frontend build and bundle verification PASSED."
+          echo "✓ Pre-deployment release candidate ready for staging promotion."
+          echo "NOTE: Automatic deployment to production is STRICTLY PROHIBITED."
+          echo "Staged promotion requires manual institutional sign-off."

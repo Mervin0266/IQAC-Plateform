@@ -1,6 +1,14 @@
 const { User, Achievement, ResearchMetric, Campus, School, Department, ProgramLevel, Course, Student, DepartmentalActivity, Publication, Patent, SponsoredProject } = require('../models');
 
 const autoSeed = async (sequelize) => {
+  // Phase E0.1 Guard: Strict Prohibition of Auto-Seeding & Runtime DDL in Production
+  const nodeEnv = process.env.NODE_ENV;
+  if (!nodeEnv || nodeEnv === 'production' || (nodeEnv !== 'development' && nodeEnv !== 'test')) {
+    const errorMsg = 'AUTO_SEED_PROHIBITED: Automatic demo-user seeding and runtime schema modification are strictly prohibited in production and unapproved environments.';
+    console.error(`✗ ${errorMsg} (NODE_ENV="${nodeEnv}")`);
+    throw new Error(errorMsg);
+  }
+
   try {
     // 0. Pre-sync migrations to fix any legacy PostgreSQL enum or constraint issues
     try {
@@ -92,6 +100,30 @@ const autoSeed = async (sequelize) => {
           END;
         END $$;
       `);
+
+      // Add user security columns if they don't exist
+      await sequelize.query(`
+        DO $$ 
+        BEGIN
+          BEGIN
+            ALTER TABLE "users" ADD COLUMN "mustChangePassword" BOOLEAN DEFAULT false;
+          EXCEPTION WHEN duplicate_column THEN
+            NULL;
+          END;
+
+          BEGIN
+            ALTER TABLE "users" ADD COLUMN "passwordChangedAt" TIMESTAMP WITH TIME ZONE;
+          EXCEPTION WHEN duplicate_column THEN
+            NULL;
+          END;
+
+          BEGIN
+            ALTER TABLE "users" ADD COLUMN "tokenVersion" INTEGER DEFAULT 0;
+          EXCEPTION WHEN duplicate_column THEN
+            NULL;
+          END;
+        END $$;
+      `);
     } catch (e) {
       // Ignore if table does not exist yet
     }
@@ -100,15 +132,7 @@ const autoSeed = async (sequelize) => {
     await sequelize.sync({ force: false, alter: { drop: false } });
     console.log('✓ Database schema synchronized');
 
-    // Drop legacy unique constraint on students(registerNumber) if present in DB
-    try {
-      await sequelize.query('ALTER TABLE "students" DROP CONSTRAINT IF EXISTS "students_registerNumber_key" CASCADE;');
-      await sequelize.query('ALTER TABLE "students" DROP CONSTRAINT IF EXISTS "students_register_number_key" CASCADE;');
-      await sequelize.query('DROP INDEX IF EXISTS "students_register_number_key";');
-      await sequelize.query('DROP INDEX IF EXISTS "students_registerNumber_key";');
-    } catch (e) {
-      // Ignore if table/constraint not present
-    }
+    // Legacy schema changes are managed via versioned migrations in src/app/backend/migrations/
 
     // Ensure default system login accounts always exist
     await ensureDefaultUsers();
@@ -693,64 +717,101 @@ const autoSeed = async (sequelize) => {
 
 const ensureDefaultUsers = async () => {
   try {
-    const defaultAccounts = [
-      {
-        name: 'System Administrator',
-        email: process.env.DEFAULT_ADMIN_EMAIL || 'admin@christuniversity.in',
-        password: process.env.DEFAULT_ADMIN_PASSWORD || 'Admin@123',
-        role: 'admin',
-        department: 'Administration',
-        employeeId: 'ADMIN001',
-        phone: '+91-9876543210',
-        isActive: true
-      },
+    const isProd = process.env.NODE_ENV === 'production';
+
+    // 1. Initial Administrator Provisioning
+    const adminExists = await User.findOne({ where: { role: 'admin' } });
+    if (!adminExists) {
+      const initialAdminEmail = process.env.DEFAULT_ADMIN_EMAIL || process.env.INITIAL_ADMIN_EMAIL || 'admin@christuniversity.in';
+      const initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD || process.env.DEFAULT_ADMIN_PASSWORD;
+
+      if (initialAdminPassword) {
+        await User.create({
+          name: 'System Administrator',
+          email: initialAdminEmail,
+          password: initialAdminPassword,
+          role: 'admin',
+          department: 'Administration',
+          employeeId: 'ADMIN001',
+          isActive: true,
+          mustChangePassword: true,
+          tokenVersion: 0
+        });
+        console.log(`✓ Initial Administrator account created for: ${initialAdminEmail} (password change mandatory on first login).`);
+      } else if (isProd) {
+        console.warn('⚠️ [SECURITY CRITICAL] No administrator exists and INITIAL_ADMIN_PASSWORD is not set in environment secrets.');
+        console.warn('⚠️ Run "node scripts/provisionAdmin.js" to provision the initial administrator securely.');
+      } else {
+        // Non-production development fallback with explicit change-password flag
+        await User.create({
+          name: 'System Administrator',
+          email: initialAdminEmail,
+          password: 'DevAdmin@ChangeMe123!',
+          role: 'admin',
+          department: 'Administration',
+          employeeId: 'ADMIN001',
+          isActive: true,
+          mustChangePassword: true,
+          tokenVersion: 0
+        });
+        console.log(`✓ Development Administrator account created (password change mandatory on first login).`);
+      }
+    }
+
+    // 2. In production, NEVER auto-seed demo accounts with default passwords!
+    if (isProd) {
+      return;
+    }
+
+    // 3. In local development only: create demo accounts if they don't exist
+    const devAccounts = [
       {
         name: 'Dr. Jane Doe (Dean)',
         email: 'dean@christuniversity.in',
-        password: 'Authority@123',
+        password: 'DevAuthority@2026!',
         role: 'authority',
         department: 'Deans Office',
         employeeId: 'DEAN001',
-        phone: '+91-9876543220',
-        isActive: true
+        isActive: true,
+        mustChangePassword: true
       },
       {
         name: 'Dr. Rajesh Kumar (HOD)',
         email: 'hod.cse@christuniversity.in',
-        password: 'Hod@123',
+        password: 'DevHod@2026!',
         role: 'hod',
         department: 'Computer Science and Engineering',
         employeeId: 'HOD001',
-        phone: '+91-9876543211',
-        isActive: true
+        isActive: true,
+        mustChangePassword: true
       },
       {
         name: 'Dr. Suresh Menon (Coordinator)',
         email: 'coord.cse@christuniversity.in',
-        password: 'Coordinator@123',
+        password: 'DevCoordinator@2026!',
         role: 'coordinator',
         department: 'Computer Science and Engineering',
         employeeId: 'COORD001',
-        phone: '+91-9876543213',
-        isActive: true
+        isActive: true,
+        mustChangePassword: true
       },
       {
         name: 'Dr. Priya Sharma (Faculty)',
         email: 'faculty.cse@christuniversity.in',
-        password: 'Faculty@123',
+        password: 'DevFaculty@2026!',
         role: 'faculty',
         department: 'Computer Science and Engineering',
         employeeId: 'FAC001',
-        phone: '+91-9876543212',
-        isActive: true
+        isActive: true,
+        mustChangePassword: true
       }
     ];
 
-    for (const acc of defaultAccounts) {
+    for (const acc of devAccounts) {
       const existing = await User.findOne({ where: { email: acc.email } });
       if (!existing) {
         await User.create(acc);
-        console.log(`✓ Default login account created: ${acc.email}`);
+        console.log(`✓ Development demo account created: ${acc.email} (password change mandatory).`);
       } else if (!existing.isActive) {
         await existing.update({ isActive: true });
       }

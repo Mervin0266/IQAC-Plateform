@@ -19,6 +19,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName, normalizeAcademicYear } from './FacultyDetailsPage';
+import { AppShell, PageHeader, StatCard } from './design-system';
 
 interface PlacementsInternshipsPageProps {
   onNavigate: (page: string) => void;
@@ -552,222 +553,126 @@ export function PlacementsInternshipsPage({
     document.body.removeChild(link);
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50/50 flex">
-      {!hideSidebar && <Sidebar currentPage="placements-internships" onNavigate={onNavigate} />}
-
-      <main className={hideSidebar ? 'p-4 sm:p-6 lg:p-8 w-full' : 'ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300'}>
-        <div className="max-w-7xl mx-auto space-y-6">
+  const pageContent = (
+    <div className="space-y-6">
 
           {/* ========================================================================= */}
           {/* 1. MASTER HEADER & ACTION BAR                                             */}
           {/* ========================================================================= */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase">
-                  Career & Corporate Connect
-                </Badge>
-                <span className="text-xs text-slate-400">•</span>
-                <span className="text-xs text-slate-500 font-medium">Industry Linkage & Campus Recruitment</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-                Placements & Internships
-              </h1>
-              <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-                Comprehensive repository for student campus placements, corporate internships, compensation analytics, and recruiters data.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Refresh Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchPlacements}
-                className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-2 shadow-sm"
-                title="Refresh Placements & Internships"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
-              </Button>
-
-              {/* Export Button */}
-              <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+          <PageHeader
+            breadcrumbs={[
+              { label: 'Performance' },
+              { label: 'Placements & Internships' }
+            ]}
+            title="Placements & Internships"
+            badge="Career & Corporate Connect"
+            description="Comprehensive repository for student campus placements, corporate internships, compensation analytics, and recruiters data."
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={handleExportExcel}
-                  className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg flex items-center gap-1.5"
-                  title="Export to Excel (.xlsx)"
+                  onClick={fetchPlacements}
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  title="Refresh Placements & Internships"
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                  <span>Excel</span>
+                  <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
                 </Button>
-                <div className="h-4 w-px bg-slate-200" />
+
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={handleExportCSV}
-                  className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-1.5"
-                  title="Export to CSV (.csv)"
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
                 >
-                  <Download className="w-4 h-4 text-blue-600" />
+                  <Download className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
                   <span>CSV</span>
                 </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportExcel}
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+                  <span>Excel</span>
+                </Button>
+
+                {isAdminOrCoordinator && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsClearOpen(true)}
+                    className="border-rose-200 bg-white text-rose-700 hover:bg-rose-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                    title="Clear All Placements Data"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    <span>Clear Data</span>
+                  </Button>
+                )}
+
+                {isAdminOrCoordinator && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBulkDialog(true)}
+                    className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  >
+                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                    <span>Bulk Upload</span>
+                  </Button>
+                )}
+
+                {isAdminOrCoordinator && (
+                  <Button
+                    size="sm"
+                    onClick={handleOpenCreate}
+                    className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+                  >
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    <span>Add Placement</span>
+                  </Button>
+                )}
               </div>
-
-              {/* Clear Data Button */}
-              {isAdminOrCoordinator && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsClearOpen(true)}
-                  className="h-9 px-3.5 text-xs font-semibold border-red-200 text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-2 shadow-sm"
-                  title="Clear All Placements Data"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear Data</span>
-                </Button>
-              )}
-
-              {/* Bulk Upload Button */}
-              {isAdminOrCoordinator && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBulkDialog(true)}
-                  className="h-9 px-3.5 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-2 shadow-sm"
-                >
-                  <Upload className="w-4 h-4 text-slate-600" />
-                  <span>Bulk Upload</span>
-                </Button>
-              )}
-
-              {/* Add Placement Record Button */}
-              {isAdminOrCoordinator && (
-                <Button
-                  size="sm"
-                  onClick={handleOpenCreate}
-                  className="h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm flex items-center gap-2 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Placement / Internship</span>
-                </Button>
-              )}
-            </div>
-          </div>
+            }
+          />
 
           {/* ========================================================================= */}
           {/* 2. KPI METRIC CARDS (5 KPI METRICS)                                       */}
           {/* ========================================================================= */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Card 1: Total Placements */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Placed</span>
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-                    <UserCheck className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.totalPlacements}
-                  </div>
-                  <div className="flex items-center gap-1 text-[11px] text-emerald-700 font-medium mt-1">
-                    <TrendingUp className="w-3.5 h-3.5" />
-                    <span>Campus Recruitment Offers</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 2: Average Package */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg Package</span>
-                  <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
-                    <DollarSign className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {formatLPA(kpiStats.avgPackageLPA)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 font-medium mt-1">
-                    Mean CTC across departments
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 3: Highest Package */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Highest Package</span>
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
-                    <Award className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {formatLPA(kpiStats.maxPackageLPA)}
-                  </div>
-                  <div className="text-[11px] text-amber-700 font-medium mt-1 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Marquee Corporate Offer</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 4: Total Internships */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-purple-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Internships</span>
-                  <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
-                    <Briefcase className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.totalInternships}
-                  </div>
-                  <div className="text-[11px] text-slate-500 font-medium mt-1">
-                    {kpiStats.avgStipend > 0 ? `Avg: ${formatStipend(kpiStats.avgStipend)}` : 'Corporate Internships'}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 5: Recruiting Partners */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Recruiters</span>
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-                    <Building2 className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.totalCompanies}
-                  </div>
-                  <div className="text-[11px] text-indigo-700 font-medium mt-1">
-                    Active Corporate Partners
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <StatCard
+              title="Total Placed"
+              value={kpiStats.totalPlacements}
+              subtitle="Campus recruitment offers"
+              icon={UserCheck}
+            />
+            <StatCard
+              title="Avg Package"
+              value={formatLPA(kpiStats.avgPackageLPA)}
+              subtitle="Mean CTC across departments"
+              icon={DollarSign}
+            />
+            <StatCard
+              title="Highest Package"
+              value={formatLPA(kpiStats.maxPackageLPA)}
+              subtitle="Marquee corporate offer"
+              icon={Award}
+            />
+            <StatCard
+              title="Internships"
+              value={kpiStats.totalInternships}
+              subtitle={kpiStats.avgStipend > 0 ? `Avg: ${formatStipend(kpiStats.avgStipend)}` : 'Corporate internships'}
+              icon={Briefcase}
+            />
+            <StatCard
+              title="Recruiters"
+              value={kpiStats.totalCompanies}
+              subtitle="Corporate hiring partners"
+              icon={Building2}
+            />
           </div>
 
           {/* ========================================================================= */}
@@ -1309,8 +1214,6 @@ export function PlacementsInternshipsPage({
             </div>
           )}
 
-        </div>
-      </main>
 
       {/* ========================================================================= */}
       {/* 5. ADD / EDIT RECORD MODAL DIALOG                                         */}
@@ -1693,5 +1596,15 @@ export function PlacementsInternshipsPage({
         </DialogContent>
       </Dialog>
     </div>
+  );
+
+  if (hideSidebar) {
+    return pageContent;
+  }
+
+  return (
+    <AppShell currentPage="placements-internships" onNavigate={onNavigate}>
+      {pageContent}
+    </AppShell>
   );
 }

@@ -1,8 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { Sidebar } from './Sidebar';
-import { Card, CardContent } from './ui/card';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { 
   Users, 
   Search, 
@@ -38,7 +34,24 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
+import { sanitizeSpreadsheetCell } from '../utils/spreadsheetSanitizer';
+import {
+  AppShell,
+  PageHeader,
+  StatCard,
+  FilterToolbar,
+  DetailDrawer,
+  StatusBadge,
+  ConfirmDialog,
+  FormModal,
+  FormField,
+  FormInput,
+  FormSelect,
+  SectionCard,
+} from './design-system';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -153,12 +166,16 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
   const [loading, setLoading] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'cards' | 'analytics'>('table');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 50;
 
-  const fetchFaculty = async () => {
+  const fetchFaculty = async (page = currentPage) => {
     if (!user?.token) return;
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty`, {
+      const response = await fetch(`${API_BASE}/api/faculty?page=${page}&limit=${pageSize}`, {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       if (response.status === 401) {
@@ -168,6 +185,13 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
       const data = await response.json();
       if (data.success) {
         setFacultyList(data.data || []);
+        if (data.pagination) {
+          setTotalCount(data.pagination.total);
+          setTotalPages(data.pagination.totalPages);
+          setCurrentPage(data.pagination.page);
+        } else {
+          setTotalCount((data.data || []).length);
+        }
       }
     } catch (err) {
       console.error('Error fetching faculty:', err);
@@ -177,7 +201,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
   };
 
   React.useEffect(() => {
-    fetchFaculty();
+    fetchFaculty(1);
   }, [user]);
 
   // Filters & Search State
@@ -469,19 +493,63 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     }
   };
 
-  const exportToCSV = () => {
-    const headerRow = 'S.No,EmpId,Name,Designation,Department,Academic Year,Gender,Date of birth,PanCard No,Date Of Joining,Previous Teaching Experience Years,Previous Teaching Experience Months,Previous Industry Experience Years,Previous Industry Experience Months,Qualification Level,Highest Qualification,Experience in CU - Years,Experience in CU - Months';
-    const rows = filteredFaculty.map((f, idx) =>
-      `${f.sNo ?? idx + 1},"${f.employeeId}","${f.name}","${f.designation}","${f.department}","${f.academicYear || '2024-2025'}","${f.gender || ''}","${f.dateOfBirth || ''}","${f.panCardNo || ''}","${f.dateOfJoining || ''}",${f.prevTeachingExpYears ?? 0},${f.prevTeachingExpMonths ?? 0},${f.prevIndustryExpYears ?? 0},${f.prevIndustryExpMonths ?? 0},"${f.qualificationLevel || ''}","${f.highestQualification || ''}",${f.cuExpYears ?? 0},${f.cuExpMonths ?? 0}`
-    );
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headerRow, ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Faculty_Directory_${academicYearFilter}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportToCSV = async () => {
+    try {
+      let exportDataset = filteredFaculty;
+      if (user?.token) {
+        const res = await fetch(`${API_BASE}/api/faculty?export=true`, {
+          headers: { 'Authorization': `Bearer ${user.token}` }
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          exportDataset = data.data;
+          if (academicYearFilter !== 'All') {
+            exportDataset = exportDataset.filter(f => f.academicYear === academicYearFilter);
+          }
+          if (departmentFilter !== 'All') {
+            exportDataset = exportDataset.filter(f => f.department === departmentFilter);
+          }
+          if (searchTerm) {
+            const q = searchTerm.toLowerCase();
+            exportDataset = exportDataset.filter(f => (f.name || '').toLowerCase().includes(q) || (f.employeeId || '').toLowerCase().includes(q));
+          }
+        }
+      }
+
+      const headerRow = 'S.No,EmpId,Name,Designation,Department,Academic Year,Gender,Date of birth,PanCard No,Date Of Joining,Previous Teaching Experience Years,Previous Teaching Experience Months,Previous Industry Experience Years,Previous Industry Experience Months,Qualification Level,Highest Qualification,Experience in CU - Years,Experience in CU - Months';
+      const rows = exportDataset.map((f, idx) => {
+        const sNo = sanitizeSpreadsheetCell(f.sNo ?? idx + 1);
+        const empId = sanitizeSpreadsheetCell(f.employeeId);
+        const name = sanitizeSpreadsheetCell(f.name);
+        const desig = sanitizeSpreadsheetCell(f.designation);
+        const dept = sanitizeSpreadsheetCell(f.department);
+        const year = sanitizeSpreadsheetCell(f.academicYear || '2024-2025');
+        const gender = sanitizeSpreadsheetCell(f.gender || '');
+        const dob = sanitizeSpreadsheetCell(f.dateOfBirth || '');
+        const pan = sanitizeSpreadsheetCell(f.panCardNo || '');
+        const doj = sanitizeSpreadsheetCell(f.dateOfJoining || '');
+        const pty = sanitizeSpreadsheetCell(f.prevTeachingExpYears ?? 0);
+        const ptm = sanitizeSpreadsheetCell(f.prevTeachingExpMonths ?? 0);
+        const piy = sanitizeSpreadsheetCell(f.prevIndustryExpYears ?? 0);
+        const pim = sanitizeSpreadsheetCell(f.prevIndustryExpMonths ?? 0);
+        const ql = sanitizeSpreadsheetCell(f.qualificationLevel || '');
+        const hq = sanitizeSpreadsheetCell(f.highestQualification || '');
+        const cuy = sanitizeSpreadsheetCell(f.cuExpYears ?? 0);
+        const cum = sanitizeSpreadsheetCell(f.cuExpMonths ?? 0);
+        return `${sNo},"${empId}","${name}","${desig}","${dept}","${year}","${gender}","${dob}","${pan}","${doj}",${pty},${ptm},${piy},${pim},"${ql}","${hq}",${cuy},${cum}`;
+      });
+
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headerRow, ...rows].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `Faculty_Directory_${academicYearFilter}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Export faculty CSV error:', err);
+    }
   };
 
   const handleClearAll = async () => {
@@ -518,280 +586,212 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      <Sidebar currentPage="faculty-details" onNavigate={onNavigate} />
+    <AppShell currentPage="faculty-details" onNavigate={onNavigate}>
+      {/* 1. Universal Page Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Academics' },
+          { label: 'Faculty Management', active: true },
+        ]}
+        title="Faculty Intelligence Directory"
+        badge={`${facultyList.length} Members`}
+        description="Institutional faculty census, doctorate cadre, qualifications hierarchy, and academic profiles across engineering disciplines."
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => fetchFaculty()}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shadow-xs disabled:opacity-50"
+              title="Refresh Records"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
+              <span>Sync Data</span>
+            </button>
 
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        <div className="max-w-7xl mx-auto space-y-6">
-          
-          {/* Header Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-[#2f4692]/20 ring-4 ring-[#2f4692]/10">
-                <Users className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Faculty Intelligence Directory
-                </h1>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Institutional faculty census, doctorate cadre, qualifications hierarchy, and academic profiles
-                </p>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={exportToCSV}
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shadow-xs"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Export Report</span>
+            </button>
 
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <Button
-                onClick={fetchFaculty}
-                variant="outline"
-                className="border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
-                title="Refresh Records"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Sync Data</span>
-              </Button>
-
-              <Button
-                onClick={exportToCSV}
-                variant="outline"
-                className="border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Export Report</span>
-              </Button>
-
-              {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
-                <>
-                  <Button
-                    onClick={() => setIsClearOpen(true)}
-                    variant="outline"
-                    className="border-red-200 hover:bg-red-50 text-red-600 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
-                    title="Clear All Faculty Data"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear Data</span>
-                  </Button>
-
-                  <Button
-                    onClick={() => setIsBulkUploadOpen(true)}
-                    variant="outline"
-                    className="border-teal-200 hover:bg-teal-50 text-teal-700 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Bulk Upload</span>
-                  </Button>
-
-                  <Button
-                    onClick={() => { resetForm(); setIsAddModalOpen(true); }}
-                    className="bg-gradient-to-r from-[#2f4692] to-[#1e2f65] hover:from-[#243a7a] hover:to-[#172450] text-white text-xs font-bold h-9 rounded-xl shadow-md shadow-[#2f4692]/20 flex items-center gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Faculty</span>
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* 5 Enterprise KPI Metric Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {/* Card 1: Total Faculty */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2f4692] to-blue-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Faculty Census</p>
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2f4692] flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Users className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.total}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1 flex items-center gap-1">
-                <span className="text-emerald-600 font-bold">100%</span> active profiles
-              </p>
-            </div>
-
-            {/* Card 2: Doctorates & PhDs */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Doctorates (PhD)</p>
-                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <GraduationCap className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-purple-700 tracking-tight mt-2">{stats.phdCount}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                <span className="text-purple-600 font-bold">{stats.phdPercent}%</span> doctoral ratio
-              </p>
-            </div>
-
-            {/* Card 3: Senior Cadre */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Senior Cadre</p>
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Award className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.seniorCadre}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                Professors, HODs & Deans
-              </p>
-            </div>
-
-            {/* Card 4: Departments */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Departments</p>
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Building2 className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.depts}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                Academic disciplines
-              </p>
-            </div>
-
-            {/* Card 5: Average Experience */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Avg Experience</p>
-                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Briefcase className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.avgExp} <span className="text-sm font-semibold text-slate-500">Yrs</span></p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                Academic & industry exp
-              </p>
-            </div>
-          </div>
-
-          {/* Unified Single Filter Bar & View Switcher */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[300px]">
-              {/* Search */}
-              <div className="relative flex-1 min-w-[220px]">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Search faculty name, emp ID, qualification, dept..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-8 pr-8 text-xs h-9 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
-                />
-                {searchTerm && (
-                  <button 
-                    onClick={() => setSearchTerm('')} 
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* AY Filter */}
-              <select
-                value={academicYearFilter}
-                onChange={e => setAcademicYearFilter(e.target.value)}
-                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
-              >
-                <option value="All">All Academic Years</option>
-                {availableAcademicYears.map(yr => (
-                  <option key={yr} value={yr}>AY {yr}</option>
-                ))}
-              </select>
-
-              {/* Dept Filter */}
-              <select
-                value={departmentFilter}
-                onChange={e => setDepartmentFilter(e.target.value)}
-                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
-              >
-                <option value="All">All Departments</option>
-                {departmentsList.map((d, i) => (
-                  <option key={i} value={d}>{d}</option>
-                ))}
-              </select>
-
-              {/* Designation Filter */}
-              <select
-                value={designationFilter}
-                onChange={e => setDesignationFilter(e.target.value)}
-                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
-              >
-                <option value="All">All Designations</option>
-                {designationsList.map((d, i) => (
-                  <option key={i} value={d}>{d}</option>
-                ))}
-              </select>
-
-              {/* Sort By */}
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-                className="h-9 px-3 text-xs font-bold rounded-xl border border-slate-200 bg-blue-50/50 text-[#2f4692] focus:outline-none"
-              >
-                <option value="name-asc">Sort: Name (A-Z)</option>
-                <option value="name-desc">Sort: Name (Z-A)</option>
-                <option value="employeeId-asc">Sort: Emp ID</option>
-                <option value="department-asc">Sort: Department</option>
-              </select>
-
-              {(searchTerm || departmentFilter !== 'All' || academicYearFilter !== 'All' || designationFilter !== 'All') && (
-                <Button
-                  onClick={clearFilters}
-                  variant="ghost"
-                  className="h-9 text-xs font-semibold text-slate-500 hover:text-slate-900 flex items-center gap-1 px-2.5"
+            {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsClearOpen(true)}
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition-colors shadow-xs"
+                  title="Clear All Faculty Data"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset</span>
-                </Button>
-              )}
-            </div>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Data</span>
+                </button>
 
-            {/* View Switcher */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  viewMode === 'table'
-                    ? 'bg-white text-[#2f4692] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <TableIcon className="w-3.5 h-3.5" />
-                <span>Matrix</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setIsBulkUploadOpen(true)}
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shadow-xs"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#2F4692]" />
+                  <span>Bulk Upload</span>
+                </button>
 
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  viewMode === 'cards'
-                    ? 'bg-white text-[#2f4692] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Profiles</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => { resetForm(); setIsAddModalOpen(true); }}
+                  className="inline-flex items-center gap-1.5 h-9 px-4 text-xs font-semibold text-white bg-[#2F4692] hover:bg-[#243A7A] rounded-xl transition-colors shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Faculty</span>
+                </button>
+              </>
+            )}
+          </>
+        }
+      />
 
-              <button
-                onClick={() => setViewMode('analytics')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  viewMode === 'analytics'
-                    ? 'bg-white text-[#2f4692] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span>Analytics</span>
-              </button>
-            </div>
+      {/* 2. 5 Unified Institutional KPI Metric Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatCard
+          title="Faculty Census"
+          value={stats.total}
+          subtitle="100% active profiles"
+          icon={Users}
+        />
+        <StatCard
+          title="Doctorates (PhD)"
+          value={stats.phdCount}
+          subtitle={`${stats.phdPercent}% doctoral ratio`}
+          icon={GraduationCap}
+        />
+        <StatCard
+          title="Senior Cadre"
+          value={stats.seniorCadre}
+          subtitle="Professors, HODs & Deans"
+          icon={Award}
+        />
+        <StatCard
+          title="Departments"
+          value={stats.depts}
+          subtitle="Academic disciplines"
+          icon={Building2}
+        />
+        <StatCard
+          title="Avg Experience"
+          value={`${stats.avgExp} Yrs`}
+          subtitle="Academic & industry exp"
+          icon={Briefcase}
+        />
+      </div>
+
+      {/* 3. Universal Filter Toolbar & View Mode Switcher */}
+      <FilterToolbar
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search faculty name, emp ID, qualification, dept..."
+        onReset={clearFilters}
+        hasActiveFilters={
+          Boolean(searchTerm) ||
+          departmentFilter !== 'All' ||
+          academicYearFilter !== 'All' ||
+          designationFilter !== 'All'
+        }
+        totalResults={filteredFaculty.length}
+        resultLabel={`faculty records (of ${facultyList.length} total)`}
+        actions={
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-white text-[#2F4692] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <TableIcon className="w-3.5 h-3.5" />
+              <span>Matrix</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                viewMode === 'cards'
+                  ? 'bg-white text-[#2F4692] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Profiles</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('analytics')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                viewMode === 'analytics'
+                  ? 'bg-white text-[#2F4692] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Analytics</span>
+            </button>
           </div>
+        }
+      >
+        {/* AY Filter */}
+        <select
+          value={academicYearFilter}
+          onChange={e => setAcademicYearFilter(e.target.value)}
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+        >
+          <option value="All">All Academic Years</option>
+          {availableAcademicYears.map(yr => (
+            <option key={yr} value={yr}>AY {yr}</option>
+          ))}
+        </select>
+
+        {/* Dept Filter */}
+        <select
+          value={departmentFilter}
+          onChange={e => setDepartmentFilter(e.target.value)}
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20 max-w-[200px]"
+        >
+          <option value="All">All Departments</option>
+          {departmentsList.map((d, i) => (
+            <option key={i} value={d}>{d}</option>
+          ))}
+        </select>
+
+        {/* Designation Filter */}
+        <select
+          value={designationFilter}
+          onChange={e => setDesignationFilter(e.target.value)}
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+        >
+          <option value="All">All Designations</option>
+          {designationsList.map((d, i) => (
+            <option key={i} value={d}>{d}</option>
+          ))}
+        </select>
+
+        {/* Sort By */}
+        <select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value)}
+          className="h-9 px-3 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 text-[#2F4692] focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+        >
+          <option value="name-asc">Sort: Name (A-Z)</option>
+          <option value="name-desc">Sort: Name (Z-A)</option>
+          <option value="employeeId-asc">Sort: Emp ID</option>
+          <option value="department-asc">Sort: Department</option>
+        </select>
+      </FilterToolbar>
 
           {/* View Mode 1: Table Matrix */}
           {viewMode === 'table' && (
@@ -849,19 +849,14 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                               {fac.sNo ?? idx + 1}
                             </td>
 
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white flex items-center justify-center text-xs font-black shadow-sm">
-                                  {initials}
-                                </div>
-                                <div>
-                                  <p className="font-bold text-slate-900 group-hover:text-[#2f4692] transition-colors">
-                                    {fac.name}
-                                  </p>
-                                  {fac.email && (
-                                    <p className="text-[11px] text-slate-400 font-mono">{fac.email}</p>
-                                  )}
-                                </div>
+                            <td className="py-3.5 px-4">
+                              <div>
+                                <p className="font-semibold text-slate-900 group-hover:text-[#2F4692] transition-colors">
+                                  {fac.name}
+                                </p>
+                                {fac.email && (
+                                  <p className="text-[11px] text-slate-500 font-mono mt-0.5">{fac.email}</p>
+                                )}
                               </div>
                             </td>
 
@@ -947,6 +942,34 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                     )}
                   </tbody>
                 </table>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+                  <div className="text-xs text-slate-500 font-medium">
+                    Showing <span className="font-bold text-slate-700">{totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span className="font-bold text-slate-700">{Math.min(currentPage * pageSize, totalCount)}</span> of <span className="font-bold text-slate-700">{totalCount}</span> faculty members
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage <= 1 || loading}
+                      onClick={() => fetchFaculty(currentPage - 1)}
+                      className="text-xs h-8 px-3"
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-xs text-slate-600 px-2 font-medium">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage >= totalPages || loading}
+                      onClick={() => fetchFaculty(currentPage + 1)}
+                      className="text-xs h-8 px-3"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1110,8 +1133,6 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
               </div>
             </div>
           )}
-        </div>
-      </main>
 
       {/* Bulk Upload Dialog */}
       <BulkUploadDialog
@@ -1122,291 +1143,217 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
         onSuccess={fetchFaculty}
       />
 
-      {/* View Faculty Detail Slide-over / Modal */}
-      {viewingFaculty && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setViewingFaculty(null)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
-              <div className="w-14 h-14 bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white rounded-2xl flex items-center justify-center text-lg font-black shadow-lg shadow-[#2f4692]/20">
-                {viewingFaculty.name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-slate-900">{viewingFaculty.name}</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-bold text-[#2f4692] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                    {viewingFaculty.designation}
-                  </span>
-                  <span className="text-xs text-slate-500 font-mono font-semibold">
-                    EMP ID: {viewingFaculty.employeeId || 'N/A'}
-                  </span>
+      {/* View Faculty Detail Slide-over Drawer */}
+      <DetailDrawer
+        isOpen={Boolean(viewingFaculty)}
+        onClose={() => setViewingFaculty(null)}
+        title={viewingFaculty?.name || 'Faculty Profile'}
+        subtitle={viewingFaculty?.department}
+        badge={
+          viewingFaculty && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-[#2F4692]/10 text-[#2F4692] border border-[#2F4692]/20">
+              {viewingFaculty.designation}
+            </span>
+          )
+        }
+        footer={
+          <button
+            type="button"
+            onClick={() => setViewingFaculty(null)}
+            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors"
+          >
+            Close
+          </button>
+        }
+      >
+        {viewingFaculty && (
+          <div className="space-y-5 text-xs">
+            {/* Department & Affiliation */}
+            <div className="bg-slate-50/70 rounded-xl p-4 border border-slate-200">
+              <p className="font-semibold text-slate-900 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-[#2F4692]" /> Department & Affiliation
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-slate-500 font-medium">Department</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingFaculty.department}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Academic Year</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingFaculty.academicYear || '2024-2025'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Date of Joining</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingFaculty.dateOfJoining || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Employee ID</p>
+                  <p className="font-semibold text-slate-900 mt-0.5 font-mono">{viewingFaculty.employeeId || '—'}</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-5 space-y-4 text-xs">
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80">
-                <p className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4 text-[#2f4692]" /> Department & Affiliation
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-slate-400 font-medium">Department</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingFaculty.department}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Academic Year</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingFaculty.academicYear || '2024-2025'}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Date of Joining</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingFaculty.dateOfJoining || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">PAN Card Number</p>
-                    <p className="font-bold text-slate-900 mt-0.5 font-mono">{viewingFaculty.panCardNo || '—'}</p>
-                  </div>
+            {/* Qualifications & Academics */}
+            <div className="bg-slate-50/70 rounded-xl p-4 border border-slate-200">
+              <p className="font-semibold text-slate-900 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <GraduationCap className="w-4 h-4 text-[#2F4692]" /> Qualifications & Academics
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-slate-500 font-medium">Highest Qualification</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingFaculty.highestQualification || '—'}</p>
                 </div>
-              </div>
-
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80">
-                <p className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <GraduationCap className="w-4 h-4 text-purple-600" /> Qualifications & Academics
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-slate-400 font-medium">Highest Qualification</p>
-                    <p className="font-bold text-purple-700 mt-0.5">{viewingFaculty.highestQualification || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Qualification Level</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingFaculty.qualificationLevel || '—'}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80">
-                <p className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <Briefcase className="w-4 h-4 text-amber-600" /> Experience Metrics
-                </p>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <p className="text-slate-400 font-medium">Prev Teaching Exp</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingFaculty.prevTeachingExpYears ?? 0}Y {viewingFaculty.prevTeachingExpMonths ?? 0}M</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Prev Industry Exp</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingFaculty.prevIndustryExpYears ?? 0}Y {viewingFaculty.prevIndustryExpMonths ?? 0}M</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Experience in CU</p>
-                    <p className="font-bold text-[#2f4692] mt-0.5">{viewingFaculty.cuExpYears ?? 0}Y {viewingFaculty.cuExpMonths ?? 0}M</p>
-                  </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Qualification Level</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingFaculty.qualificationLevel || '—'}</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end">
-              <Button onClick={() => setViewingFaculty(null)} className="bg-[#2f4692] hover:bg-[#243a7a] text-white text-xs font-bold rounded-xl px-5 h-9">
-                Close Inspection
-              </Button>
+            {/* Experience Metrics */}
+            <div className="bg-slate-50/70 rounded-xl p-4 border border-slate-200">
+              <p className="font-semibold text-slate-900 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Briefcase className="w-4 h-4 text-[#2F4692]" /> Experience Metrics
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-slate-500 font-medium">Prev Teaching Exp</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingFaculty.prevTeachingExpYears ?? 0}Y {viewingFaculty.prevTeachingExpMonths ?? 0}M</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Prev Industry Exp</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingFaculty.prevIndustryExpYears ?? 0}Y {viewingFaculty.prevIndustryExpMonths ?? 0}M</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Experience in CU</p>
+                  <p className="font-semibold text-[#2F4692] mt-0.5">{viewingFaculty.cuExpYears ?? 0}Y {viewingFaculty.cuExpMonths ?? 0}M</p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </DetailDrawer>
 
       {/* Add Faculty Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setIsAddModalOpen(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100"
+      <FormModal
+        open={isAddModalOpen}
+        onOpenChange={setIsAddModalOpen}
+        title="Register Faculty Member"
+        description="Add a new academic faculty member to the institutional registry."
+        icon={Plus}
+        submitLabel="Save Faculty Profile"
+        onSubmit={handleAddSubmit}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="Faculty Full Name" required>
+            <FormInput 
+              value={formData.name} 
+              onChange={e => setFormData({ ...formData, name: e.target.value })} 
+              placeholder="e.g. Dr. Jane Smith"
+              required 
+            />
+          </FormField>
+          <FormField label="Employee ID" required>
+            <FormInput 
+              value={formData.employeeId} 
+              onChange={e => setFormData({ ...formData, employeeId: e.target.value })} 
+              placeholder="e.g. CU1045"
+              required 
+            />
+          </FormField>
+          <FormField label="Department" required>
+            <FormSelect 
+              value={formData.department} 
+              onChange={e => setFormData({ ...formData, department: e.target.value })} 
             >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-[#2f4692]" /> Register Faculty Member
-            </h2>
-
-            <form onSubmit={handleAddSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Full Name</label>
-                  <Input 
-                    value={formData.name} 
-                    onChange={e => setFormData({ ...formData, name: e.target.value })} 
-                    placeholder="e.g. Dr. Jane Smith"
-                    required 
-                    className="rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Employee ID</label>
-                  <Input 
-                    value={formData.employeeId} 
-                    onChange={e => setFormData({ ...formData, employeeId: e.target.value })} 
-                    placeholder="e.g. CU1045"
-                    required 
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Department</label>
-                  <select 
-                    value={formData.department} 
-                    onChange={e => setFormData({ ...formData, department: e.target.value })} 
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white font-medium"
-                  >
-                    {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Designation</label>
-                  <select 
-                    value={formData.designation} 
-                    onChange={e => setFormData({ ...formData, designation: e.target.value })} 
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white font-medium"
-                  >
-                    {designationsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Academic Year</label>
-                  <select 
-                    value={formData.academicYear || '2024-2025'} 
-                    onChange={e => setFormData({ ...formData, academicYear: e.target.value })} 
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white font-medium"
-                  >
-                    <option value="2025-2026">2025-2026</option>
-                    <option value="2024-2025">2024-2025</option>
-                    <option value="2023-2024">2023-2024</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Highest Qualification</label>
-                  <Input 
-                    value={formData.highestQualification || ''} 
-                    onChange={e => setFormData({ ...formData, highestQualification: e.target.value })} 
-                    placeholder="e.g. Ph.D. in Computer Science"
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
-                <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)} className="rounded-xl text-xs h-9">
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-[#2f4692] hover:bg-[#243a7a] text-white rounded-xl text-xs font-bold h-9">
-                  Save Faculty Profile
-                </Button>
-              </div>
-            </form>
-          </div>
+              {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
+            </FormSelect>
+          </FormField>
+          <FormField label="Designation" required>
+            <FormSelect 
+              value={formData.designation} 
+              onChange={e => setFormData({ ...formData, designation: e.target.value })} 
+            >
+              {designationsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
+            </FormSelect>
+          </FormField>
+          <FormField label="Academic Year" required>
+            <FormSelect 
+              value={formData.academicYear || '2024-2025'} 
+              onChange={e => setFormData({ ...formData, academicYear: e.target.value })} 
+            >
+              <option value="2025-2026">2025-2026</option>
+              <option value="2024-2025">2024-2025</option>
+              <option value="2023-2024">2023-2024</option>
+            </FormSelect>
+          </FormField>
+          <FormField label="Highest Qualification">
+            <FormInput 
+              value={formData.highestQualification || ''} 
+              onChange={e => setFormData({ ...formData, highestQualification: e.target.value })} 
+              placeholder="e.g. Ph.D. in Computer Science"
+            />
+          </FormField>
         </div>
-      )}
+      </FormModal>
 
       {/* Edit Faculty Modal */}
-      {editingFaculty && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setEditingFaculty(null)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-              <Edit className="w-5 h-5 text-amber-600" /> Edit Faculty Profile
-            </h2>
-
-            <form onSubmit={handleEditSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Faculty Name</label>
-                  <Input 
-                    value={editingFaculty.name} 
-                    onChange={e => setEditingFaculty({ ...editingFaculty, name: e.target.value })} 
-                    required 
-                    className="rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Employee ID</label>
-                  <Input 
-                    value={editingFaculty.employeeId} 
-                    onChange={e => setEditingFaculty({ ...editingFaculty, employeeId: e.target.value })} 
-                    required 
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Designation</label>
-                  <select 
-                    value={editingFaculty.designation} 
-                    onChange={e => setEditingFaculty({ ...editingFaculty, designation: e.target.value })} 
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white"
-                  >
-                    {designationsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Department</label>
-                  <select 
-                    value={editingFaculty.department} 
-                    onChange={e => setEditingFaculty({ ...editingFaculty, department: e.target.value })} 
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white"
-                  >
-                    {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Highest Qualification</label>
-                  <Input 
-                    value={editingFaculty.highestQualification || ''} 
-                    onChange={e => setEditingFaculty({ ...editingFaculty, highestQualification: e.target.value })} 
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Experience in CU (Years)</label>
-                  <Input 
-                    value={editingFaculty.cuExpYears || '0'} 
-                    onChange={e => setEditingFaculty({ ...editingFaculty, cuExpYears: e.target.value })} 
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
-                <Button type="button" variant="outline" onClick={() => setEditingFaculty(null)} className="rounded-xl text-xs h-9">
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-[#2f4692] hover:bg-[#243a7a] text-white rounded-xl text-xs font-bold h-9">
-                  Update Profile
-                </Button>
-              </div>
-            </form>
+      <FormModal
+        open={!!editingFaculty}
+        onOpenChange={(open) => !open && setEditingFaculty(null)}
+        title="Edit Faculty Profile"
+        description="Update faculty credentials, academic department assignment, and qualifications."
+        icon={Edit}
+        submitLabel="Update Profile"
+        onSubmit={handleEditSubmit}
+      >
+        {editingFaculty && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField label="Faculty Full Name" required>
+              <FormInput 
+                value={editingFaculty.name} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, name: e.target.value })} 
+                required 
+              />
+            </FormField>
+            <FormField label="Employee ID" required>
+              <FormInput 
+                value={editingFaculty.employeeId} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, employeeId: e.target.value })} 
+                required 
+              />
+            </FormField>
+            <FormField label="Designation" required>
+              <FormSelect 
+                value={editingFaculty.designation} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, designation: e.target.value })} 
+              >
+                {designationsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
+              </FormSelect>
+            </FormField>
+            <FormField label="Department" required>
+              <FormSelect 
+                value={editingFaculty.department} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, department: e.target.value })} 
+              >
+                {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
+              </FormSelect>
+            </FormField>
+            <FormField label="Highest Qualification">
+              <FormInput 
+                value={editingFaculty.highestQualification || ''} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, highestQualification: e.target.value })} 
+              />
+            </FormField>
+            <FormField label="Experience in CU (Years)">
+              <FormInput 
+                value={editingFaculty.cuExpYears || '0'} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, cuExpYears: e.target.value })} 
+              />
+            </FormField>
           </div>
-        </div>
-      )}
+        )}
+      </FormModal>
 
       {/* Clear All Confirmation Dialog */}
       <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
@@ -1435,6 +1382,6 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AppShell>
   );
 }

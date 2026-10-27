@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "backupFile": "C:\\mervin\\Academics\\christ\\projects\\IQAC\\IQAC-Platform\\security-audit\\scratch\\disposable_backup_logical.sql",
+  "backupSize": 149818,
+  "sha256": "b6945dcf41bdbab296195863e3f189f4df9d84d3f1751be4a07a628e0f301664",
+  "dumpDurationMs": 167,
+  "restoreDurationMs": 476,
+  "sourceRecords": {
+    "user_count": "11",
+    "student_count": "20",
+    "faculty_count": "10",
+    "audit_count": "209"
+  },
+  "verifiedAt": "2026-10-21T06:14:55.691Z"
+}

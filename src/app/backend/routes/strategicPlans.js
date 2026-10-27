@@ -20,11 +20,11 @@ router.get('/stats', getStrategicPlanStats);
 
 router.route('/')
   .get(getStrategicPlans)
-  .post(authorize('admin', 'coordinator', 'faculty'), createStrategicPlan);
+  .post(authorize('admin', 'coordinator', 'hod', 'faculty'), createStrategicPlan);
 
 router.route('/:id')
   .get(getStrategicPlan)
-  .put(authorize('admin', 'coordinator', 'faculty'), updateStrategicPlan)
-  .delete(authorize('admin', 'coordinator'), deleteStrategicPlan);
+  .put(authorize('admin', 'coordinator', 'hod', 'faculty'), updateStrategicPlan)
+  .delete(authorize('admin', 'coordinator', 'hod'), deleteStrategicPlan);
 
 module.exports = router;

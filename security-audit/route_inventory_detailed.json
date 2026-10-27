@@ -1,0 +1,3248 @@
+{
+  "summary": {
+    "totalRoutesInventoried": 139,
+    "routesBehaviorallyTested": 61,
+    "routesUntested": 78,
+    "routeLevelCoveragePercent": 43.9,
+    "totalRoleRouteCombinations": 834,
+    "roleRouteCombinationsTested": 300,
+    "combinationCoveragePercent": 36,
+    "generatedAt": "2026-10-21T07:33:46.680Z"
+  },
+  "routes": [
+    {
+      "id": "R-001",
+      "method": "POST",
+      "endpoint": "/api/auth/login",
+      "authRequired": false,
+      "authorizedRoles": [
+        "public",
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global (Public)",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 200,
+        "unauthorizedRole": 200,
+        "crossDepartment": 200
+      },
+      "testIds": [
+        "E2E_phase_a_e2e_supertest",
+        "E2E_phase_b_workstreams_b1_b2"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-002",
+      "method": "GET",
+      "endpoint": "/api/auth/me",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_a_e2e_supertest",
+        "E2E_phase_b_workstreams_b1_b2",
+        "E2E_phase_d_security_headers"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-003",
+      "method": "PUT",
+      "endpoint": "/api/auth/password",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_a_e2e_supertest"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-004",
+      "method": "GET",
+      "endpoint": "/api/users",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Global (Admin-only)",
+      "ownershipRestrictions": "Admin management only",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_b_full_matrix",
+        "AUTH-01",
+        "E2E_phase_c_authorization_inventory",
+        "ADM-OP-01",
+        "ADM-OP-03",
+        "E2E_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-005",
+      "method": "POST",
+      "endpoint": "/api/users",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Global (Admin-only)",
+      "ownershipRestrictions": "Admin management only",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "ADM-OP-02",
+        "E2E_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-006",
+      "method": "GET",
+      "endpoint": "/api/users/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Global (Admin-only)",
+      "ownershipRestrictions": "Admin management only",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-007",
+      "method": "PUT",
+      "endpoint": "/api/users/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Global (Admin-only)",
+      "ownershipRestrictions": "Admin management only",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "ESC-01",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-008",
+      "method": "DELETE",
+      "endpoint": "/api/users/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Global (Admin-only)",
+      "ownershipRestrictions": "Admin management only",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "AUTH-FINAL-01",
+        "AUTH-FINAL-02",
+        "E2E_phase_e_authorization_matrix_final"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-009",
+      "method": "DELETE",
+      "endpoint": "/api/achievements/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-010",
+      "method": "GET",
+      "endpoint": "/api/achievements/stats",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-011",
+      "method": "POST",
+      "endpoint": "/api/achievements/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "ACH-01",
+        "ACH-02",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-012",
+      "method": "GET",
+      "endpoint": "/api/achievements",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-013",
+      "method": "POST",
+      "endpoint": "/api/achievements",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_concurrency_and_exports"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-014",
+      "method": "GET",
+      "endpoint": "/api/achievements/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-015",
+      "method": "PUT",
+      "endpoint": "/api/achievements/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "ESC-02",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-016",
+      "method": "DELETE",
+      "endpoint": "/api/achievements/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "ACH-03",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-017",
+      "method": "DELETE",
+      "endpoint": "/api/documents/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-018",
+      "method": "GET",
+      "endpoint": "/api/documents",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "DOC-01",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-019",
+      "method": "POST",
+      "endpoint": "/api/documents",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "uploadedBy set to user.id",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_b_workstreams_b4_b6",
+        "DOC-02",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-020",
+      "method": "GET",
+      "endpoint": "/api/documents/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_concurrency_and_exports",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-021",
+      "method": "PUT",
+      "endpoint": "/api/documents/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only modify/delete own documents; Admin can approve/edit all",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_b_workstreams_b4_b6"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-022",
+      "method": "DELETE",
+      "endpoint": "/api/documents/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only modify/delete own documents; Admin can approve/edit all",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_concurrency_and_exports",
+        "DOC-03",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-023",
+      "method": "GET",
+      "endpoint": "/api/patents/stats",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-024",
+      "method": "POST",
+      "endpoint": "/api/patents/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-025",
+      "method": "DELETE",
+      "endpoint": "/api/patents/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-026",
+      "method": "GET",
+      "endpoint": "/api/patents",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-027",
+      "method": "POST",
+      "endpoint": "/api/patents",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_concurrency_and_exports",
+        "ENT-MUT-02",
+        "E2E_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-028",
+      "method": "GET",
+      "endpoint": "/api/patents/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-029",
+      "method": "PUT",
+      "endpoint": "/api/patents/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-030",
+      "method": "DELETE",
+      "endpoint": "/api/patents/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-031",
+      "method": "DELETE",
+      "endpoint": "/api/placements/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-032",
+      "method": "GET",
+      "endpoint": "/api/placements/stats",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-033",
+      "method": "POST",
+      "endpoint": "/api/placements/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-034",
+      "method": "GET",
+      "endpoint": "/api/placements",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-035",
+      "method": "POST",
+      "endpoint": "/api/placements",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "AUTH-04",
+        "E2E_phase_c_authorization_inventory",
+        "PLC-01",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-036",
+      "method": "PUT",
+      "endpoint": "/api/placements/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-037",
+      "method": "DELETE",
+      "endpoint": "/api/placements/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-038",
+      "method": "DELETE",
+      "endpoint": "/api/strategic-plans/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-039",
+      "method": "GET",
+      "endpoint": "/api/strategic-plans/stats",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-040",
+      "method": "GET",
+      "endpoint": "/api/strategic-plans",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "AUTH-02",
+        "E2E_phase_c_authorization_inventory",
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-041",
+      "method": "POST",
+      "endpoint": "/api/strategic-plans",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_authorization_inventory",
+        "PLN-01",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-042",
+      "method": "GET",
+      "endpoint": "/api/strategic-plans/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-043",
+      "method": "PUT",
+      "endpoint": "/api/strategic-plans/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-044",
+      "method": "DELETE",
+      "endpoint": "/api/strategic-plans/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_authorization_inventory",
+        "PLN-02",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-045",
+      "method": "POST",
+      "endpoint": "/api/edit-requests",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_authorization_inventory",
+        "EDT-01",
+        "EDT-02",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-046",
+      "method": "GET",
+      "endpoint": "/api/edit-requests",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "AUTH-03",
+        "E2E_phase_c_authorization_inventory",
+        "EDT-03",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-047",
+      "method": "PUT",
+      "endpoint": "/api/edit-requests/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_authorization_inventory"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-048",
+      "method": "GET",
+      "endpoint": "/api/notifications",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-049",
+      "method": "PUT",
+      "endpoint": "/api/notifications/:id/read",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-050",
+      "method": "DELETE",
+      "endpoint": "/api/students/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "HOD",
+        "Admin",
+        "E2E_phase_a_e2e_supertest",
+        "E2E_phase_b_full_matrix",
+        "CLR-02",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-051",
+      "method": "GET",
+      "endpoint": "/api/students",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "Private student contact fields sanitized for general faculty",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "HOD",
+        "Coordinator",
+        "Admin",
+        "E2E_phase_a_e2e_supertest",
+        "E2E_phase_b_full_matrix",
+        "B4-02",
+        "B4-03",
+        "B4-04",
+        "B4-05",
+        "E2E_phase_b_workstreams_b4_b6",
+        "E2E_phase_d_export_streaming"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-052",
+      "method": "POST",
+      "endpoint": "/api/students",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "Private student contact fields sanitized for general faculty",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_a_e2e_supertest",
+        "E2E_phase_b_full_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-053",
+      "method": "POST",
+      "endpoint": "/api/students/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "Private student contact fields sanitized for general faculty",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_b_full_matrix",
+        "E2E_phase_b_workstream_b5",
+        "E2E_phase_c_concurrency_and_exports"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-054",
+      "method": "GET",
+      "endpoint": "/api/students/lookup/:regNo",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "Private student contact fields sanitized for general faculty",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "Historical",
+        "E2E_phase_a_e2e_supertest",
+        "E2E_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-055",
+      "method": "PUT",
+      "endpoint": "/api/students/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "Private student contact fields sanitized for general faculty",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-056",
+      "method": "DELETE",
+      "endpoint": "/api/students/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "Private student contact fields sanitized for general faculty",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "HOD",
+        "Admin",
+        "E2E_phase_a_e2e_supertest",
+        "E2E_phase_b_full_matrix",
+        "E2E_phase_d_authorization_matrix",
+        "CLR-02",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-057",
+      "method": "DELETE",
+      "endpoint": "/api/faculty/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-058",
+      "method": "GET",
+      "endpoint": "/api/faculty",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "PAN Card and statutory identification redacted for non-admin/authority callers",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_a_e2e_supertest",
+        "E2E_phase_b_full_matrix",
+        "E2E_phase_d_export_streaming"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-059",
+      "method": "POST",
+      "endpoint": "/api/faculty",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Coordinator/HOD restricted to assigned department",
+      "sensitiveFieldRestrictions": "PAN Card and statutory identification redacted for non-admin/authority callers",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-060",
+      "method": "POST",
+      "endpoint": "/api/faculty/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Coordinator/HOD restricted to assigned department",
+      "sensitiveFieldRestrictions": "PAN Card and statutory identification redacted for non-admin/authority callers",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_b_workstream_b5",
+        "E2E_phase_c_concurrency_and_exports"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-061",
+      "method": "PUT",
+      "endpoint": "/api/faculty/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Coordinator/HOD restricted to assigned department",
+      "sensitiveFieldRestrictions": "PAN Card and statutory identification redacted for non-admin/authority callers",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-062",
+      "method": "DELETE",
+      "endpoint": "/api/faculty/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Coordinator/HOD restricted to assigned department",
+      "sensitiveFieldRestrictions": "PAN Card and statutory identification redacted for non-admin/authority callers",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-063",
+      "method": "GET",
+      "endpoint": "/api/departments",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-064",
+      "method": "POST",
+      "endpoint": "/api/departments",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-065",
+      "method": "POST",
+      "endpoint": "/api/departments/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-066",
+      "method": "GET",
+      "endpoint": "/api/departments/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-067",
+      "method": "PUT",
+      "endpoint": "/api/departments/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-068",
+      "method": "DELETE",
+      "endpoint": "/api/departments/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-069",
+      "method": "GET",
+      "endpoint": "/api/departments/:id/courses",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-070",
+      "method": "GET",
+      "endpoint": "/api/departments/:id/program-levels",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-071",
+      "method": "DELETE",
+      "endpoint": "/api/research-metrics/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-072",
+      "method": "GET",
+      "endpoint": "/api/research-metrics",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-073",
+      "method": "POST",
+      "endpoint": "/api/research-metrics/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-074",
+      "method": "GET",
+      "endpoint": "/api/publications/stats",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-075",
+      "method": "POST",
+      "endpoint": "/api/publications/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "AUTH-FINAL-07",
+        "E2E_phase_e_authorization_matrix_final"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-076",
+      "method": "DELETE",
+      "endpoint": "/api/publications/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-077",
+      "method": "GET",
+      "endpoint": "/api/publications",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-078",
+      "method": "POST",
+      "endpoint": "/api/publications",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_concurrency_and_exports",
+        "ENT-MUT-01",
+        "E2E_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-079",
+      "method": "GET",
+      "endpoint": "/api/publications/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-080",
+      "method": "PUT",
+      "endpoint": "/api/publications/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-081",
+      "method": "DELETE",
+      "endpoint": "/api/publications/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-082",
+      "method": "GET",
+      "endpoint": "/api/sponsored-projects/stats",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-083",
+      "method": "POST",
+      "endpoint": "/api/sponsored-projects/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-084",
+      "method": "DELETE",
+      "endpoint": "/api/sponsored-projects/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-085",
+      "method": "GET",
+      "endpoint": "/api/sponsored-projects",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-086",
+      "method": "POST",
+      "endpoint": "/api/sponsored-projects",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_concurrency_and_exports",
+        "ENT-MUT-03",
+        "E2E_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-087",
+      "method": "GET",
+      "endpoint": "/api/sponsored-projects/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-088",
+      "method": "PUT",
+      "endpoint": "/api/sponsored-projects/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-089",
+      "method": "DELETE",
+      "endpoint": "/api/sponsored-projects/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-090",
+      "method": "GET",
+      "endpoint": "/api/consultancy-projects/stats",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-091",
+      "method": "POST",
+      "endpoint": "/api/consultancy-projects/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-092",
+      "method": "DELETE",
+      "endpoint": "/api/consultancy-projects/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-093",
+      "method": "GET",
+      "endpoint": "/api/consultancy-projects",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-094",
+      "method": "POST",
+      "endpoint": "/api/consultancy-projects",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-095",
+      "method": "GET",
+      "endpoint": "/api/consultancy-projects/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-096",
+      "method": "PUT",
+      "endpoint": "/api/consultancy-projects/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-097",
+      "method": "DELETE",
+      "endpoint": "/api/consultancy-projects/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-098",
+      "method": "GET",
+      "endpoint": "/api/departmental-activities",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-099",
+      "method": "POST",
+      "endpoint": "/api/departmental-activities",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_authorization_inventory"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-100",
+      "method": "GET",
+      "endpoint": "/api/departmental-activities/matrix",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department for Non-Admin/Authority",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-101",
+      "method": "POST",
+      "endpoint": "/api/departmental-activities/bulk",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-102",
+      "method": "DELETE",
+      "endpoint": "/api/departmental-activities/clear-all",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator"
+      ],
+      "deptScope": "Admin: All; HOD/Coord: user.department only",
+      "ownershipRestrictions": "Department-wide bulk clearance",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-103",
+      "method": "PUT",
+      "endpoint": "/api/departmental-activities/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-104",
+      "method": "DELETE",
+      "endpoint": "/api/departmental-activities/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Scoped to user.department",
+      "ownershipRestrictions": "Faculty can only mutate own created records; HOD/Coord can manage department records",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-105",
+      "method": "GET",
+      "endpoint": "/api/parameter-master/frameworks",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Master Data",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-106",
+      "method": "POST",
+      "endpoint": "/api/parameter-master/frameworks",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Configuration",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_authorization_inventory",
+        "MSTR-MUT-02",
+        "E2E_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-107",
+      "method": "GET",
+      "endpoint": "/api/parameter-master/parameters",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Master Data",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-108",
+      "method": "POST",
+      "endpoint": "/api/parameter-master/parameters",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Configuration",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "AUTH-FINAL-08",
+        "AUTH-FINAL-09",
+        "E2E_phase_e_authorization_matrix_final"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-109",
+      "method": "POST",
+      "endpoint": "/api/parameter-master/submissions",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Configuration",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-110",
+      "method": "PUT",
+      "endpoint": "/api/parameter-master/submissions/:id/verify",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Configuration",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "AUTH-FINAL-10",
+        "E2E_phase_e_authorization_matrix_final"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-111",
+      "method": "GET",
+      "endpoint": "/api/department-lineage/domain-trends",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-112",
+      "method": "GET",
+      "endpoint": "/api/department-lineage/users/:userId/history",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-113",
+      "method": "GET",
+      "endpoint": "/api/campuses",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-114",
+      "method": "POST",
+      "endpoint": "/api/campuses",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MSTR-MUT-01",
+        "E2E_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-115",
+      "method": "GET",
+      "endpoint": "/api/campuses/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-116",
+      "method": "PUT",
+      "endpoint": "/api/campuses/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-117",
+      "method": "DELETE",
+      "endpoint": "/api/campuses/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-118",
+      "method": "GET",
+      "endpoint": "/api/campuses/:id/schools",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-119",
+      "method": "GET",
+      "endpoint": "/api/schools",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-120",
+      "method": "POST",
+      "endpoint": "/api/schools",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-121",
+      "method": "GET",
+      "endpoint": "/api/schools/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-122",
+      "method": "PUT",
+      "endpoint": "/api/schools/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-123",
+      "method": "DELETE",
+      "endpoint": "/api/schools/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-124",
+      "method": "GET",
+      "endpoint": "/api/schools/:id/departments",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-125",
+      "method": "GET",
+      "endpoint": "/api/program-levels",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-126",
+      "method": "POST",
+      "endpoint": "/api/program-levels",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-127",
+      "method": "GET",
+      "endpoint": "/api/program-levels/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-128",
+      "method": "PUT",
+      "endpoint": "/api/program-levels/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-129",
+      "method": "DELETE",
+      "endpoint": "/api/program-levels/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-130",
+      "method": "GET",
+      "endpoint": "/api/courses",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-131",
+      "method": "POST",
+      "endpoint": "/api/courses",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-132",
+      "method": "GET",
+      "endpoint": "/api/courses/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-133",
+      "method": "PUT",
+      "endpoint": "/api/courses/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-134",
+      "method": "DELETE",
+      "endpoint": "/api/courses/:id",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Admin-only Master Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-135",
+      "method": "GET",
+      "endpoint": "/api/hierarchy/stats",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    },
+    {
+      "id": "R-136",
+      "method": "GET",
+      "endpoint": "/api/hierarchy/tree",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global Institutional Structure",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "MATRIX_phase_d_authorization_matrix"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-137",
+      "method": "POST",
+      "endpoint": "/api/system/clear-database",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin"
+      ],
+      "deptScope": "Global (Admin-only)",
+      "ownershipRestrictions": "Admin management only",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_a_e2e_supertest",
+        "E2E_phase_b_full_matrix",
+        "AUTH-05",
+        "E2E_phase_c_authorization_inventory",
+        "SYS-01",
+        "E2E_phase_e_authorization_matrix_expanded"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-138",
+      "method": "GET",
+      "endpoint": "/api/system/dashboard-stats",
+      "authRequired": true,
+      "authorizedRoles": [
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global metrics aggregated",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 401,
+        "unauthorizedRole": 403,
+        "crossDepartment": 403
+      },
+      "testIds": [
+        "E2E_phase_c_authorization_inventory"
+      ],
+      "behaviorallyTested": true
+    },
+    {
+      "id": "R-139",
+      "method": "GET",
+      "endpoint": "/health",
+      "authRequired": false,
+      "authorizedRoles": [
+        "public",
+        "admin",
+        "authority",
+        "hod",
+        "coordinator",
+        "faculty"
+      ],
+      "deptScope": "Global (Public)",
+      "ownershipRestrictions": "None",
+      "sensitiveFieldRestrictions": "None",
+      "expectedUnauthorized": {
+        "unauthenticated": 200,
+        "unauthorizedRole": 200,
+        "crossDepartment": 200
+      },
+      "testIds": [],
+      "behaviorallyTested": false
+    }
+  ]
+}

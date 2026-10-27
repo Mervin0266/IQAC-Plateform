@@ -1,4 +1,9 @@
 const { Student } = require('../models');
+const { sequelize } = require('../config/database');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
+const { sanitizeStudentData } = require('../utils/dataSanitizer');
+const { logActionSafe } = require('../middleware/auditLogger');
+const { parsePagination, formatPaginationResponse, streamBatchedExport } = require('../utils/paginationHelper');
 
 /**
  * Normalize a student record before any DB write.
@@ -52,13 +57,20 @@ const normalizeStudentRecord = (record) => {
 /**
  * Maps missing fields in a target student record from other historical academic year
  * records belonging to the same register number.
+ * Scoped by department for non-admin/non-authority users.
  */
-const enrichFromHistory = async (targetRecord) => {
+const enrichFromHistory = async (targetRecord, user) => {
   if (!targetRecord || !targetRecord.registerNumber) return targetRecord;
 
   const regNo = String(targetRecord.registerNumber).trim();
+  const where = { registerNumber: regNo };
+
+  if (user && user.role !== 'admin' && user.role !== 'authority' && user.department) {
+    where.department = user.department;
+  }
+
   const historicalRecords = await Student.findAll({
-    where: { registerNumber: regNo },
+    where,
     order: [['createdAt', 'DESC']]
   });
 
@@ -98,11 +110,15 @@ const enrichFromHistory = async (targetRecord) => {
 // @access  Private
 exports.getStudents = async (req, res) => {
   try {
-    const where = {};
+    const { where: scopeWhere } = await resolveDepartmentScope(req, 'Student', false);
+    const where = { ...scopeWhere };
+
     if (req.query.academicYear && req.query.academicYear !== 'all' && req.query.academicYear !== 'All') {
       where.academicYear = req.query.academicYear;
     }
-    if (req.query.department && req.query.department !== 'all' && req.query.department !== 'All') {
+    // Only admin and authority can select/filter arbitrary department
+    if ((req.user.role === 'admin' || req.user.role === 'authority') &&
+        req.query.department && req.query.department !== 'all' && req.query.department !== 'All') {
       where.department = req.query.department;
     }
     if (req.query.campus && req.query.campus !== 'all' && req.query.campus !== 'All') {
@@ -118,21 +134,43 @@ exports.getStudents = async (req, res) => {
       where.course = req.query.course;
     }
 
-    const students = await Student.findAll({
+    const pagination = parsePagination(req.query);
+
+    if (pagination.isExport || req.query.stream === 'true') {
+      return await streamBatchedExport(res, {
+        model: Student,
+        where,
+        order: [['registerNumber', 'ASC'], ['academicYear', 'DESC'], ['id', 'ASC']],
+        batchSize: 1000,
+        maxRecords: pagination.limit || 1000000,
+        format: req.query.format === 'csv' ? 'csv' : 'json',
+        filename: 'students_export',
+        transformRow: (rawRow) => sanitizeStudentData([rawRow], req.user)[0]
+      });
+    }
+
+    const { page, limit, offset } = pagination;
+
+    const { count, rows: students } = await Student.findAndCountAll({
       where,
-      order: [['registerNumber', 'ASC'], ['academicYear', 'DESC'], ['createdAt', 'DESC']]
+      order: [['registerNumber', 'ASC'], ['academicYear', 'DESC'], ['id', 'ASC']],
+      limit,
+      offset
     });
 
-    res.json({
-      success: true,
-      count: students.length,
-      data: students
-    });
+    const sanitized = sanitizeStudentData(students, req.user);
+
+    res.json(formatPaginationResponse({
+      count,
+      rows: sanitized,
+      page,
+      limit
+    }));
   } catch (error) {
     console.error('Get students error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Server error'
+      message: error.message || 'Server error'
     });
   }
 };
@@ -147,8 +185,13 @@ exports.lookupStudentByRegNo = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Register number required' });
     }
 
+    const where = { registerNumber: regNo.trim() };
+    if (req.user && req.user.role !== 'admin' && req.user.role !== 'authority' && req.user.department) {
+      where.department = req.user.department;
+    }
+
     const records = await Student.findAll({
-      where: { registerNumber: regNo.trim() },
+      where,
       order: [['createdAt', 'DESC']]
     });
 
@@ -180,16 +223,18 @@ exports.lookupStudentByRegNo = async (req, res) => {
       }
     }
 
+    const sanitizedMerged = sanitizeStudentData(merged, req.user);
+
     res.json({
       success: true,
-      data: merged,
+      data: sanitizedMerged,
       academicYears: records.map(r => r.academicYear)
     });
   } catch (error) {
     console.error('Lookup student error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Server error'
+      message: error.message || 'Server error'
     });
   }
 };
@@ -200,8 +245,12 @@ exports.lookupStudentByRegNo = async (req, res) => {
 exports.createStudent = async (req, res) => {
   try {
     const rawRecord = req.body;
-    const enriched = await enrichFromHistory(rawRecord);
+    const enriched = await enrichFromHistory(rawRecord, req.user);
     const normalized = normalizeStudentRecord(enriched);
+
+    if (req.user && req.user.role !== 'admin' && req.user.department) {
+      normalized.department = req.user.department;
+    }
 
     const regNo = normalized.registerNumber;
     const academicYear = normalized.academicYear;
@@ -212,6 +261,9 @@ exports.createStudent = async (req, res) => {
     });
 
     if (student) {
+      if (req.user && req.user.role !== 'admin' && student.department !== req.user.department) {
+        return res.status(403).json({ success: false, message: 'Not authorized to update student in another department.' });
+      }
       await student.update(normalized);
     } else {
       student = await Student.create(normalized);
@@ -219,7 +271,7 @@ exports.createStudent = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      data: student
+      data: sanitizeStudentData(student, req.user)
     });
   } catch (error) {
     console.error('Create student error:', error);
@@ -243,14 +295,25 @@ exports.updateStudent = async (req, res) => {
       });
     }
 
-    const enriched = await enrichFromHistory({ ...student.toJSON(), ...req.body });
+    if (req.user && req.user.role !== 'admin' && student.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot update student records outside your department.'
+      });
+    }
+
+    const enriched = await enrichFromHistory({ ...student.toJSON(), ...req.body }, req.user);
     const normalized = normalizeStudentRecord(enriched);
+
+    if (req.user && req.user.role !== 'admin' && req.user.department) {
+      normalized.department = req.user.department;
+    }
 
     await student.update(normalized);
 
     res.json({
       success: true,
-      data: student
+      data: sanitizeStudentData(student, req.user)
     });
   } catch (error) {
     console.error('Update student error:', error);
@@ -273,6 +336,14 @@ exports.deleteStudent = async (req, res) => {
         message: 'Student record not found'
       });
     }
+
+    if (req.user && req.user.role !== 'admin' && student.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot delete student records outside your department.'
+      });
+    }
+
     await student.destroy();
     res.json({
       success: true,
@@ -291,9 +362,11 @@ exports.deleteStudent = async (req, res) => {
 // @route   POST /api/students/bulk
 // @access  Private (admin/coordinator/hod)
 exports.bulkCreateStudent = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { students: studentList } = req.body;
     if (!Array.isArray(studentList) || studentList.length === 0) {
+      await t.rollback();
       return res.status(400).json({
         success: false,
         message: 'No student records provided'
@@ -303,48 +376,65 @@ exports.bulkCreateStudent = async (req, res) => {
     const errors = [];
     const created = [];
 
-    // Drop legacy constraint if present in DB
-    try {
-      const { sequelize } = require('../config/database');
-      await sequelize.query('ALTER TABLE "students" DROP CONSTRAINT IF EXISTS "students_registerNumber_key" CASCADE;').catch(() => {});
-      await sequelize.query('ALTER TABLE "students" DROP CONSTRAINT IF EXISTS "students_register_number_key" CASCADE;').catch(() => {});
-      await sequelize.query('DROP INDEX IF EXISTS "students_register_number_key";').catch(() => {});
-      await sequelize.query('DROP INDEX IF EXISTS "students_registerNumber_key";').catch(() => {});
-    } catch (e) {}
-
     for (let i = 0; i < studentList.length; i++) {
       const rawRecord = studentList[i];
-      if (!rawRecord || !rawRecord.registerNumber) continue;
+      if (!rawRecord || !rawRecord.registerNumber) {
+        errors.push(`Row ${i + 1}: registerNumber is required.`);
+        continue;
+      }
 
       try {
-        const enriched = await enrichFromHistory(rawRecord);
+        const enriched = await enrichFromHistory(rawRecord, req.user);
         const normalized = normalizeStudentRecord(enriched);
 
-        const regNo = normalized.registerNumber;
-        const academicYear = normalized.academicYear;
+        if (!normalized.name || String(normalized.name).trim() === '') {
+          errors.push(`Row ${i + 1} (${rawRecord.registerNumber}): name is required.`);
+          continue;
+        }
 
-        // Check if student record exists for this specific registerNumber and academicYear
-        let existingYearRecord = await Student.findOne({
-          where: { registerNumber: regNo, academicYear: academicYear }
+        if (req.user && req.user.role !== 'admin' && req.user.department) {
+          normalized.department = req.user.department;
+        }
+
+        const regNo = normalized.registerNumber;
+        const academicYear = normalized.academicYear || '2024-2025';
+        normalized.academicYear = academicYear;
+
+        // Deterministic transaction-scoped advisory lock on composite key
+        const lockKey = `student_${regNo}_${academicYear}`;
+        await sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:lockKey))', {
+          replacements: { lockKey },
+          transaction: t
+        });
+
+        // Check if student record exists for this composite key: (registerNumber, academicYear)
+        const existingYearRecord = await Student.findOne({
+          where: { registerNumber: regNo, academicYear: academicYear },
+          transaction: t,
+          lock: t.LOCK.UPDATE
         });
 
         if (existingYearRecord) {
-          await existingYearRecord.update(normalized);
+          if (req.user && req.user.role !== 'admin' && existingYearRecord.department !== req.user.department) {
+            errors.push(`Row ${i + 1} (${regNo}): Not authorized to update student in another department.`);
+            continue;
+          }
+          await existingYearRecord.update(normalized, { transaction: t });
           created.push(existingYearRecord);
         } else {
-          try {
-            const std = await Student.create(normalized);
-            created.push(std);
-          } catch (createErr) {
-            // Fallback: If duplicate register number exists, update existing record
-            const existingAnyRecord = await Student.findOne({ where: { registerNumber: regNo } });
-            if (existingAnyRecord) {
-              await existingAnyRecord.update(normalized);
-              created.push(existingAnyRecord);
-            } else {
-              throw createErr;
-            }
+          // Check for cross-department conflict across any academic year
+          const existingAnyRecord = await Student.findOne({
+            where: { registerNumber: regNo },
+            transaction: t
+          });
+
+          if (existingAnyRecord && req.user && req.user.role !== 'admin' && existingAnyRecord.department !== req.user.department) {
+            errors.push(`Row ${i + 1} (${regNo}): Student belongs to another department (${existingAnyRecord.department}).`);
+            continue;
           }
+
+          const std = await Student.create(normalized, { transaction: t });
+          created.push(std);
         }
       } catch (err) {
         const detail = err.errors && Array.isArray(err.errors)
@@ -354,6 +444,26 @@ exports.bulkCreateStudent = async (req, res) => {
       }
     }
 
+    if (created.length === 0 && errors.length > 0) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'All student records failed validation or authorization.',
+        count: 0,
+        errors
+      });
+    }
+
+    await t.commit();
+
+    await logActionSafe({
+      user: req.user,
+      action: 'BULK_UPLOAD_STUDENTS',
+      title: `Bulk uploaded student records`,
+      remarks: `Processed ${created.length} students with ${errors.length} errors.`,
+      ipAddress: req.ip
+    });
+
     res.json({
       success: true,
       message: `${created.length} student record(s) processed successfully.${errors.length ? ` ${errors.length} error(s) encountered.` : ''}`,
@@ -361,6 +471,9 @@ exports.bulkCreateStudent = async (req, res) => {
       errors: errors.length > 0 ? errors : undefined
     });
   } catch (error) {
+    if (t && !t.finished) {
+      await t.rollback();
+    }
     console.error('Bulk create students error:', error);
     res.status(500).json({
       success: false,
@@ -374,18 +487,31 @@ exports.bulkCreateStudent = async (req, res) => {
 // @access  Private (Admin/Coordinator/HOD)
 exports.clearAllStudents = async (req, res) => {
   try {
-    const deletedCount = await Student.destroy({ where: {} });
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'Student', true);
+
+    let deletedCount = 0;
+    await sequelize.transaction(async (t) => {
+      deletedCount = await Student.destroy({ where, transaction: t });
+    });
+
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_STUDENTS',
+      title: `Cleared student records: ${scopeDescription}`,
+      remarks: `Deleted ${deletedCount} student records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
+
     res.json({
       success: true,
-      message: `All student records (${deletedCount}) cleared successfully`,
+      message: `Student records (${deletedCount}) cleared successfully for ${scopeDescription}`,
       count: deletedCount
     });
   } catch (error) {
     console.error('Clear all students error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       message: error.message || 'Server error'
     });
   }
 };
-

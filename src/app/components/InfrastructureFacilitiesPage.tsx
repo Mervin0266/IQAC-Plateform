@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Sidebar } from './Sidebar';
+import { AppShell } from './design-system';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -203,11 +203,7 @@ export function InfrastructureFacilitiesPage({ onNavigate, isPublicView = false 
   }, [departmentInfrastructure]);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {!isPublicView && <Sidebar currentPage="infrastructure-facilities" onNavigate={onNavigate} />}
-
-      <main className={`${isPublicView ? 'w-full' : 'ml-64 flex-1 min-w-0'} p-4 sm:p-6 lg:p-8 transition-all duration-300`}>
-        <div className="max-w-7xl mx-auto space-y-6">
+    <AppShell currentPage="infrastructure-facilities" onNavigate={onNavigate} hideSidebar={isPublicView}>
           
           {/* Header Bar */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -465,8 +461,6 @@ export function InfrastructureFacilitiesPage({ onNavigate, isPublicView = false 
               </table>
             </div>
           )}
-        </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }

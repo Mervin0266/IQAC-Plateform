@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Sidebar } from "./Sidebar";
 import {
   Card,
   CardContent,
@@ -40,17 +39,20 @@ import {
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
+import { AppShell, PageHeader, StatCard, StatusBadge } from "./design-system";
 
 interface RankingPageProps {
   onNavigate: (page: string) => void;
   currentPage?: string;
   isPublicView?: boolean;
+  hideSidebar?: boolean;
 }
 
 export function RankingPage({
   onNavigate,
   currentPage = "nirf-ranking",
-  isPublicView = false
+  isPublicView = false,
+  hideSidebar = false
 }: RankingPageProps) {
   // Sync tab with currentPage
   const getTabFromCurrentPage = (page: string) => {
@@ -474,16 +476,19 @@ export function RankingPage({
   // ─── PUBLIC VIEW ────────────────────────────────────────────────────────────
   if (isPublicView) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-gradient-to-r from-[#1e3a5f] to-[#2f4692] text-white py-14 shadow-md">
-          <div className="max-w-[1280px] mx-auto px-8">
-            <div className="flex items-center gap-4 mb-2">
-              <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20">
-                <Trophy className="w-8 h-8 text-amber-300" />
+      <div className="min-h-screen bg-slate-50">
+        <div className="bg-[#0B132B] text-white py-12 shadow-sm border-b border-slate-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/10 rounded-xl border border-white/15">
+                <Trophy className="w-8 h-8 text-[#E8C84A]" />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold tracking-tight">Institutional Rankings & Accreditations</h1>
-                <p className="text-blue-100 text-sm mt-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] font-bold text-[#E8C84A] uppercase tracking-wider">CHRIST (Deemed to be University)</span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Institutional Rankings & Accreditations</h1>
+                <p className="text-slate-300 text-xs sm:text-sm mt-1">
                   National and international benchmarks of academic rigor, research excellence, and institutional reputation
                 </p>
               </div>
@@ -491,33 +496,33 @@ export function RankingPage({
           </div>
         </div>
 
-        <div className="max-w-[1280px] mx-auto px-8 py-10">
-          <div className="space-y-5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="space-y-4">
             {summaryRankings.map((ranking) => {
               const improved = ranking.previousRank && ranking.previousRank > parseInt(ranking.title.match(/#(\d+)/)?.[1] || '0');
               return (
                 <Card
                   key={ranking.id}
-                  className="bg-white shadow-sm hover:shadow-md transition-all border border-gray-200 border-l-4 border-l-[#2f4692] rounded-xl"
+                  className="bg-white shadow-xs hover:shadow-md transition-all border border-slate-200 border-l-4 border-l-[#2F4692] rounded-xl"
                 >
                   <CardHeader className="p-5">
                     <div className="flex items-start gap-4">
-                      <div className="p-2.5 bg-blue-50 text-[#2f4692] rounded-xl flex-shrink-0">
-                        <Trophy className="w-6 h-6" />
+                      <div className="p-2.5 bg-blue-50 text-[#2F4692] rounded-xl flex-shrink-0">
+                        <Trophy className="w-5 h-5" />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg font-bold text-gray-900">{ranking.title}</CardTitle>
-                          <Badge className="bg-[#2f4692] text-white text-xs">{ranking.framework}</Badge>
+                          <CardTitle className="text-base font-bold text-slate-900">{ranking.title}</CardTitle>
+                          <Badge className="bg-[#0B132B] text-white text-[11px] font-medium">{ranking.framework}</Badge>
                         </div>
-                        <p className="text-xs text-gray-600 mt-1 mb-3">
+                        <p className="text-xs text-slate-600 mt-1 mb-3">
                           {ranking.body} — <strong>{ranking.category}</strong>
                         </p>
                         <div className="flex flex-wrap gap-2">
-                          <Badge variant="outline" className="bg-slate-50 text-xs">{ranking.category}</Badge>
-                          <Badge variant="outline" className="bg-slate-50 text-xs">Year {ranking.year}</Badge>
+                          <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-xs">{ranking.category}</Badge>
+                          <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-xs">Year {ranking.year}</Badge>
                           {ranking.previousRank && (
-                            <Badge variant="outline" className={improved ? "bg-emerald-50 text-emerald-700 border-emerald-200 text-xs" : "bg-blue-50 text-blue-700 border-blue-200 text-xs"}>
+                            <Badge variant="outline" className={improved ? "bg-emerald-50 text-emerald-800 border-emerald-200 text-xs" : "bg-blue-50 text-blue-800 border-blue-200 text-xs"}>
                               {improved ? `Improved from #${ranking.previousRank}` : `Previous: #${ranking.previousRank}`}
                             </Badge>
                           )}
@@ -534,164 +539,97 @@ export function RankingPage({
     );
   }
 
-  // ─── INTERNAL WORKSPACE VIEW ────────────────────────────────────────────────
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar currentPage={currentPage} onNavigate={onNavigate} />
+  const pageContent = (
+    <div className="space-y-6">
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Institutional Benchmarks' },
+          { label: 'University Rankings', active: true }
+        ]}
+        title="University Rankings & Accreditations"
+        description="Track Christ University's performance across NIRF, India Today MDRA, Times Higher Education (THE), and QS World Rankings"
+        badge="BENCHMARKS"
+      />
 
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        <div className="max-w-7xl mx-auto space-y-6">
-          
-          {/* Top Page Banner */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-xl shadow-md">
-                  <Trophy className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">University Rankings & Benchmarks</h1>
-                    <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      National & Global
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Track Christ University's performance across NIRF, India Today MDRA, Times Higher Education (THE), and QS World Rankings
-                  </p>
-                </div>
-              </div>
-            </div>
+      {/* Framework Sub-Section Navigation Tabs */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className="bg-slate-100 p-1.5 rounded-xl w-full flex flex-wrap justify-start gap-1 border border-slate-200 shadow-inner h-auto">
+          <TabsTrigger
+            value="nirf"
+            className="py-2.5 px-4 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-[#0B132B] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-700"
+          >
+            <Trophy className="w-4 h-4 text-[#E8C84A]" />
+            <span>NIRF Ranking</span>
+          </TabsTrigger>
 
-            {/* Framework Sub-Section Navigation Tabs */}
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-              <TabsList className="bg-slate-100 p-1.5 rounded-xl w-full flex flex-wrap justify-start gap-1 border border-slate-200 shadow-inner h-auto">
-                <TabsTrigger
-                  value="nirf"
-                  className="py-2.5 px-4 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm"
-                >
-                  <Trophy className="w-4 h-4 text-orange-600" />
-                  <span>NIRF Ranking</span>
-                </TabsTrigger>
+          <TabsTrigger
+            value="india-today"
+            className="py-2.5 px-4 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-[#0B132B] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-700"
+          >
+            <Award className="w-4 h-4 text-blue-400" />
+            <span>India Today - MDRA</span>
+          </TabsTrigger>
 
-                <TabsTrigger
-                  value="india-today"
-                  className="py-2.5 px-4 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm"
-                >
-                  <Award className="w-4 h-4 text-blue-600" />
-                  <span>India Today - MDRA</span>
-                </TabsTrigger>
+          <TabsTrigger
+            value="the"
+            className="py-2.5 px-4 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-[#0B132B] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-700"
+          >
+            <Globe className="w-4 h-4 text-emerald-400" />
+            <span>THE World Ranking</span>
+          </TabsTrigger>
 
-                <TabsTrigger
-                  value="the"
-                  className="py-2.5 px-4 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-white data-[state=active]:text-purple-700 data-[state=active]:shadow-sm"
-                >
-                  <Globe className="w-4 h-4 text-purple-600" />
-                  <span>THE World Ranking</span>
-                </TabsTrigger>
+          <TabsTrigger
+            value="qs"
+            className="py-2.5 px-4 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-[#0B132B] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-700"
+          >
+            <Star className="w-4 h-4 text-amber-400" />
+            <span>QS India & World</span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
-                <TabsTrigger
-                  value="qs"
-                  className="py-2.5 px-4 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"
-                >
-                  <Star className="w-4 h-4 text-emerald-600" />
-                  <span>QS India & World</span>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+      {/* Institutional Highlights Overview StatCards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div onClick={() => handleTabChange('nirf')} className="cursor-pointer">
+          <StatCard
+            title="NIRF Overall 2024"
+            value={`#${nirfRankings.overall.rank}`}
+            icon={Trophy}
+            change={{ value: "+4 Ranks", positive: true }}
+            subtitle="Engineering: #76 (Up +47)"
+          />
+        </div>
 
-          {/* Institutional Highlights Overview Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card 
-              onClick={() => handleTabChange('nirf')}
-              className={`border transition-all cursor-pointer hover:shadow-md rounded-xl ${
-                activeTab === 'nirf' ? 'border-orange-300 ring-2 ring-orange-200 bg-gradient-to-br from-orange-50/80 to-white' : 'border-gray-200 bg-white'
-              }`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-orange-800 uppercase tracking-wider">NIRF Overall 2024</span>
-                  <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center">
-                    <Trophy className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-3xl font-extrabold text-orange-600">#{nirfRankings.overall.rank}</span>
-                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
-                    <ArrowUp className="w-3 h-3 mr-0.5" />
-                    +4 Ranks
-                  </Badge>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">Engineering: #{nirfRankings.engineering.rank} (Up +47 ranks)</p>
-              </CardContent>
-            </Card>
+        <div onClick={() => handleTabChange('india-today')} className="cursor-pointer">
+          <StatCard
+            title="India Today MDRA"
+            value={`#${indiaTodayRankings[0].rank}`}
+            icon={Award}
+            badge="Score: 865.4"
+            subtitle="Best Private Universities"
+          />
+        </div>
 
-            <Card 
-              onClick={() => handleTabChange('india-today')}
-              className={`border transition-all cursor-pointer hover:shadow-md rounded-xl ${
-                activeTab === 'india-today' ? 'border-blue-300 ring-2 ring-blue-200 bg-gradient-to-br from-blue-50/80 to-white' : 'border-gray-200 bg-white'
-              }`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">India Today MDRA</span>
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-                    <Award className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-3xl font-extrabold text-blue-600">#{indiaTodayRankings[0].rank}</span>
-                  <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
-                    Score: 865.4
-                  </Badge>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">Best Private Universities in India</p>
-              </CardContent>
-            </Card>
+        <div onClick={() => handleTabChange('the')} className="cursor-pointer">
+          <StatCard
+            title="THE World Ranking"
+            value={theRankings.overall}
+            icon={Globe}
+            badge="Impact: 301-400"
+            subtitle="Asia Band: #251-300"
+          />
+        </div>
 
-            <Card 
-              onClick={() => handleTabChange('the')}
-              className={`border transition-all cursor-pointer hover:shadow-md rounded-xl ${
-                activeTab === 'the' ? 'border-purple-300 ring-2 ring-purple-200 bg-gradient-to-br from-purple-50/80 to-white' : 'border-gray-200 bg-white'
-              }`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-purple-800 uppercase tracking-wider">THE World Ranking</span>
-                  <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
-                    <Globe className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-2xl font-extrabold text-purple-600">{theRankings.overall}</span>
-                  <span className="text-[10px] text-purple-700 font-medium">Band</span>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">Asia: #{theRankings.asiaRank} | Impact: #{theRankings.impactRank}</p>
-              </CardContent>
-            </Card>
-
-            <Card 
-              onClick={() => handleTabChange('qs')}
-              className={`border transition-all cursor-pointer hover:shadow-md rounded-xl ${
-                activeTab === 'qs' ? 'border-emerald-300 ring-2 ring-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white' : 'border-gray-200 bg-white'
-              }`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">QS Rankings</span>
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                    <Star className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-3xl font-extrabold text-emerald-600">#{qsRankings.indiaRank}</span>
-                  <span className="text-[10px] text-emerald-700 font-medium">in India</span>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">QS Asia Rank: #{qsRankings.asiaRank}</p>
-              </CardContent>
-            </Card>
-          </div>
+        <div onClick={() => handleTabChange('qs')} className="cursor-pointer">
+          <StatCard
+            title="QS India Ranking"
+            value={`#${qsRankings.indiaRank}`}
+            icon={Star}
+            badge="Asia: #228"
+            subtitle="World Band: 801-850"
+          />
+        </div>
+      </div>
 
           {/* ═══════════════════════════════════════════════════════════════════ */}
           {/* SUB-SECTION 1: NIRF RANKING                                        */}
@@ -1180,9 +1118,16 @@ export function RankingPage({
               </Card>
             </div>
           )}
-
-        </div>
-      </main>
     </div>
+  );
+
+  if (hideSidebar) {
+    return <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto space-y-6">{pageContent}</div>;
+  }
+
+  return (
+    <AppShell currentPage={currentPage} onNavigate={onNavigate}>
+      {pageContent}
+    </AppShell>
   );
 }

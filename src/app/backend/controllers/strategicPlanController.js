@@ -1,23 +1,25 @@
 const { StrategicPlan, User } = require('../models');
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
+const { logActionSafe } = require('../middleware/auditLogger');
 
 // @desc    Get all strategic plans
 // @route   GET /api/strategic-plans
 // @access  Private
 exports.getStrategicPlans = async (req, res) => {
   try {
-    const { department, academicYear, category, status } = req.query;
-    
-    const where = {};
-    if (department) where.department = department;
+    const { academicYear, category, status } = req.query;
+    const { where: scopeWhere } = await resolveDepartmentScope(req, 'StrategicPlan', false);
+    const where = { ...scopeWhere };
+
+    if ((req.user.role === 'admin' || req.user.role === 'authority') &&
+        req.query.department && req.query.department !== 'All') {
+      where.department = req.query.department;
+    }
     if (academicYear) where.academicYear = academicYear;
     if (category) where.category = category;
     if (status) where.status = status;
-
-    // Faculty/Coordinator can only see their department's plans unless admin
-    if ((req.user.role === 'faculty' || req.user.role === 'coordinator') && req.user.department) {
-      where.department = req.user.department;
-    }
 
     const plans = await StrategicPlan.findAll({
       where,
@@ -76,15 +78,25 @@ exports.getStrategicPlan = async (req, res) => {
   }
 };
 
+const ALLOWED_PLAN_FIELDS = [
+  'academicYear', 'category', 'objective', 'description', 'targetDate',
+  'status', 'progress', 'budget', 'responsible', 'kpis'
+];
+
 // @desc    Create strategic plan
 // @route   POST /api/strategic-plans
 // @access  Private
 exports.createStrategicPlan = async (req, res) => {
   try {
-    const plan = await StrategicPlan.create({
-      ...req.body,
-      createdBy: req.user.id
+    const dept = req.user.role === 'admin' ? (req.body.department || 'General') : (req.user.department || 'General');
+    const safeData = {};
+    ALLOWED_PLAN_FIELDS.forEach(f => {
+      if (req.body[f] !== undefined) safeData[f] = req.body[f];
     });
+    safeData.department = dept;
+    safeData.createdBy = req.user.id;
+
+    const plan = await StrategicPlan.create(safeData);
 
     res.status(201).json({
       success: true,
@@ -121,7 +133,26 @@ exports.updateStrategicPlan = async (req, res) => {
       });
     }
 
-    await plan.update(req.body);
+    if (req.user.role !== 'admin' && req.user.department && plan.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot update strategic plans outside your department.'
+      });
+    }
+
+    const updates = {};
+    ALLOWED_PLAN_FIELDS.forEach(f => {
+      if (req.body[f] !== undefined) updates[f] = req.body[f];
+    });
+
+    if (req.user.role === 'admin' && req.body.department !== undefined) {
+      updates.department = req.body.department;
+    }
+
+    delete updates.id;
+    delete updates.createdBy;
+
+    await plan.update(updates);
 
     res.json({
       success: true,
@@ -214,15 +245,29 @@ exports.getStrategicPlanStats = async (req, res) => {
 // @access  Private (Admin/Coordinator/HOD)
 exports.clearAllStrategicPlans = async (req, res) => {
   try {
-    const deletedCount = await StrategicPlan.destroy({ where: {} });
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'StrategicPlan', true);
+
+    let deletedCount = 0;
+    await sequelize.transaction(async (t) => {
+      deletedCount = await StrategicPlan.destroy({ where, transaction: t });
+    });
+
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_STRATEGIC_PLANS',
+      title: `Cleared strategic plans: ${scopeDescription}`,
+      remarks: `Deleted ${deletedCount} strategic plan records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
+
     res.json({
       success: true,
-      message: `All strategic plans (${deletedCount}) cleared successfully`,
+      message: `All strategic plans (${deletedCount}) cleared successfully for ${scopeDescription}`,
       count: deletedCount
     });
   } catch (error) {
     console.error('Clear all strategic plans error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       message: error.message || 'Server error'
     });

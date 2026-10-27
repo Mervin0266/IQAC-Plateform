@@ -1,8 +1,10 @@
 const { Publication, User } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { logAction } = require('../middleware/auditLogger');
+const { logAction, logActionSafe } = require('../middleware/auditLogger');
 const { sendNotification } = require('../middleware/notificationHelper');
+const { resolveDepartmentScope } = require('../utils/scopeHelper');
+const { parsePagination, formatPaginationResponse } = require('../utils/paginationHelper');
 
 const sanitizeDate = (val) => {
   if (!val) return null;
@@ -114,7 +116,9 @@ exports.getPublications = async (req, res) => {
       ];
     }
 
-    const publications = await Publication.findAll({
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const { count, rows: publications } = await Publication.findAndCountAll({
       where,
       include: [{
         model: User,
@@ -124,15 +128,19 @@ exports.getPublications = async (req, res) => {
       order: [
         ['academicYear', 'DESC'],
         ['publicationDate', 'DESC'],
-        ['createdAt', 'DESC']
-      ]
+        ['id', 'ASC']
+      ],
+      limit,
+      offset,
+      distinct: true
     });
 
-    res.json({
-      success: true,
-      count: publications.length,
-      data: publications
-    });
+    res.json(formatPaginationResponse({
+      count,
+      rows: publications,
+      page,
+      limit
+    }));
   } catch (error) {
     console.error('Get publications error:', error);
     res.status(500).json({
@@ -285,8 +293,11 @@ exports.createPublication = async (req, res) => {
       });
     }
 
-    const assignedDept = department || req.user.department || 'General';
+    const assignedDept = req.user.role === 'admin' ? (department || 'General') : (req.user.department || 'General');
     const assignedYear = academicYear || '2024-2025';
+    const finalStatus = (['admin', 'coordinator', 'hod'].includes(req.user.role) && status)
+      ? status
+      : (req.user.role === 'admin' ? 'approved' : 'submitted');
 
     const publication = await Publication.create({
       authorName: authorName.trim(),
@@ -305,7 +316,7 @@ exports.createPublication = async (req, res) => {
       citationCount: citationCount ? parseInt(citationCount, 10) : 0,
       paperUrl: paperUrl ? paperUrl.trim() : null,
       abstract: abstract ? abstract.trim() : null,
-      status: status || (req.user.role === 'admin' ? 'approved' : 'submitted'),
+      status: finalStatus,
       createdBy: req.user.id
     });
 
@@ -357,12 +368,19 @@ exports.updatePublication = async (req, res) => {
       });
     }
 
+    if (['coordinator', 'hod'].includes(req.user.role) && req.user.department && publication.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot update publications outside your department.'
+      });
+    }
+
     const oldValues = publication.toJSON();
 
     const allowedFields = [
-      'authorName', 'title', 'journalName', 'journalType', 'department',
+      'authorName', 'title', 'journalName', 'journalType',
       'academicYear', 'publicationDate', 'doi', 'issn', 'volume', 'issue',
-      'pageNumber', 'impactFactor', 'citationCount', 'paperUrl', 'abstract', 'status'
+      'pageNumber', 'impactFactor', 'citationCount', 'paperUrl', 'abstract'
     ];
 
     allowedFields.forEach(field => {
@@ -370,6 +388,16 @@ exports.updatePublication = async (req, res) => {
         publication[field] = req.body[field];
       }
     });
+
+    // Only coordinator, hod, and admin can change approval status
+    if (['admin', 'coordinator', 'hod'].includes(req.user.role) && req.body.status !== undefined) {
+      publication.status = req.body.status;
+    }
+
+    // Only admin can reassign department
+    if (req.user.role === 'admin' && req.body.department !== undefined) {
+      publication.department = req.body.department;
+    }
 
     await publication.save();
 
@@ -581,38 +609,30 @@ exports.bulkUploadPublications = async (req, res) => {
 // @access  Private (Admin / HOD)
 exports.clearAllPublications = async (req, res) => {
   try {
-    const where = {};
-    if (req.user.role === 'hod' && req.user.department) {
-      where.department = req.user.department;
-    } else if (req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only Administrators and HODs can clear publication records.'
-      });
-    }
+    const { where, scopeDescription } = await resolveDepartmentScope(req, 'Publication', true);
 
-    const count = await Publication.destroy({ where });
+    let count = 0;
+    await sequelize.transaction(async (t) => {
+      count = await Publication.destroy({ where, transaction: t });
+    });
 
-    await logAction(
-      req.user.id,
-      'CLEAR_ALL_PUBLICATIONS',
-      'Publication',
-      null,
-      null,
-      { clearedCount: count, scope: where },
-      req
-    );
+    await logActionSafe({
+      user: req.user,
+      action: 'CLEAR_ALL_PUBLICATIONS',
+      title: `Cleared publications: ${scopeDescription}`,
+      remarks: `Deleted ${count} publication records. Scope: ${scopeDescription}`,
+      ipAddress: req.ip
+    });
 
     res.json({
       success: true,
-      message: `Cleared ${count} publication records successfully.`
+      message: `Cleared ${count} publication records successfully for ${scopeDescription}.`
     });
   } catch (error) {
     console.error('Clear publications error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Failed to clear publications',
-      error: error.message
+      message: error.message || 'Failed to clear publications'
     });
   }
 };

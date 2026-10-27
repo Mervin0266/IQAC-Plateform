@@ -21,6 +21,7 @@ import { PublicationsPage } from './PublicationsPage';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { Button } from './ui/button';
+import { AppShell, PageHeader, StatCard } from './design-system';
 
 interface ResearchPageProps {
   onNavigate: (page: string) => void;
@@ -602,256 +603,200 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
   const isEditableRole = user?.role === 'admin' || user?.role === 'hod' || user?.role === 'coordinator';
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar currentPage={currentPage} onNavigate={onNavigate} />
-      
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        <div className="max-w-7xl mx-auto space-y-6">
-          
-          {/* Master Tabs Header */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 bg-gradient-to-br from-[#1e3a5f] to-[#2f4692] text-white rounded-xl shadow-md">
-                    <Sparkles className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-                      Research & Innovation Workspace
-                    </h1>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Unified ecosystem managing publications, patents, sponsored research grants, consultancy projects, and NAAC/NIRF metrics
-                    </p>
-                  </div>
-                </div>
-              </div>
+    <AppShell currentPage={currentPage} onNavigate={onNavigate}>
+      <div className="space-y-6">
+        {/* Header Bar */}
+        <PageHeader
+          breadcrumbs={[
+            { label: 'Academics' },
+            { label: 'Research & Innovation' }
+          ]}
+          title="Research & Innovation Workspace"
+          description="Institutional repository and analytics tracking publications, patents, sponsored research grants, and consultancy metrics."
+          actions={
+            activeTab === 'metrics' ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  onClick={fetchResearchMetrics}
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  title="Refresh Research Metrics"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingGrid ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </Button>
 
-              {/* Actions on Metrics Grid View */}
-              {activeTab === 'metrics' && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Refresh Button */}
-                  <Button
-                    onClick={fetchResearchMetrics}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1.5 border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-sm"
-                    title="Refresh Research Metrics"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${loadingGrid ? 'animate-spin' : ''}`} />
-                    <span>Refresh</span>
-                  </Button>
+                <Button 
+                  onClick={handleExportExcel}
+                  variant="outline" 
+                  size="sm"
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  title="Export to Excel"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Export Excel</span>
+                </Button>
 
-                  {/* Export Excel (.xlsx) */}
-                  <Button 
-                    onClick={handleExportExcel}
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-1.5 border-emerald-200 text-emerald-800 bg-emerald-50/60 hover:bg-emerald-100/80 text-xs font-bold shadow-sm"
-                    title="Export current research metrics matrix to Excel spreadsheet (.xlsx)"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Export Excel</span>
-                  </Button>
+                <Button 
+                  onClick={handleExportCSV}
+                  variant="outline" 
+                  size="sm"
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Export CSV</span>
+                </Button>
+                
+                {isEditableRole && (
+                  <>
+                    <Button
+                      onClick={() => setIsClearOpen(true)}
+                      variant="outline"
+                      size="sm"
+                      className="border-rose-200 bg-white text-rose-700 hover:bg-rose-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                      title="Clear All Research Metrics"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Clear Data</span>
+                    </Button>
 
-                  {/* Export CSV */}
-                  <Button 
-                    onClick={handleExportCSV}
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-1.5 border-gray-200 text-gray-700 bg-white hover:bg-gray-50 text-xs font-semibold shadow-sm"
-                  >
-                    <Download className="w-3.5 h-3.5 text-gray-500" />
-                    <span>Export CSV</span>
-                  </Button>
-                  
-                  {isEditableRole && (
-                    <>
-                      {/* Clear Data Button */}
-                      <Button
-                        onClick={() => setIsClearOpen(true)}
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-1.5 border-red-200 text-red-600 bg-white hover:bg-red-50 text-xs font-semibold shadow-sm"
-                        title="Clear All Research Metrics"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Clear Data</span>
-                      </Button>
-                      {/* Upload in Excel Button */}
-                      <Button 
-                        onClick={() => {
-                          setUploadFile(null);
-                          setPreviewRows([]);
-                          setUploadErrors([]);
-                          setUploadSuccessMessage(null);
-                          setIsUploadModalOpen(true);
-                        }}
-                        size="sm"
-                        className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white text-xs font-bold shadow-sm"
-                      >
-                        <UploadCloud className="w-3.5 h-3.5" />
-                        <span>Upload in Excel</span>
-                      </Button>
+                    <Button 
+                      onClick={() => {
+                        setUploadFile(null);
+                        setPreviewRows([]);
+                        setUploadErrors([]);
+                        setUploadSuccessMessage(null);
+                        setIsUploadModalOpen(true);
+                      }}
+                      size="sm"
+                      className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+                    >
+                      <UploadCloud className="w-3.5 h-3.5" />
+                      <span>Upload Excel</span>
+                    </Button>
 
-                      {isEditingGrid ? (
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            onClick={() => {
-                              setIsEditingGrid(false);
-                              fetchResearchMetrics();
-                            }}
-                            variant="outline" 
-                            size="sm"
-                            className="text-gray-700 border-gray-200 text-xs"
-                          >
-                            Cancel
-                          </Button>
-                          <Button 
-                            onClick={handleSaveGrid}
-                            size="sm"
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm flex items-center gap-1.5"
-                          >
-                            <Save className="w-3.5 h-3.5" />
-                            <span>Save Changes</span>
-                          </Button>
-                        </div>
-                      ) : (
+                    {isEditingGrid ? (
+                      <div className="flex items-center gap-2">
                         <Button 
-                          onClick={() => setIsEditingGrid(true)}
+                          onClick={() => {
+                            setIsEditingGrid(false);
+                            fetchResearchMetrics();
+                          }}
+                          variant="outline" 
                           size="sm"
-                          className="flex items-center gap-1.5 bg-[#2f4692] hover:bg-[#243a7a] text-white text-xs font-semibold shadow-sm"
+                          className="border-slate-200 text-slate-700 text-xs h-9 px-3.5 rounded-xl"
                         >
-                          <Edit className="w-3.5 h-3.5" />
-                          <span>Edit Grid Data</span>
+                          Cancel
                         </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Master Tabs List */}
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-              <TabsList className="bg-slate-100 p-1.5 rounded-xl w-full flex flex-wrap justify-start gap-1 border border-slate-200 shadow-inner h-auto">
-                <TabsTrigger 
-                  value="metrics" 
-                  className="py-2 px-3.5 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-white data-[state=active]:text-[#1e3a5f] data-[state=active]:shadow-sm"
-                >
-                  <BarChart3 className="w-4 h-4 text-indigo-600" />
-                  <span>Research Metrics Grid</span>
-                </TabsTrigger>
-
-                <TabsTrigger 
-                  value="publications" 
-                  className="py-2 px-3.5 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-white data-[state=active]:text-[#1e3a5f] data-[state=active]:shadow-sm"
-                >
-                  <BookOpen className="w-4 h-4 text-blue-600" />
-                  <span>Publications</span>
-                </TabsTrigger>
-
-                <TabsTrigger 
-                  value="patents" 
-                  className="py-2 px-3.5 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-white data-[state=active]:text-[#1e3a5f] data-[state=active]:shadow-sm"
-                >
-                  <Award className="w-4 h-4 text-amber-600" />
-                  <span>Patents & IP</span>
-                </TabsTrigger>
-
-                <TabsTrigger 
-                  value="sponsored" 
-                  className="py-2 px-3.5 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-white data-[state=active]:text-[#1e3a5f] data-[state=active]:shadow-sm"
-                >
-                  <TrendingUp className="w-4 h-4 text-emerald-600" />
-                  <span>Sponsored Research</span>
-                </TabsTrigger>
-
-                <TabsTrigger 
-                  value="consultancy" 
-                  className="py-2 px-3.5 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all data-[state=active]:bg-white data-[state=active]:text-[#1e3a5f] data-[state=active]:shadow-sm"
-                >
-                  <Briefcase className="w-4 h-4 text-teal-600" />
-                  <span>Consultancy</span>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-
-          {/* TAB 1: RESEARCH METRICS GRID */}
-          {activeTab === 'metrics' && (
-            <div className="space-y-6">
-              
-              {/* Institution KPI Overview */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border border-blue-100 bg-gradient-to-br from-blue-50/70 to-white shadow-sm rounded-xl">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">Indexed Journals</span>
-                      <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-                        <BookOpen className="w-4 h-4" />
+                        <Button 
+                          onClick={handleSaveGrid}
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs flex items-center gap-1.5"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Save Changes</span>
+                        </Button>
                       </div>
-                    </div>
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <span className="text-2xl font-extrabold text-gray-900">{gridTotals.scopusJournals}</span>
-                      <span className="text-[10px] text-blue-600 font-medium">Scopus / WoS</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-1">{totalPublicationsCount} total journal publications</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-amber-100 bg-gradient-to-br from-amber-50/70 to-white shadow-sm rounded-xl">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Patents & IP</span>
-                      <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-                        <Award className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <span className="text-2xl font-extrabold text-gray-900">{totalPatentsCount}</span>
-                      <span className="text-[10px] text-amber-600 font-medium">Filed & Granted</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-1">{gridTotals.patentsIndian} Indian / {gridTotals.patentsInternational} International</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50/70 to-white shadow-sm rounded-xl">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Sponsored Grants</span>
-                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                        <TrendingUp className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <span className="text-2xl font-extrabold text-emerald-700 font-mono">
-                        ₹{Number(gridTotals.externalProjectsAmount).toFixed(2)}L
-                      </span>
-                      <span className="text-[10px] text-emerald-600 font-medium">({gridTotals.externalProjectsCount} Projects)</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-1">Total external grants sanctioned</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-teal-100 bg-gradient-to-br from-teal-50/70 to-white shadow-sm rounded-xl">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-teal-800 uppercase tracking-wider">Consultancy Revenue</span>
-                      <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center">
-                        <Briefcase className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <span className="text-2xl font-extrabold text-teal-700 font-mono">
-                        ₹{Number(gridTotals.consultancyAmount).toFixed(2)}L
-                      </span>
-                      <span className="text-[10px] text-teal-600 font-medium">({gridTotals.consultancyCount} Contracts)</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-1">Industry contracts & advisory</p>
-                  </CardContent>
-                </Card>
+                    ) : (
+                      <Button 
+                        onClick={() => setIsEditingGrid(true)}
+                        size="sm"
+                        className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs flex items-center gap-1.5"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Edit Grid</span>
+                      </Button>
+                    )}
+                  </>
+                )}
               </div>
+            ) : undefined
+          }
+        />
+
+        {/* Master Tabs List */}
+        <div className="bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+            <TabsList className="bg-slate-100 p-1 rounded-lg w-full flex flex-wrap justify-start gap-1 border border-slate-200/60 h-auto">
+              <TabsTrigger 
+                value="metrics" 
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2F4692] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Research Metrics Grid</span>
+              </TabsTrigger>
+
+              <TabsTrigger 
+                value="publications" 
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2F4692] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Publications</span>
+              </TabsTrigger>
+
+              <TabsTrigger 
+                value="patents" 
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2F4692] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600"
+              >
+                <Award className="w-4 h-4" />
+                <span>Patents & IP</span>
+              </TabsTrigger>
+
+              <TabsTrigger 
+                value="sponsored" 
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2F4692] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600"
+              >
+                <TrendingUp className="w-4 h-4" />
+                <span>Sponsored Research</span>
+              </TabsTrigger>
+
+              <TabsTrigger 
+                value="consultancy" 
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2F4692] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600"
+              >
+                <Briefcase className="w-4 h-4" />
+                <span>Consultancy</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* TAB 1: RESEARCH METRICS GRID */}
+        {activeTab === 'metrics' && (
+          <div className="space-y-6">
+            
+            {/* Institution KPI Overview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard
+                title="Indexed Journals"
+                value={gridTotals.scopusJournals}
+                badge="Scopus / WoS"
+                subtitle={`${totalPublicationsCount} total journal publications`}
+                icon={BookOpen}
+              />
+              <StatCard
+                title="Patents & IP"
+                value={totalPatentsCount}
+                badge="Filed & Granted"
+                subtitle={`${gridTotals.patentsIndian} Indian / ${gridTotals.patentsInternational} International`}
+                icon={Award}
+              />
+              <StatCard
+                title="Sponsored Grants"
+                value={`₹${Number(gridTotals.externalProjectsAmount).toFixed(2)}L`}
+                badge={`${gridTotals.externalProjectsCount} Projects`}
+                subtitle="Total external grants sanctioned"
+                icon={TrendingUp}
+              />
+              <StatCard
+                title="Consultancy Revenue"
+                value={`₹${Number(gridTotals.consultancyAmount).toFixed(2)}L`}
+                badge={`${gridTotals.consultancyCount} Contracts`}
+                subtitle="Industry contracts & advisory"
+                icon={Briefcase}
+              />
+            </div>
 
               {/* Grid Control Bar */}
               <Card className="shadow-sm border-gray-200 rounded-xl bg-white">
@@ -1282,9 +1227,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
           {activeTab === 'consultancy' && (
             <ConsultancyProjectsPage hideSidebar={true} onNavigate={onNavigate} token={user?.token || ''} userRole={user?.role || 'faculty'} />
           )}
-
         </div>
-      </main>
 
       {/* EXCEL UPLOAD MODAL DIALOG */}
       <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
@@ -1542,7 +1485,6 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-    </div>
+    </AppShell>
   );
 }

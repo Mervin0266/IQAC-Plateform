@@ -1,8 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { Sidebar } from './Sidebar';
-import { Card, CardContent } from './ui/card';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { 
   Users, 
   GraduationCap, 
@@ -37,8 +33,25 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { normalizeAcademicYear, normalizeDepartmentName } from './FacultyDetailsPage';
+import { sanitizeSpreadsheetCell } from '../utils/spreadsheetSanitizer';
+import {
+  AppShell,
+  PageHeader,
+  StatCard,
+  FilterToolbar,
+  DetailDrawer,
+  StatusBadge,
+  ConfirmDialog,
+  SectionCard,
+  FormModal,
+  FormField,
+  FormInput,
+  FormSelect,
+} from './design-system';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
 
 interface StudentDetailsPageProps {
   onNavigate: (page: string) => void;
@@ -87,12 +100,16 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'cards' | 'analytics'>('table');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 50;
 
-  const fetchStudents = async () => {
+  const fetchStudents = async (page = currentPage) => {
     if (!user?.token) return;
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students?page=${page}&limit=${pageSize}`, {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       if (response.status === 401) {
@@ -102,6 +119,13 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       const data = await response.json();
       if (data.success) {
         setStudents(data.data || []);
+        if (data.pagination) {
+          setTotalCount(data.pagination.total);
+          setTotalPages(data.pagination.totalPages);
+          setCurrentPage(data.pagination.page);
+        } else {
+          setTotalCount((data.data || []).length);
+        }
       }
     } catch (err) {
       console.error('Error fetching students:', err);
@@ -405,19 +429,56 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
     }
   };
 
-  const exportToCSV = () => {
-    const headerRow = 'Register No,Name,Department,Course,Program Level,Class,Batch,Academic Year,Gender,Status,Email,Mobile No';
-    const rows = filteredStudents.map((s) =>
-      `"${s.registerNumber}","${s.name}","${s.department || ''}","${s.course || ''}","${s.programLevel || ''}","${s.className || ''}","${s.batch || ''}","${s.academicYear || '2024-2025'}","${s.gender || ''}","${s.status || 'Active'}","${s.email || ''}","${s.mobileNo || s.phone || ''}"`
-    );
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headerRow, ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Student_Directory_${academicYearFilter}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportToCSV = async () => {
+    try {
+      let exportDataset = filteredStudents;
+      if (user?.token) {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/students?export=true`, {
+          headers: { 'Authorization': `Bearer ${user.token}` }
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          exportDataset = data.data;
+          if (academicYearFilter !== 'All') {
+            exportDataset = exportDataset.filter(s => s.academicYear === academicYearFilter);
+          }
+          if (departmentFilter !== 'All') {
+            exportDataset = exportDataset.filter(s => s.department === departmentFilter);
+          }
+          if (searchTerm) {
+            const q = searchTerm.toLowerCase();
+            exportDataset = exportDataset.filter(s => (s.name || '').toLowerCase().includes(q) || (s.registerNumber || '').toLowerCase().includes(q));
+          }
+        }
+      }
+
+      const headerRow = 'Register No,Name,Department,Course,Program Level,Class,Batch,Academic Year,Gender,Status,Email,Mobile No';
+      const rows = exportDataset.map((s) => {
+        const reg = sanitizeSpreadsheetCell(s.registerNumber);
+        const name = sanitizeSpreadsheetCell(s.name);
+        const dept = sanitizeSpreadsheetCell(s.department || '');
+        const course = sanitizeSpreadsheetCell(s.course || '');
+        const prog = sanitizeSpreadsheetCell(s.programLevel || '');
+        const cls = sanitizeSpreadsheetCell(s.className || '');
+        const batch = sanitizeSpreadsheetCell(s.batch || '');
+        const year = sanitizeSpreadsheetCell(s.academicYear || '2024-2025');
+        const gender = sanitizeSpreadsheetCell(s.gender || '');
+        const status = sanitizeSpreadsheetCell(s.status || 'Active');
+        const email = sanitizeSpreadsheetCell(s.email || '');
+        const phone = sanitizeSpreadsheetCell(s.mobileNo || s.phone || '');
+        return `"${reg}","${name}","${dept}","${course}","${prog}","${cls}","${batch}","${year}","${gender}","${status}","${email}","${phone}"`;
+      });
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headerRow, ...rows].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `Student_Directory_${academicYearFilter}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Export CSV error:', err);
+    }
   };
 
   const clearFilters = () => {
@@ -430,291 +491,224 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      <Sidebar currentPage="student-details" onNavigate={onNavigate} />
+    <AppShell currentPage="student-details" onNavigate={onNavigate}>
+      {/* 1. Universal Page Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Academics' },
+          { label: 'Student Census', active: true },
+        ]}
+        title="Student Enrollment Intelligence"
+        badge={`${students.length} Students`}
+        description="Undergraduate, postgraduate & doctoral cohort records, admission status and class lineages across academic schools."
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => fetchStudents()}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shadow-xs disabled:opacity-50"
+              title="Refresh Records"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
+              <span>Sync Data</span>
+            </button>
 
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        <div className="max-w-7xl mx-auto space-y-6">
-          
-          {/* Header Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-[#2f4692]/20 ring-4 ring-[#2f4692]/10">
-                <GraduationCap className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Student Enrollment Intelligence
-                </h1>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Undergraduate, postgraduate & doctoral cohort records, admission status and class lineages
-                </p>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={exportToCSV}
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shadow-xs"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Export Report</span>
+            </button>
 
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <Button
-                onClick={fetchStudents}
-                variant="outline"
-                className="border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
-                title="Refresh Records"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Sync Data</span>
-              </Button>
-
-              <Button
-                onClick={exportToCSV}
-                variant="outline"
-                className="border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Export Report</span>
-              </Button>
-
-              {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
-                <>
-                  <Button
-                    onClick={() => setIsClearOpen(true)}
-                    variant="outline"
-                    className="border-red-200 hover:bg-red-50 text-red-600 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
-                    title="Clear All Student Records"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear Data</span>
-                  </Button>
-
-                  <Button
-                    onClick={() => setIsBulkUploadOpen(true)}
-                    variant="outline"
-                    className="border-teal-200 hover:bg-teal-50 text-teal-700 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Bulk Upload</span>
-                  </Button>
-
-                  <Button
-                    onClick={() => { resetForm(); setIsAddModalOpen(true); }}
-                    className="bg-gradient-to-r from-[#2f4692] to-[#1e2f65] hover:from-[#243a7a] hover:to-[#172450] text-white text-xs font-bold h-9 rounded-xl shadow-md shadow-[#2f4692]/20 flex items-center gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Student</span>
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* 5 Enterprise KPI Metric Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {/* Card 1: Total Students */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2f4692] to-blue-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Enrollment</p>
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2f4692] flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Users className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.total}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                Active & registered students
-              </p>
-            </div>
-
-            {/* Card 2: UG Cohort */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">UG Cohort</p>
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <School className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-emerald-700 tracking-tight mt-2">{stats.ugCount}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                <span className="text-emerald-600 font-bold">{stats.ugPercent}%</span> undergraduate share
-              </p>
-            </div>
-
-            {/* Card 3: PG & Doctoral */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">PG & Scholars</p>
-                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <GraduationCap className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-purple-700 tracking-tight mt-2">{stats.pgCount}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                <span className="text-purple-600 font-bold">{stats.pgPercent}%</span> post-grad cohort
-              </p>
-            </div>
-
-            {/* Card 4: Active Enrolled */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Good Standing</p>
-                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <UserCheck className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.activeCount}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                <span className="text-emerald-600 font-bold">{stats.activePercent}%</span> active status
-              </p>
-            </div>
-
-            {/* Card 5: Departments */}
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Disciplines</p>
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Building2 className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{stats.depts}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                Academic departments
-              </p>
-            </div>
-          </div>
-
-          {/* Single Unified Filter Bar */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[300px]">
-              {/* Search */}
-              <div className="relative flex-1 min-w-[220px]">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Search student name, reg no, course, class..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-8 pr-8 text-xs h-9 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
-                />
-                {searchTerm && (
-                  <button 
-                    onClick={() => setSearchTerm('')} 
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* AY Filter */}
-              <select
-                value={academicYearFilter}
-                onChange={e => setAcademicYearFilter(e.target.value)}
-                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
-              >
-                <option value="All">All Academic Years</option>
-                {availableAcademicYears.map(yr => (
-                  <option key={yr} value={yr}>AY {yr}</option>
-                ))}
-              </select>
-
-              {/* Dept Filter */}
-              <select
-                value={departmentFilter}
-                onChange={e => setDepartmentFilter(e.target.value)}
-                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
-              >
-                <option value="All">All Departments</option>
-                {departmentsList.map((d, i) => (
-                  <option key={i} value={d}>{d}</option>
-                ))}
-              </select>
-
-              {/* Level Filter */}
-              <select
-                value={programLevelFilter}
-                onChange={e => setProgramLevelFilter(e.target.value)}
-                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
-              >
-                <option value="All">All Program Levels</option>
-                <option value="UG">UG (Undergraduate)</option>
-                <option value="PG">PG (Postgraduate)</option>
-                <option value="PhD">PhD (Doctoral)</option>
-              </select>
-
-              {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
-              >
-                <option value="All">All Statuses</option>
-                <option value="Active">Active</option>
-                <option value="Graduated">Graduated</option>
-                <option value="On Leave">On Leave</option>
-              </select>
-
-              {/* Sort By */}
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-                className="h-9 px-3 text-xs font-bold rounded-xl border border-slate-200 bg-blue-50/50 text-[#2f4692] focus:outline-none"
-              >
-                <option value="registerNumber-asc">Sort: Reg No (Asc)</option>
-                <option value="name-asc">Sort: Name (A-Z)</option>
-                <option value="department-asc">Sort: Department</option>
-              </select>
-
-              {(searchTerm || departmentFilter !== 'All' || academicYearFilter !== 'All' || programLevelFilter !== 'All' || statusFilter !== 'All') && (
-                <Button
-                  onClick={clearFilters}
-                  variant="ghost"
-                  className="h-9 text-xs font-semibold text-slate-500 hover:text-slate-900 flex items-center gap-1 px-2.5"
+            {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsClearOpen(true)}
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition-colors shadow-xs"
+                  title="Clear All Student Records"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset</span>
-                </Button>
-              )}
-            </div>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Data</span>
+                </button>
 
-            {/* View Switcher */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  viewMode === 'table'
-                    ? 'bg-white text-[#2f4692] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <TableIcon className="w-3.5 h-3.5" />
-                <span>Matrix</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setIsBulkUploadOpen(true)}
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shadow-xs"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#2F4692]" />
+                  <span>Bulk Upload</span>
+                </button>
 
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  viewMode === 'cards'
-                    ? 'bg-white text-[#2f4692] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Profiles</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => { resetForm(); setIsAddModalOpen(true); }}
+                  className="inline-flex items-center gap-1.5 h-9 px-4 text-xs font-semibold text-white bg-[#2F4692] hover:bg-[#243A7A] rounded-xl transition-colors shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Student</span>
+                </button>
+              </>
+            )}
+          </>
+        }
+      />
 
-              <button
-                onClick={() => setViewMode('analytics')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  viewMode === 'analytics'
-                    ? 'bg-white text-[#2f4692] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span>Analytics</span>
-              </button>
-            </div>
+      {/* 2. 5 Unified Institutional KPI Metric Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatCard
+          title="Total Enrollment"
+          value={stats.total}
+          subtitle="Active & registered students"
+          icon={Users}
+        />
+        <StatCard
+          title="UG Cohort"
+          value={stats.ugCount}
+          subtitle={`${stats.ugPercent}% undergraduate share`}
+          icon={School}
+        />
+        <StatCard
+          title="PG & Scholars"
+          value={stats.pgCount}
+          subtitle={`${stats.pgPercent}% post-grad cohort`}
+          icon={GraduationCap}
+        />
+        <StatCard
+          title="Good Standing"
+          value={stats.activeCount}
+          subtitle={`${stats.activePercent}% active status`}
+          icon={UserCheck}
+        />
+        <StatCard
+          title="Disciplines"
+          value={stats.depts}
+          subtitle="Academic departments"
+          icon={Building2}
+        />
+      </div>
+
+      {/* 3. Universal Filter Toolbar & View Mode Switcher */}
+      <FilterToolbar
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search student name, reg no, course, class..."
+        onReset={clearFilters}
+        hasActiveFilters={
+          Boolean(searchTerm) ||
+          departmentFilter !== 'All' ||
+          academicYearFilter !== 'All' ||
+          programLevelFilter !== 'All' ||
+          statusFilter !== 'All'
+        }
+        totalResults={filteredStudents.length}
+        resultLabel={`students (of ${students.length} total)`}
+        actions={
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-white text-[#2F4692] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <TableIcon className="w-3.5 h-3.5" />
+              <span>Matrix</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                viewMode === 'cards'
+                  ? 'bg-white text-[#2F4692] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Profiles</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('analytics')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                viewMode === 'analytics'
+                  ? 'bg-white text-[#2F4692] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Analytics</span>
+            </button>
           </div>
+        }
+      >
+        {/* AY Filter */}
+        <select
+          value={academicYearFilter}
+          onChange={e => setAcademicYearFilter(e.target.value)}
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+        >
+          <option value="All">All Academic Years</option>
+          {availableAcademicYears.map(yr => (
+            <option key={yr} value={yr}>AY {yr}</option>
+          ))}
+        </select>
+
+        {/* Dept Filter */}
+        <select
+          value={departmentFilter}
+          onChange={e => setDepartmentFilter(e.target.value)}
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20 max-w-[200px]"
+        >
+          <option value="All">All Departments</option>
+          {departmentsList.map((d, i) => (
+            <option key={i} value={d}>{d}</option>
+          ))}
+        </select>
+
+        {/* Level Filter */}
+        <select
+          value={programLevelFilter}
+          onChange={e => setProgramLevelFilter(e.target.value)}
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+        >
+          <option value="All">All Program Levels</option>
+          <option value="UG">UG (Undergraduate)</option>
+          <option value="PG">PG (Postgraduate)</option>
+          <option value="PhD">PhD (Doctoral)</option>
+        </select>
+
+        {/* Status Filter */}
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+        >
+          <option value="All">All Statuses</option>
+          <option value="Active">Active</option>
+          <option value="Graduated">Graduated</option>
+          <option value="On Leave">On Leave</option>
+        </select>
+
+        {/* Sort By */}
+        <select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value)}
+          className="h-9 px-3 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 text-[#2F4692] focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+        >
+          <option value="registerNumber-asc">Sort: Reg No (Asc)</option>
+          <option value="name-asc">Sort: Name (A-Z)</option>
+          <option value="department-asc">Sort: Department</option>
+        </select>
+      </FilterToolbar>
 
           {/* View Mode 1: Table Matrix */}
           {viewMode === 'table' && (
@@ -768,19 +762,14 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                               {st.registerNumber}
                             </td>
 
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white flex items-center justify-center text-[10px] font-black shadow-sm">
-                                  {initials}
-                                </div>
-                                <div>
-                                  <p className="font-bold text-slate-900 group-hover:text-[#2f4692] transition-colors">
-                                    {st.name}
-                                  </p>
-                                  {st.email && (
-                                    <p className="text-[10px] text-slate-400 font-mono">{st.email}</p>
-                                  )}
-                                </div>
+                            <td className="py-3.5 px-4">
+                              <div>
+                                <p className="font-semibold text-slate-900 group-hover:text-[#2F4692] transition-colors">
+                                  {st.name}
+                                </p>
+                                {st.email && (
+                                  <p className="text-[11px] text-slate-500 font-mono mt-0.5">{st.email}</p>
+                                )}
                               </div>
                             </td>
 
@@ -868,6 +857,34 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                     )}
                   </tbody>
                 </table>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+                  <div className="text-xs text-slate-500 font-medium">
+                    Showing <span className="font-bold text-slate-700">{totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span className="font-bold text-slate-700">{Math.min(currentPage * pageSize, totalCount)}</span> of <span className="font-bold text-slate-700">{totalCount}</span> students
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage <= 1 || loading}
+                      onClick={() => fetchStudents(currentPage - 1)}
+                      className="text-xs h-8 px-3"
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-xs text-slate-600 px-2 font-medium">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage >= totalPages || loading}
+                      onClick={() => fetchStudents(currentPage + 1)}
+                      className="text-xs h-8 px-3"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1035,8 +1052,6 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
               </div>
             </div>
           )}
-        </div>
-      </main>
 
       {/* Bulk Upload Dialog */}
       <BulkUploadDialog
@@ -1047,265 +1062,204 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
         onSuccess={fetchStudents}
       />
 
-      {/* View Student Detail Modal */}
-      {viewingStudent && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setViewingStudent(null)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
-              <div className="w-14 h-14 bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white rounded-2xl flex items-center justify-center text-lg font-black shadow-lg shadow-[#2f4692]/20">
-                {viewingStudent.name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-slate-900">{viewingStudent.name}</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-bold text-[#2f4692] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                    {viewingStudent.registerNumber}
-                  </span>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                    {viewingStudent.programLevel || 'UG'}
-                  </span>
+      {/* View Student Detail Drawer */}
+      <DetailDrawer
+        isOpen={Boolean(viewingStudent)}
+        onClose={() => setViewingStudent(null)}
+        title={viewingStudent?.name || 'Student Dossier'}
+        subtitle={`Reg No: ${viewingStudent?.registerNumber || '—'}`}
+        badge={
+          viewingStudent && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-[#2F4692]/10 text-[#2F4692] border border-[#2F4692]/20">
+              {viewingStudent.programLevel || 'UG'}
+            </span>
+          )
+        }
+        footer={
+          <button
+            type="button"
+            onClick={() => setViewingStudent(null)}
+            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors"
+          >
+            Close
+          </button>
+        }
+      >
+        {viewingStudent && (
+          <div className="space-y-5 text-xs">
+            {/* Academic Enrollment */}
+            <div className="bg-slate-50/70 rounded-xl p-4 border border-slate-200">
+              <p className="font-semibold text-slate-900 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <BookOpen className="w-4 h-4 text-[#2F4692]" /> Academic Enrollment
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-slate-500 font-medium">Department</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingStudent.department || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Course</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingStudent.course || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Class / Section</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingStudent.className || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Batch & Academic Year</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingStudent.batch || '—'} (AY {viewingStudent.academicYear || '2024-25'})</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Enrollment Status</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingStudent.status || 'Active'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Gender</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingStudent.gender || '—'}</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-5 space-y-4 text-xs">
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80">
-                <p className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-[#2f4692]" /> Academic Enrollment
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-slate-400 font-medium">Department</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingStudent.department || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Course</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingStudent.course || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Class Name</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingStudent.className || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Batch & AY</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingStudent.batch || '—'} (AY {viewingStudent.academicYear || '2024-25'})</p>
-                  </div>
+            {/* Contact & Demographics */}
+            <div className="bg-slate-50/70 rounded-xl p-4 border border-slate-200">
+              <p className="font-semibold text-slate-900 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Phone className="w-4 h-4 text-emerald-600" /> Contact & Demographics
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-slate-500 font-medium">Student Email</p>
+                  <p className="font-semibold text-slate-900 mt-0.5 font-mono">{viewingStudent.email || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Mobile Phone</p>
+                  <p className="font-semibold text-slate-900 mt-0.5 font-mono">{viewingStudent.mobileNo || viewingStudent.phone || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Guardian Name</p>
+                  <p className="font-semibold text-slate-900 mt-0.5">{viewingStudent.guardianName || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Guardian Phone</p>
+                  <p className="font-semibold text-slate-900 mt-0.5 font-mono">{viewingStudent.guardianPhone || viewingStudent.parentMobileNo || '—'}</p>
                 </div>
               </div>
-
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80">
-                <p className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <Phone className="w-4 h-4 text-emerald-600" /> Contact & Demographics
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-slate-400 font-medium">Email Address</p>
-                    <p className="font-bold text-slate-900 mt-0.5 font-mono">{viewingStudent.email || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Mobile Phone</p>
-                    <p className="font-bold text-slate-900 mt-0.5 font-mono">{viewingStudent.mobileNo || viewingStudent.phone || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Guardian Name</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{viewingStudent.guardianName || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 font-medium">Guardian Phone</p>
-                    <p className="font-bold text-slate-900 mt-0.5 font-mono">{viewingStudent.guardianPhone || viewingStudent.parentMobileNo || '—'}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <Button onClick={() => setViewingStudent(null)} className="bg-[#2f4692] hover:bg-[#243a7a] text-white text-xs font-bold rounded-xl px-5 h-9">
-                Close Inspection
-              </Button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </DetailDrawer>
 
       {/* Add Student Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setIsAddModalOpen(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100"
+      <FormModal
+        open={isAddModalOpen}
+        onOpenChange={setIsAddModalOpen}
+        title="Register Student Record"
+        description="Enroll a new student record into the departmental academic cohort."
+        icon={Plus}
+        submitLabel="Save Student Record"
+        onSubmit={handleAddSubmit}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="Student Full Name" required>
+            <FormInput 
+              value={formData.name} 
+              onChange={e => setFormData({ ...formData, name: e.target.value })} 
+              placeholder="Full name"
+              required 
+            />
+          </FormField>
+          <FormField label="Register Number" required>
+            <FormInput 
+              value={formData.registerNumber} 
+              onChange={e => setFormData({ ...formData, registerNumber: e.target.value })} 
+              placeholder="e.g. 2447101"
+              required 
+            />
+          </FormField>
+          <FormField label="Department" required>
+            <FormSelect 
+              value={formData.department} 
+              onChange={e => setFormData({ ...formData, department: e.target.value })} 
             >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-[#2f4692]" /> Register Student Record
-            </h2>
-
-            <form onSubmit={handleAddSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Student Name</label>
-                  <Input 
-                    value={formData.name} 
-                    onChange={e => setFormData({ ...formData, name: e.target.value })} 
-                    placeholder="Full name"
-                    required 
-                    className="rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Register Number</label>
-                  <Input 
-                    value={formData.registerNumber} 
-                    onChange={e => setFormData({ ...formData, registerNumber: e.target.value })} 
-                    placeholder="e.g. 2447101"
-                    required 
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Department</label>
-                  <select 
-                    value={formData.department} 
-                    onChange={e => setFormData({ ...formData, department: e.target.value })} 
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white font-medium"
-                  >
-                    {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Program Level</label>
-                  <select 
-                    value={formData.programLevel} 
-                    onChange={e => setFormData({ ...formData, programLevel: e.target.value })} 
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white font-medium"
-                  >
-                    <option value="UG">UG</option>
-                    <option value="PG">PG</option>
-                    <option value="PhD">PhD</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Academic Year</label>
-                  <select 
-                    value={formData.academicYear || '2024-2025'} 
-                    onChange={e => setFormData({ ...formData, academicYear: e.target.value })} 
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white font-medium"
-                  >
-                    <option value="2025-2026">2025-2026</option>
-                    <option value="2024-2025">2024-2025</option>
-                    <option value="2023-2024">2023-2024</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Batch</label>
-                  <Input 
-                    value={formData.batch || ''} 
-                    onChange={e => setFormData({ ...formData, batch: e.target.value })} 
-                    placeholder="e.g. 2024 - 2028"
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
-                <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)} className="rounded-xl text-xs h-9">
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-[#2f4692] hover:bg-[#243a7a] text-white rounded-xl text-xs font-bold h-9">
-                  Save Student Record
-                </Button>
-              </div>
-            </form>
-          </div>
+              {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
+            </FormSelect>
+          </FormField>
+          <FormField label="Program Level" required>
+            <FormSelect 
+              value={formData.programLevel} 
+              onChange={e => setFormData({ ...formData, programLevel: e.target.value })} 
+            >
+              <option value="UG">UG</option>
+              <option value="PG">PG</option>
+              <option value="PhD">PhD</option>
+            </FormSelect>
+          </FormField>
+          <FormField label="Academic Year" required>
+            <FormSelect 
+              value={formData.academicYear || '2024-2025'} 
+              onChange={e => setFormData({ ...formData, academicYear: e.target.value })} 
+            >
+              <option value="2025-2026">2025-2026</option>
+              <option value="2024-2025">2024-2025</option>
+              <option value="2023-2024">2023-2024</option>
+            </FormSelect>
+          </FormField>
+          <FormField label="Batch">
+            <FormInput 
+              value={formData.batch || ''} 
+              onChange={e => setFormData({ ...formData, batch: e.target.value })} 
+              placeholder="e.g. 2024 - 2028"
+            />
+          </FormField>
         </div>
-      )}
+      </FormModal>
 
       {/* Edit Student Modal */}
-      {editingStudent && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setEditingStudent(null)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-              <Edit className="w-5 h-5 text-amber-600" /> Modify Student Profile
-            </h2>
-
-            <form onSubmit={handleEditSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Student Name</label>
-                  <Input 
-                    value={editingStudent.name} 
-                    onChange={e => setEditingStudent({ ...editingStudent, name: e.target.value })} 
-                    required 
-                    className="rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Register Number</label>
-                  <Input 
-                    value={editingStudent.registerNumber} 
-                    onChange={e => setEditingStudent({ ...editingStudent, registerNumber: e.target.value })} 
-                    required 
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Department</label>
-                  <select 
-                    value={editingStudent.department} 
-                    onChange={e => setEditingStudent({ ...editingStudent, department: e.target.value })} 
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white"
-                  >
-                    {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Status</label>
-                  <select 
-                    value={editingStudent.status} 
-                    onChange={e => setEditingStudent({ ...editingStudent, status: e.target.value as any })} 
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Graduated">Graduated</option>
-                    <option value="On Leave">On Leave</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
-                <Button type="button" variant="outline" onClick={() => setEditingStudent(null)} className="rounded-xl text-xs h-9">
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-[#2f4692] hover:bg-[#243a7a] text-white rounded-xl text-xs font-bold h-9">
-                  Update Student Record
-                </Button>
-              </div>
-            </form>
+      <FormModal
+        open={!!editingStudent}
+        onOpenChange={(open) => !open && setEditingStudent(null)}
+        title="Modify Student Profile"
+        description="Update student academic enrolment details, department, or cohort status."
+        icon={Edit}
+        submitLabel="Update Student Record"
+        onSubmit={handleEditSubmit}
+      >
+        {editingStudent && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField label="Student Full Name" required>
+              <FormInput 
+                value={editingStudent.name} 
+                onChange={e => setEditingStudent({ ...editingStudent, name: e.target.value })} 
+                required 
+              />
+            </FormField>
+            <FormField label="Register Number" required>
+              <FormInput 
+                value={editingStudent.registerNumber} 
+                onChange={e => setEditingStudent({ ...editingStudent, registerNumber: e.target.value })} 
+                required 
+              />
+            </FormField>
+            <FormField label="Department" required>
+              <FormSelect 
+                value={editingStudent.department} 
+                onChange={e => setEditingStudent({ ...editingStudent, department: e.target.value })} 
+              >
+                {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
+              </FormSelect>
+            </FormField>
+            <FormField label="Enrolment Status" required>
+              <FormSelect 
+                value={editingStudent.status} 
+                onChange={e => setEditingStudent({ ...editingStudent, status: e.target.value as any })} 
+              >
+                <option value="Active">Active</option>
+                <option value="Graduated">Graduated</option>
+                <option value="On Leave">On Leave</option>
+              </FormSelect>
+            </FormField>
           </div>
-        </div>
-      )}
+        )}
+      </FormModal>
 
       {/* Clear Data Confirmation Dialog */}
       <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
@@ -1339,6 +1293,6 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AppShell>
   );
 }

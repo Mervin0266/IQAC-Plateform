@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Sidebar } from './Sidebar';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AchievementFilters } from './AchievementFilters';
 import { AchievementTabs } from './AchievementTabs';
 import { AchievementGrid } from './AchievementGrid';
 import { AddProjectButton } from './AddProjectButton';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Award, Upload, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
+import { Award, Upload, RefreshCw, Trash2, AlertTriangle, Layers, GraduationCap, Users } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,13 +12,16 @@ import { AchievementDialog } from './AchievementDialog';
 import { EditRequestDialog } from './EditRequestDialog';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { AppShell, PageHeader, StatCard, StatusBadge } from './design-system';
 
 interface AchievementsPageProps {
   onNavigate: (page: string) => void;
+  currentPage?: string;
   isPublicView?: boolean;
+  hideSidebar?: boolean;
 }
 
-export function AchievementsPage({ onNavigate, isPublicView = false }: AchievementsPageProps) {
+export function AchievementsPage({ onNavigate, currentPage = 'achievements', isPublicView = false, hideSidebar = false }: AchievementsPageProps) {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('scholar');
   const [filters, setFilters] = useState({
@@ -68,6 +70,18 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
       setClearLoading(false);
     }
   };
+
+  const facultyAchievementsCount = useMemo(() => {
+    return achievements.filter(a => a.category === 'faculty' || a.category === 'scholar').length;
+  }, [achievements]);
+
+  const studentAchievementsCount = useMemo(() => {
+    return achievements.filter(a => a.category === 'student').length;
+  }, [achievements]);
+
+  const activeDeptsCount = useMemo(() => {
+    return new Set(achievements.map(a => a.department).filter(Boolean)).size;
+  }, [achievements]);
 
   // Set default department filter for HODs and Coordinators
   useEffect(() => {
@@ -252,42 +266,49 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
 
   if (isPublicView) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-slate-50">
         {/* Hero Banner */}
-        <div className="bg-[#0f1746] text-white py-16">
+        <div className="bg-[#0B132B] text-white py-12 border-b border-slate-800 shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center space-x-4 mb-4">
-              <Award className="w-12 h-12 text-[#e8c84a]" />
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-white/10 rounded-xl border border-white/15">
+                <Award className="w-8 h-8 text-[#E8C84A]" />
+              </div>
               <div>
-                <h1 className="text-4xl font-bold">Achievements</h1>
-                <p className="text-blue-200 mt-2">Celebrating faculty, student and institutional excellence.</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] font-bold text-[#E8C84A] uppercase tracking-wider">CHRIST (Deemed to be University)</span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">University Achievements & Honors</h1>
+                <p className="text-slate-300 text-xs sm:text-sm mt-1">Celebrating faculty, scholar, and student excellence across all campuses.</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-1 gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {publicAchievements.map((achievement, index) => (
               <Card
                 key={index}
-                className="border-l-4 border-l-[#0f1746] hover:-translate-y-1 transition-transform shadow-sm hover:shadow-lg"
+                className="bg-white border border-slate-200 border-l-4 border-l-[#2F4692] hover:shadow-md transition-all rounded-xl shadow-xs"
               >
-                <CardHeader>
-                  <div className="flex items-start space-x-2 mb-2">
-                    <Award className="w-5 h-5 text-[#0f1746] flex-shrink-0 mt-0.5" />
-                    <CardTitle className="text-lg leading-tight">{achievement.title}</CardTitle>
+                <CardHeader className="p-5">
+                  <div className="flex items-start space-x-3 mb-2">
+                    <div className="p-2 bg-blue-50 text-[#2F4692] rounded-lg flex-shrink-0">
+                      <Award className="w-4 h-4" />
+                    </div>
+                    <CardTitle className="text-base font-bold text-slate-900 leading-snug">{achievement.title}</CardTitle>
                   </div>
-                  <p className="text-sm text-gray-600">{achievement.description}</p>
+                  <p className="text-xs text-slate-600">{achievement.description}</p>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-5 pb-5 pt-0">
                   <div className="flex flex-wrap gap-1.5 mb-3">
                     {achievement.tags.map((tag, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-xs">{tag}</Badge>
+                      <Badge key={idx} variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-[10px] font-medium">{tag}</Badge>
                     ))}
                   </div>
-                  <p className="text-sm text-gray-600">{achievement.meta}</p>
+                  <p className="text-xs text-slate-500 font-medium">{achievement.meta}</p>
                 </CardContent>
               </Card>
             ))}
@@ -297,55 +318,84 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar currentPage="achievements" onNavigate={onNavigate} />
-      <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* Page Title & Action Buttons */}
-          <div className="flex justify-between items-start mb-6 flex-wrap gap-3">
-            <div>
-              <h1 className="text-2xl font-medium text-gray-900 mb-1">ACHIEVEMENTS</h1>
-              <p className="text-sm text-gray-500">View all achievements of our faculty, students & school.</p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchAchievements(filters.department, filters.year)}
-                className="border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold h-9 rounded-lg flex items-center gap-1.5"
-                title="Refresh Achievements"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
-              </Button>
+  const pageContent = (
+    <div className="space-y-6">
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Institutional Excellence' },
+          { label: 'Achievements & Honors', active: true }
+        ]}
+        title="University Achievements & Honors"
+        description="Track national & international recognitions, research honors, and student awards across departments"
+        badge="HONORS"
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAchievements(filters.department, filters.year)}
+              className="border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-medium"
+              title="Refresh Achievements"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </Button>
 
-              {user && (user.role === 'admin' || user.role === 'coordinator' || user.role === 'hod') && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsClearOpen(true)}
-                    className="border-red-200 hover:bg-red-50 text-red-600 text-xs font-semibold h-9 rounded-lg flex items-center gap-1.5"
-                    title="Clear All Achievements Data"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear Data</span>
-                  </Button>
+            {user && (user.role === 'admin' || user.role === 'coordinator' || user.role === 'hod') && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsClearOpen(true)}
+                  className="border-rose-200 hover:bg-rose-50 text-rose-700 text-xs font-medium"
+                  title="Clear All Achievements Data"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5 text-rose-500" />
+                  <span>Clear Data</span>
+                </Button>
 
-                  <Button
-                    onClick={() => setIsBulkOpen(true)}
-                    className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold h-9 px-4 flex items-center space-x-2 shadow-sm rounded-lg"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Bulk Upload (CSV/Excel)</span>
-                  </Button>
-                </>
-              )}
-            </div>
+                <Button
+                  onClick={() => setIsBulkOpen(true)}
+                  className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-medium px-3.5 shadow-xs flex items-center space-x-1.5"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Bulk Upload</span>
+                </Button>
+              </>
+            )}
           </div>
+        }
+      />
 
-          {/* Filters */}
+      {/* 4 Standardized StatCards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          title="Total Achievements"
+          value={achievements.length}
+          icon={Award}
+          subtitle="Institutional recognitions"
+        />
+        <StatCard
+          title="Faculty Honors"
+          value={facultyAchievementsCount}
+          icon={Award}
+          badge="Faculty & Scholars"
+        />
+        <StatCard
+          title="Student Awards"
+          value={studentAchievementsCount}
+          icon={GraduationCap}
+          badge="Students"
+        />
+        <StatCard
+          title="Active Departments"
+          value={activeDeptsCount}
+          icon={Layers}
+          subtitle="Departments represented"
+        />
+      </div>
+
+      {/* Filters */}
           <AchievementFilters 
             filters={filters} 
             setFilters={setFilters} 
@@ -452,7 +502,15 @@ export function AchievementsPage({ onNavigate, isPublicView = false }: Achieveme
             </DialogContent>
           </Dialog>
         </div>
-      </main>
-    </div>
+  );
+
+  if (hideSidebar) {
+    return <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto space-y-6">{pageContent}</div>;
+  }
+
+  return (
+    <AppShell currentPage={currentPage} onNavigate={onNavigate}>
+      {pageContent}
+    </AppShell>
   );
 }

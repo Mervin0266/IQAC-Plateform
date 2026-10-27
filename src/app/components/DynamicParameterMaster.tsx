@@ -19,6 +19,7 @@ import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
+import { AppShell, PageHeader, StatCard } from './design-system';
 
 interface DynamicParameterMasterProps {
   onNavigate: (page: string) => void;
@@ -377,224 +378,139 @@ export function DynamicParameterMaster({
     document.body.removeChild(link);
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50/50 flex">
-      {!hideSidebar && <Sidebar currentPage={currentPage} onNavigate={onNavigate} />}
+  const pageContent = (
+    <div className="space-y-6">
+      {/* 1. MASTER HEADER & FRAMEWORK SWITCHER */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Institutional Quality' },
+          { label: 'Accreditation Master' },
+        ]}
+        badge="NAAC / NBA ENGINE"
+        title="Accreditation & Quality Assurance"
+        description="Configure accreditation benchmarks, compute weighted criteria metrics, submit department evidence data, and generate verified SSR/SAR reports."
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Framework Switcher Navigation Pills */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => handleFrameworkChange('NAAC')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeFramework === 'NAAC'
+                    ? 'bg-[#2F4692] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Award className="w-4 h-4" />
+                <span>NAAC SSR (7 Criteria)</span>
+              </button>
 
-      <main className={hideSidebar ? 'p-4 sm:p-6 lg:p-8 w-full' : 'ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300'}>
-        <div className="max-w-7xl mx-auto space-y-6">
-
-          {/* ========================================================================= */}
-          {/* 1. MASTER HEADER & FRAMEWORK SWITCHER                                     */}
-          {/* ========================================================================= */}
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase">
-                  Institutional Quality Engine
-                </Badge>
-                <span className="text-xs text-slate-400">•</span>
-                <span className="text-xs text-slate-500 font-medium">National & International Quality Accreditations</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-                Accreditation & Quality Assurance
-              </h1>
-              <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-                Configure accreditation benchmarks, compute weighted criteria metrics, submit department evidence data, and generate verified SSR/SAR reports.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Framework Switcher Navigation Pills */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80">
-                <button
-                  type="button"
-                  onClick={() => handleFrameworkChange('NAAC')}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                    activeFramework === 'NAAC'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Award className="w-4 h-4" />
-                  <span>NAAC SSR (7 Criteria)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleFrameworkChange('NBA')}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                    activeFramework === 'NBA'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>NBA SAR (10 Criteria)</span>
-                </button>
-              </div>
-
-              {/* Department Hierarchy Selector */}
-              <Select value={selectedDept} onValueChange={setSelectedDept}>
-                <SelectTrigger className="h-10 text-xs bg-white border-slate-200 rounded-xl min-w-[200px]">
-                  <SelectValue placeholder="Select Department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map(d => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Export Toolbar */}
-              <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleExportExcel}
-                  className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg flex items-center gap-1.5"
-                  title="Export to Excel (.xlsx)"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                  <span>Excel</span>
-                </Button>
-                <div className="h-4 w-px bg-slate-200" />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleExportCSV}
-                  className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-1.5"
-                  title="Export to CSV (.csv)"
-                >
-                  <Download className="w-4 h-4 text-blue-600" />
-                  <span>CSV</span>
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Success Notification */}
-          {successToast && (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-2xl flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span className="font-semibold">{successToast}</span>
-              </div>
-              <button onClick={() => setSuccessToast(null)} className="text-emerald-700 hover:text-emerald-900">
-                <X className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={() => handleFrameworkChange('NBA')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeFramework === 'NBA'
+                    ? 'bg-[#2F4692] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>NBA SAR (10 Criteria)</span>
               </button>
             </div>
-          )}
 
-          {/* ========================================================================= */}
-          {/* 2. KPI METRIC CARDS (5 KPI COMPLIANCE METRICS)                            */}
-          {/* ========================================================================= */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Card 1: Total Weightage */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Benchmark Max</span>
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-                    <Award className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.totalWeight} pts
-                  </div>
-                  <div className="text-[11px] text-indigo-700 font-medium mt-1">
-                    {activeFramework} Framework Max
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Department Hierarchy Selector */}
+            <Select value={selectedDept} onValueChange={setSelectedDept}>
+              <SelectTrigger className="h-9 text-xs bg-white border-slate-200 rounded-xl min-w-[200px]">
+                <SelectValue placeholder="Select Department" />
+              </SelectTrigger>
+              <SelectContent>
+                {departments.map(d => (
+                  <SelectItem key={d} value={d}>{d}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-            {/* Card 2: Earned Score */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Earned Score</span>
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-                    <TrendingUp className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-emerald-600 tracking-tight">
-                    {kpiStats.earnedScore} pts
-                  </div>
-                  <div className="text-[11px] text-emerald-700 font-medium mt-1">
-                    {kpiStats.attainmentPct}% Attainment
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 3: Projected CGPA / Grade */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Projected Grade</span>
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.cgpaScore} <span className="text-sm font-semibold text-amber-600">/ 4.00</span>
-                  </div>
-                  <div className="text-[11px] text-amber-700 font-bold mt-1">
-                    Grade {kpiStats.projectedGrade}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 4: Quantitative Metrics (QnM) */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quantitative (QnM)</span>
-                  <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
-                    <BarChart3 className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.qnMCount} Metrics
-                  </div>
-                  <div className="text-[11px] text-blue-700 font-medium mt-1">
-                    Data-driven KPI Indicators
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 5: Qualitative Narratives (QlM) */}
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-purple-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Qualitative (QlM)</span>
-                  <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                    {kpiStats.qlMCount} Narratives
-                  </div>
-                  <div className="text-[11px] text-purple-700 font-medium mt-1">
-                    SOP Compliance Descriptors
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Export Toolbar */}
+            <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-xs">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleExportExcel}
+                className="h-8 px-2.5 text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg flex items-center gap-1.5"
+                title="Export to Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Excel</span>
+              </Button>
+              <div className="h-4 w-px bg-slate-200" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleExportCSV}
+                className="h-8 px-2.5 text-xs font-semibold text-slate-700 hover:text-[#2F4692] hover:bg-[#2F4692]/10 rounded-lg flex items-center gap-1.5"
+                title="Export to CSV (.csv)"
+              >
+                <Download className="w-3.5 h-3.5 text-[#2F4692]" />
+                <span>CSV</span>
+              </Button>
+            </div>
           </div>
+        }
+      />
+
+      {/* Success Notification */}
+      {successToast && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center justify-between shadow-xs animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <span className="font-semibold">{successToast}</span>
+          </div>
+          <button onClick={() => setSuccessToast(null)} className="text-emerald-700 hover:text-emerald-900">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 2. KPI METRIC CARDS (5 KPI COMPLIANCE METRICS) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard
+          title="Benchmark Max"
+          value={`${kpiStats.totalWeight} pts`}
+          icon={Award}
+          badge={`${activeFramework} Max`}
+          subtitle="Framework benchmark ceiling"
+        />
+        <StatCard
+          title="Earned Score"
+          value={`${kpiStats.earnedScore} pts`}
+          icon={TrendingUp}
+          badge={`${kpiStats.attainmentPct}% Attainment`}
+          subtitle="Validated points earned"
+        />
+        <StatCard
+          title="Projected Grade"
+          value={`${kpiStats.cgpaScore} / 4.00`}
+          icon={Sparkles}
+          badge={`Grade ${kpiStats.projectedGrade}`}
+          subtitle="Cumulative grade assessment"
+        />
+        <StatCard
+          title="Quantitative (QnM)"
+          value={`${kpiStats.qnMCount} Metrics`}
+          icon={BarChart3}
+          badge="Data Indicators"
+          subtitle="Formula-driven metrics"
+        />
+        <StatCard
+          title="Qualitative (QlM)"
+          value={`${kpiStats.qlMCount} Narratives`}
+          icon={FileText}
+          badge="SOP Evidence"
+          subtitle="Descriptive narratives"
+        />
+      </div>
 
           {/* ========================================================================= */}
           {/* 3. UNIFIED FILTER & VIEW TOOLBAR                                         */}
@@ -693,7 +609,7 @@ export function DynamicParameterMaster({
                   onClick={() => setActiveCriterion(crit)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
                     activeCriterion === crit
-                      ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-600'
+                      ? 'bg-[#2F4692] text-white shadow-xs'
                       : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -744,7 +660,7 @@ export function DynamicParameterMaster({
                       <tr key={p.id} className="hover:bg-slate-50/80 transition-colors group">
                         {/* Metric ID */}
                         <td className="py-3.5 px-4">
-                          <span className="font-mono font-bold text-indigo-700 bg-indigo-50/80 px-2 py-1 rounded-md border border-indigo-100">
+                          <span className="font-mono font-bold text-[#2F4692] bg-[#2F4692]/10 px-2 py-1 rounded-md border border-[#2F4692]/20">
                             {p.metricId}
                           </span>
                         </td>
@@ -824,7 +740,7 @@ export function DynamicParameterMaster({
                               <Button
                                 size="sm"
                                 onClick={() => handleOpenSubmit(p)}
-                                className="h-8 px-2.5 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-semibold flex items-center gap-1"
+                                className="h-8 px-2.5 text-xs bg-[#2F4692]/10 hover:bg-[#2F4692]/20 text-[#2F4692] rounded-lg font-semibold flex items-center gap-1"
                                 title="Enter Department Data"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -941,17 +857,12 @@ export function DynamicParameterMaster({
             </div>
           )}
 
-        </div>
-      </main>
-
-      {/* ========================================================================= */}
-      {/* 5. DATA ENTRY & VERIFICATION MODAL DIALOG                                 */}
-      {/* ========================================================================= */}
+      {/* 5. DATA ENTRY & VERIFICATION MODAL DIALOG */}
       <Dialog open={!!activeParam} onOpenChange={() => setActiveParam(null)}>
         <DialogContent className="max-w-xl bg-white rounded-2xl p-6">
           <DialogHeader>
             <div className="flex items-center gap-2 mb-1">
-              <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] font-mono">
+              <Badge className="bg-[#2F4692]/10 text-[#2F4692] border-[#2F4692]/20 text-[10px] font-mono">
                 {activeParam?.metricId}
               </Badge>
               <Badge variant="outline" className="text-[10px] text-slate-500">
@@ -975,7 +886,7 @@ export function DynamicParameterMaster({
                 </div>
                 <div>
                   <span className="text-[10px] font-bold uppercase text-slate-400 block">Benchmark Target</span>
-                  <span className="font-bold text-indigo-700">{activeParam.benchmarkValue} ({activeParam.unitOfMeasure})</span>
+                  <span className="font-bold text-[#2F4692]">{activeParam.benchmarkValue} ({activeParam.unitOfMeasure})</span>
                 </div>
               </div>
 
@@ -1006,7 +917,7 @@ export function DynamicParameterMaster({
                     value={formTextResponse}
                     onChange={(e) => setFormTextResponse(e.target.value)}
                     placeholder="Provide detailed description adhering to NAAC / NBA SOP guidelines (max 500 words)..."
-                    className="w-full p-3 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full p-3 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#2F4692]"
                     required
                   />
                 </div>
@@ -1036,7 +947,7 @@ export function DynamicParameterMaster({
                 </Button>
                 <Button
                   type="submit"
-                  className="h-9 px-5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold"
+                  className="h-9 px-5 text-xs bg-[#2F4692] hover:bg-[#243A7A] text-white rounded-xl font-semibold shadow-xs"
                 >
                   Save & Verify Metric
                 </Button>
@@ -1046,14 +957,12 @@ export function DynamicParameterMaster({
         </DialogContent>
       </Dialog>
 
-      {/* ========================================================================= */}
-      {/* 6. SLIDE-OVER METRIC INSPECTOR DRAWER                                     */}
-      {/* ========================================================================= */}
+      {/* 6. SLIDE-OVER METRIC INSPECTOR DRAWER */}
       <Dialog open={!!inspectingParam} onOpenChange={() => setInspectingParam(null)}>
         <DialogContent className="max-w-lg bg-white rounded-2xl p-6">
           <DialogHeader>
             <div className="flex items-center gap-2 mb-1">
-              <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 font-mono text-[10px]">
+              <Badge className="bg-[#2F4692]/10 text-[#2F4692] border-[#2F4692]/20 font-mono text-[10px]">
                 {inspectingParam?.metricId}
               </Badge>
               <Badge variant="outline" className="text-[10px]">
@@ -1073,9 +982,9 @@ export function DynamicParameterMaster({
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="p-2.5 bg-indigo-50/60 rounded-xl border border-indigo-100">
-                  <span className="text-[10px] font-bold text-indigo-600 block">Weightage</span>
-                  <span className="font-bold text-indigo-900 font-mono text-sm">{inspectingParam.weightage} pts</span>
+                <div className="p-2.5 bg-[#2F4692]/10 rounded-xl border border-[#2F4692]/20">
+                  <span className="text-[10px] font-bold text-[#2F4692] block">Weightage</span>
+                  <span className="font-bold text-[#2F4692] font-mono text-sm">{inspectingParam.weightage} pts</span>
                 </div>
                 <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
                   <span className="text-[10px] font-bold text-emerald-600 block">Benchmark</span>
@@ -1100,7 +1009,7 @@ export function DynamicParameterMaster({
               <DialogFooter className="pt-2">
                 <Button
                   onClick={() => setInspectingParam(null)}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl"
+                  className="w-full bg-[#0B132B] hover:bg-[#12204D] text-white rounded-xl"
                 >
                   Close Guidelines
                 </Button>
@@ -1109,7 +1018,20 @@ export function DynamicParameterMaster({
           )}
         </DialogContent>
       </Dialog>
-
     </div>
+  );
+
+  if (hideSidebar) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto space-y-6">
+        {pageContent}
+      </div>
+    );
+  }
+
+  return (
+    <AppShell currentPage={currentPage || 'parameters'} onNavigate={onNavigate}>
+      {pageContent}
+    </AppShell>
   );
 }

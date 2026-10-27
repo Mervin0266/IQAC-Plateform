@@ -9,6 +9,7 @@ import {
 import { ROLE_PERMISSIONS, getRoleDisplayName } from '../config/permissions';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { AppShell, PageHeader, StatCard } from './design-system';
 
 interface UserRolesPageProps {
   onNavigate: (page: string) => void;
@@ -81,127 +82,67 @@ export function UserRolesPage({ onNavigate, hideSidebar = false }: UserRolesPage
     { feature: 'System Clear Database & Master Resets', admin: true, authority: false, hod: false, coordinator: false, faculty: false },
   ];
 
-  return (
-    <div className="min-h-screen bg-slate-50/50 flex">
-      {!hideSidebar && <Sidebar currentPage="user-roles" onNavigate={onNavigate} />}
+  const pageContent = (
+    <div className="space-y-6">
+      {/* 1. MASTER HEADER */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Administration' },
+          { label: 'User Roles & RBAC' },
+        ]}
+        badge="RBAC ARCHITECTURE"
+        title="User Roles & Permissions Matrix"
+        description="Understand user roles, access hierarchy, data modification permissions, and administrative privileges across the IQAC platform."
+        actions={
+          <Button
+            size="sm"
+            onClick={() => onNavigate('user-management')}
+            className="h-9 px-4 text-xs font-semibold bg-[#2F4692] hover:bg-[#243A7A] text-white rounded-xl shadow-xs flex items-center gap-2"
+          >
+            <Users className="w-4 h-4" />
+            <span>Manage User Accounts</span>
+          </Button>
+        }
+      />
 
-      <main className={hideSidebar ? 'p-4 sm:p-6 lg:p-8 w-full' : 'ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 transition-all duration-300'}>
-        <div className="max-w-7xl mx-auto space-y-6">
-
-          {/* ========================================================================= */}
-          {/* 1. MASTER HEADER                                                          */}
-          {/* ========================================================================= */}
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase">
-                  Security & Access Control
-                </Badge>
-                <span className="text-xs text-slate-400">•</span>
-                <span className="text-xs text-slate-500 font-medium">Role-Based Access Control (RBAC) Architecture</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-                User Roles & Permissions Matrix
-              </h1>
-              <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-                Understand user roles, access hierarchy, data modification permissions, and administrative privileges across the IQAC platform.
-              </p>
-            </div>
-
-            <Button
-              size="sm"
-              onClick={() => onNavigate('user-management')}
-              className="h-9 px-4 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm flex items-center gap-2 self-start xl:self-auto"
-            >
-              <Users className="w-4 h-4" />
-              <span>Manage User Accounts</span>
-            </Button>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* 2. 5 KPI CARDS                                                            */}
-          {/* ========================================================================= */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">System Roles</span>
-                  <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
-                    <Shield className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">5 Roles</div>
-                  <div className="text-[11px] text-blue-700 font-medium mt-1">Tiered Hierarchy</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Protected Modules</span>
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-                    <Lock className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">18 Modules</div>
-                  <div className="text-[11px] text-indigo-700 font-medium mt-1">Route Guards Active</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Authentication</span>
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-emerald-600 tracking-tight">JWT Bearer</div>
-                  <div className="text-[11px] text-emerald-700 font-medium mt-1">Encrypted Sessions</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bulk Capabilities</span>
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
-                    <KeyRound className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">Admin & HOD</div>
-                  <div className="text-[11px] text-amber-700 font-medium mt-1">Authorized Uploads</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-slate-200/80 shadow-sm bg-white hover:shadow-md transition-shadow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-purple-500" />
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Audit Trail</span>
-                  <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="text-2xl font-bold text-slate-900 tracking-tight">Full Log</div>
-                  <div className="text-[11px] text-purple-700 font-medium mt-1">Creator Tracking</div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+      {/* 2. 5 KPI CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard
+          title="System Roles"
+          value="5 Roles"
+          icon={Shield}
+          badge="Hierarchy"
+          subtitle="Tiered system roles"
+        />
+        <StatCard
+          title="Protected Modules"
+          value="18 Modules"
+          icon={Lock}
+          badge="Guards Active"
+          subtitle="Scoped route security"
+        />
+        <StatCard
+          title="Authentication"
+          value="JWT Bearer"
+          icon={ShieldCheck}
+          badge="Encrypted"
+          subtitle="Session token security"
+        />
+        <StatCard
+          title="Bulk Capabilities"
+          value="Admin & HOD"
+          icon={KeyRound}
+          badge="Restricted"
+          subtitle="Authorized upload access"
+        />
+        <StatCard
+          title="Audit Trail"
+          value="Full Log"
+          icon={FileText}
+          badge="Traceable"
+          subtitle="Creator action tracking"
+        />
+      </div>
 
           {/* ========================================================================= */}
           {/* 3. ROLE CARDS GRID                                                        */}
@@ -252,10 +193,10 @@ export function UserRolesPage({ onNavigate, hideSidebar = false }: UserRolesPage
           {/* ========================================================================= */}
           {/* 4. PERMISSION MATRIX TABLE                                                */}
           {/* ========================================================================= */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden space-y-4 p-6">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden space-y-4 p-6">
             <div>
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                <ShieldCheck className="w-5 h-5 text-[#2F4692]" />
                 <span>Feature Permission & Action Matrix</span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -347,9 +288,20 @@ export function UserRolesPage({ onNavigate, hideSidebar = false }: UserRolesPage
               </table>
             </div>
           </div>
-
-        </div>
-      </main>
     </div>
+  );
+
+  if (hideSidebar) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto space-y-6">
+        {pageContent}
+      </div>
+    );
+  }
+
+  return (
+    <AppShell currentPage="user-roles" onNavigate={onNavigate}>
+      {pageContent}
+    </AppShell>
   );
 }
