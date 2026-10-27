@@ -103,6 +103,7 @@ export function AchievementsPage({ onNavigate, currentPage = 'achievements', isP
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
+      queryParams.append('all', 'true');
       if (dept && dept !== 'all') {
         queryParams.append('department', dept);
       }
@@ -110,7 +111,7 @@ export function AchievementsPage({ onNavigate, currentPage = 'achievements', isP
         queryParams.append('year', yr);
       }
       const queryString = queryParams.toString();
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements${queryString ? `?${queryString}` : ''}`;
+      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/achievements?${queryString}`;
       
       const response = await fetch(url, {
         headers: {
@@ -327,7 +328,7 @@ export function AchievementsPage({ onNavigate, currentPage = 'achievements', isP
         ]}
         title="University Achievements & Honors"
         description="Track national & international recognitions, research honors, and student awards across departments"
-        badge="HONORS"
+        badge={`${achievements.length.toLocaleString()} Honors`}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <Button
@@ -371,25 +372,25 @@ export function AchievementsPage({ onNavigate, currentPage = 'achievements', isP
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           title="Total Achievements"
-          value={achievements.length}
+          value={achievements.length.toLocaleString()}
           icon={Award}
           subtitle="Institutional recognitions"
         />
         <StatCard
           title="Faculty Honors"
-          value={facultyAchievementsCount}
+          value={facultyAchievementsCount.toLocaleString()}
           icon={Award}
           badge="Faculty & Scholars"
         />
         <StatCard
           title="Student Awards"
-          value={studentAchievementsCount}
+          value={studentAchievementsCount.toLocaleString()}
           icon={GraduationCap}
           badge="Students"
         />
         <StatCard
           title="Active Departments"
-          value={activeDeptsCount}
+          value={activeDeptsCount.toLocaleString()}
           icon={Layers}
           subtitle="Departments represented"
         />

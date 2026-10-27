@@ -180,6 +180,7 @@ export function SponsoredResearchPage({
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.append('all', 'true');
       if (selectedStatus !== 'all') params.append('status', selectedStatus);
       if (selectedAgencyType !== 'all') params.append('agencyType', selectedAgencyType);
       if (selectedYear !== 'all') params.append('academicYear', selectedYear);
@@ -853,7 +854,7 @@ export function SponsoredResearchPage({
           { label: 'Sponsored Research' }
         ]}
         title="Sponsored Research Grants"
-        badge="NAAC 3.1 & NIRF"
+        badge={`${(stats?.totalProjects ?? projects.length).toLocaleString()} Grants`}
         description="Track funded research projects, principal investigators, funding agencies, sanctioned grants, and milestone deliverables."
         actions={
           <div className="flex items-center gap-2 flex-wrap">
@@ -893,7 +894,7 @@ export function SponsoredResearchPage({
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         <StatCard
           title="Total Grants"
-          value={stats?.totalProjects ?? projects.length}
+          value={(stats?.totalProjects ?? projects.length).toLocaleString()}
           subtitle="Across active departments"
           icon={FileText}
         />
@@ -911,13 +912,13 @@ export function SponsoredResearchPage({
         />
         <StatCard
           title="Ongoing Projects"
-          value={stats?.ongoingCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('ongoing')).length}
+          value={(stats?.ongoingCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('ongoing')).length).toLocaleString()}
           subtitle="Active milestone tracking"
           icon={Clock}
         />
         <StatCard
           title="Completed"
-          value={stats?.completedCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('complete')).length}
+          value={(stats?.completedCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('complete')).length).toLocaleString()}
           subtitle="Finalized & UCs submitted"
           icon={CheckCircle}
         />

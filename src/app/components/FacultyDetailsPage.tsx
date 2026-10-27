@@ -171,41 +171,24 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 50;
 
-  const fetchFaculty = async (page = currentPage) => {
-    if (!user?.token) return;
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/api/faculty?page=${page}&limit=${pageSize}`, {
-        headers: { 'Authorization': `Bearer ${user.token}` }
-      });
-      if (response.status === 401) {
-        logout();
-        return;
-      }
-      const data = await response.json();
-      if (data.success) {
-        setFacultyList(data.data || []);
-        if (data.pagination) {
-          setTotalCount(data.pagination.total);
-          setTotalPages(data.pagination.totalPages);
-          setCurrentPage(data.pagination.page);
-        } else {
-          setTotalCount((data.data || []).length);
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching faculty:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Dynamic KPI Stats from backend
+  const [stats, setStats] = useState({
+    total: 0,
+    phdCount: 0,
+    phdPercent: '0',
+    seniorCadre: 0,
+    seniorPercent: '0',
+    depts: 0,
+    avgExp: '0'
+  });
 
-  React.useEffect(() => {
-    fetchFaculty(1);
-  }, [user]);
+  const [departmentCounts, setDepartmentCounts] = useState<Record<string, number>>({});
+  const [designationCounts, setDesignationCounts] = useState<Record<string, number>>({});
+  const [dbAcademicYears, setDbAcademicYears] = useState<string[]>([]);
 
   // Filters & Search State
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('All');
   const [academicYearFilter, setAcademicYearFilter] = useState('All');
   const [designationFilter, setDesignationFilter] = useState('All');
@@ -252,152 +235,94 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     'Adjunct Faculty'
   ];
 
-  // Dynamically compute available Academic Years from faculty records
+  // Debounce search input by 300ms
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  const fetchFaculty = async (page = 1) => {
+    if (!user?.token) return;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('limit', String(pageSize));
+      if (academicYearFilter !== 'All') {
+        params.append('academicYear', academicYearFilter);
+      }
+      if (departmentFilter !== 'All') {
+        params.append('department', departmentFilter);
+      }
+      if (designationFilter !== 'All') {
+        params.append('designation', designationFilter);
+      }
+      if (debouncedSearch.trim()) {
+        params.append('search', debouncedSearch.trim());
+      }
+      if (sortBy) {
+        params.append('sortBy', sortBy);
+      }
+
+      const response = await fetch(`${API_BASE}/api/faculty?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${user.token}` }
+      });
+      if (response.status === 401) {
+        logout();
+        return;
+      }
+      const data = await response.json();
+      if (data.success) {
+        setFacultyList(data.data || []);
+        if (data.pagination) {
+          setTotalCount(data.pagination.total);
+          setTotalPages(data.pagination.totalPages);
+          setCurrentPage(data.pagination.page);
+        } else {
+          setTotalCount(data.total || (data.data || []).length);
+        }
+        if (data.stats) {
+          setStats(data.stats);
+        }
+        if (data.distribution) {
+          if (data.distribution.departments) setDepartmentCounts(data.distribution.departments);
+          if (data.distribution.designations) setDesignationCounts(data.distribution.designations);
+          if (data.distribution.academicYears) setDbAcademicYears(data.distribution.academicYears);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching faculty:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Re-fetch whenever user, active filters or debounced search change
+  React.useEffect(() => {
+    fetchFaculty(1);
+  }, [user, academicYearFilter, departmentFilter, designationFilter, debouncedSearch, sortBy]);
+
+  // Dynamically compute available Academic Years from DB distribution and faculty records
   const availableAcademicYears = useMemo(() => {
     const yearsSet = new Set<string>();
+    if (dbAcademicYears && dbAcademicYears.length > 0) {
+      dbAcademicYears.forEach(y => yearsSet.add(y));
+    }
     facultyList.forEach(fac => {
       if (fac.academicYear) {
         yearsSet.add(fac.academicYear);
       }
     });
     if (yearsSet.size === 0) {
-      return ['2025-2026', '2024-2025', '2023-2024', '2022-2023', '2021-2022'];
+      return ['2026-2027', '2025-2026', '2024-2025', '2023-2024', '2022-2023'];
     }
     return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
-  }, [facultyList]);
+  }, [dbAcademicYears, facultyList]);
 
-  // Normalized faculty records to consolidate casing and formatting variations
-  const normalizedFacultyList = useMemo(() => {
-    return facultyList.map(fac => ({
-      ...fac,
-      department: normalizeDepartmentName(fac.department),
-      designation: normalizeDesignationName(fac.designation)
-    }));
-  }, [facultyList]);
-
-  // Filtered & Deduplicated Faculty List
-  const filteredFaculty = useMemo(() => {
-    let list = normalizedFacultyList.filter(fac => {
-      const searchLower = searchTerm.toLowerCase().trim();
-      const matchesSearch =
-        !searchLower ||
-        fac.name.toLowerCase().includes(searchLower) ||
-        fac.employeeId.toLowerCase().includes(searchLower) ||
-        fac.department.toLowerCase().includes(searchLower) ||
-        fac.designation.toLowerCase().includes(searchLower) ||
-        (fac.email && fac.email.toLowerCase().includes(searchLower)) ||
-        (fac.highestQualification && fac.highestQualification.toLowerCase().includes(searchLower)) ||
-        (fac.qualificationLevel && fac.qualificationLevel.toLowerCase().includes(searchLower));
-
-      const matchesDept = departmentFilter === 'All' || fac.department.toLowerCase().trim() === departmentFilter.toLowerCase().trim();
-      const matchesDesig = designationFilter === 'All' || fac.designation.toLowerCase().trim() === designationFilter.toLowerCase().trim();
-      const matchesYear = academicYearFilter === 'All' || (fac.academicYear || '2024-2025').toLowerCase().trim() === academicYearFilter.toLowerCase().trim();
-
-      return matchesSearch && matchesDept && matchesDesig && matchesYear;
-    });
-
-    if (academicYearFilter === 'All') {
-      const uniqueMap = new Map<string, Faculty>();
-      list.forEach(fac => {
-        const key = fac.employeeId && fac.employeeId !== 'NIL'
-          ? fac.employeeId.toLowerCase().trim()
-          : `${fac.name.toLowerCase().trim()}_${fac.department.toLowerCase().trim()}`;
-
-        if (!uniqueMap.has(key)) {
-          uniqueMap.set(key, fac);
-        } else {
-          const existing = uniqueMap.get(key)!;
-          const yearCurr = fac.academicYear || '2024-2025';
-          const yearExist = existing.academicYear || '2024-2025';
-          if (yearCurr.localeCompare(yearExist) > 0) {
-            uniqueMap.set(key, fac);
-          }
-        }
-      });
-      list = Array.from(uniqueMap.values());
-    }
-
-    return list.sort((a, b) => {
-      const [field, order] = sortBy.split('-');
-      const isAsc = order === 'asc';
-
-      let valA: any = a[field as keyof Faculty];
-      let valB: any = b[field as keyof Faculty];
-
-      if (field === 'sNo') {
-        const numA = valA !== null && valA !== undefined ? Number(valA) : (isAsc ? Infinity : -Infinity);
-        const numB = valB !== null && valB !== undefined ? Number(valB) : (isAsc ? Infinity : -Infinity);
-        return isAsc ? numA - numB : numB - numA;
-      }
-
-      if (valA === undefined || valA === null) valA = '';
-      if (valB === undefined || valB === null) valB = '';
-
-      valA = String(valA).toLowerCase().trim();
-      valB = String(valB).toLowerCase().trim();
-
-      if (valA < valB) return isAsc ? -1 : 1;
-      if (valA > valB) return isAsc ? 1 : -1;
-      return 0;
-    });
-  }, [normalizedFacultyList, searchTerm, departmentFilter, designationFilter, academicYearFilter, sortBy]);
-
-  // Statistics Computations
-  const stats = useMemo(() => {
-    const total = filteredFaculty.length;
-    const phdCount = filteredFaculty.filter(f => 
-      (f.highestQualification && f.highestQualification.toUpperCase().includes('PHD')) ||
-      (f.qualificationLevel && f.qualificationLevel.toUpperCase().includes('PHD')) ||
-      (f.highestQualification && f.highestQualification.toUpperCase().includes('DOCTOR'))
-    ).length;
-    
-    const seniorCadre = filteredFaculty.filter(f => 
-      f.designation.toLowerCase().includes('professor') ||
-      f.designation.toLowerCase().includes('head') ||
-      f.designation.toLowerCase().includes('dean')
-    ).length;
-
-    const depts = new Set(filteredFaculty.map(f => f.department).filter(Boolean)).size;
-
-    let totalExpYears = 0;
-    filteredFaculty.forEach(f => {
-      const prevY = parseFloat(f.prevTeachingExpYears || '0') || 0;
-      const prevInd = parseFloat(f.prevIndustryExpYears || '0') || 0;
-      const cuY = parseFloat(f.cuExpYears || '0') || 0;
-      totalExpYears += (prevY + prevInd + cuY);
-    });
-    const avgExp = total > 0 ? (totalExpYears / total).toFixed(1) : '0';
-
-    return {
-      total,
-      phdCount,
-      phdPercent: total > 0 ? ((phdCount / total) * 100).toFixed(1) : '0',
-      seniorCadre,
-      seniorPercent: total > 0 ? ((seniorCadre / total) * 100).toFixed(1) : '0',
-      depts,
-      avgExp
-    };
-  }, [filteredFaculty]);
-
-  const designationCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredFaculty.forEach(fac => {
-      if (fac.designation) {
-        counts[fac.designation] = (counts[fac.designation] || 0) + 1;
-      }
-    });
-    return counts;
-  }, [filteredFaculty]);
-
-  const departmentCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredFaculty.forEach(fac => {
-      if (fac.department) {
-        counts[fac.department] = (counts[fac.department] || 0) + 1;
-      }
-    });
-    return counts;
-  }, [filteredFaculty]);
+  // For display, facultyList is already server-side filtered and paginated
+  const filteredFaculty = facultyList;
 
   const resetForm = () => {
     setFormData({
@@ -594,7 +519,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
           { label: 'Faculty Management', active: true },
         ]}
         title="Faculty Intelligence Directory"
-        badge={`${facultyList.length} Members`}
+        badge={`${totalCount.toLocaleString()} Members`}
         description="Institutional faculty census, doctorate cadre, qualifications hierarchy, and academic profiles across engineering disciplines."
         actions={
           <>
@@ -657,20 +582,20 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
           title="Faculty Census"
-          value={stats.total}
+          value={stats.total.toLocaleString()}
           subtitle="100% active profiles"
           icon={Users}
         />
         <StatCard
           title="Doctorates (PhD)"
-          value={stats.phdCount}
+          value={stats.phdCount.toLocaleString()}
           subtitle={`${stats.phdPercent}% doctoral ratio`}
           icon={GraduationCap}
         />
         <StatCard
           title="Senior Cadre"
-          value={stats.seniorCadre}
-          subtitle="Professors, HODs & Deans"
+          value={stats.seniorCadre.toLocaleString()}
+          subtitle={`${stats.seniorPercent}% leadership ratio`}
           icon={Award}
         />
         <StatCard
@@ -699,8 +624,8 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
           academicYearFilter !== 'All' ||
           designationFilter !== 'All'
         }
-        totalResults={filteredFaculty.length}
-        resultLabel={`faculty records (of ${facultyList.length} total)`}
+        totalResults={totalCount}
+        resultLabel={`faculty records (AY ${academicYearFilter})`}
         actions={
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
@@ -800,7 +725,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-700">Displaying Records:</span>
                   <span className="text-xs font-black text-[#2f4692] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                    {filteredFaculty.length} of {facultyList.length}
+                    {facultyList.length} of {totalCount.toLocaleString()}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400">Click actions to inspect or modify faculty credentials</p>

@@ -150,7 +150,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
     setError('');
     try {
       if (user?.token) {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departmental-activities`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departmental-activities?all=true`, {
           headers: { 'Authorization': `Bearer ${user.token}` }
         });
         const data = await res.json();
@@ -411,25 +411,25 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <StatCard
           title="Total Activities"
-          value={filteredActivities.length}
+          value={filteredActivities.length.toLocaleString()}
           icon={Layers}
           subtitle="Logged institutional events"
         />
         <StatCard
           title="Active Departments"
-          value={activeDepartmentsCount}
+          value={activeDepartmentsCount.toLocaleString()}
           icon={Building2}
           subtitle="Departments reporting"
         />
         <StatCard
           title="Completed Reports"
-          value={completedReportsCount}
+          value={completedReportsCount.toLocaleString()}
           icon={CheckCircle2}
           badge="Archived"
         />
         <StatCard
           title="Pending Documentation"
-          value={pendingActivities.length}
+          value={pendingActivities.length.toLocaleString()}
           icon={Clock}
           badge={pendingActivities.length > 0 ? "Action Required" : undefined}
         />

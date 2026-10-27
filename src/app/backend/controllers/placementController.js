@@ -10,7 +10,7 @@ const { parsePagination, formatPaginationResponse } = require('../utils/paginati
 // @access  Private
 exports.getPlacements = async (req, res) => {
   try {
-    const { batch, placementType, company } = req.query;
+    const { batch, placementType, company, academicYear } = req.query;
     const { where: scopeWhere } = await resolveDepartmentScope(req, 'Placement', false);
     
     const where = { ...scopeWhere };
@@ -18,11 +18,12 @@ exports.getPlacements = async (req, res) => {
         req.query.department && req.query.department !== 'all' && req.query.department !== 'All') {
       where.department = req.query.department;
     }
-    if (batch) where.batch = batch;
-    if (placementType) where.placementType = placementType;
+    const targetBatch = batch || academicYear;
+    if (targetBatch && targetBatch !== 'all' && targetBatch !== 'All') where.batch = targetBatch;
+    if (placementType && placementType !== 'all') where.placementType = placementType;
     if (company) where.company = { [Op.iLike]: `%${company}%` };
 
-    const { page, limit, offset } = parsePagination(req.query);
+    const { page, limit, offset, isExport } = parsePagination(req.query);
 
     const { count, rows: placements } = await Placement.findAndCountAll({
       where,
@@ -32,8 +33,8 @@ exports.getPlacements = async (req, res) => {
         attributes: ['id', 'name', 'email']
       }],
       order: [['placementDate', 'DESC'], ['id', 'ASC']],
-      limit,
-      offset,
+      limit: isExport ? undefined : limit,
+      offset: isExport ? undefined : offset,
       distinct: true
     });
 

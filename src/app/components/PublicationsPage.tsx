@@ -171,6 +171,7 @@ export function PublicationsPage({
     setError('');
     try {
       const params = new URLSearchParams();
+      params.append('all', 'true');
       if (selectedJournalType !== 'all') params.append('journalType', selectedJournalType);
       if (selectedYear !== 'all') params.append('academicYear', selectedYear);
       if (selectedDept !== 'all') params.append('department', selectedDept);
@@ -692,6 +693,7 @@ export function PublicationsPage({
           { label: 'Publications' }
         ]}
         title="Research Publications & Journal Articles"
+        badge={`${stats.total.toLocaleString()} Articles`}
         description="Institutional repository tracking Scopus, Web of Science (WoS), and indexed scholarly publications."
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -749,26 +751,26 @@ export function PublicationsPage({
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           title="Total Publications"
-          value={stats.total}
+          value={stats.total.toLocaleString()}
           subtitle="Across all departments & academic years"
           icon={BookOpen}
         />
         <StatCard
           title="Scopus Indexed"
-          value={stats.scopus}
+          value={stats.scopus.toLocaleString()}
           badge={stats.total > 0 ? `${Math.round((stats.scopus / stats.total) * 100)}%` : '0%'}
           subtitle="Scopus indexed scholarly papers"
           icon={FileText}
         />
         <StatCard
           title="Web of Science (WoS)"
-          value={stats.wos}
+          value={stats.wos.toLocaleString()}
           subtitle="Clarivate Analytics indexed papers"
           icon={Award}
         />
         <StatCard
           title="Total Citations"
-          value={stats.totalCitations}
+          value={stats.totalCitations.toLocaleString()}
           subtitle="Cumulative citation impact"
           icon={TrendingUp}
         />

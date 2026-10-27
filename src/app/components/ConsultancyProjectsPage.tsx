@@ -521,7 +521,7 @@ export function ConsultancyProjectsPage({
               { label: 'Consultancy Projects' }
             ]}
             title="Consultancy Projects & Advisory"
-            badge="NIRF & NAAC 3.5"
+            badge={`${filteredProjects.length.toLocaleString()} Projects`}
             description="Industry testing, professional advisory, and corporate research projects rendered by faculty consultants."
             actions={
               <div className="flex items-center gap-2 flex-wrap">
@@ -587,32 +587,32 @@ export function ConsultancyProjectsPage({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <StatCard
               title="Total Projects"
-              value={filteredProjects.length}
+              value={filteredProjects.length.toLocaleString()}
               subtitle="Across all departments"
               icon={Briefcase}
             />
             <StatCard
               title="Total Revenue"
-              value={`₹${totalRevenue.toFixed(2)}L`}
+              value={`₹${totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}L`}
               subtitle="Earned via external contracts"
               icon={DollarSign}
             />
             <StatCard
               title="Faculty Consultants"
-              value={uniqueConsultants}
+              value={uniqueConsultants.toLocaleString()}
               subtitle="Active faculty advisors"
               icon={UserCheck}
             />
             <StatCard
               title="Active Departments"
-              value={activeDepartmentsCount}
+              value={activeDepartmentsCount.toLocaleString()}
               badge={`of ${departments.length}`}
               subtitle="Engaged disciplines"
               icon={Building}
             />
             <StatCard
               title="Avg / Project"
-              value={`₹${avgRevenuePerProject.toFixed(2)}L`}
+              value={`₹${avgRevenuePerProject.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}L`}
               subtitle="Average contract size"
               icon={TrendingUp}
             />

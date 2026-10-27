@@ -180,6 +180,7 @@ export function PatentsPage({
     setError('');
     try {
       const params = new URLSearchParams();
+      params.append('all', 'true');
       if (selectedStatus !== 'all') params.append('status', selectedStatus);
       if (selectedType !== 'all') params.append('patentType', selectedType);
       if (selectedYear !== 'all') params.append('academicYear', selectedYear);
@@ -847,6 +848,7 @@ export function PatentsPage({
           { label: 'Patents & IP' }
         ]}
         title="Intellectual Property & Patents Portfolio"
+        badge={`${stats.total.toLocaleString()} Patents`}
         description="Comprehensive tracking of filed, published, granted, and commercialized patents across Christ University."
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -904,19 +906,19 @@ export function PatentsPage({
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           title="Total Patents"
-          value={stats.total}
+          value={stats.total.toLocaleString()}
           subtitle="Across National & International jurisdictions"
           icon={Award}
         />
         <StatCard
           title="Patents Published"
-          value={stats.published}
+          value={stats.published.toLocaleString()}
           subtitle="Official Patent Gazette published"
           icon={FileText}
         />
         <StatCard
           title="Patents Granted"
-          value={stats.granted}
+          value={stats.granted.toLocaleString()}
           badge={stats.total > 0 ? `${Math.round((stats.granted / stats.total) * 100)}%` : '0%'}
           subtitle="Fully certified & issued patents"
           icon={ShieldCheck}

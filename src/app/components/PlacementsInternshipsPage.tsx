@@ -150,7 +150,7 @@ export function PlacementsInternshipsPage({
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE}/api/placements`, {
+      const response = await fetch(`${API_BASE}/api/placements?all=true`, {
         headers: {
           'Authorization': `Bearer ${effectiveToken}`
         }
@@ -565,7 +565,7 @@ export function PlacementsInternshipsPage({
               { label: 'Placements & Internships' }
             ]}
             title="Placements & Internships"
-            badge="Career & Corporate Connect"
+            badge={`${filteredRecords.length.toLocaleString()} Records`}
             description="Comprehensive repository for student campus placements, corporate internships, compensation analytics, and recruiters data."
             actions={
               <div className="flex flex-wrap items-center gap-2">

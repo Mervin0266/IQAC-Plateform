@@ -55,13 +55,13 @@ exports.getActivities = async (req, res) => {
       where.status = req.query.status;
     }
 
-    const { page, limit, offset } = parsePagination(req.query);
+    const { page, limit, offset, isExport } = parsePagination(req.query);
 
     const { count, rows: activities } = await DepartmentalActivity.findAndCountAll({
       where,
       order: [['createdAt', 'DESC'], ['id', 'ASC']],
-      limit,
-      offset
+      limit: isExport ? undefined : limit,
+      offset: isExport ? undefined : offset
     });
 
     res.json(formatPaginationResponse({

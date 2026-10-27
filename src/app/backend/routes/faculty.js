@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getFaculty,
+  getFacultyStats,
   createFaculty,
   bulkCreateFaculty,
   updateFaculty,
@@ -13,6 +14,7 @@ const { auth, authorize } = require('../middleware/auth');
 router.use(auth);
 
 router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllFaculty);
+router.get('/stats', getFacultyStats);
 
 router.route('/')
   .get(getFaculty)

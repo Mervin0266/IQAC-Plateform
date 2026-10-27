@@ -7,21 +7,85 @@ const { logActionSafe } = require('../middleware/auditLogger');
 const { parsePagination, formatPaginationResponse, streamBatchedExport } = require('../utils/paginationHelper');
 
 // @desc    Get all faculty
+/**
+ * Build query conditions from request for faculty querying & dynamic statistics
+ */
+const buildFacultyFilterWhere = (req, scopeWhere) => {
+  const andConditions = [];
+  if (scopeWhere && Object.keys(scopeWhere).length > 0) {
+    andConditions.push(scopeWhere);
+  }
+
+  // Academic Year Filter
+  if (req.query.academicYear && req.query.academicYear !== 'all' && req.query.academicYear !== 'All') {
+    const y = req.query.academicYear.trim();
+    andConditions.push({
+      [Op.or]: [
+        { academicYear: y },
+        { academicYear: { [Op.iLike]: `${y.slice(0, 4)}%` } }
+      ]
+    });
+  }
+
+  // Department Filter
+  if ((req.user?.role === 'admin' || req.user?.role === 'authority') &&
+      req.query.department && req.query.department !== 'all' && req.query.department !== 'All') {
+    andConditions.push({
+      department: { [Op.iLike]: req.query.department.trim() }
+    });
+  }
+
+  // Designation Filter
+  if (req.query.designation && req.query.designation !== 'all' && req.query.designation !== 'All') {
+    andConditions.push({
+      designation: { [Op.iLike]: `%${req.query.designation.trim()}%` }
+    });
+  }
+
+  // Full-Text Search across major faculty fields
+  const searchVal = (req.query.search || req.query.q || '').trim();
+  if (searchVal) {
+    const term = `%${searchVal}%`;
+    andConditions.push({
+      [Op.or]: [
+        { name: { [Op.iLike]: term } },
+        { employeeId: { [Op.iLike]: term } },
+        { department: { [Op.iLike]: term } },
+        { designation: { [Op.iLike]: term } },
+        { email: { [Op.iLike]: term } },
+        { highestQualification: { [Op.iLike]: term } },
+        { qualificationLevel: { [Op.iLike]: term } }
+      ]
+    });
+  }
+
+  return {
+    andConditions,
+    where: andConditions.length > 0 ? { [Op.and]: andConditions } : {}
+  };
+};
+
+const buildFacultySortOrder = (req) => {
+  let order = [['sNo', 'ASC'], ['id', 'ASC']];
+  if (req.query.sortBy) {
+    const [field, dir] = req.query.sortBy.split('-');
+    const validFields = ['sNo', 'name', 'department', 'designation', 'academicYear', 'employeeId'];
+    const direction = (dir && dir.toLowerCase() === 'desc') ? 'DESC' : 'ASC';
+    if (validFields.includes(field)) {
+      order = [[field, direction], ['id', 'ASC']];
+    }
+  }
+  return order;
+};
+
+// @desc    Get all faculty with dynamic filters, pagination, and KPI stats
 // @route   GET /api/faculty
 // @access  Private
 exports.getFaculty = async (req, res) => {
   try {
     const { where: scopeWhere } = await resolveDepartmentScope(req, 'Faculty', false);
-    const where = { ...scopeWhere };
-
-    if (req.query.academicYear && req.query.academicYear !== 'all' && req.query.academicYear !== 'All') {
-      where.academicYear = req.query.academicYear;
-    }
-
-    if ((req.user.role === 'admin' || req.user.role === 'authority') &&
-        req.query.department && req.query.department !== 'all' && req.query.department !== 'All') {
-      where.department = req.query.department;
-    }
+    const { andConditions, where } = buildFacultyFilterWhere(req, scopeWhere);
+    const order = buildFacultySortOrder(req);
 
     const pagination = parsePagination(req.query);
 
@@ -29,7 +93,7 @@ exports.getFaculty = async (req, res) => {
       return await streamBatchedExport(res, {
         model: Faculty,
         where,
-        order: [['sNo', 'ASC'], ['id', 'ASC']],
+        order,
         batchSize: 1000,
         maxRecords: pagination.limit || 1000000,
         format: req.query.format === 'csv' ? 'csv' : 'json',
@@ -40,25 +104,248 @@ exports.getFaculty = async (req, res) => {
 
     const { page, limit, offset } = pagination;
 
-    const { count, rows: faculty } = await Faculty.findAndCountAll({
-      where,
-      order: [['sNo', 'ASC'], ['id', 'ASC']],
-      limit,
-      offset
+    // Concurrently fetch faculty page and compute dynamic distribution metrics on the EXACT filtered where
+    const [
+      facultyResult,
+      phdCount,
+      seniorCount,
+      deptRows,
+      desigRows,
+      allYearsRows,
+      expRows
+    ] = await Promise.all([
+      Faculty.findAndCountAll({
+        where,
+        order,
+        limit,
+        offset
+      }),
+      Faculty.count({
+        where: {
+          [Op.and]: [
+            ...andConditions,
+            {
+              [Op.or]: [
+                { qualificationLevel: { [Op.iLike]: '%PHD%' } },
+                { highestQualification: { [Op.iLike]: '%DOCTOR%' } }
+              ]
+            }
+          ]
+        }
+      }),
+      Faculty.count({
+        where: {
+          [Op.and]: [
+            ...andConditions,
+            {
+              [Op.or]: [
+                { designation: { [Op.iLike]: '%Professor%' } },
+                { designation: { [Op.iLike]: '%Head%' } },
+                { designation: { [Op.iLike]: '%Dean%' } }
+              ]
+            }
+          ]
+        }
+      }),
+      Faculty.findAll({
+        attributes: ['department', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        where,
+        group: ['department'],
+        raw: true
+      }),
+      Faculty.findAll({
+        attributes: ['designation', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        where,
+        group: ['designation'],
+        raw: true
+      }),
+      Faculty.findAll({
+        attributes: ['academicYear'],
+        group: ['academicYear'],
+        raw: true
+      }),
+      Faculty.findAll({
+        attributes: ['prevTeachingExpYears', 'prevIndustryExpYears', 'cuExpYears'],
+        where,
+        raw: true
+      })
+    ]);
+
+    const total = facultyResult.count;
+    let totalExpYears = 0;
+    expRows.forEach(f => {
+      const prevY = parseFloat(f.prevTeachingExpYears || '0') || 0;
+      const prevInd = parseFloat(f.prevIndustryExpYears || '0') || 0;
+      const cuY = parseFloat(f.cuExpYears || '0') || 0;
+      totalExpYears += (prevY + prevInd + cuY);
+    });
+    const avgExp = total > 0 ? (totalExpYears / total).toFixed(1) : '0';
+
+    const deptCounts = {};
+    deptRows.forEach(r => {
+      if (r.department && r.department !== 'NIL' && r.department !== 'N/A') {
+        deptCounts[r.department] = parseInt(r.count, 10);
+      }
     });
 
-    // Sensitive field protection: Never expose PAN in ordinary faculty list responses (Phase A5)
-    const sanitized = sanitizeFacultyData(faculty, req.user, false);
+    const desigCounts = {};
+    desigRows.forEach(r => {
+      if (r.designation && r.designation !== 'NIL' && r.designation !== 'N/A') {
+        desigCounts[r.designation] = parseInt(r.count, 10);
+      }
+    });
 
-    res.json(formatPaginationResponse({
-      count,
+    const stats = {
+      total,
+      phdCount,
+      phdPercent: total > 0 ? ((phdCount / total) * 100).toFixed(1) : '0',
+      seniorCadre: seniorCount,
+      seniorPercent: total > 0 ? ((seniorCount / total) * 100).toFixed(1) : '0',
+      depts: Object.keys(deptCounts).length,
+      avgExp
+    };
+
+    // Sensitive field protection: Never expose PAN in ordinary faculty list responses (Phase A5)
+    const sanitized = sanitizeFacultyData(facultyResult.rows, req.user, false);
+
+    const responsePayload = formatPaginationResponse({
+      count: total,
       rows: sanitized,
       page,
       limit
-    }));
+    });
+
+    responsePayload.stats = stats;
+    responsePayload.distribution = {
+      departments: deptCounts,
+      designations: desigCounts,
+      academicYears: allYearsRows.map(r => r.academicYear).filter(Boolean)
+    };
+
+    res.json(responsePayload);
   } catch (error) {
     console.error('Get faculty error:', error);
     res.status(error.status || 500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Get standalone faculty KPI stats matching active filters
+// @route   GET /api/faculty/stats
+// @access  Private
+exports.getFacultyStats = async (req, res) => {
+  try {
+    const { where: scopeWhere } = await resolveDepartmentScope(req, 'Faculty', false);
+    const { andConditions, where } = buildFacultyFilterWhere(req, scopeWhere);
+
+    const [
+      total,
+      phdCount,
+      seniorCount,
+      deptRows,
+      desigRows,
+      allYearsRows,
+      expRows
+    ] = await Promise.all([
+      Faculty.count({ where }),
+      Faculty.count({
+        where: {
+          [Op.and]: [
+            ...andConditions,
+            {
+              [Op.or]: [
+                { qualificationLevel: { [Op.iLike]: '%PHD%' } },
+                { highestQualification: { [Op.iLike]: '%DOCTOR%' } }
+              ]
+            }
+          ]
+        }
+      }),
+      Faculty.count({
+        where: {
+          [Op.and]: [
+            ...andConditions,
+            {
+              [Op.or]: [
+                { designation: { [Op.iLike]: '%Professor%' } },
+                { designation: { [Op.iLike]: '%Head%' } },
+                { designation: { [Op.iLike]: '%Dean%' } }
+              ]
+            }
+          ]
+        }
+      }),
+      Faculty.findAll({
+        attributes: ['department', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        where,
+        group: ['department'],
+        raw: true
+      }),
+      Faculty.findAll({
+        attributes: ['designation', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        where,
+        group: ['designation'],
+        raw: true
+      }),
+      Faculty.findAll({
+        attributes: ['academicYear'],
+        group: ['academicYear'],
+        raw: true
+      }),
+      Faculty.findAll({
+        attributes: ['prevTeachingExpYears', 'prevIndustryExpYears', 'cuExpYears'],
+        where,
+        raw: true
+      })
+    ]);
+
+    let totalExpYears = 0;
+    expRows.forEach(f => {
+      const prevY = parseFloat(f.prevTeachingExpYears || '0') || 0;
+      const prevInd = parseFloat(f.prevIndustryExpYears || '0') || 0;
+      const cuY = parseFloat(f.cuExpYears || '0') || 0;
+      totalExpYears += (prevY + prevInd + cuY);
+    });
+    const avgExp = total > 0 ? (totalExpYears / total).toFixed(1) : '0';
+
+    const deptCounts = {};
+    deptRows.forEach(r => {
+      if (r.department && r.department !== 'NIL' && r.department !== 'N/A') {
+        deptCounts[r.department] = parseInt(r.count, 10);
+      }
+    });
+
+    const desigCounts = {};
+    desigRows.forEach(r => {
+      if (r.designation && r.designation !== 'NIL' && r.designation !== 'N/A') {
+        desigCounts[r.designation] = parseInt(r.count, 10);
+      }
+    });
+
+    const stats = {
+      total,
+      phdCount,
+      phdPercent: total > 0 ? ((phdCount / total) * 100).toFixed(1) : '0',
+      seniorCadre: seniorCount,
+      seniorPercent: total > 0 ? ((seniorCount / total) * 100).toFixed(1) : '0',
+      depts: Object.keys(deptCounts).length,
+      avgExp
+    };
+
+    res.json({
+      success: true,
+      stats,
+      distribution: {
+        departments: deptCounts,
+        designations: desigCounts,
+        academicYears: allYearsRows.map(r => r.academicYear).filter(Boolean)
+      }
+    });
+  } catch (error) {
+    console.error('Get faculty stats error:', error);
+    res.status(500).json({
       success: false,
       message: error.message || 'Server error'
     });

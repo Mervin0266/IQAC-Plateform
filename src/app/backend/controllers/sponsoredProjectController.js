@@ -80,7 +80,7 @@ exports.getSponsoredProjects = async (req, res) => {
       ];
     }
 
-    const { page, limit, offset } = parsePagination(req.query);
+    const { page, limit, offset, isExport } = parsePagination(req.query);
 
     const { count, rows: projects } = await SponsoredProject.findAndCountAll({
       where,
@@ -95,8 +95,8 @@ exports.getSponsoredProjects = async (req, res) => {
         ['sanctionDate', 'DESC'],
         ['id', 'ASC']
       ],
-      limit,
-      offset,
+      limit: isExport ? undefined : limit,
+      offset: isExport ? undefined : offset,
       distinct: true
     });
 

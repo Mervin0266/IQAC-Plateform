@@ -38,7 +38,7 @@ exports.getAchievements = async (req, res) => {
       where.status = status;
     }
 
-    const { page, limit, offset } = parsePagination(req.query);
+    const { page, limit, offset, isExport } = parsePagination(req.query);
 
     const { count, rows: achievements } = await Achievement.findAndCountAll({
       where,
@@ -48,8 +48,8 @@ exports.getAchievements = async (req, res) => {
         attributes: ['id', 'name', 'email', 'department']
       }],
       order: [['date', 'DESC'], ['id', 'ASC']],
-      limit,
-      offset,
+      limit: isExport ? undefined : limit,
+      offset: isExport ? undefined : offset,
       distinct: true
     });
 

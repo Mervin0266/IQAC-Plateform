@@ -10,10 +10,11 @@ const { resolveDepartmentScope } = require('../utils/scopeHelper');
 // @access  Private
 exports.getConsultancyProjects = async (req, res) => {
   try {
-    const { year, department, status } = req.query;
+    const { year, department, status, academicYear } = req.query;
 
     const where = {};
-    if (year && year !== 'all') where.year = year;
+    const targetYear = year || academicYear;
+    if (targetYear && targetYear !== 'all') where.year = targetYear;
 
     // Enforce data isolation based on role
     if (req.user.role === 'faculty') {

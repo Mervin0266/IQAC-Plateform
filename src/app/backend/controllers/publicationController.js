@@ -116,7 +116,7 @@ exports.getPublications = async (req, res) => {
       ];
     }
 
-    const { page, limit, offset } = parsePagination(req.query);
+    const { page, limit, offset, isExport } = parsePagination(req.query);
 
     const { count, rows: publications } = await Publication.findAndCountAll({
       where,
@@ -130,8 +130,8 @@ exports.getPublications = async (req, res) => {
         ['publicationDate', 'DESC'],
         ['id', 'ASC']
       ],
-      limit,
-      offset,
+      limit: isExport ? undefined : limit,
+      offset: isExport ? undefined : offset,
       distinct: true
     });
 
