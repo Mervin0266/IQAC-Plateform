@@ -48,7 +48,35 @@ function SuspenseFallback() {
 function AppContent() {
   const { user, isAuthenticated } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [showLogin, setShowLogin] = useState(false);
+  const [showLogin, setShowLogin] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      const hash = window.location.hash.toLowerCase();
+      return (
+        path === '/login' ||
+        path.startsWith('/login') ||
+        search.includes('login') ||
+        hash === '#login' ||
+        hash.includes('login')
+      );
+    }
+    return false;
+  });
+
+  // Keep URL in sync with login view
+  React.useEffect(() => {
+    const handleLocationChange = () => {
+      const path = window.location.pathname.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      const hash = window.location.hash.toLowerCase();
+      if (path === '/login' || search.includes('login') || hash === '#login') {
+        setShowLogin(true);
+      }
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
 
   // Check if user has access to current page (Hook called unconditionally at top level)
   React.useEffect(() => {
@@ -60,9 +88,27 @@ function AppContent() {
   // If not authenticated and not explicitly showing login, show public website
   if (!isAuthenticated || !user) {
     if (showLogin) {
-      return <LoginPage onBack={() => setShowLogin(false)} />;
+      return (
+        <LoginPage
+          onBack={() => {
+            setShowLogin(false);
+            if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+              window.history.pushState({}, '', '/');
+            }
+          }}
+        />
+      );
     }
-    return <PublicWebsite onLoginClick={() => setShowLogin(true)} />;
+    return (
+      <PublicWebsite
+        onLoginClick={() => {
+          setShowLogin(true);
+          if (typeof window !== 'undefined') {
+            window.history.pushState({}, '', '/login');
+          }
+        }}
+      />
+    );
   }
 
   const renderPage = () => {

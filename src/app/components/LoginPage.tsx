@@ -22,52 +22,61 @@ export interface TestAccountFixture {
   description: string;
 }
 
-const isLocalTestMode = Boolean(import.meta.env.DEV && !import.meta.env.PROD);
+const isLocalTestMode = Boolean(
+  (import.meta.env.DEV && !import.meta.env.PROD) ||
+  import.meta.env.VITE_ENABLE_TEST_LOGIN === 'true' ||
+  (typeof window !== 'undefined' && (
+    window.location.search.includes('demo=true') ||
+    window.location.search.includes('test=true') ||
+    window.location.hostname.includes('vercel.app') ||
+    window.location.hostname.includes('onrender.com') ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+  ))
+);
 
-const TEST_ACCOUNT_FIXTURES: Record<UserRole, TestAccountFixture> | null = import.meta.env.DEV
-  ? {
-      admin: {
-        role: 'admin',
-        label: 'Administrator',
-        shortTag: 'SYSTEM ADMIN',
-        email: 'admin@christuniversity.in',
-        password: 'Admin@123',
-        description: 'Institutional management, user roles, security, and database controls',
-      },
-      authority: {
-        role: 'authority',
-        label: 'Dean / Director',
-        shortTag: 'AUTHORITY',
-        email: 'dean@christuniversity.in',
-        password: 'Authority@123',
-        description: 'Executive oversight, read-only institutional inspection, analytics, and audits',
-      },
-      hod: {
-        role: 'hod',
-        label: 'Head of Department',
-        shortTag: 'HOD (CSE)',
-        email: 'hod.cse@christuniversity.in',
-        password: 'Hod@123',
-        description: 'Departmental administration, academic reviews, faculty allocations, and approvals',
-      },
-      coordinator: {
-        role: 'coordinator',
-        label: 'IQAC Coordinator',
-        shortTag: 'COORDINATOR (CSE)',
-        email: 'coord.cse@christuniversity.in',
-        password: 'Coordinator@123',
-        description: 'Criterion verification, data validation, and departmental bulk uploads',
-      },
-      faculty: {
-        role: 'faculty',
-        label: 'Faculty Member',
-        shortTag: 'FACULTY (CSE)',
-        email: 'faculty.cse@christuniversity.in',
-        password: 'Faculty@123',
-        description: 'Profile management, publications, research grants, and student achievements',
-      },
-    }
-  : null;
+const TEST_ACCOUNT_FIXTURES: Record<UserRole, TestAccountFixture> = {
+  admin: {
+    role: 'admin',
+    label: 'Administrator',
+    shortTag: 'SYSTEM ADMIN',
+    email: 'admin@christuniversity.in',
+    password: 'Admin@123',
+    description: 'Institutional management, user roles, security, and database controls',
+  },
+  authority: {
+    role: 'authority',
+    label: 'Dean / Director',
+    shortTag: 'AUTHORITY',
+    email: 'dean@christuniversity.in',
+    password: 'Authority@123',
+    description: 'Executive oversight, read-only institutional inspection, analytics, and audits',
+  },
+  hod: {
+    role: 'hod',
+    label: 'Head of Department',
+    shortTag: 'HOD (CSE)',
+    email: 'hod.cse@christuniversity.in',
+    password: 'Hod@123',
+    description: 'Departmental administration, academic reviews, faculty allocations, and approvals',
+  },
+  coordinator: {
+    role: 'coordinator',
+    label: 'IQAC Coordinator',
+    shortTag: 'COORDINATOR (CSE)',
+    email: 'coord.cse@christuniversity.in',
+    password: 'Coordinator@123',
+    description: 'Criterion verification, data validation, and departmental bulk uploads',
+  },
+  faculty: {
+    role: 'faculty',
+    label: 'Faculty Member',
+    shortTag: 'FACULTY (CSE)',
+    email: 'faculty.cse@christuniversity.in',
+    password: 'Faculty@123',
+    description: 'Profile management, publications, research grants, and student achievements',
+  },
+};
 
 export function LoginPage({ onBack }: LoginPageProps) {
   const { login } = useAuth();
