@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { AppShell } from './design-system';
+import { AppShell, PageHeader, StatCard } from './design-system';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -143,143 +143,106 @@ export function IncubationsPage({ onNavigate, isPublicView = false }: Incubation
   return (
     <AppShell currentPage="incubations" onNavigate={onNavigate} hideSidebar={isPublicView}>
           
-          {/* Header Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-[#2f4692]/20 ring-4 ring-[#2f4692]/10">
-                <Rocket className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Startup Incubation & Entrepreneurship
-                </h1>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Venture acceleration, seed funding tracking, founder lineages and technology commercialization
-                </p>
-              </div>
-            </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Innovation' },
+          { label: 'Startup Incubation & Entrepreneurship', active: true },
+        ]}
+        title="Startup Incubation & Entrepreneurship"
+        badge={`${filteredStartups.length} Ventures`}
+        description="Venture acceleration, seed funding tracking, founder lineages and technology commercialization."
+        actions={
+          <Button
+            variant="outline"
+            className="border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs flex items-center gap-1.5"
+            onClick={() => {
+              const header = 'Startup Name,Founder,Sector,Stage,Funding / Valuation,Employees,Status';
+              const rows = filteredStartups.map(s => `"${s.name}","${s.founder}","${s.sector}","${s.stage}","${s.funding}",${s.employees},"${s.status}"`);
+              const csv = 'data:text/csv;charset=utf-8,' + [header, ...rows].join('\n');
+              const link = document.createElement('a');
+              link.href = encodeURI(csv);
+              link.download = 'Incubation_Startups_Report.csv';
+              link.click();
+            }}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Export Report</span>
+          </Button>
+        }
+      />
 
-            <div className="flex items-center gap-2.5">
-              <Button
-                variant="outline"
-                className="border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
-                onClick={() => {
-                  const header = 'Startup Name,Founder,Sector,Stage,Funding / Valuation,Employees,Status';
-                  const rows = filteredStartups.map(s => `"${s.name}","${s.founder}","${s.sector}","${s.stage}","${s.funding}",${s.employees},"${s.status}"`);
-                  const csv = 'data:text/csv;charset=utf-8,' + [header, ...rows].join('\n');
-                  const link = document.createElement('a');
-                  link.href = encodeURI(csv);
-                  link.download = 'Incubation_Startups_Report.csv';
-                  link.click();
-                }}
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Export Report</span>
-              </Button>
-            </div>
+      {/* 5 Executive KPI Metric Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatCard
+          title="Active Startups"
+          value={activeCount}
+          subtitle="In incubation"
+          icon={Rocket}
+        />
+        <StatCard
+          title="Total Funding"
+          value="₹12.5 Cr"
+          subtitle="Raised by founders"
+          icon={DollarSign}
+        />
+        <StatCard
+          title="Graduated"
+          value={gradCount}
+          subtitle="Market scaled ventures"
+          icon={Award}
+        />
+        <StatCard
+          title="Jobs Created"
+          value="120+"
+          subtitle="Direct employment"
+          icon={Users}
+        />
+        <StatCard
+          title="Mentor Pool"
+          value="35+"
+          subtitle="Industry leaders"
+          icon={Briefcase}
+        />
+      </div>
+
+      {/* Unified Single Filter Bar */}
+      <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[300px]">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search startup name, founder, sector..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="pl-8 pr-8 text-xs h-9 rounded-lg border-slate-200 bg-white"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* 5 Executive KPI Metric Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2f4692] to-blue-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Startups</p>
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2f4692] flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Rocket className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{activeCount}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">In incubation</p>
-            </div>
+          <select
+            value={sectorFilter}
+            onChange={e => setSectorFilter(e.target.value)}
+            className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="All">All Tech Sectors</option>
+            {sectorsList.map((s, i) => (
+              <option key={i} value={s}>{s}</option>
+            ))}
+          </select>
 
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Funding</p>
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <DollarSign className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-emerald-700 tracking-tight mt-2">₹12.5 Cr</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Raised by founders</p>
-            </div>
-
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Graduated</p>
-                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Award className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-purple-700 tracking-tight mt-2">{gradCount}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Market scaled ventures</p>
-            </div>
-
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Jobs Created</p>
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Users className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">120+</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Direct employment</p>
-            </div>
-
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mentor Pool</p>
-                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Briefcase className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">35+</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Industry leaders</p>
-            </div>
-          </div>
-
-          {/* Unified Single Filter Bar */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[300px]">
-              <div className="relative flex-1 min-w-[220px]">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Search startup name, founder, sector..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-8 pr-8 text-xs h-9 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
-                />
-                {searchTerm && (
-                  <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              <select
-                value={sectorFilter}
-                onChange={e => setSectorFilter(e.target.value)}
-                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
-              >
-                <option value="All">All Tech Sectors</option>
-                {sectorsList.map((s, i) => (
-                  <option key={i} value={s}>{s}</option>
-                ))}
-              </select>
-
-              <select
-                value={stageFilter}
-                onChange={e => setStageFilter(e.target.value)}
-                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2f4692]"
-              >
-                <option value="All">All Incubation Statuses</option>
-                <option value="Active">Active Incubating</option>
-                <option value="Graduated">Graduated / Scale-up</option>
-              </select>
+          <select
+            value={stageFilter}
+            onChange={e => setStageFilter(e.target.value)}
+            className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="All">All Incubation Statuses</option>
+            <option value="Active">Active Incubating</option>
+            <option value="Graduated">Graduated / Scale-up</option>
+          </select>
 
               {(searchTerm || sectorFilter !== 'All' || stageFilter !== 'All') && (
                 <Button

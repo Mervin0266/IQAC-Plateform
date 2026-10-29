@@ -573,7 +573,7 @@ export function PlacementsInternshipsPage({
                   variant="outline"
                   size="sm"
                   onClick={fetchPlacements}
-                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                   title="Refresh Placements & Internships"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
@@ -584,7 +584,7 @@ export function PlacementsInternshipsPage({
                   variant="outline"
                   size="sm"
                   onClick={handleExportCSV}
-                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
                   <span>CSV</span>
@@ -594,7 +594,7 @@ export function PlacementsInternshipsPage({
                   variant="outline"
                   size="sm"
                   onClick={handleExportExcel}
-                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
                   <span>Excel</span>
@@ -605,7 +605,7 @@ export function PlacementsInternshipsPage({
                     variant="outline"
                     size="sm"
                     onClick={() => setIsClearOpen(true)}
-                    className="border-rose-200 bg-white text-rose-700 hover:bg-rose-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                    className="border-rose-200 bg-white text-rose-700 hover:bg-rose-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                     title="Clear All Placements Data"
                   >
                     <Trash2 className="w-3.5 h-3.5 mr-1.5" />
@@ -618,9 +618,9 @@ export function PlacementsInternshipsPage({
                     variant="outline"
                     size="sm"
                     onClick={() => setShowBulkDialog(true)}
-                    className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                    className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                   >
-                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                    <Upload className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
                     <span>Bulk Upload</span>
                   </Button>
                 )}
@@ -629,7 +629,7 @@ export function PlacementsInternshipsPage({
                   <Button
                     size="sm"
                     onClick={handleOpenCreate}
-                    className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                   >
                     <Plus className="w-4 h-4 mr-1.5" />
                     <span>Add Placement</span>
@@ -678,7 +678,7 @@ export function PlacementsInternshipsPage({
           {/* ========================================================================= */}
           {/* 3. SINGLE UNIFIED FILTER & VIEW TOOLBAR (CLEAN, NO DUPLICATES)            */}
           {/* ========================================================================= */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               {/* Real-time Search Box */}
               <div className="relative flex-1 max-w-md">
@@ -691,7 +691,7 @@ export function PlacementsInternshipsPage({
                     setSearchQuery(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="pl-9 pr-4 h-10 text-xs bg-slate-50/50 border-slate-200 focus:bg-white rounded-xl focus:ring-emerald-500"
+                  className="pl-9 pr-4 h-9 text-xs bg-slate-50 border-slate-200 focus:bg-white rounded-lg focus:ring-blue-500/20 focus:border-blue-500"
                 />
                 {searchQuery && (
                   <button
@@ -710,7 +710,7 @@ export function PlacementsInternshipsPage({
                     variant="ghost"
                     size="sm"
                     onClick={handleResetFilters}
-                    className="h-9 px-3 text-xs text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-1.5"
+                    className="h-9 px-3 text-xs text-rose-600 hover:bg-rose-50 rounded-lg flex items-center gap-1.5"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Reset Filters</span>
@@ -718,13 +718,13 @@ export function PlacementsInternshipsPage({
                 )}
 
                 {/* View Mode Pills */}
-                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+                <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200/80">
                   <button
                     onClick={() => setViewMode('table')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                       viewMode === 'table'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
                     }`}
                   >
                     <TableIcon className="w-3.5 h-3.5" />
@@ -733,10 +733,10 @@ export function PlacementsInternshipsPage({
 
                   <button
                     onClick={() => setViewMode('cards')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                       viewMode === 'cards'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
                     }`}
                   >
                     <LayoutGrid className="w-3.5 h-3.5" />
@@ -745,10 +745,10 @@ export function PlacementsInternshipsPage({
 
                   <button
                     onClick={() => setViewMode('analytics')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                       viewMode === 'analytics'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
                     }`}
                   >
                     <BarChart3 className="w-3.5 h-3.5" />
@@ -886,27 +886,27 @@ export function PlacementsInternshipsPage({
             /* ======================================================================= */
             /* VIEW 1: TABLE VIEW                                                      */
             /* ======================================================================= */
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs text-slate-700">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200/80 font-semibold text-slate-900">
-                      <th className="py-3.5 px-4">Student Details</th>
-                      <th className="py-3.5 px-3">Type</th>
-                      <th className="py-3.5 px-3">Department & Course</th>
-                      <th className="py-3.5 px-3">AY (Batch)</th>
-                      <th className="py-3.5 px-4">Recruiting Company & Role</th>
-                      <th className="py-3.5 px-3">Package / Stipend</th>
-                      <th className="py-3.5 px-3">Date</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                      <th className="py-3 px-4">Student Details</th>
+                      <th className="py-3 px-3">Type</th>
+                      <th className="py-3 px-3">Department & Course</th>
+                      <th className="py-3 px-3">AY (Batch)</th>
+                      <th className="py-3 px-4">Recruiting Company & Role</th>
+                      <th className="py-3 px-3">Package / Stipend</th>
+                      <th className="py-3 px-3">Date</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {paginatedRecords.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
                         {/* Student Details */}
-                        <td className="py-3.5 px-4">
-                          <div className="font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
                             {item.studentName}
                           </div>
                           <div className="text-[11px] font-mono text-slate-500 mt-0.5">
@@ -915,14 +915,14 @@ export function PlacementsInternshipsPage({
                         </td>
 
                         {/* Type Badge */}
-                        <td className="py-3.5 px-3">
+                        <td className="py-3 px-3">
                           {item.placementType === 'placement' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80">
                               <UserCheck className="w-3 h-3" />
                               <span>Placement</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/80">
                               <Briefcase className="w-3 h-3" />
                               <span>Internship</span>
                             </span>

@@ -18,6 +18,15 @@ export interface StatCardProps {
   className?: string;
 }
 
+/**
+ * StatCard — Minimal Enterprise SaaS Metric Card
+ * Structured for modern analytics dashboards (Stripe / Datadog style):
+ * - Clean white container with subtle 1px border
+ * - Rounded corners (rounded-xl)
+ * - Inter tabular typography
+ * - Restrained status colors for trends and badges
+ * - No decorative stripes or gradients
+ */
 export function StatCard({
   title,
   value,
@@ -31,24 +40,19 @@ export function StatCard({
 }: StatCardProps) {
   const content = (
     <div
-      className={`h-full flex flex-col justify-between bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs relative transition-all duration-150 ${
-        onClick ? 'cursor-pointer hover:border-slate-300 hover:shadow-sm' : ''
+      className={`h-full flex flex-col justify-between bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs relative transition-colors duration-150 ${
+        onClick ? 'cursor-pointer hover:border-slate-300 hover:bg-slate-50/30' : ''
       } ${className}`}
     >
-      {/* Subtle top indicator bar - institutional blue */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-slate-100/80 rounded-t-2xl overflow-hidden">
-        <div className="h-full bg-[#2F4692] w-12" />
-      </div>
-
-      {/* Top Header Row: Title, Badge, and Icon */}
-      <div className="flex items-start justify-between gap-2 mb-2">
+      {/* Top Header Row: Title, Badge, and Restrained Icon */}
+      <div className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
               {title}
             </span>
             {badge && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-[#2F4692] border border-blue-200/60 shrink-0">
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200/60 shrink-0">
                 {badge}
               </span>
             )}
@@ -56,31 +60,31 @@ export function StatCard({
         </div>
 
         {Icon && (
-          <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 text-[#2F4692]">
-            <Icon className="w-4 h-4 text-[#2F4692]" />
+          <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 text-slate-600">
+            <Icon className="w-4 h-4 text-slate-600" />
           </div>
         )}
       </div>
 
-      {/* Metric Value: Bold & Prominent */}
+      {/* Metric Value: Bold & Prominent Inter Tabular Numbers */}
       <div className="my-auto py-1">
         {loading ? (
-          <div className="h-8 w-24 bg-slate-100 animate-pulse rounded my-1" />
+          <div className="h-8 w-24 bg-slate-100 rounded my-1" />
         ) : (
-          <div className="text-2xl lg:text-[26px] font-bold tracking-tight text-[#0B132B] tabular-nums truncate leading-none">
+          <div className="text-2xl font-bold tracking-tight text-slate-900 tabular-nums truncate leading-none">
             {value}
           </div>
         )}
       </div>
 
-      {/* Bottom Row: Subtitle & Trend Change Pinned to Bottom */}
+      {/* Bottom Row: Subtitle & Restrained Trend Indicator */}
       {(subtitle || change) && (
-        <div className="mt-auto pt-3 border-t border-slate-100/80 flex items-center gap-1.5 text-xs">
+        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center gap-1.5 text-xs">
           {change && (
             <span
-              className={`inline-flex items-center font-bold shrink-0 ${
+              className={`inline-flex items-center font-medium shrink-0 ${
                 change.neutral
-                  ? 'text-slate-500'
+                  ? 'text-slate-600'
                   : change.positive
                   ? 'text-emerald-700'
                   : 'text-rose-700'
@@ -88,7 +92,9 @@ export function StatCard({
             >
               {change.positive && '+'}
               {change.value}
-              {change.label && <span className="text-slate-500 ml-1 font-normal">{change.label}</span>}
+              {change.label && (
+                <span className="text-slate-500 ml-1 font-normal">{change.label}</span>
+              )}
             </span>
           )}
           {subtitle && (
@@ -106,7 +112,7 @@ export function StatCard({
       <button
         type="button"
         onClick={onClick}
-        className="w-full h-full text-left focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20 rounded-2xl block"
+        className="w-full h-full text-left focus:outline-none focus:ring-2 focus:ring-slate-900/10 rounded-xl block"
       >
         {content}
       </button>

@@ -31,13 +31,13 @@ export function DashboardHeader({ loading, onRefresh }: DashboardHeaderProps) {
   return (
     <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
           {greeting},{' '}
-          <span className="bg-gradient-to-r from-[#2f4692] to-[#5a7bd4] bg-clip-text text-transparent">
+          <span className="text-blue-600">
             {user?.username || getRoleDisplayName(user?.role || 'faculty')}
           </span>
         </h1>
-        <p className="text-sm text-gray-500 mt-0.5">{dateStr}</p>
+        <p className="text-xs text-slate-500 mt-1">{dateStr}</p>
       </div>
 
       <div className="flex items-center gap-3">
@@ -45,19 +45,19 @@ export function DashboardHeader({ loading, onRefresh }: DashboardHeaderProps) {
           <ClearDatabaseButton onSuccess={onRefresh} />
         )}
         {loading && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-full border border-blue-100">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            <span className="text-xs text-blue-600 font-medium">Syncing...</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-200/80">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+            <span className="text-xs text-blue-700 font-medium">Syncing...</span>
           </div>
         )}
         {onRefresh && (
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="p-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-all shadow-sm disabled:opacity-50"
+            className="p-2 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50 text-slate-600 transition-colors shadow-xs disabled:opacity-50"
             title="Refresh dashboard"
           >
-            <RefreshCw className={`w-4 h-4 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         )}
       </div>

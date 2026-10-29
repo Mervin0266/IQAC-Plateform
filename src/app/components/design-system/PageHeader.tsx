@@ -16,6 +16,10 @@ export interface PageHeaderProps {
   className?: string;
 }
 
+/**
+ * PageHeader — Minimal Enterprise SaaS View Header
+ * Clean hierarchy: Breadcrumbs -> Title with status/count badge -> Subtitle -> Action toolbar
+ */
 export function PageHeader({
   title,
   description,
@@ -25,7 +29,7 @@ export function PageHeader({
   className = '',
 }: PageHeaderProps) {
   return (
-    <header className={`bg-white border border-slate-200/80 rounded-xl p-5 sm:p-6 shadow-xs ${className}`}>
+    <header className={`bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs ${className}`}>
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="space-y-1.5 min-w-0">
           {/* Breadcrumbs */}
@@ -43,7 +47,7 @@ export function PageHeader({
                       {crumb.label}
                     </button>
                   ) : (
-                    <span className={crumb.active ? 'text-slate-900 font-semibold' : ''}>
+                    <span className={crumb.active ? 'text-slate-900 font-medium' : ''}>
                       {crumb.label}
                     </span>
                   )}
@@ -52,13 +56,13 @@ export function PageHeader({
             </nav>
           )}
 
-          {/* Title and Badge */}
+          {/* Title and Restrained Badge */}
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
               {title}
             </h1>
             {badge && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#2f4692]/10 text-[#2f4692] border border-[#2f4692]/20 uppercase tracking-wider">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/80 tracking-normal">
                 {badge}
               </span>
             )}
@@ -66,7 +70,7 @@ export function PageHeader({
 
           {/* Subtitle */}
           {description && (
-            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-3xl">
+            <p className="text-xs text-slate-500 leading-relaxed max-w-3xl">
               {description}
             </p>
           )}

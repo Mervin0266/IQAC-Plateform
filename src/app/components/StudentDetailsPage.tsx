@@ -555,16 +555,16 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                 <button
                   type="button"
                   onClick={() => setIsBulkUploadOpen(true)}
-                  className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shadow-xs"
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors shadow-xs"
                 >
-                  <Upload className="w-3.5 h-3.5 text-[#2F4692]" />
+                  <Upload className="w-3.5 h-3.5 text-blue-600" />
                   <span>Bulk Upload</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => { resetForm(); setIsAddModalOpen(true); }}
-                  className="inline-flex items-center gap-1.5 h-9 px-4 text-xs font-semibold text-white bg-[#2F4692] hover:bg-[#243A7A] rounded-xl transition-colors shadow-xs"
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Student</span>
@@ -625,14 +625,14 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
         totalResults={totalCount}
         resultLabel={`students (of ${(activeStats.total || totalCount).toLocaleString()} total)`}
         actions={
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200/80">
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                 viewMode === 'table'
-                  ? 'bg-white text-[#2F4692] shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
               }`}
             >
               <TableIcon className="w-3.5 h-3.5" />
@@ -642,10 +642,10 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                 viewMode === 'cards'
-                  ? 'bg-white text-[#2F4692] shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
@@ -655,10 +655,10 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
             <button
               type="button"
               onClick={() => setViewMode('analytics')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                 viewMode === 'analytics'
-                  ? 'bg-white text-[#2F4692] shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
@@ -671,7 +671,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
         <select
           value={academicYearFilter}
           onChange={e => setAcademicYearFilter(e.target.value)}
-          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="All">All Academic Years</option>
           {availableAcademicYears.map(yr => (
@@ -683,7 +683,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
         <select
           value={departmentFilter}
           onChange={e => setDepartmentFilter(e.target.value)}
-          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20 max-w-[200px]"
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[200px]"
         >
           <option value="All">All Departments</option>
           {departmentsList.map((d, i) => (
@@ -695,7 +695,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
         <select
           value={programLevelFilter}
           onChange={e => setProgramLevelFilter(e.target.value)}
-          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="All">All Program Levels</option>
           <option value="UG">UG (Undergraduate)</option>
@@ -707,7 +707,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="All">All Statuses</option>
           <option value="Active">Active</option>
@@ -719,7 +719,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
         <select
           value={sortBy}
           onChange={e => setSortBy(e.target.value)}
-          className="h-9 px-3 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 text-[#2F4692] focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="registerNumber-asc">Sort: Reg No (Asc)</option>
           <option value="name-asc">Sort: Name (A-Z)</option>
@@ -729,11 +729,11 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
 
           {/* View Mode 1: Table Matrix */}
           {viewMode === 'table' && (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-700">Displaying Students:</span>
-                  <span className="text-xs font-black text-[#2f4692] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                  <span className="text-xs font-semibold text-slate-700">Displaying Students:</span>
+                  <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/80">
                     {students.length} of {totalCount.toLocaleString()}
                   </span>
                 </div>
@@ -743,18 +743,18 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                      <th className="py-3.5 px-4">Register No</th>
-                      <th className="py-3.5 px-4">Student Name</th>
-                      <th className="py-3.5 px-4">Department & Course</th>
-                      <th className="py-3.5 px-4 text-center">Level</th>
-                      <th className="py-3.5 px-4">Class / Batch</th>
-                      <th className="py-3.5 px-4 text-center">AY</th>
-                      <th className="py-3.5 px-4 text-center">Status</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    <tr className="bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                      <th className="py-3 px-4">Register No</th>
+                      <th className="py-3 px-4">Student Name</th>
+                      <th className="py-3 px-4">Department & Course</th>
+                      <th className="py-3 px-4 text-center">Level</th>
+                      <th className="py-3 px-4">Class / Batch</th>
+                      <th className="py-3 px-4 text-center">AY</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
+                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                     {filteredStudents.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="py-12 text-center text-slate-400">
@@ -774,14 +774,14 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                           .toUpperCase() || 'ST';
 
                         return (
-                          <tr key={st.id || idx} className="hover:bg-blue-50/30 transition-colors group">
-                            <td className="py-3 px-4 font-mono font-bold text-slate-900 text-xs">
+                          <tr key={st.id || idx} className="hover:bg-slate-50/80 transition-colors group">
+                            <td className="py-3 px-4 font-mono font-medium text-slate-900 text-xs">
                               {st.registerNumber}
                             </td>
 
-                            <td className="py-3.5 px-4">
+                            <td className="py-3 px-4">
                               <div>
-                                <p className="font-semibold text-slate-900 group-hover:text-[#2F4692] transition-colors">
+                                <p className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
                                   {st.name}
                                 </p>
                                 {st.email && (
@@ -791,7 +791,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                             </td>
 
                             <td className="py-3 px-4">
-                              <p className="font-semibold text-slate-800 text-[11px] truncate max-w-[220px]">
+                              <p className="font-medium text-slate-800 text-[11px] truncate max-w-[220px]">
                                 {st.course || st.department}
                               </p>
                               <p className="text-[10px] text-slate-400 truncate max-w-[220px]">
@@ -800,33 +800,33 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                             </td>
 
                             <td className="py-3 px-4 text-center">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${
                                 (st.programLevel || 'UG').toUpperCase() === 'UG'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                                  : 'bg-purple-50 text-purple-700 border border-purple-200/60'
+                                  ? 'bg-slate-100 text-slate-700 border-slate-200/80'
+                                  : 'bg-blue-50 text-blue-700 border-blue-200/80'
                               }`}>
                                 {st.programLevel || 'UG'}
                               </span>
                             </td>
 
                             <td className="py-3 px-4">
-                              <p className="font-semibold text-slate-800">{st.className || '—'}</p>
+                              <p className="font-medium text-slate-800">{st.className || '—'}</p>
                               <p className="text-[10px] text-slate-400 font-mono">{st.batch || '—'}</p>
                             </td>
 
                             <td className="py-3 px-4 text-center">
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">
                                 {st.academicYear || '2024-25'}
                               </span>
                             </td>
 
                             <td className="py-3 px-4 text-center">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${
                                 st.status === 'Active'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
                                   : st.status === 'Graduated'
-                                  ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
-                                  : 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                                  ? 'bg-slate-100 text-slate-700 border-slate-200/80'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200/80'
                               }`}>
                                 {st.status || 'Active'}
                               </span>
@@ -838,7 +838,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                                   onClick={() => setViewingStudent(st)}
                                   variant="ghost"
                                   size="sm"
-                                  className="h-7 w-7 p-0 text-slate-500 hover:text-[#2f4692] hover:bg-blue-50 rounded-lg"
+                                  className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-md"
                                   title="Inspect Profile"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
@@ -850,7 +850,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                                       onClick={() => setEditingStudent(st)}
                                       variant="ghost"
                                       size="sm"
-                                      className="h-7 w-7 p-0 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
+                                      className="h-7 w-7 p-0 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-md"
                                       title="Edit Student"
                                     >
                                       <Edit className="w-3.5 h-3.5" />
@@ -859,7 +859,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                                       onClick={() => handleDelete(st.id)}
                                       variant="ghost"
                                       size="sm"
-                                      className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                                      className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md"
                                       title="Delete"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -910,9 +910,9 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
           {viewMode === 'cards' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredStudents.length === 0 ? (
-                <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-slate-200">
+                <div className="col-span-full py-12 text-center bg-white rounded-xl border border-slate-200/80">
                   <GraduationCap className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                  <p className="font-bold text-slate-700">No student records match your filters</p>
+                  <p className="font-semibold text-slate-700">No student records match your filters</p>
                 </div>
               ) : (
                 filteredStudents.map((st, idx) => {
@@ -921,35 +921,35 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                   return (
                     <div
                       key={st.id || idx}
-                      className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+                      className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs hover:border-slate-300 transition-colors flex flex-col justify-between group"
                     >
                       <div>
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white flex items-center justify-center text-sm font-black shadow-md shadow-blue-200">
+                            <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-700 border border-slate-200/80 flex items-center justify-center text-xs font-semibold">
                               {initials}
                             </div>
                             <div>
-                              <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#2f4692] transition-colors leading-snug">
+                              <h3 className="font-semibold text-slate-900 text-sm group-hover:text-blue-600 transition-colors leading-snug">
                                 {st.name}
                               </h3>
-                              <p className="text-[11px] font-mono text-[#2f4692] font-bold">
+                              <p className="text-[11px] font-mono text-slate-500">
                                 {st.registerNumber}
                               </p>
                             </div>
                           </div>
 
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded border ${
                             (st.programLevel || 'UG').toUpperCase() === 'UG'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-purple-50 text-purple-700 border border-purple-200'
+                              ? 'bg-slate-100 text-slate-700 border-slate-200/80'
+                              : 'bg-blue-50 text-blue-700 border-blue-200/80'
                           }`}>
                             {st.programLevel || 'UG'}
                           </span>
                         </div>
 
                         <div className="mt-4 space-y-2 text-xs">
-                          <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
+                          <div className="flex items-center gap-1.5 text-slate-700 font-medium">
                             <BookOpen className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                             <span className="truncate">{st.course || st.department}</span>
                           </div>
@@ -967,10 +967,10 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                       </div>
 
                       <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded border ${
                           st.status === 'Active'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-slate-100 text-slate-700'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                            : 'bg-slate-100 text-slate-700 border-slate-200/80'
                         }`}>
                           {st.status || 'Active'}
                         </span>
@@ -980,7 +980,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                             onClick={() => setViewingStudent(st)}
                             size="sm"
                             variant="ghost"
-                            className="h-7 text-xs font-bold text-[#2f4692] hover:bg-blue-50 rounded-lg px-2"
+                            className="h-7 text-xs font-medium text-blue-600 hover:bg-slate-100 rounded-md px-2"
                           >
                             Inspect
                           </Button>
@@ -989,7 +989,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                               onClick={() => setEditingStudent(st)}
                               size="sm"
                               variant="ghost"
-                              className="h-7 text-xs font-bold text-amber-600 hover:bg-amber-50 rounded-lg px-2"
+                              className="h-7 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-md px-2"
                             >
                               Edit
                             </Button>
@@ -1005,15 +1005,15 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
 
           {/* View Mode 3: Analytics & Distribution */}
           {viewMode === 'analytics' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Department Distribution */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
+              <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Enrollment by Department</h3>
-                    <p className="text-xs text-slate-400">Student headcount distribution</p>
+                    <h3 className="text-sm font-semibold text-slate-900">Enrollment by Department</h3>
+                    <p className="text-xs text-slate-500">Student headcount distribution</p>
                   </div>
-                  <Building2 className="w-5 h-5 text-[#2f4692]" />
+                  <Building2 className="w-4 h-4 text-slate-500" />
                 </div>
 
                 <div className="space-y-3">
@@ -1022,12 +1022,12 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                     return (
                       <div key={dept} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-slate-700 truncate pr-2">{dept}</span>
-                          <span className="font-bold text-slate-900">{count.toLocaleString()} ({pct}%)</span>
+                          <span className="font-medium text-slate-700 truncate pr-2">{dept}</span>
+                          <span className="font-semibold text-slate-900 tabular-nums">{count.toLocaleString()} ({pct}%)</span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                           <div
-                            className="bg-gradient-to-r from-[#2f4692] to-blue-500 h-2 rounded-full transition-all duration-500"
+                            className="bg-blue-600 h-1.5 rounded-full"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -1038,13 +1038,13 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
               </div>
 
               {/* Program Level Breakdown */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
+              <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Program Level Hierarchy</h3>
-                    <p className="text-xs text-slate-400">UG, PG and Doctoral proportion</p>
+                    <h3 className="text-sm font-semibold text-slate-900">Program Level Hierarchy</h3>
+                    <p className="text-xs text-slate-500">UG, PG and Doctoral proportion</p>
                   </div>
-                  <School className="w-5 h-5 text-emerald-600" />
+                  <School className="w-4 h-4 text-slate-500" />
                 </div>
 
                 <div className="space-y-3">
@@ -1053,12 +1053,12 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                     return (
                       <div key={lvl} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-slate-700 truncate pr-2">{lvl} Cohort</span>
-                          <span className="font-bold text-slate-900">{count.toLocaleString()} ({pct}%)</span>
+                          <span className="font-medium text-slate-700 truncate pr-2">{lvl} Cohort</span>
+                          <span className="font-semibold text-slate-900 tabular-nums">{count.toLocaleString()} ({pct}%)</span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                           <div
-                            className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2 rounded-full transition-all duration-500"
+                            className="bg-slate-800 h-1.5 rounded-full"
                             style={{ width: `${pct}%` }}
                           />
                         </div>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { AppShell } from './design-system';
+import { AppShell, PageHeader, StatCard } from './design-system';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -205,109 +205,72 @@ export function InfrastructureFacilitiesPage({ onNavigate, isPublicView = false 
   return (
     <AppShell currentPage="infrastructure-facilities" onNavigate={onNavigate} hideSidebar={isPublicView}>
           
-          {/* Header Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-[#2f4692]/20 ring-4 ring-[#2f4692]/10">
-                <Layers className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Infrastructure & Research Facilities
-                </h1>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  State-of-the-art specialized laboratories, high-performance computing, testing benches and capital equipment
-                </p>
-              </div>
-            </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Campus' },
+          { label: 'Infrastructure & Research Facilities', active: true },
+        ]}
+        title="Infrastructure & Research Facilities"
+        badge={`${totalLabs} Laboratories`}
+        description="State-of-the-art specialized laboratories, high-performance computing, testing benches and capital equipment."
+        actions={
+          <Button
+            variant="outline"
+            className="border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs flex items-center gap-1.5"
+            onClick={() => {
+              const header = 'Department,Laboratory,Total Value,Student Capacity,Equipments Count';
+              const rows: string[] = [];
+              filteredDepts.forEach(d => {
+                d.labs.forEach(l => {
+                  rows.push(`"${d.department}","${l.name}","${l.totalValue}",${l.capacity},${l.newEquipments.length}`);
+                });
+              });
+              const csv = 'data:text/csv;charset=utf-8,' + [header, ...rows].join('\n');
+              const link = document.createElement('a');
+              link.href = encodeURI(csv);
+              link.download = 'Infrastructure_Laboratories_Report.csv';
+              link.click();
+            }}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Export Report</span>
+          </Button>
+        }
+      />
 
-            <div className="flex items-center gap-2.5">
-              <Button
-                variant="outline"
-                className="border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5"
-                onClick={() => {
-                  const header = 'Department,Laboratory,Total Value,Student Capacity,Equipments Count';
-                  const rows: string[] = [];
-                  filteredDepts.forEach(d => {
-                    d.labs.forEach(l => {
-                      rows.push(`"${d.department}","${l.name}","${l.totalValue}",${l.capacity},${l.newEquipments.length}`);
-                    });
-                  });
-                  const csv = 'data:text/csv;charset=utf-8,' + [header, ...rows].join('\n');
-                  const link = document.createElement('a');
-                  link.href = encodeURI(csv);
-                  link.download = 'Infrastructure_Laboratories_Report.csv';
-                  link.click();
-                }}
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Export Report</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* 5 Executive KPI Metric Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2f4692] to-blue-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Labs</p>
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2f4692] flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Building2 className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{totalLabs}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Specialized labs</p>
-            </div>
-
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Capital Value</p>
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <DollarSign className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-emerald-700 tracking-tight mt-2">₹7.79 Cr</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Installed apparatus</p>
-            </div>
-
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Equipment Items</p>
-                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Cpu className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-purple-700 tracking-tight mt-2">{totalEquipments}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Advanced test units</p>
-            </div>
-
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lab Capacity</p>
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Microscope className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">550+</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Simultaneous seats</p>
-            </div>
-
-            <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Engineering Depts</p>
-                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Layers className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight mt-2">{filteredDepts.length}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Disciplines outfitted</p>
-            </div>
-          </div>
+      {/* 5 Executive KPI Metric Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatCard
+          title="Total Labs"
+          value={totalLabs}
+          subtitle="Specialized labs"
+          icon={Building2}
+        />
+        <StatCard
+          title="Capital Value"
+          value="₹7.79 Cr"
+          subtitle="Installed apparatus"
+          icon={DollarSign}
+        />
+        <StatCard
+          title="Equipment Items"
+          value={totalEquipments}
+          subtitle="Advanced test units"
+          icon={Cpu}
+        />
+        <StatCard
+          title="Lab Capacity"
+          value="550+"
+          subtitle="Simultaneous seats"
+          icon={Microscope}
+        />
+        <StatCard
+          title="Engineering Depts"
+          value={filteredDepts.length}
+          subtitle="Disciplines outfitted"
+          icon={Layers}
+        />
+      </div>
 
           {/* Unified Filter Bar & View Switcher */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">

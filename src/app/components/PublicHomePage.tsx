@@ -248,7 +248,7 @@ export function PublicHomePage({ onNavigate }: PublicHomePageProps) {
             <div className="grid md:grid-cols-2 gap-8">
               {/* NAAC Card */}
               <Card className="border-2 border-[#2f4692] shadow-lg hover:-translate-y-1 transition-transform duration-300">
-                <CardHeader className="bg-gradient-to-r from-[#2f4692] to-[#243a7a] text-white">
+                <CardHeader className="bg-[#0B132B] text-white">
                   <CardTitle className="text-2xl">NAAC Accreditation</CardTitle>
                   <CardDescription className="text-blue-100">
                     National Assessment and Accreditation Council
@@ -282,7 +282,7 @@ export function PublicHomePage({ onNavigate }: PublicHomePageProps) {
 
               {/* NBA Card */}
               <Card className="border-2 border-[#2f4692] shadow-lg hover:-translate-y-1 transition-transform duration-300">
-                <CardHeader className="bg-gradient-to-r from-[#2f4692] to-[#243a7a] text-white">
+                <CardHeader className="bg-[#0B132B] text-white">
                   <CardTitle className="text-2xl">NBA Accreditation</CardTitle>
                   <CardDescription className="text-blue-100">
                     National Board of Accreditation
@@ -395,7 +395,7 @@ export function PublicHomePage({ onNavigate }: PublicHomePageProps) {
 
       {/* Call to Action */}
       <FadeInSection>
-        <section className="bg-gradient-to-r from-[#2f4692] to-[#243a7a] text-white py-16">
+        <section className="bg-[#0B132B] text-white py-16">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-3xl font-bold mb-4">Quality is Our Commitment</h2>
             <p className="text-xl text-blue-100 mb-8">

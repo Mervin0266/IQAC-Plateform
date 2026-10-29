@@ -682,30 +682,30 @@ export function UserManagementPage({ onNavigate, currentPage = 'user-management'
                   return (
                     <div
                       key={item.id}
-                      className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+                      className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs hover:border-slate-300 transition-colors flex flex-col justify-between group"
                     >
                       <div>
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white flex items-center justify-center text-sm font-black shadow-md shadow-blue-200">
+                            <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-700 border border-slate-200/80 flex items-center justify-center text-xs font-semibold">
                               {initials}
                             </div>
                             <div>
-                              <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#2f4692] transition-colors leading-snug">
+                              <h3 className="font-semibold text-slate-900 text-sm group-hover:text-blue-600 transition-colors leading-snug">
                                 {item.name}
                               </h3>
-                              <p className="text-[11px] font-mono text-slate-400 font-semibold">
+                              <p className="text-[11px] font-mono text-slate-500">
                                 {item.employeeId || 'ID: UNASSIGNED'}
                               </p>
                             </div>
                           </div>
 
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                            item.role === 'admin' ? 'bg-red-50 text-red-700 border border-red-200' :
-                            item.role === 'authority' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                            item.role === 'hod' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                            item.role === 'coordinator' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
-                            'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded border ${
+                            item.role === 'admin' ? 'bg-rose-50 text-rose-700 border-rose-200/80' :
+                            item.role === 'authority' ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80' :
+                            item.role === 'hod' ? 'bg-amber-50 text-amber-700 border-amber-200/80' :
+                            item.role === 'coordinator' ? 'bg-purple-50 text-purple-700 border-purple-200/80' :
+                            'bg-emerald-50 text-emerald-700 border-emerald-200/80'
                           }`}>
                             {getRoleDisplayName(item.role)}
                           </span>
@@ -792,9 +792,9 @@ export function UserManagementPage({ onNavigate, currentPage = 'user-management'
                           <span className="font-semibold text-slate-700 uppercase tracking-wider">{getRoleDisplayName(r as any)}</span>
                           <span className="font-bold text-slate-900">{count} ({pct}%)</span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                           <div
-                            className="bg-gradient-to-r from-[#2f4692] to-blue-500 h-2 rounded-full transition-all duration-500"
+                            className="bg-blue-600 h-1.5 rounded-full"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -805,22 +805,22 @@ export function UserManagementPage({ onNavigate, currentPage = 'user-management'
               </div>
 
               {/* Security & Access Overview */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
+              <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Governance & Security Posture</h3>
-                    <p className="text-xs text-slate-400">Status breakdown and credentials health</p>
+                    <h3 className="text-sm font-semibold text-slate-900">Governance & Security Posture</h3>
+                    <p className="text-xs text-slate-500">Status breakdown and credentials health</p>
                   </div>
-                  <Shield className="w-5 h-5 text-emerald-600" />
+                  <Shield className="w-4 h-4 text-slate-500" />
                 </div>
 
                 <div className="space-y-4 text-xs">
-                  <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center justify-between">
+                  <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-200/80 flex items-center justify-between">
                     <div>
-                      <p className="font-bold text-slate-900">Active Authentication Pool</p>
+                      <p className="font-semibold text-slate-900">Active Authentication Pool</p>
                       <p className="text-[11px] text-slate-500">Accounts verified and authenticated</p>
                     </div>
-                    <span className="text-sm font-black text-[#2f4692]">{stats.active}</span>
+                    <span className="text-sm font-bold text-slate-900 tabular-nums">{stats.active}</span>
                   </div>
 
                   <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-100 flex items-center justify-between">

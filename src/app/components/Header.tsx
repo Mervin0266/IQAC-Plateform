@@ -1,6 +1,5 @@
 import React from 'react';
 import { Search, Bell, Settings, User } from 'lucide-react';
-import { ImageWithFallback } from './figma/ImageWithFallback';
 
 interface HeaderProps {
   currentPage?: string;
@@ -21,22 +20,17 @@ export function Header({ currentPage = 'dashboard', onNavigate }: HeaderProps) {
   ];
 
   return (
-    <header className="fixed top-0 left-0 right-0 bg-gradient-to-r from-blue-900 to-blue-800 text-white shadow-lg z-50">
+    <header className="fixed top-0 left-0 right-0 bg-[#0B132B] border-b border-slate-800 text-white shadow-xs z-50">
       <div className="px-6 py-3">
         <div className="flex items-center justify-between">
           {/* Logo and Title */}
-          <div className="flex items-center space-x-4">
-            {/* Replace the placeholder logo below with your college logo */}
-            {/* To add your logo: import christLogo from 'figma:asset/YOUR_LOGO_HASH.png'; */}
-            {/* Then replace the div below with: <ImageWithFallback src={christLogo} alt="Christ University Logo" className="w-12 h-12 rounded-full object-cover" /> */}
-            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center p-1">
-              <div className="w-full h-full bg-blue-900 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">CU</span>
-              </div>
+          <div className="flex items-center space-x-3.5">
+            <div className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center p-1 border border-slate-700">
+              <span className="text-[#E8C84A] text-xs font-bold">CU</span>
             </div>
             <div>
-              <h1 className="text-xl font-semibold">CHRIST</h1>
-              <p className="text-blue-200 text-sm">DEEMED TO BE UNIVERSITY</p>
+              <h1 className="text-base font-bold tracking-tight text-white">CHRIST</h1>
+              <p className="text-slate-400 text-xs font-medium tracking-wider uppercase">DEEMED TO BE UNIVERSITY</p>
             </div>
           </div>
 
@@ -46,10 +40,10 @@ export function Header({ currentPage = 'dashboard', onNavigate }: HeaderProps) {
               <button
                 key={item.key}
                 onClick={() => onNavigate?.(item.key)}
-                className={`transition-colors text-sm whitespace-nowrap ${
+                className={`transition-colors text-xs font-medium whitespace-nowrap ${
                   currentPage === item.key
-                    ? 'text-blue-200 border-b-2 border-blue-200 pb-1'
-                    : 'hover:text-blue-200'
+                    ? 'text-white border-b-2 border-blue-500 pb-1 font-semibold'
+                    : 'text-slate-300 hover:text-white'
                 }`}
               >
                 {item.label}
@@ -58,25 +52,25 @@ export function Header({ currentPage = 'dashboard', onNavigate }: HeaderProps) {
           </nav>
 
           {/* Right Side Actions */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
             {/* Search */}
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-300" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search"
-                className="bg-blue-800 text-white placeholder-blue-300 rounded-md pl-9 pr-4 py-2 w-48 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                placeholder="Search..."
+                className="bg-slate-900/80 border border-slate-700 text-white placeholder-slate-400 rounded-lg pl-8 pr-3 py-1.5 w-44 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             
             {/* Icons */}
-            <button className="p-2 hover:bg-blue-700 rounded-md transition-colors">
+            <button className="p-2 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors">
               <Bell className="w-4 h-4" />
             </button>
-            <button className="p-2 hover:bg-blue-700 rounded-md transition-colors">
+            <button className="p-2 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors">
               <Settings className="w-4 h-4" />
             </button>
-            <button className="p-2 hover:bg-blue-700 rounded-md transition-colors">
+            <button className="p-2 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors">
               <User className="w-4 h-4" />
             </button>
           </div>

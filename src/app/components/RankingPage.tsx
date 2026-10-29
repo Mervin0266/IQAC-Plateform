@@ -658,13 +658,13 @@ export function RankingPage({
                       const trend = getRankTrend(item.rank, item.previousRank);
                       const TrendIcon = trend.icon;
                       return (
-                        <div key={idx} className="p-4 rounded-xl bg-gradient-to-br from-orange-50/50 to-white border border-orange-100 shadow-sm">
-                          <p className="text-xs font-semibold text-gray-600 truncate">{item.category}</p>
+                        <div key={idx} className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 shadow-xs">
+                          <p className="text-xs font-semibold text-slate-600 truncate">{item.category}</p>
                           <div className="mt-2 mb-2 flex items-baseline justify-between">
-                            <span className="text-3xl font-extrabold text-orange-600">#{item.rank}</span>
-                            <span className="text-xs font-mono font-bold text-gray-700">{item.score} / 100</span>
+                            <span className="text-3xl font-bold text-slate-900 tabular-nums">#{item.rank}</span>
+                            <span className="text-xs font-mono font-medium text-slate-700">{item.score} / 100</span>
                           </div>
-                          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold ${trend.bg} ${trend.color}`}>
+                          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${trend.bg} ${trend.color}`}>
                             <TrendIcon className="w-3 h-3" />
                             <span>{trend.label}</span>
                           </div>
@@ -676,10 +676,10 @@ export function RankingPage({
               </Card>
 
               {/* Parameter Breakdown */}
-              <Card className="border border-gray-200 shadow-sm rounded-xl bg-white">
-                <CardHeader className="p-5 border-b border-gray-100">
-                  <CardTitle className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-orange-600" />
+              <Card className="border border-slate-200/80 shadow-xs rounded-xl bg-white">
+                <CardHeader className="p-5 border-b border-slate-100">
+                  <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-blue-600" />
                     <span>NIRF Parameter Score Breakdown</span>
                   </CardTitle>
                   <CardDescription className="text-xs">
@@ -691,23 +691,23 @@ export function RankingPage({
                     <div key={idx} className="space-y-1.5">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                         <div>
-                          <p className="text-xs font-bold text-gray-800 flex items-center gap-2">
+                          <p className="text-xs font-semibold text-slate-800 flex items-center gap-2">
                             <span>{param.name}</span>
-                            <Badge variant="outline" className="text-[10px] font-mono text-orange-700 bg-orange-50 border-orange-200">
+                            <Badge variant="outline" className="text-[10px] font-mono text-slate-700 bg-slate-50 border-slate-200">
                               Weight: {param.weight}
                             </Badge>
                           </p>
-                          <p className="text-[11px] text-gray-500 mt-0.5">{param.submetrics}</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">{param.submetrics}</p>
                         </div>
                         <div className="text-right flex-shrink-0 font-mono">
-                          <span className="text-sm font-extrabold text-orange-600">{param.score}</span>
-                          <span className="text-xs text-gray-400"> / {param.maxScore}</span>
-                          <span className="text-xs font-bold text-gray-700 ml-2">({((param.score / param.maxScore) * 100).toFixed(1)}%)</span>
+                          <span className="text-sm font-bold text-slate-900">{param.score}</span>
+                          <span className="text-xs text-slate-400"> / {param.maxScore}</span>
+                          <span className="text-xs font-medium text-slate-700 ml-2">({((param.score / param.maxScore) * 100).toFixed(1)}%)</span>
                         </div>
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div
-                          className="bg-gradient-to-r from-orange-500 to-amber-500 h-2.5 rounded-full transition-all duration-500"
+                          className="bg-slate-900 h-2 rounded-full"
                           style={{ width: `${(param.score / param.maxScore) * 100}%` }}
                         />
                       </div>
@@ -774,14 +774,14 @@ export function RankingPage({
                   </CardHeader>
                   <CardContent className="p-5 space-y-3">
                     {indiaTodayRankings.map((r) => (
-                      <div key={r.year} className="p-3.5 bg-gradient-to-r from-blue-50/70 to-white rounded-xl border border-blue-100 flex items-center justify-between">
+                      <div key={r.year} className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/80 flex items-center justify-between">
                         <div>
-                          <p className="text-xs font-bold text-gray-900">Year {r.year}</p>
-                          <p className="text-[10px] text-gray-500">{r.category}</p>
+                          <p className="text-xs font-semibold text-slate-900">Year {r.year}</p>
+                          <p className="text-[10px] text-slate-500">{r.category}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-2xl font-extrabold text-blue-600">#{r.rank}</p>
-                          <p className="text-[10px] font-mono text-gray-500">Score: {r.score}</p>
+                          <p className="text-2xl font-bold text-slate-900 tabular-nums">#{r.rank}</p>
+                          <p className="text-[10px] font-mono text-slate-500">Score: {r.score}</p>
                         </div>
                       </div>
                     ))}
@@ -789,9 +789,9 @@ export function RankingPage({
                 </Card>
 
                 {/* Parameters */}
-                <Card className="border border-gray-200 shadow-sm rounded-xl bg-white lg:col-span-2">
-                  <CardHeader className="p-5 border-b border-gray-100">
-                    <CardTitle className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Card className="border border-slate-200/80 shadow-xs rounded-xl bg-white lg:col-span-2">
+                  <CardHeader className="p-5 border-b border-slate-100">
+                    <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                       <BarChart3 className="w-4 h-4 text-blue-600" />
                       <span>MDRA Assessment Pillars</span>
                     </CardTitle>
@@ -804,14 +804,14 @@ export function RankingPage({
                       <div key={idx} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
                           <div>
-                            <span className="font-bold text-gray-800">{param.name}</span>
-                            <span className="text-[10px] text-gray-500 ml-2">({param.desc})</span>
+                            <span className="font-semibold text-slate-800">{param.name}</span>
+                            <span className="text-[10px] text-slate-500 ml-2">({param.desc})</span>
                           </div>
-                          <span className="font-mono font-bold text-blue-600">{param.score} / {param.maxScore}</span>
+                          <span className="font-mono font-medium text-blue-600">{param.score} / {param.maxScore}</span>
                         </div>
-                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                           <div
-                            className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full"
+                            className="bg-blue-600 h-2 rounded-full"
                             style={{ width: `${(param.score / param.maxScore) * 100}%` }}
                           />
                         </div>
@@ -936,44 +936,44 @@ export function RankingPage({
             <div className="space-y-6">
               {/* Standings Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border border-purple-100 bg-gradient-to-br from-purple-50/80 to-white shadow-sm rounded-xl">
+                <Card className="border border-slate-200/80 bg-slate-50/70 shadow-xs rounded-xl">
                   <CardContent className="p-4">
-                    <p className="text-[11px] font-bold text-purple-800 uppercase tracking-wider">World University Rank</p>
-                    <p className="text-3xl font-extrabold text-purple-600 mt-2">{theRankings.overall}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">Times Higher Education 2024</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">World University Rank</p>
+                    <p className="text-3xl font-bold text-slate-900 mt-2 tabular-nums">{theRankings.overall}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Times Higher Education 2024</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border border-purple-100 bg-gradient-to-br from-purple-50/80 to-white shadow-sm rounded-xl">
+                <Card className="border border-slate-200/80 bg-slate-50/70 shadow-xs rounded-xl">
                   <CardContent className="p-4">
-                    <p className="text-[11px] font-bold text-purple-800 uppercase tracking-wider">Asia University Rank</p>
-                    <p className="text-3xl font-extrabold text-purple-600 mt-2">{theRankings.asiaRank}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">Among Asian institutions</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Asia University Rank</p>
+                    <p className="text-3xl font-bold text-slate-900 mt-2 tabular-nums">{theRankings.asiaRank}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Among Asian institutions</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border border-purple-100 bg-gradient-to-br from-purple-50/80 to-white shadow-sm rounded-xl">
+                <Card className="border border-slate-200/80 bg-slate-50/70 shadow-xs rounded-xl">
                   <CardContent className="p-4">
-                    <p className="text-[11px] font-bold text-purple-800 uppercase tracking-wider">Young University Rank</p>
-                    <p className="text-3xl font-extrabold text-purple-600 mt-2">{theRankings.youngUniversityRank}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">Institutions under 50 years</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Young University Rank</p>
+                    <p className="text-3xl font-bold text-slate-900 mt-2 tabular-nums">{theRankings.youngUniversityRank}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Institutions under 50 years</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border border-purple-100 bg-gradient-to-br from-purple-50/80 to-white shadow-sm rounded-xl">
+                <Card className="border border-slate-200/80 bg-slate-50/70 shadow-xs rounded-xl">
                   <CardContent className="p-4">
-                    <p className="text-[11px] font-bold text-purple-800 uppercase tracking-wider">SDG Impact Rank</p>
-                    <p className="text-3xl font-extrabold text-purple-600 mt-2">{theRankings.impactRank}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">UN SDG Global Impact</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">SDG Impact Rank</p>
+                    <p className="text-3xl font-bold text-slate-900 mt-2 tabular-nums">{theRankings.impactRank}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">UN SDG Global Impact</p>
                   </CardContent>
                 </Card>
               </div>
 
               {/* Performance Pillars */}
-              <Card className="border border-gray-200 shadow-sm rounded-xl bg-white">
-                <CardHeader className="p-5 border-b border-gray-100">
-                  <CardTitle className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-purple-600" />
+              <Card className="border border-slate-200/80 shadow-xs rounded-xl bg-white">
+                <CardHeader className="p-5 border-b border-slate-100">
+                  <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-blue-600" />
                     <span>THE 5 Core Performance Pillars</span>
                   </CardTitle>
                   <CardDescription className="text-xs">
@@ -985,20 +985,20 @@ export function RankingPage({
                     <div key={idx} className="space-y-1">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
                         <div>
-                          <span className="font-bold text-gray-800">{score.category}</span>
-                          <Badge variant="outline" className="text-[10px] font-mono text-purple-700 bg-purple-50 border-purple-200 ml-2">
+                          <span className="font-semibold text-slate-800">{score.category}</span>
+                          <Badge variant="outline" className="text-[10px] font-mono text-slate-700 bg-slate-50 border-slate-200 ml-2">
                             Weight: {score.weight}
                           </Badge>
-                          <p className="text-[10px] text-gray-500">{score.desc}</p>
+                          <p className="text-[10px] text-slate-500">{score.desc}</p>
                         </div>
                         <div className="text-right font-mono flex-shrink-0">
-                          <span className="text-sm font-extrabold text-purple-600">{score.score}</span>
-                          <span className="text-xs text-gray-400"> / {score.maxScore}</span>
+                          <span className="text-sm font-bold text-slate-900">{score.score}</span>
+                          <span className="text-xs text-slate-400"> / {score.maxScore}</span>
                         </div>
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div
-                          className="bg-gradient-to-r from-purple-500 to-indigo-600 h-2.5 rounded-full"
+                          className="bg-blue-600 h-2 rounded-full"
                           style={{ width: `${(score.score / score.maxScore) * 100}%` }}
                         />
                       </div>
@@ -1046,44 +1046,44 @@ export function RankingPage({
             <div className="space-y-6">
               {/* Standings Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white shadow-sm rounded-xl">
+                <Card className="border border-slate-200/80 bg-slate-50/70 shadow-xs rounded-xl">
                   <CardContent className="p-4">
-                    <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">QS India Ranking</p>
-                    <p className="text-3xl font-extrabold text-emerald-600 mt-2">#{qsRankings.indiaRank}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">Among Top Indian Universities</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">QS India Ranking</p>
+                    <p className="text-3xl font-bold text-slate-900 mt-2 tabular-nums">#{qsRankings.indiaRank}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Among Top Indian Universities</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white shadow-sm rounded-xl">
+                <Card className="border border-slate-200/80 bg-slate-50/70 shadow-xs rounded-xl">
                   <CardContent className="p-4">
-                    <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">QS Asia Ranking</p>
-                    <p className="text-3xl font-extrabold text-emerald-600 mt-2">#{qsRankings.asiaRank}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">Asian Higher Education Band</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">QS Asia Ranking</p>
+                    <p className="text-3xl font-bold text-slate-900 mt-2 tabular-nums">#{qsRankings.asiaRank}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Asian Higher Education Band</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white shadow-sm rounded-xl">
+                <Card className="border border-slate-200/80 bg-slate-50/70 shadow-xs rounded-xl">
                   <CardContent className="p-4">
-                    <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">QS World Ranking</p>
-                    <p className="text-2xl font-extrabold text-emerald-600 mt-2">{qsRankings.overall}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">Global University Band</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">QS World Ranking</p>
+                    <p className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">{qsRankings.overall}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Global University Band</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white shadow-sm rounded-xl">
+                <Card className="border border-slate-200/80 bg-slate-50/70 shadow-xs rounded-xl">
                   <CardContent className="p-4">
-                    <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">QS Sustainability</p>
-                    <p className="text-2xl font-extrabold text-emerald-600 mt-2">{qsRankings.sustainabilityRank}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">Environmental & Social Impact</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">QS Sustainability</p>
+                    <p className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">{qsRankings.sustainabilityRank}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Environmental & Social Impact</p>
                   </CardContent>
                 </Card>
               </div>
 
               {/* QS Indicators */}
-              <Card className="border border-gray-200 shadow-sm rounded-xl bg-white">
-                <CardHeader className="p-5 border-b border-gray-100">
-                  <CardTitle className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                    <Star className="w-4 h-4 text-emerald-600" />
+              <Card className="border border-slate-200/80 shadow-xs rounded-xl bg-white">
+                <CardHeader className="p-5 border-b border-slate-100">
+                  <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                    <Star className="w-4 h-4 text-blue-600" />
                     <span>QS Ranking Indicator Metrics</span>
                   </CardTitle>
                   <CardDescription className="text-xs">
@@ -1095,20 +1095,20 @@ export function RankingPage({
                     <div key={idx} className="space-y-1">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
                         <div>
-                          <span className="font-bold text-gray-800">{score.indicator}</span>
-                          <Badge variant="outline" className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border-emerald-200 ml-2">
+                          <span className="font-semibold text-slate-800">{score.indicator}</span>
+                          <Badge variant="outline" className="text-[10px] font-mono text-slate-700 bg-slate-50 border-slate-200 ml-2">
                             Weight: {score.weight}
                           </Badge>
-                          <p className="text-[10px] text-gray-500">{score.desc}</p>
+                          <p className="text-[10px] text-slate-500">{score.desc}</p>
                         </div>
                         <div className="text-right font-mono flex-shrink-0">
-                          <span className="text-sm font-extrabold text-emerald-600">{score.score}</span>
-                          <span className="text-xs text-gray-400"> / {score.maxScore}</span>
+                          <span className="text-sm font-bold text-slate-900">{score.score}</span>
+                          <span className="text-xs text-slate-400"> / {score.maxScore}</span>
                         </div>
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div
-                          className="bg-gradient-to-r from-emerald-500 to-teal-600 h-2.5 rounded-full"
+                          className="bg-blue-600 h-2 rounded-full"
                           style={{ width: `${(score.score / score.maxScore) * 100}%` }}
                         />
                       </div>

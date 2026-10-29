@@ -410,16 +410,16 @@ export function ConsultancyProjectsPage({
   // ─── PUBLIC VIEW ────────────────────────────────────────────────────────────
   if (isPublicView) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-gradient-to-r from-teal-700 via-teal-800 to-slate-900 text-white py-14 shadow-md">
+      <div className="min-h-screen bg-slate-50">
+        <div className="bg-slate-900 text-white py-12 border-b border-slate-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center space-x-4 mb-2">
-              <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20">
-                <Briefcase className="w-8 h-8 text-teal-300" />
+              <div className="p-3 bg-white/10 rounded-xl border border-white/10">
+                <Briefcase className="w-8 h-8 text-blue-400" />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold tracking-tight">Consultancy Projects & Advisory Services</h1>
-                <p className="text-teal-200 text-sm mt-1">
+                <h1 className="text-2xl font-bold tracking-tight">Consultancy Projects & Advisory Services</h1>
+                <p className="text-slate-400 text-xs mt-1">
                   Industry solutions, commercial testing, and technical advisory undertaken by faculty consultants
                 </p>
               </div>
@@ -530,7 +530,7 @@ export function ConsultancyProjectsPage({
                     variant="outline"
                     size="sm"
                     onClick={() => setShowClearConfirm(true)}
-                    className="border-rose-200 bg-white text-rose-700 hover:bg-rose-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                    className="border-rose-200 bg-white text-rose-700 hover:bg-rose-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                   >
                     <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                     <span>Clear Data</span>
@@ -541,7 +541,7 @@ export function ConsultancyProjectsPage({
                   variant="outline"
                   size="sm"
                   onClick={handleExportCSV}
-                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
                   <span>CSV</span>
@@ -551,7 +551,7 @@ export function ConsultancyProjectsPage({
                   variant="outline"
                   size="sm"
                   onClick={handleExportExcel}
-                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
                   <span>Excel</span>
@@ -562,9 +562,9 @@ export function ConsultancyProjectsPage({
                     variant="outline"
                     size="sm"
                     onClick={() => setShowBulkUpload(true)}
-                    className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                    className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                   >
-                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                    <Upload className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
                     <span>Bulk Upload</span>
                   </Button>
                 )}
@@ -573,7 +573,7 @@ export function ConsultancyProjectsPage({
                   <Button
                     size="sm"
                     onClick={() => handleOpenForm()}
-                    className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5 mr-1.5" />
                     <span>Add Consultancy</span>

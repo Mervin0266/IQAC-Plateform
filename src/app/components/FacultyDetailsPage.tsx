@@ -558,16 +558,16 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                 <button
                   type="button"
                   onClick={() => setIsBulkUploadOpen(true)}
-                  className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shadow-xs"
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors shadow-xs"
                 >
-                  <Upload className="w-3.5 h-3.5 text-[#2F4692]" />
+                  <Upload className="w-3.5 h-3.5 text-blue-600" />
                   <span>Bulk Upload</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => { resetForm(); setIsAddModalOpen(true); }}
-                  className="inline-flex items-center gap-1.5 h-9 px-4 text-xs font-semibold text-white bg-[#2F4692] hover:bg-[#243A7A] rounded-xl transition-colors shadow-xs"
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Faculty</span>
@@ -627,14 +627,14 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
         totalResults={totalCount}
         resultLabel={`faculty records (AY ${academicYearFilter})`}
         actions={
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200/80">
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                 viewMode === 'table'
-                  ? 'bg-white text-[#2F4692] shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
               }`}
             >
               <TableIcon className="w-3.5 h-3.5" />
@@ -644,10 +644,10 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                 viewMode === 'cards'
-                  ? 'bg-white text-[#2F4692] shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
@@ -657,10 +657,10 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
             <button
               type="button"
               onClick={() => setViewMode('analytics')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                 viewMode === 'analytics'
-                  ? 'bg-white text-[#2F4692] shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
@@ -673,7 +673,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
         <select
           value={academicYearFilter}
           onChange={e => setAcademicYearFilter(e.target.value)}
-          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="All">All Academic Years</option>
           {availableAcademicYears.map(yr => (
@@ -685,7 +685,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
         <select
           value={departmentFilter}
           onChange={e => setDepartmentFilter(e.target.value)}
-          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20 max-w-[200px]"
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[200px]"
         >
           <option value="All">All Departments</option>
           {departmentsList.map((d, i) => (
@@ -697,7 +697,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
         <select
           value={designationFilter}
           onChange={e => setDesignationFilter(e.target.value)}
-          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="All">All Designations</option>
           {designationsList.map((d, i) => (
@@ -709,7 +709,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
         <select
           value={sortBy}
           onChange={e => setSortBy(e.target.value)}
-          className="h-9 px-3 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 text-[#2F4692] focus:outline-none focus:ring-2 focus:ring-[#2F4692]/20"
+          className="h-9 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="name-asc">Sort: Name (A-Z)</option>
           <option value="name-desc">Sort: Name (Z-A)</option>
@@ -720,11 +720,11 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
 
           {/* View Mode 1: Table Matrix */}
           {viewMode === 'table' && (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-700">Displaying Records:</span>
-                  <span className="text-xs font-black text-[#2f4692] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                  <span className="text-xs font-semibold text-slate-700">Displaying Records:</span>
+                  <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/80">
                     {facultyList.length} of {totalCount.toLocaleString()}
                   </span>
                 </div>
@@ -734,19 +734,19 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                      <th className="py-3.5 px-4 w-12 text-center">#</th>
-                      <th className="py-3.5 px-4">Faculty Member</th>
-                      <th className="py-3.5 px-4">Emp ID</th>
-                      <th className="py-3.5 px-4">Department</th>
-                      <th className="py-3.5 px-4">Designation</th>
-                      <th className="py-3.5 px-4">Highest Qual.</th>
-                      <th className="py-3.5 px-4">Experience</th>
-                      <th className="py-3.5 px-4 text-center">AY</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    <tr className="bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                      <th className="py-3 px-4 w-12 text-center">#</th>
+                      <th className="py-3 px-4">Faculty Member</th>
+                      <th className="py-3 px-4">Emp ID</th>
+                      <th className="py-3 px-4">Department</th>
+                      <th className="py-3 px-4">Designation</th>
+                      <th className="py-3 px-4">Highest Qual.</th>
+                      <th className="py-3 px-4">Experience</th>
+                      <th className="py-3 px-4 text-center">AY</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
+                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                     {filteredFaculty.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="py-12 text-center text-slate-400">
@@ -769,14 +769,14 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                           .toUpperCase() || 'FA';
 
                         return (
-                          <tr key={fac.id || idx} className="hover:bg-blue-50/30 transition-colors group">
+                          <tr key={fac.id || idx} className="hover:bg-slate-50/80 transition-colors group">
                             <td className="py-3 px-4 text-center text-slate-400 font-mono text-[11px]">
                               {fac.sNo ?? idx + 1}
                             </td>
 
-                            <td className="py-3.5 px-4">
+                            <td className="py-3 px-4">
                               <div>
-                                <p className="font-semibold text-slate-900 group-hover:text-[#2F4692] transition-colors">
+                                <p className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
                                   {fac.name}
                                 </p>
                                 {fac.email && (
@@ -785,26 +785,26 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                               </div>
                             </td>
 
-                            <td className="py-3 px-4 font-mono text-[11px] text-slate-600 font-bold">
+                            <td className="py-3 px-4 font-mono text-[11px] text-slate-600 font-medium">
                               {fac.employeeId || '—'}
                             </td>
 
                             <td className="py-3 px-4">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/60 max-w-[200px] truncate">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/60 max-w-[200px] truncate">
                                 <Building2 className="w-3 h-3 text-slate-400 flex-shrink-0" />
                                 <span className="truncate">{fac.department}</span>
                               </span>
                             </td>
 
                             <td className="py-3 px-4">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-[#2f4692] border border-blue-200/60">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/80">
                                 {fac.designation}
                               </span>
                             </td>
 
                             <td className="py-3 px-4">
                               {fac.highestQualification ? (
-                                <span className="inline-flex items-center gap-1 font-semibold text-[11px] text-slate-800">
+                                <span className="inline-flex items-center gap-1 font-medium text-[11px] text-slate-800">
                                   {fac.highestQualification}
                                 </span>
                               ) : (
@@ -820,7 +820,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                             </td>
 
                             <td className="py-3 px-4 text-center">
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">
                                 {fac.academicYear || '2024-25'}
                               </span>
                             </td>
@@ -831,7 +831,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                                   onClick={() => setViewingFaculty(fac)}
                                   variant="ghost"
                                   size="sm"
-                                  className="h-7 w-7 p-0 text-slate-500 hover:text-[#2f4692] hover:bg-blue-50 rounded-lg"
+                                  className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-md"
                                   title="View Full Profile"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
@@ -843,7 +843,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                                       onClick={() => setEditingFaculty(fac)}
                                       variant="ghost"
                                       size="sm"
-                                      className="h-7 w-7 p-0 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
+                                      className="h-7 w-7 p-0 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-md"
                                       title="Edit Record"
                                     >
                                       <Edit className="w-3.5 h-3.5" />
@@ -852,7 +852,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                                       onClick={() => handleDelete(fac.id)}
                                       variant="ghost"
                                       size="sm"
-                                      className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                                      className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md"
                                       title="Delete"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -903,9 +903,9 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
           {viewMode === 'cards' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredFaculty.length === 0 ? (
-                <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-slate-200">
+                <div className="col-span-full py-12 text-center bg-white rounded-xl border border-slate-200/80">
                   <Users className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                  <p className="font-bold text-slate-700">No faculty records match your filters</p>
+                  <p className="font-semibold text-slate-700">No faculty records match your filters</p>
                 </div>
               ) : (
                 filteredFaculty.map((fac, idx) => {
@@ -914,25 +914,25 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                   return (
                     <div
                       key={fac.id || idx}
-                      className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+                      className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs hover:border-slate-300 transition-colors flex flex-col justify-between group"
                     >
                       <div>
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#2f4692] to-[#1e2f65] text-white flex items-center justify-center text-sm font-black shadow-md shadow-blue-200">
+                            <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-700 border border-slate-200/80 flex items-center justify-center text-xs font-semibold">
                               {initials}
                             </div>
                             <div>
-                              <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#2f4692] transition-colors leading-snug">
+                              <h3 className="font-semibold text-slate-900 text-sm group-hover:text-blue-600 transition-colors leading-snug">
                                 {fac.name}
                               </h3>
-                              <p className="text-[11px] font-mono text-slate-400 font-semibold">
+                              <p className="text-[11px] font-mono text-slate-500">
                                 {fac.employeeId || 'ID: UNASSIGNED'}
                               </p>
                             </div>
                           </div>
 
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-[#2f4692] border border-blue-200">
+                          <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200/80">
                             {fac.designation}
                           </span>
                         </div>
@@ -940,13 +940,13 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                         <div className="mt-4 space-y-2 text-xs">
                           <div className="flex items-center gap-1.5 text-slate-600">
                             <Building2 className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                            <span className="truncate font-semibold">{fac.department}</span>
+                            <span className="truncate font-medium">{fac.department}</span>
                           </div>
 
                           {fac.highestQualification && (
                             <div className="flex items-center gap-1.5">
                               <GraduationCap className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
-                              <span className="font-semibold text-slate-800">
+                              <span className="font-medium text-slate-800">
                                 {fac.highestQualification} {fac.qualificationLevel ? `(${fac.qualificationLevel})` : ''}
                               </span>
                             </div>
@@ -954,13 +954,13 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
 
                           <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
                             <Briefcase className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                            <span>Experience in CU: <strong className="text-slate-700">{fac.cuExpYears || 0}Y {fac.cuExpMonths || 0}M</strong></span>
+                            <span>Experience in CU: <strong className="text-slate-700 font-semibold">{fac.cuExpYears || 0}Y {fac.cuExpMonths || 0}M</strong></span>
                           </div>
                         </div>
                       </div>
 
                       <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                        <span className="text-[10px] font-mono font-medium bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200/60">
                           AY {fac.academicYear || '2024-25'}
                         </span>
 
@@ -969,7 +969,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                             onClick={() => setViewingFaculty(fac)}
                             size="sm"
                             variant="ghost"
-                            className="h-7 text-xs font-bold text-[#2f4692] hover:bg-blue-50 rounded-lg px-2"
+                            className="h-7 text-xs font-medium text-blue-600 hover:bg-slate-100 rounded-md px-2"
                           >
                             Inspect
                           </Button>
@@ -978,7 +978,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                               onClick={() => setEditingFaculty(fac)}
                               size="sm"
                               variant="ghost"
-                              className="h-7 text-xs font-bold text-amber-600 hover:bg-amber-50 rounded-lg px-2"
+                              className="h-7 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-md px-2"
                             >
                               Edit
                             </Button>
@@ -994,15 +994,15 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
 
           {/* View Mode 3: Analytics & Distribution */}
           {viewMode === 'analytics' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Department Distribution */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
+              <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Faculty Distribution by Department</h3>
-                    <p className="text-xs text-slate-400">Headcount representation across disciplines</p>
+                    <h3 className="text-sm font-semibold text-slate-900">Faculty Distribution by Department</h3>
+                    <p className="text-xs text-slate-500">Headcount representation across disciplines</p>
                   </div>
-                  <Building2 className="w-5 h-5 text-[#2f4692]" />
+                  <Building2 className="w-4 h-4 text-slate-500" />
                 </div>
 
                 <div className="space-y-3">
@@ -1011,12 +1011,12 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                     return (
                       <div key={dept} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-slate-700 truncate pr-2">{dept}</span>
-                          <span className="font-bold text-slate-900">{count} ({pct}%)</span>
+                          <span className="font-medium text-slate-700 truncate pr-2">{dept}</span>
+                          <span className="font-semibold text-slate-900 tabular-nums">{count} ({pct}%)</span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                           <div
-                            className="bg-gradient-to-r from-[#2f4692] to-blue-500 h-2 rounded-full transition-all duration-500"
+                            className="bg-blue-600 h-1.5 rounded-full"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -1027,13 +1027,13 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
               </div>
 
               {/* Designation & Cadre Distribution */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
+              <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Academic Hierarchy & Cadre Ratio</h3>
-                    <p className="text-xs text-slate-400">Distribution across faculty ranks</p>
+                    <h3 className="text-sm font-semibold text-slate-900">Academic Hierarchy & Cadre Ratio</h3>
+                    <p className="text-xs text-slate-500">Distribution across faculty ranks</p>
                   </div>
-                  <Award className="w-5 h-5 text-amber-600" />
+                  <Award className="w-4 h-4 text-slate-500" />
                 </div>
 
                 <div className="space-y-3">
@@ -1042,12 +1042,12 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                     return (
                       <div key={desig} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-slate-700 truncate pr-2">{desig}</span>
-                          <span className="font-bold text-slate-900">{count} ({pct}%)</span>
+                          <span className="font-medium text-slate-700 truncate pr-2">{desig}</span>
+                          <span className="font-semibold text-slate-900 tabular-nums">{count} ({pct}%)</span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                           <div
-                            className="bg-gradient-to-r from-amber-500 to-orange-500 h-2 rounded-full transition-all duration-500"
+                            className="bg-slate-800 h-1.5 rounded-full"
                             style={{ width: `${pct}%` }}
                           />
                         </div>

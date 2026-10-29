@@ -191,8 +191,8 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       </div>
 
       {/* 3. Standardized Segmented Workspace View Switcher */}
-      <div className="bg-slate-100/80 border border-slate-200/80 rounded-2xl p-1.5 shadow-xs flex flex-wrap items-center justify-between gap-2">
-        <nav className="flex flex-wrap items-center gap-1.5" aria-label="Dashboard views">
+      <div className="bg-slate-100 p-1 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
+        <nav className="flex flex-wrap items-center gap-1" aria-label="Dashboard views">
           {[
             { id: 'overview', label: 'Executive Overview', icon: LayoutGrid },
             { id: 'placements', label: 'Placements Analytics', icon: Briefcase },
@@ -206,20 +206,20 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   isActive
-                    ? 'bg-white text-[#2F4692] shadow-xs border border-slate-200/60'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#2F4692]' : 'text-slate-400'}`} />
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span>{tab.label}</span>
               </button>
             );
           })}
         </nav>
 
-        <span className="text-[11px] text-slate-400 font-semibold px-3 hidden md:inline">
+        <span className="text-[11px] text-slate-400 font-medium px-3 hidden md:inline">
           IQAC Quality Portal v2.5
         </span>
       </div>
@@ -230,33 +230,32 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           {/* Quality Management Modules Directory */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 tracking-tight">
-                <Compass className="w-4 h-4 text-[#2F4692]" />
+              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2 tracking-tight">
+                <Compass className="w-4 h-4 text-blue-600" />
                 <span>Quality Management Workspaces</span>
               </h2>
               <span className="text-xs text-slate-500 font-medium">Direct Module Navigation</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {quickModules.map((mod, idx) => {
                 const Icon = mod.icon;
                 return (
                   <div
                     key={idx}
                     onClick={() => onNavigate(mod.route)}
-                    className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+                    className="bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs hover:border-slate-300 transition-colors cursor-pointer group flex flex-col justify-between"
                   >
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-transparent group-hover:bg-[#2F4692] transition-colors" />
                     <div>
                       <div className="flex items-center justify-between mb-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50/80 border border-blue-100/80 flex items-center justify-center text-[#2F4692] group-hover:bg-[#2F4692] group-hover:text-white transition-all shadow-2xs">
-                          <Icon className="w-5 h-5" />
+                        <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-600 group-hover:text-blue-600 group-hover:border-blue-200 transition-colors">
+                          <Icon className="w-4.5 h-4.5" />
                         </div>
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 group-hover:text-[#2F4692] group-hover:bg-slate-50 transition-all">
+                        <div className="w-6 h-6 rounded flex items-center justify-center text-slate-400 group-hover:text-blue-600 transition-colors">
                           <ArrowUpRight className="w-4 h-4" />
                         </div>
                       </div>
-                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#2F4692] transition-colors line-clamp-1">
+                      <h3 className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">
                         {mod.title}
                       </h3>
                       <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2 h-9">
@@ -264,11 +263,11 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                       </p>
                     </div>
 
-                    <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold">
-                      <span className="text-[11px] font-medium text-slate-600 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200/60 truncate max-w-[65%]">
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-[11px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 truncate max-w-[65%]">
                         {mod.stat}
                       </span>
-                      <span className="text-[#2F4692] group-hover:text-[#12204D] flex items-center gap-0.5 shrink-0 group-hover:translate-x-0.5 transition-transform">
+                      <span className="text-blue-600 group-hover:text-blue-700 font-medium flex items-center gap-0.5 shrink-0">
                         <span>Access</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </span>
@@ -287,7 +286,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               <button
                 type="button"
                 onClick={() => onNavigate('department-details')}
-                className="text-xs font-semibold text-[#2F4692] hover:underline flex items-center gap-1"
+                className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
               >
                 <span>View Departments</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -295,33 +294,33 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             }
           >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Campuses</span>
-                <span className="text-2xl font-bold text-[#0B132B] mt-1 block tabular-nums">
+              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block">Campuses</span>
+                <span className="text-2xl font-bold text-slate-900 mt-1 block tabular-nums">
                   {dashboard.liveStats.totalCampuses || 1} Campus
                 </span>
                 <span className="text-xs text-slate-500 mt-0.5 block">Kengeri, Bangalore</span>
               </div>
 
-              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Faculty Schools</span>
-                <span className="text-2xl font-bold text-[#0B132B] mt-1 block tabular-nums">
+              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block">Faculty Schools</span>
+                <span className="text-2xl font-bold text-slate-900 mt-1 block tabular-nums">
                   {dashboard.liveStats.totalSchools || 1} School
                 </span>
                 <span className="text-xs text-slate-500 mt-0.5 block">School of Engineering</span>
               </div>
 
-              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Academic Depts</span>
-                <span className="text-2xl font-bold text-[#0B132B] mt-1 block tabular-nums">
+              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block">Academic Depts</span>
+                <span className="text-2xl font-bold text-slate-900 mt-1 block tabular-nums">
                   {dashboard.liveStats.totalDepartments || 7} Depts
                 </span>
                 <span className="text-xs text-slate-500 mt-0.5 block">ADSE, CSE, ECE, Civil...</span>
               </div>
 
-              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Degree Programs</span>
-                <span className="text-2xl font-bold text-[#0B132B] mt-1 block tabular-nums">
+              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block">Degree Programs</span>
+                <span className="text-2xl font-bold text-slate-900 mt-1 block tabular-nums">
                   {dashboard.liveStats.totalCourses || 27} Courses
                 </span>
                 <span className="text-xs text-slate-500 mt-0.5 block">
@@ -356,17 +355,17 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             <button
               type="button"
               onClick={() => onNavigate('research-metrics')}
-              className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold text-white bg-[#2F4692] hover:bg-[#243A7A] rounded-lg transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs"
             >
               <span>Open Research Workspace</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           }
         >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
-              <span className="text-xs font-bold uppercase text-slate-500 block">Publications & Citations</span>
-              <div className="text-2xl font-bold text-[#0B132B] tabular-nums">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">Publications & Citations</span>
+              <div className="text-2xl font-bold text-slate-900 tabular-nums">
                 {dashboard.liveStats.totalPapers ?? 0} Papers
               </div>
               <Progress
@@ -375,16 +374,16 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     ? Math.min(100, Math.round((dashboard.liveStats.totalPapers / 500) * 100))
                     : 0
                 }
-                className="h-2 bg-slate-200"
+                className="h-2 bg-slate-100"
               />
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-slate-500">
                 {dashboard.liveStats.scopusJournals ?? 0} Scopus / WoS indexed journal publications recorded.
               </p>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
-              <span className="text-xs font-bold uppercase text-slate-500 block">Funded Grants</span>
-              <div className="text-2xl font-bold text-emerald-700 tabular-nums">
+            <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">Funded Grants</span>
+              <div className="text-2xl font-bold text-emerald-600 tabular-nums">
                 {formattedGrants}
               </div>
               <Progress
@@ -393,16 +392,16 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     ? Math.min(100, Math.round((Number(dashboard.liveStats.totalGrantsCrores) / 15) * 100))
                     : 0
                 }
-                className="h-2 bg-slate-200"
+                className="h-2 bg-slate-100"
               />
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-slate-500">
                 Extramural grants received from DST-SERB, AICTE, and industry research partners.
               </p>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
-              <span className="text-xs font-bold uppercase text-slate-500 block">Patents & IPR</span>
-              <div className="text-2xl font-bold text-[#0B132B] tabular-nums">
+            <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">Patents & IPR</span>
+              <div className="text-2xl font-bold text-slate-900 tabular-nums">
                 {dashboard.liveStats.totalPatents ?? 0} Patents
               </div>
               <Progress
@@ -411,9 +410,9 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     ? Math.min(100, Math.round((dashboard.liveStats.totalPatents / 20) * 100))
                     : 0
                 }
-                className="h-2 bg-slate-200"
+                className="h-2 bg-slate-100"
               />
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-slate-500">
                 Published and granted technologies across Artificial Intelligence, Clean Energy, and Advanced Materials.
               </p>
             </div>
@@ -427,38 +426,38 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             <button
               type="button"
               onClick={() => onNavigate('naac-accreditation')}
-              className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold text-white bg-[#2F4692] hover:bg-[#243A7A] rounded-lg transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs"
             >
               <span>Open Accreditation Matrix</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           }
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-5 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase text-slate-500">NAAC SSR Cycle 4</span>
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">NAAC SSR Cycle 4</span>
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80">
                   Grade A++
                 </span>
               </div>
-              <div className="text-2xl font-bold text-[#0B132B] tabular-nums">3.74 / 4.00 CGPA</div>
-              <Progress value={93.5} className="h-2 bg-slate-200" />
-              <p className="text-xs text-slate-600">
+              <div className="text-2xl font-bold text-slate-900 tabular-nums">3.74 / 4.00 CGPA</div>
+              <Progress value={93.5} className="h-2 bg-slate-100" />
+              <p className="text-xs text-slate-500">
                 Highest attainment in Criterion 1 (Curricular Aspects: 92.5%) and Criterion 3 (Research & Innovations: 88.0%).
               </p>
             </div>
 
-            <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+            <div className="p-5 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase text-slate-500">NIRF National Standings</span>
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">NIRF National Standings</span>
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/80">
                   Rank #63
                 </span>
               </div>
-              <div className="text-2xl font-bold text-[#0B132B] tabular-nums">Score 62.8 / 100</div>
-              <Progress value={62.8} className="h-2 bg-slate-200" />
-              <p className="text-xs text-slate-600">
+              <div className="text-2xl font-bold text-slate-900 tabular-nums">Score 62.8 / 100</div>
+              <Progress value={62.8} className="h-2 bg-slate-100" />
+              <p className="text-xs text-slate-500">
                 Leading performance across Teaching, Learning & Resources (TLR: 68.4) and Graduation Outcomes (GO: 72.8).
               </p>
             </div>

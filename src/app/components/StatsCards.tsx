@@ -61,60 +61,46 @@ export function StatsCards({
       value: totalAchievements,
       change: '+10%',
       icon: Trophy,
-      gradient: 'from-blue-50 to-indigo-50',
-      iconBg: 'bg-gradient-to-br from-blue-100 to-indigo-100',
-      iconColor: 'text-blue-600',
-      accentColor: 'border-blue-200',
     },
     {
       title: 'Faculty Achievements',
       value: facultyAchievements,
       change: '+8%',
       icon: Users,
-      gradient: 'from-emerald-50 to-teal-50',
-      iconBg: 'bg-gradient-to-br from-emerald-100 to-teal-100',
-      iconColor: 'text-emerald-600',
-      accentColor: 'border-emerald-200',
     },
     {
       title: 'Annual Reports',
       value: annualReports,
       change: '+8%',
       icon: FileText,
-      gradient: 'from-amber-50 to-orange-50',
-      iconBg: 'bg-gradient-to-br from-amber-100 to-orange-100',
-      iconColor: 'text-amber-600',
-      accentColor: 'border-amber-200',
     }
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
       {stats.map((stat, index) => {
         const Icon = stat.icon;
         return (
           <div
             key={index}
-            className={`bg-gradient-to-br ${stat.gradient} rounded-xl shadow-sm border ${stat.accentColor} p-6 
-              hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ease-out cursor-default group`}
+            className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs hover:border-slate-300 transition-colors"
           >
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 mb-1.5">{stat.title}</p>
-                <div className="flex items-baseline space-x-2">
-                  <p className="text-3xl font-bold text-gray-900">
-                    <AnimatedCounter end={stat.value} />
-                  </p>
-                  <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
-                    <TrendingUp className="w-3 h-3" />
-                    {stat.change}
-                  </span>
-                </div>
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                {stat.title}
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-600 flex items-center justify-center">
+                <Icon className="w-4 h-4" />
               </div>
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.iconBg} 
-                group-hover:scale-110 transition-transform duration-300`}>
-                <Icon className={`w-6 h-6 ${stat.iconColor}`} />
-              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between">
+              <span className="text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                <AnimatedCounter end={stat.value} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                <TrendingUp className="w-3 h-3" />
+                {stat.change}
+              </span>
             </div>
           </div>
         );
