@@ -13,6 +13,15 @@ const initDatabase = async () => {
 
     // Sync all models safely (force: false prevents destructive DROP TABLE CASCADE and lock timeouts)
     await sequelize.sync({ force: false });
+
+    // Run additive non-destructive migrations
+    try {
+      const patentMigration = require('../migrations/20261030_add_patent_grant_year_and_proofs');
+      await patentMigration.up(sequelize.getQueryInterface(), sequelize.constructor);
+      console.log('✓ Patent grantYear and patent_proofs schema verified and migrated');
+    } catch (migErr) {
+      console.warn('⚠️ Patent migration notice:', migErr.message);
+    }
     console.log('✓ Database tables verified and created if not present');
 
     // Check if database already contains academic hierarchy and administrative users
