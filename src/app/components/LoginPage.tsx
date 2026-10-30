@@ -96,6 +96,7 @@ export function LoginPage({ onBack }: LoginPageProps) {
 
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingSeconds, setSubmittingSeconds] = useState(0);
   const [error, setError] = useState('');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -114,6 +115,32 @@ export function LoginPage({ onBack }: LoginPageProps) {
     return () => clearInterval(interval);
   }, []);
 
+  // Progressive timer when authenticating
+  React.useEffect(() => {
+    let timer: any;
+    if (isSubmitting) {
+      setSubmittingSeconds(0);
+      timer = setInterval(() => {
+        setSubmittingSeconds((s) => s + 1);
+      }, 1000);
+    } else {
+      setSubmittingSeconds(0);
+    }
+    return () => clearInterval(timer);
+  }, [isSubmitting]);
+
+  // Pre-warm backend when LoginPage mounts (wakes up Render Free Tier instances before submission)
+  React.useEffect(() => {
+    const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+    const isProductionHost = typeof window !== 'undefined' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1';
+    const baseUrl = rawApiUrl || (isProductionHost ? '' : 'http://localhost:5000');
+    if (baseUrl) {
+      fetch(`${baseUrl}/health`, { method: 'GET', mode: 'cors' }).catch(() => {});
+    }
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -125,12 +152,12 @@ export function LoginPage({ onBack }: LoginPageProps) {
 
     setIsSubmitting(true);
     try {
-      const success = await login(username, password, selectedRole);
-      if (!success) {
-        setError('Login failed. Please verify credentials, or if the backend was sleeping on Render Free Tier, wait 30 seconds and try again.');
+      const result = await login(username, password, selectedRole);
+      if (!result.success) {
+        setError(result.error || 'Login failed. Please verify credentials, or wait a few moments if the server was sleeping.');
       }
-    } catch {
-      setError('Unable to connect to backend API. Please verify backend status and VITE_API_URL.');
+    } catch (err: any) {
+      setError(err?.message || 'Unable to connect to backend API. Please verify backend status and VITE_API_URL.');
     } finally {
       setIsSubmitting(false);
     }
@@ -504,7 +531,7 @@ export function LoginPage({ onBack }: LoginPageProps) {
               </div>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-2 space-y-2">
               <Button
                 type="submit"
                 disabled={isSubmitting}
@@ -513,12 +540,24 @@ export function LoginPage({ onBack }: LoginPageProps) {
                 {isSubmitting ? (
                   <>
                     <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Authenticating...</span>
+                    <span>
+                      {submittingSeconds < 4
+                        ? 'Authenticating...'
+                        : submittingSeconds < 15
+                        ? `Connecting to server (${submittingSeconds}s)...`
+                        : `Waking up Render backend (${submittingSeconds}s)...`}
+                    </span>
                   </>
                 ) : (
                   <span>Sign In to Workspace</span>
                 )}
               </Button>
+
+              {isSubmitting && submittingSeconds >= 10 && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200/80 rounded-lg p-2 text-center animate-pulse">
+                  Render Free Tier instances spin down on idle. Cold boot may take 45–75 seconds. Please keep this tab open.
+                </p>
+              )}
             </div>
           </form>
         </div>

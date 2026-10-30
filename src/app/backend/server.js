@@ -165,7 +165,7 @@ app.use('/api/hierarchy', require('./routes/hierarchy'));
 app.use('/api/system', require('./routes/system'));
 
 // Health check
-app.get('/health', (req, res) => {
+app.get(['/health', '/api/health'], (req, res) => {
   res.json({
     success: true,
     message: 'IQAC Backend API is running',
