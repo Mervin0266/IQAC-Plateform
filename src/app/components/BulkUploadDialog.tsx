@@ -103,7 +103,7 @@ const PATENTS_HEADERS = [
   'Status',
   'Patent Type',
   'Department',
-  'Academic Year',
+  'Year',
   'Filing Date',
   'Publication Date',
   'Grant Date',
@@ -111,6 +111,7 @@ const PATENTS_HEADERS = [
   'Commercial Partner',
   'Revenue Generated (INR)',
   'Patent URL',
+  'Proof',
   'Abstract'
 ];
 
@@ -392,8 +393,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isPatent) {
       csvContent =
         PATENTS_HEADERS.join(',') + '\n' +
-        `"AI-Driven Smart Grid Energy Optimization & Load Forecasting","Dr. Rajesh Kumar, Dr. Priya Sharma","202441012345","IN-PAT-456789","Granted","National (Indian)","Computer Science and Engineering","2024-2025","2023-08-15","2024-02-10","2024-11-20","2025-01-15","Schneider Electric India",1500000,"https://ipindiaonline.gov.in/patentsearch","Novel AI algorithm minimizing line loss in microgrids."\n` +
-        `"Biodegradable Chitosan-Silica Nanocomposite Membrane for Effluent Treatment","Dr. Suresh Menon, Dr. Anita Rao","PCT/IN2023/050123","","Published","International (PCT)","Civil Engineering","2023-2024","2023-11-05","2024-05-12","","","",0,"https://patentscope.wipo.int","Eco-friendly membrane technology for industrial dye and heavy metal removal."`;
+        `"AI-Driven Smart Grid Energy Optimization & Load Forecasting","Dr. Rajesh Kumar, Dr. Priya Sharma","202441012345","IN-PAT-456789","Granted","National (Indian)","Computer Science and Engineering",2024,"2023-08-15","2024-02-10","2024-11-20","2025-01-15","Schneider Electric India",1500000,"https://ipindiaonline.gov.in/patentsearch","https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view","Novel AI algorithm minimizing line loss in microgrids."\n` +
+        `"Biodegradable Chitosan-Silica Nanocomposite Membrane for Effluent Treatment","Dr. Suresh Menon, Dr. Anita Rao","PCT/IN2023/050123","","Published","International (PCT)","Civil Engineering","","2023-11-05","2024-05-12","","","",0,"https://patentscope.wipo.int","","Eco-friendly membrane technology for industrial dye and heavy metal removal."`;
       fileName = 'patents_bulk_template.csv';
     } else if (isConsultancy) {
       csvContent =
@@ -476,8 +477,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isPatent) {
       headers = PATENTS_HEADERS;
       sampleRows = [
-        ['AI-Driven Smart Grid Energy Optimization & Load Forecasting', 'Dr. Rajesh Kumar, Dr. Priya Sharma', '202441012345', 'IN-PAT-456789', 'Granted', 'National (Indian)', 'Computer Science and Engineering', '2024-2025', '2023-08-15', '2024-02-10', '2024-11-20', '2025-01-15', 'Schneider Electric India', 1500000, 'https://ipindiaonline.gov.in/patentsearch', 'Novel AI algorithm minimizing line loss in microgrids.'],
-        ['Biodegradable Chitosan-Silica Nanocomposite Membrane for Effluent Treatment', 'Dr. Suresh Menon, Dr. Anita Rao', 'PCT/IN2023/050123', '', 'Published', 'International (PCT)', 'Civil Engineering', '2023-2024', '2023-11-05', '2024-05-12', '', '', '', 0, 'https://patentscope.wipo.int', 'Eco-friendly membrane technology for industrial dye and heavy metal removal.']
+        ['AI-Driven Smart Grid Energy Optimization & Load Forecasting', 'Dr. Rajesh Kumar, Dr. Priya Sharma', '202441012345', 'IN-PAT-456789', 'Granted', 'National (Indian)', 'Computer Science and Engineering', 2024, '2023-08-15', '2024-02-10', '2024-11-20', '2025-01-15', 'Schneider Electric India', 1500000, 'https://ipindiaonline.gov.in/patentsearch', 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view', 'Novel AI algorithm minimizing line loss in microgrids.'],
+        ['Biodegradable Chitosan-Silica Nanocomposite Membrane for Effluent Treatment', 'Dr. Suresh Menon, Dr. Anita Rao', 'PCT/IN2023/050123', '', 'Published', 'International (PCT)', 'Civil Engineering', '', '2023-11-05', '2024-05-12', '', '', '', 0, 'https://patentscope.wipo.int', '', 'Eco-friendly membrane technology for industrial dye and heavy metal removal.']
       ];
       fileName = 'patents_bulk_template.xlsx';
     } else if (isConsultancy) {
@@ -1040,7 +1041,12 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               record['patentType'] = val || 'National (Indian)';
             } else if (clh.includes('dept') || clh.includes('department') || clh.includes('school')) {
               record['department'] = val;
-            } else if (clh.includes('year') || clh.includes('ay') || clh.includes('period') || clh.includes('session')) {
+            } else if (clh.includes('proof') || clh.includes('driveurl') || clh.includes('drivelink') || clh.includes('document')) {
+              record['proof'] = val;
+              record['proofUrls'] = val;
+            } else if (clh.includes('year') || clh.includes('ay') || clh.includes('period') || clh.includes('session') || clh.includes('grantyear')) {
+              record['year'] = val;
+              record['grantYear'] = val;
               record['academicYear'] = val;
             } else if (clh.includes('filing') || clh.includes('filedate') || clh.includes('dateoffiling') || clh.includes('applicationdate')) {
               record['filedDate'] = formatDateToISO(val);
@@ -1197,6 +1203,17 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         ...(record.school ? {} : { school: selectedSchool }),
         ...(isConsultancy || isPublication || isPatent || isSponsored ? { department: record.department || selectedDepartment } : {})
       };
+
+      if (isPatent) {
+        if (record.grantYear || record.year) {
+          item.grantYear = record.grantYear || record.year;
+          item.year = record.grantYear || record.year;
+        }
+        if (record.proof || record.proofUrls) {
+          item.proof = record.proof || record.proofUrls;
+          item.proofUrls = record.proof || record.proofUrls;
+        }
+      }
 
       const dateKeys = ['dateOfBirth', 'dateOfJoining', 'dob', 'admissionDate', 'eventDate', 'placementDate', 'date', 'publicationDate', 'filedDate', 'publishedDate', 'grantedDate', 'licenseDate', 'sanctionDate', 'startDate', 'endDate'];
       Object.keys(item).forEach(k => {
@@ -1788,6 +1805,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                           <th className="py-2 px-3 whitespace-nowrap">Type</th>
                           <th className="py-2 px-3 whitespace-nowrap">Department</th>
                           <th className="py-2 px-3 whitespace-nowrap">Year</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Proof</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 bg-white">
@@ -1805,7 +1823,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                             </td>
                             <td className="py-2 px-3">{row.patentType || 'National (Indian)'}</td>
                             <td className="py-2 px-3 truncate max-w-[120px]" title={row.department}>{row.department || '-'}</td>
-                            <td className="py-2 px-3 font-mono">{row.academicYear || '-'}</td>
+                            <td className="py-2 px-3 font-mono">{row.grantYear || row.year || '-'}</td>
+                            <td className="py-2 px-3">
+                              {row.proof || row.proofUrls ? (
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-medium border border-blue-200 truncate max-w-[100px]" title={row.proof || row.proofUrls}>
+                                  Drive Link
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-gray-400">Missing</span>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>

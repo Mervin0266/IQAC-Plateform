@@ -45,6 +45,11 @@ const Patent = sequelize.define('Patent', {
     allowNull: false,
     defaultValue: '2024-2025'
   },
+  grantYear: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'Four-digit Year of Grant (e.g. 2024). Blank/null if not yet granted.'
+  },
   filedDate: {
     type: DataTypes.DATEONLY,
     allowNull: true
@@ -97,6 +102,7 @@ const Patent = sequelize.define('Patent', {
     { fields: ['status'] },
     { fields: ['patentType'] },
     { fields: ['academicYear'] },
+    { fields: ['grantYear'] },
     { fields: ['department'] },
     { fields: ['createdBy'] }
   ]

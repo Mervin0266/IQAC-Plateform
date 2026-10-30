@@ -40,3 +40,10 @@ Thumbs.db
 !.env.test.example
 !src/app/backend/.env.example
 !src/app/backend/.env.test.example
+
+# Service account & credentials keys
+*.pem
+*.key
+christ-iqac-platform-*.json
+*-service-account*.json
+service-account*.json

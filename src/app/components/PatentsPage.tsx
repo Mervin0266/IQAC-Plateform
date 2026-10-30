@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Sidebar } from './Sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import {
   Award, FileText, TrendingUp, Users, Calendar,
   Building, CheckCircle, Clock, Plus, Search, Trash2, Edit,
   Eye, Download, AlertCircle, Upload, X, ExternalLink,
-  Layers, ChevronRight, Check, RefreshCw, DollarSign, ShieldCheck
+  Layers, ChevronRight, Check, RefreshCw, DollarSign, ShieldCheck,
+  Paperclip, Link2, FileCheck, FolderOpen, AlertTriangle
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Input } from './ui/input';
@@ -21,16 +20,32 @@ import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { AppShell, PageHeader, StatCard } from './design-system';
 
+export interface PatentProofItem {
+  id: string;
+  patentId: string;
+  sourceType: 'drive_upload' | 'drive_link';
+  driveFileId?: string | null;
+  driveFolderId?: string | null;
+  driveUrl: string;
+  fileName: string;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  accessStatus?: string;
+  accessRemarks?: string | null;
+  createdAt?: string;
+}
+
 export interface PatentItem {
   id: string;
   title: string;
-  inventors: string; // Comma separated or string
+  inventors: string;
   applicationNo?: string | null;
   patentNo?: string | null;
   status: string; // 'filed' | 'published' | 'granted' | 'commercialized' | 'under_examination'
-  patentType: string; // 'National (Indian)' | 'International (PCT)' | 'USPTO (USA)' | 'EPO (Europe)' | 'Other'
+  patentType: string;
   department?: string;
-  academicYear: string;
+  academicYear?: string;
+  grantYear?: number | null;
   filedDate?: string | null;
   publishedDate?: string | null;
   grantedDate?: string | null;
@@ -41,6 +56,7 @@ export interface PatentItem {
   description?: string | null;
   approvalStatus?: string;
   createdAt?: string;
+  proofs?: PatentProofItem[];
   creator?: {
     id: string;
     name: string;
@@ -74,7 +90,29 @@ const PATENT_TYPE_OPTIONS = [
   'Other International'
 ];
 
-const EMPTY_FORM: Omit<PatentItem, 'id' | 'createdAt' | 'creator'> = {
+interface FormState {
+  title: string;
+  inventors: string;
+  applicationNo: string;
+  patentNo: string;
+  status: string;
+  patentType: string;
+  department: string;
+  grantYear: string;
+  academicYear: string;
+  filedDate: string;
+  publishedDate: string;
+  grantedDate: string;
+  licenseDate: string;
+  partner: string;
+  revenue: number;
+  patentUrl: string;
+  description: string;
+  approvalStatus: string;
+  proofLinks: string;
+}
+
+const EMPTY_FORM: FormState = {
   title: '',
   inventors: '',
   applicationNo: '',
@@ -82,6 +120,7 @@ const EMPTY_FORM: Omit<PatentItem, 'id' | 'createdAt' | 'creator'> = {
   status: 'published',
   patentType: 'National (Indian)',
   department: '',
+  grantYear: '',
   academicYear: '2024-2025',
   filedDate: '',
   publishedDate: '',
@@ -91,7 +130,8 @@ const EMPTY_FORM: Omit<PatentItem, 'id' | 'createdAt' | 'creator'> = {
   revenue: 0,
   patentUrl: '',
   description: '',
-  approvalStatus: 'approved'
+  approvalStatus: 'approved',
+  proofLinks: ''
 };
 
 export function PatentsPage({
@@ -100,7 +140,7 @@ export function PatentsPage({
   token: propToken,
   userRole: propRole
 }: PatentsPageProps) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const token = propToken || user?.token || '';
   const currentRole = propRole || user?.role || 'faculty';
 
@@ -109,6 +149,7 @@ export function PatentsPage({
   const [selectedType, setSelectedType] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedDept, setSelectedDept] = useState('all');
+  const [selectedProofFilter, setSelectedProofFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
 
@@ -121,19 +162,25 @@ export function PatentsPage({
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingPatent, setEditingPatent] = useState<PatentItem | null>(null);
-  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [formData, setFormData] = useState<FormState>(EMPTY_FORM);
+  const [selectedProofFiles, setSelectedProofFiles] = useState<File[]>([]);
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
   const [formServerError, setFormServerError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Bulk Upload Modal
   const [isBulkOpen, setIsBulkOpen] = useState(false);
-  const [bulkFile, setBulkFile] = useState<File | null>(null);
-  const [bulkPreview, setBulkPreview] = useState<any[]>([]);
-  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
-  const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkSuccess, setBulkSuccess] = useState('');
-  const [bulkDefaultYear, setBulkDefaultYear] = useState('2024-2025');
+
+  // Proof Document Viewer Modal
+  const [proofViewerPatent, setProofViewerPatent] = useState<PatentItem | null>(null);
+  const [activeProofs, setActiveProofs] = useState<PatentProofItem[]>([]);
+  const [proofsLoading, setProofsLoading] = useState(false);
+  const [newProofFiles, setNewProofFiles] = useState<File[]>([]);
+  const [newProofLinks, setNewProofLinks] = useState('');
+  const [proofActionLoading, setProofActionLoading] = useState(false);
+  const [proofActionMessage, setProofActionMessage] = useState('');
+  const modalFileInputRef = useRef<HTMLInputElement>(null);
 
   // Details Sheet
   const [viewingPatent, setViewingPatent] = useState<PatentItem | null>(null);
@@ -164,11 +211,12 @@ export function PatentsPage({
     return Array.from(set).sort();
   }, [dbDepts]);
 
-  const academicYears = useMemo(() => {
+  // Calendar Years for filter and selection
+  const calendarYears = useMemo(() => {
     const current = new Date().getFullYear();
-    const list: string[] = [];
-    for (let y = current + 1; y >= current - 5; y--) {
-      list.push(`${y}-${y + 1}`);
+    const list: number[] = [];
+    for (let y = current + 1; y >= current - 15; y--) {
+      list.push(y);
     }
     return list;
   }, []);
@@ -183,9 +231,20 @@ export function PatentsPage({
       params.append('all', 'true');
       if (selectedStatus !== 'all') params.append('status', selectedStatus);
       if (selectedType !== 'all') params.append('patentType', selectedType);
-      if (selectedYear !== 'all') params.append('academicYear', selectedYear);
       if (selectedDept !== 'all') params.append('department', selectedDept);
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
+
+      // Year filter handling
+      if (selectedYear === 'pending') {
+        params.append('year', 'pending');
+      } else if (selectedYear !== 'all') {
+        params.append('year', selectedYear);
+      }
+
+      // Proof filter handling
+      if (selectedProofFilter !== 'all') {
+        params.append('proofStatus', selectedProofFilter);
+      }
 
       const res = await fetch(`${API_BASE}/api/patents?${params.toString()}`, {
         headers: {
@@ -204,7 +263,7 @@ export function PatentsPage({
     } finally {
       setLoading(false);
     }
-  }, [token, selectedStatus, selectedType, selectedYear, selectedDept, searchQuery]);
+  }, [token, selectedStatus, selectedType, selectedYear, selectedDept, selectedProofFilter, searchQuery]);
 
   useEffect(() => {
     fetchPatents();
@@ -218,6 +277,8 @@ export function PatentsPage({
     let commercialized = 0;
     let filed = 0;
     let totalRevenue = 0;
+    let withProof = 0;
+    let missingProof = 0;
 
     patents.forEach(p => {
       const s = (p.status || '').toLowerCase();
@@ -231,6 +292,12 @@ export function PatentsPage({
         filed++;
       }
       totalRevenue += Number(p.revenue) || 0;
+
+      if (p.proofs && p.proofs.length > 0) {
+        withProof++;
+      } else {
+        missingProof++;
+      }
     });
 
     return {
@@ -239,25 +306,31 @@ export function PatentsPage({
       granted,
       commercialized,
       filed,
-      totalRevenue
+      totalRevenue,
+      withProof,
+      missingProof
     };
   }, [patents]);
 
-  // Form handling
+  // Handle open add modal
   const handleOpenAddModal = () => {
     setEditingPatent(null);
+    setSelectedProofFiles([]);
     setFormData({
       ...EMPTY_FORM,
       department: departments[0] || '',
-      academicYear: '2024-2025'
+      status: 'published',
+      grantYear: ''
     });
     setFormErrors({});
     setFormServerError('');
     setIsAddModalOpen(true);
   };
 
+  // Handle open edit modal
   const handleOpenEditModal = (patent: PatentItem) => {
     setEditingPatent(patent);
+    setSelectedProofFiles([]);
     setFormData({
       title: patent.title || '',
       inventors: patent.inventors || '',
@@ -266,6 +339,7 @@ export function PatentsPage({
       status: patent.status || 'published',
       patentType: patent.patentType || 'National (Indian)',
       department: patent.department || '',
+      grantYear: patent.grantYear ? String(patent.grantYear) : '',
       academicYear: patent.academicYear || '2024-2025',
       filedDate: patent.filedDate ? patent.filedDate.split('T')[0] : '',
       publishedDate: patent.publishedDate ? patent.publishedDate.split('T')[0] : '',
@@ -275,24 +349,45 @@ export function PatentsPage({
       revenue: patent.revenue !== null && patent.revenue !== undefined ? Number(patent.revenue) : 0,
       patentUrl: patent.patentUrl || '',
       description: patent.description || '',
-      approvalStatus: patent.approvalStatus || 'approved'
+      approvalStatus: patent.approvalStatus || 'approved',
+      proofLinks: ''
     });
     setFormErrors({});
     setFormServerError('');
     setIsAddModalOpen(true);
   };
 
+  // Validation
   const validateForm = () => {
     const errs: { [key: string]: string } = {};
     if (!formData.title.trim()) errs.title = 'Patent / Invention Title is required.';
     if (!formData.inventors.trim()) errs.inventors = 'Inventor Name(s) are required.';
     if (!formData.status.trim()) errs.status = 'Patent Status is required.';
     if (!formData.patentType.trim()) errs.patentType = 'Patent Type is required.';
-    if (!formData.academicYear.trim()) errs.academicYear = 'Academic Year is required.';
+
+    const isGranted = formData.status.toLowerCase() === 'granted' || formData.status.toLowerCase() === 'commercialized';
+    if (isGranted) {
+      if (!formData.grantYear || !formData.grantYear.trim()) {
+        errs.grantYear = 'Year of Grant is required for granted patents.';
+      } else {
+        const yr = parseInt(formData.grantYear, 10);
+        if (isNaN(yr) || yr < 1990 || yr > 2050) {
+          errs.grantYear = 'Year must be a valid 4-digit year (e.g. 2024).';
+        }
+      }
+      if (formData.grantedDate && formData.grantYear) {
+        const gd = new Date(formData.grantedDate);
+        if (!isNaN(gd.getTime()) && gd.getFullYear() !== parseInt(formData.grantYear, 10)) {
+          errs.grantYear = `Year (${formData.grantYear}) does not match Grant Date year (${gd.getFullYear()}).`;
+        }
+      }
+    }
+
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
+  // Save Patent (Single Entry)
   const handleSavePatent = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormServerError('');
@@ -306,9 +401,28 @@ export function PatentsPage({
 
       const method = editingPatent ? 'PUT' : 'POST';
 
+      const isGranted = formData.status.toLowerCase() === 'granted' || formData.status.toLowerCase() === 'commercialized';
+      const parsedGrantYear = isGranted && formData.grantYear ? parseInt(formData.grantYear, 10) : null;
+
       const payload = {
-        ...formData,
-        revenue: Number(formData.revenue) || 0
+        title: formData.title,
+        inventors: formData.inventors,
+        applicationNo: formData.applicationNo || null,
+        patentNo: formData.patentNo || null,
+        status: formData.status,
+        patentType: formData.patentType,
+        department: formData.department,
+        grantYear: parsedGrantYear,
+        academicYear: parsedGrantYear ? `${parsedGrantYear - 1}-${parsedGrantYear}` : formData.academicYear,
+        filedDate: formData.filedDate || null,
+        publishedDate: formData.publishedDate || null,
+        grantedDate: formData.grantedDate || null,
+        licenseDate: formData.licenseDate || null,
+        partner: formData.partner || null,
+        revenue: Number(formData.revenue) || 0,
+        patentUrl: formData.patentUrl || null,
+        description: formData.description || null,
+        approvalStatus: formData.approvalStatus || 'approved'
       };
 
       const res = await fetch(url, {
@@ -321,14 +435,57 @@ export function PatentsPage({
       });
 
       const data = await res.json();
-      if (data.success) {
-        setIsAddModalOpen(false);
-        setFormServerError('');
-        setRefreshKey(k => k + 1);
-      } else {
+      if (!data.success) {
         const errorDetails = data.missingFields ? `Missing: ${data.missingFields.join(', ')}` : (data.errors ? data.errors.join(' | ') : '');
         setFormServerError(`${data.message || 'Failed to save patent record.'}${errorDetails ? ` (${errorDetails})` : ''}`);
+        setSubmitting(false);
+        return;
       }
+
+      const savedPatentId = data.data?.id || (editingPatent ? editingPatent.id : null);
+
+      // Upload proofs if any were attached
+      if (savedPatentId) {
+        // Method A: File uploads
+        if (selectedProofFiles.length > 0) {
+          const uploadData = new FormData();
+          selectedProofFiles.forEach(file => {
+            uploadData.append('files', file);
+          });
+
+          await fetch(`${API_BASE}/api/patents/${savedPatentId}/proofs`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            body: uploadData
+          }).catch(err => console.error('Error uploading proof files:', err));
+        }
+
+        // Method B: Google Drive Links
+        if (formData.proofLinks && formData.proofLinks.trim()) {
+          const links = formData.proofLinks
+            .split(/[\n,;]+/)
+            .map(l => l.trim())
+            .filter(Boolean);
+
+          if (links.length > 0) {
+            await fetch(`${API_BASE}/api/patents/${savedPatentId}/proof-links`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ links })
+            }).catch(err => console.error('Error adding proof links:', err));
+          }
+        }
+      }
+
+      setIsAddModalOpen(false);
+      setFormServerError('');
+      setSelectedProofFiles([]);
+      setRefreshKey(k => k + 1);
     } catch (err: any) {
       console.error('Save patent error:', err);
       setFormServerError('An unexpected network error occurred while communicating with the server.');
@@ -337,8 +494,11 @@ export function PatentsPage({
     }
   };
 
+  // Delete Patent
   const handleDeletePatent = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this patent record?')) return;
+    if (!window.confirm('Are you sure you want to delete this patent record? Associated proof files and links will be detached.')) {
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/api/patents/${id}`, {
         method: 'DELETE',
@@ -349,20 +509,20 @@ export function PatentsPage({
       const data = await res.json();
       if (data.success) {
         setRefreshKey(k => k + 1);
-        if (viewingPatent?.id === id) setViewingPatent(null);
       } else {
-        alert(data.message || 'Failed to delete patent');
+        alert(data.message || 'Failed to delete patent record.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Delete patent error:', err);
-      alert('Failed to delete patent');
+      alert('Network error while deleting patent.');
     }
   };
 
+  // Clear all patents (Admin / HOD)
   const handleClearAll = async () => {
     setClearLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/patents/clear-all?confirmAll=true&confirmation=CONFIRM_UNIVERSITY_CLEAR`, {
+      const res = await fetch(`${API_BASE}/api/patents/clear-all`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -373,391 +533,154 @@ export function PatentsPage({
         setIsClearOpen(false);
         setRefreshKey(k => k + 1);
       } else {
-        alert(data.message || 'Failed to clear records');
+        alert(data.message || 'Failed to clear patents.');
       }
     } catch (err) {
-      console.error('Clear all patents error:', err);
-      alert('Failed to clear patents');
+      console.error('Clear patents error:', err);
+      alert('Network error while clearing patents.');
     } finally {
       setClearLoading(false);
     }
   };
 
-  // ----------------------------------------------------
-  // ROBUST BULK UPLOAD HANDLING (EXCEL & CSV)
-  // ----------------------------------------------------
-  const extractPatentValue = (row: any, ...aliases: string[]): any => {
-    if (!row || typeof row !== 'object') return '';
-    const rowKeys = Object.keys(row);
-    for (const alias of aliases) {
-      const cleanAlias = alias.toLowerCase().replace(/[^a-z0-9]/g, '');
-      for (const rk of rowKeys) {
-        const cleanRk = rk.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (cleanRk === cleanAlias && row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== '') {
-          return row[rk];
+  // Open Proof Viewer Modal
+  const handleOpenProofViewer = async (patent: PatentItem) => {
+    setProofViewerPatent(patent);
+    setNewProofFiles([]);
+    setNewProofLinks('');
+    setProofActionMessage('');
+    setProofsLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/patents/${patent.id}/proofs`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActiveProofs(data.data || []);
+      } else {
+        setActiveProofs(patent.proofs || []);
       }
+    } catch (err) {
+      console.error('Fetch proofs error:', err);
+      setActiveProofs(patent.proofs || []);
+    } finally {
+      setProofsLoading(false);
     }
-    return '';
   };
 
-  const formatPatentDate = (val: any): string | null => {
-    if (!val) return null;
-    if (val instanceof Date && !isNaN(val.getTime())) {
-      return val.toISOString().split('T')[0];
-    }
-    if (typeof val === 'number') {
-      const d = new Date((val - 25569) * 86400 * 1000);
-      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-    }
-    const str = String(val).trim();
-    if (!str) return null;
-    const lower = str.toLowerCase();
-    if (['n/a', 'na', 'nil', 'null', '-', '--', 'pending', 'under examination', 'not applicable', 'none', 'tbd', 'ongoing'].includes(lower)) {
-      return null;
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  // Delete a specific proof item from viewer
+  const handleDeleteProofItem = async (proofId: string) => {
+    if (!proofViewerPatent) return;
+    if (!window.confirm('Are you sure you want to remove this proof document?')) return;
 
-    const parts = str.split(/[\/\-\.]/);
-    if (parts.length === 3) {
-      let p1 = parts[0].trim();
-      let p2 = parts[1].trim();
-      let p3 = parts[2].trim();
-      if (p1.length === 4) {
-        return `${p1}-${p2.padStart(2, '0')}-${p3.padStart(2, '0')}`;
+    setProofActionLoading(true);
+    setProofActionMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/api/patents/${proofViewerPatent.id}/proofs/${proofId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActiveProofs(prev => prev.filter(p => p.id !== proofId));
+        setProofActionMessage('Proof document removed successfully.');
+        setRefreshKey(k => k + 1);
+      } else {
+        alert(data.message || 'Failed to delete proof.');
       }
-      let day = p1.padStart(2, '0');
-      let month = p2.padStart(2, '0');
-      let year = p3.length === 2 ? '20' + p3 : p3;
-      const m = parseInt(month, 10);
-      const d = parseInt(day, 10);
-      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-        return `${year}-${month}-${day}`;
-      }
+    } catch (err) {
+      console.error('Delete proof error:', err);
+      alert('Network error deleting proof.');
+    } finally {
+      setProofActionLoading(false);
     }
-    if (/^\d{4}$/.test(str)) return `${str}-01-01`;
-
-    const d = new Date(str);
-    if (!isNaN(d.getTime())) {
-      const iso = d.toISOString().split('T')[0];
-      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
-    }
-    return null;
   };
 
-  const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const lower = file.name.toLowerCase();
-    if (!lower.endsWith('.csv') && !lower.endsWith('.xlsx') && !lower.endsWith('.xls')) {
-      setBulkErrors(['Please upload a valid CSV or Excel file (.csv, .xlsx, .xls).']);
+  // Add more proofs from inside the viewer modal
+  const handleAddProofsInViewer = async () => {
+    if (!proofViewerPatent) return;
+    if (newProofFiles.length === 0 && !newProofLinks.trim()) {
+      alert('Please select files or paste Google Drive links to add.');
       return;
     }
 
-    setBulkFile(file);
-    setBulkErrors([]);
-    setBulkSuccess('');
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const buffer = event.target?.result;
-        if (!buffer) return;
-
-        const workbook = XLSX.read(new Uint8Array(buffer as ArrayBuffer), {
-          type: 'array',
-          cellDates: true,
-          dateNF: 'yyyy-mm-dd'
-        });
-        const sheetName = workbook.SheetNames[0];
-        const rawParsedRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
-
-        if (rawParsedRows.length === 0) {
-          setBulkErrors(['The uploaded file contains no data rows.']);
-          setBulkPreview([]);
-          return;
-        }
-
-        const errors: string[] = [];
-        const validated: any[] = [];
-
-        rawParsedRows.forEach((row: any, idx: number) => {
-          const title = extractPatentValue(
-            row,
-            'Title', 'Patent Title', 'Title of Invention', 'Invention Title',
-            'Name of Invention', 'Patent Name', 'Title of Patent', 'Name of Project',
-            'Project Title', 'Invention', 'Work Title'
-          );
-          const rawInventors = extractPatentValue(
-            row,
-            'Inventors', 'Inventor Name', 'Inventor Names', 'Name of Inventors',
-            'Name of the Inventors', 'Authors', 'Author Name', 'Faculty Name',
-            'Name of Faculty', 'Faculty', 'Investigators', 'Investigator Name',
-            'Applicant', 'Applicants'
-          );
-          const applicationNo = extractPatentValue(
-            row,
-            'Application No', 'Application Number', 'App No', 'Application No.',
-            'Application Id', 'Appl No', 'Filing Number', 'Filing No'
-          );
-          const patentNo = extractPatentValue(
-            row,
-            'Patent No', 'Patent Number', 'Grant No', 'Grant Number', 'Patent No.',
-            'Award No', 'Patent Grant No'
-          );
-          const rawStatus = extractPatentValue(
-            row,
-            'Status', 'Patent Status', 'Stage', 'Current Status', 'Filing Status'
-          ) || 'Published';
-          const rawType = extractPatentValue(
-            row,
-            'Patent Type', 'Type', 'Jurisdiction', 'Type of Patent', 'Category', 'Patent Category'
-          ) || 'National (Indian)';
-          const rawDept = extractPatentValue(
-            row,
-            'Department', 'Dept', 'Host Department', 'Department Name', 'School', 'Branch'
-          ) || user?.department || 'General';
-          const rawYear = extractPatentValue(
-            row,
-            'Academic Year', 'Year', 'AY', 'Period', 'Session'
-          ) || bulkDefaultYear || '2024-2025';
-          const filedDate = extractPatentValue(
-            row,
-            'Filing Date', 'Filed Date', 'Date of Filing', 'Application Date', 'Date of Application'
-          );
-          const publishedDate = extractPatentValue(
-            row,
-            'Publication Date', 'Published Date', 'Date of Publication', 'Date of Publishing'
-          );
-          const grantedDate = extractPatentValue(
-            row,
-            'Grant Date', 'Granted Date', 'Date of Grant', 'Award Date', 'Date of Award'
-          );
-          const licenseDate = extractPatentValue(
-            row,
-            'License Date', 'Commercialized Date', 'Commercialization Date', 'Date of Commercialization'
-          );
-          const partner = extractPatentValue(
-            row,
-            'Commercial Partner', 'Partner', 'Industry Partner', 'Licensee', 'Collaborating Industry', 'Collaborator'
-          );
-          const rawRevenue = extractPatentValue(
-            row,
-            'Revenue', 'Revenue Generated', 'Royalty', 'Amount', 'Earnings', 'Revenue (INR)', 'Revenue Generated (INR)'
-          );
-          const patentUrl = extractPatentValue(
-            row,
-            'Patent Link', 'Patent URL', 'URL', 'Link', 'Document URL', 'Gazette URL', 'Google Patents Link'
-          );
-          const description = extractPatentValue(
-            row,
-            'Abstract', 'Description', 'Summary', 'Claims', 'Brief Description'
-          );
-
-          // Skip completely empty rows
-          if (!String(title).trim() && !String(rawInventors).trim() && !String(applicationNo).trim() && !String(patentNo).trim()) {
-            return;
-          }
-
-          const rowNum = idx + 1;
-          const missing: string[] = [];
-          if (!String(title).trim()) missing.push('Patent Title');
-          if (!String(rawInventors).trim()) missing.push('Inventor Name(s)');
-
-          if (missing.length > 0) {
-            errors.push(`Row ${rowNum}: Missing required ${missing.join(', ')}`);
-          }
-
-          let normalizedStatus = String(rawStatus).trim().toLowerCase();
-          if (normalizedStatus.includes('commercial') || normalizedStatus.includes('license')) {
-            normalizedStatus = 'commercialized';
-          } else if (normalizedStatus.includes('grant')) {
-            normalizedStatus = 'granted';
-          } else if (normalizedStatus.includes('publish')) {
-            normalizedStatus = 'published';
-          } else if (normalizedStatus.includes('exam')) {
-            normalizedStatus = 'under_examination';
-          } else {
-            normalizedStatus = 'filed';
-          }
-
-          let normalizedType = String(rawType).trim();
-          const lowerType = normalizedType.toLowerCase();
-          if (lowerType.includes('pct') || lowerType.includes('wipo')) {
-            normalizedType = 'International (PCT)';
-          } else if (lowerType.includes('uspto') || lowerType.includes('usa')) {
-            normalizedType = 'USPTO (USA)';
-          } else if (lowerType.includes('epo') || lowerType.includes('europe')) {
-            normalizedType = 'EPO (Europe)';
-          } else if (lowerType.includes('international') || lowerType.includes('foreign')) {
-            normalizedType = 'Other International';
-          } else {
-            normalizedType = 'National (Indian)';
-          }
-
-          const inventorsStr = Array.isArray(rawInventors) ? rawInventors.join(', ') : String(rawInventors);
-          const normalizedDept = rawDept ? normalizeDepartmentName(String(rawDept)) : (user?.department || 'General');
-          const revenueNum = typeof rawRevenue === 'number' ? (isNaN(rawRevenue) ? 0 : rawRevenue) : parseFloat(String(rawRevenue).replace(/[^0-9.]/g, '')) || 0;
-
-          validated.push({
-            title: String(title).trim(),
-            inventors: inventorsStr.trim(),
-            applicationNo: applicationNo ? String(applicationNo).trim() : null,
-            patentNo: patentNo ? String(patentNo).trim() : null,
-            status: normalizedStatus,
-            patentType: normalizedType,
-            department: normalizedDept,
-            academicYear: String(rawYear).trim(),
-            filedDate: formatPatentDate(filedDate),
-            publishedDate: formatPatentDate(publishedDate),
-            grantedDate: formatPatentDate(grantedDate),
-            licenseDate: formatPatentDate(licenseDate),
-            partner: partner ? String(partner).trim() : null,
-            revenue: revenueNum,
-            patentUrl: patentUrl ? String(patentUrl).trim() : null,
-            description: description ? String(description).trim() : null,
-            isValid: missing.length === 0,
-            missingFields: missing
-          });
-        });
-
-        if (validated.length === 0) {
-          setBulkErrors(['No valid data rows found in the uploaded file.']);
-          setBulkPreview([]);
-          return;
-        }
-
-        setBulkPreview(validated);
-        setBulkErrors(errors);
-      } catch (err: any) {
-        console.error('Patent file parsing error:', err);
-        setBulkErrors(['Failed to parse file. Ensure it is a valid CSV or Excel file.']);
-      }
-    };
-
-    reader.readAsArrayBuffer(file);
-  };
-
-  const handleExecuteBulkUpload = async () => {
-    if (bulkPreview.length === 0) return;
-    setBulkLoading(true);
-    setBulkErrors([]);
+    setProofActionLoading(true);
+    setProofActionMessage('');
     try {
-      const res = await fetch(`${API_BASE}/api/patents/bulk`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          items: bulkPreview,
-          defaultYear: bulkDefaultYear
-        })
-      });
+      let uploadCount = 0;
 
-      const data = await res.json();
-      if (data.success) {
-        setBulkSuccess(`Successfully uploaded ${data.count} patent records.`);
-        setTimeout(() => {
-          setIsBulkOpen(false);
-          setBulkFile(null);
-          setBulkPreview([]);
-          setRefreshKey(k => k + 1);
-        }, 1200);
-      } else {
-        setBulkErrors(data.errors || [data.message || 'Failed to upload patent records.']);
+      // Method A: Upload files
+      if (newProofFiles.length > 0) {
+        const formDataPayload = new FormData();
+        newProofFiles.forEach(file => {
+          formDataPayload.append('files', file);
+        });
+
+        const res = await fetch(`${API_BASE}/api/patents/${proofViewerPatent.id}/proofs`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formDataPayload
+        });
+        const data = await res.json();
+        if (data.success && data.uploaded) {
+          uploadCount += data.uploaded.length;
+        }
       }
+
+      // Method B: Add links
+      if (newProofLinks.trim()) {
+        const links = newProofLinks
+          .split(/[\n,;]+/)
+          .map(l => l.trim())
+          .filter(Boolean);
+
+        if (links.length > 0) {
+          const res = await fetch(`${API_BASE}/api/patents/${proofViewerPatent.id}/proof-links`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ links })
+          });
+          const data = await res.json();
+          if (data.success && data.proofs) {
+            uploadCount += data.proofs.length;
+          }
+        }
+      }
+
+      // Reload proofs list
+      const reloadRes = await fetch(`${API_BASE}/api/patents/${proofViewerPatent.id}/proofs`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const reloadData = await reloadRes.json();
+      if (reloadData.success) {
+        setActiveProofs(reloadData.data || []);
+      }
+
+      setNewProofFiles([]);
+      setNewProofLinks('');
+      setProofActionMessage(`Added ${uploadCount} proof document(s) successfully.`);
+      setRefreshKey(k => k + 1);
     } catch (err: any) {
-      console.error('Bulk upload execution error:', err);
-      setBulkErrors(['Server communication error during bulk upload.']);
+      console.error('Add proofs in viewer error:', err);
+      alert('Failed to add proof documents.');
     } finally {
-      setBulkLoading(false);
+      setProofActionLoading(false);
     }
   };
 
-  const handleDownloadTemplate = (format: 'csv' | 'xlsx') => {
-    const headers = [
-      'Title',
-      'Inventors',
-      'Application No',
-      'Patent No',
-      'Status',
-      'Patent Type',
-      'Department',
-      'Academic Year',
-      'Filing Date',
-      'Publication Date',
-      'Grant Date',
-      'License Date',
-      'Commercial Partner',
-      'Revenue (INR)',
-      'Patent Link',
-      'Abstract'
-    ];
-
-    const sampleRows = [
-      [
-        'IoT-Based Edge Computational Device for Real-Time Agricultural Water Level Sensing',
-        'Dr. Rajesh Kumar, Dr. Priya Sharma, Dr. Anand V',
-        'IN202441012345',
-        'PAT-IN-489021',
-        'Granted',
-        'National (Indian)',
-        'Computer Science and Engineering',
-        '2024-2025',
-        '2023-04-12',
-        '2023-10-15',
-        '2024-05-20',
-        '2024-08-01',
-        'AgriTech Automation Solutions Pvt. Ltd.',
-        '450000',
-        'https://ipindiaservices.gov.in',
-        'An edge gateway device with automated duty cycling for precision irrigation flow control.'
-      ],
-      [
-        'Compact Dual-Band MIMO Antenna System for 5G Cellular and Satellite Telemetry',
-        'Dr. Anand V, Dr. Priya Sharma',
-        'PCT/IB2023/056789',
-        'US11894520B2',
-        'Commercialized',
-        'International (PCT)',
-        'Electronics and Communication Engineering',
-        '2023-2024',
-        '2022-08-10',
-        '2023-02-14',
-        '2023-11-28',
-        '2024-02-15',
-        'Qualcomm Technologies Inc. (Global Licensing)',
-        '1250000',
-        'https://patents.google.com',
-        'High-isolation compact antenna array for integrated millimeter-wave transceivers.'
-      ]
-    ];
-
-    if (format === 'csv') {
-      const csvContent = [
-        headers.map(h => `"${h}"`).join(','),
-        ...sampleRows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      ].join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', 'patents_bulk_template.csv');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      const wsData = [headers, ...sampleRows];
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Patents');
-      XLSX.writeFile(wb, 'patents_bulk_template.xlsx');
-    }
-  };
-
+  // Export Data (CSV / XLSX)
   const handleExportData = (format: 'csv' | 'xlsx') => {
     if (patents.length === 0) {
       alert('No patent records to export.');
@@ -772,31 +695,40 @@ export function PatentsPage({
       'Status',
       'Patent Type',
       'Department',
-      'Academic Year',
+      'Year',
       'Filing Date',
       'Publication Date',
       'Grant Date',
       'Commercial Partner',
-      'Revenue',
-      'URL'
+      'Revenue (INR)',
+      'Proof Document Links',
+      'Official URL'
     ];
 
-    const dataRows = patents.map(p => [
-      p.title,
-      p.inventors,
-      p.applicationNo || '',
-      p.patentNo || '',
-      p.status,
-      p.patentType,
-      p.department || '',
-      p.academicYear,
-      p.filedDate || '',
-      p.publishedDate || '',
-      p.grantedDate || '',
-      p.partner || '',
-      p.revenue || 0,
-      p.patentUrl || ''
-    ]);
+    const dataRows = patents.map(p => {
+      const proofLinksStr = (p.proofs || [])
+        .map(pr => pr.driveUrl)
+        .filter(Boolean)
+        .join(' ; ');
+
+      return [
+        p.title,
+        p.inventors,
+        p.applicationNo || '',
+        p.patentNo || '',
+        p.status,
+        p.patentType,
+        p.department || '',
+        p.grantYear ? String(p.grantYear) : (p.status === 'granted' ? (p.academicYear || '') : 'Pending Grant'),
+        p.filedDate || '',
+        p.publishedDate || '',
+        p.grantedDate || '',
+        p.partner || '',
+        p.revenue || 0,
+        proofLinksStr || 'None attached',
+        p.patentUrl || ''
+      ];
+    });
 
     if (format === 'csv') {
       const csvContent = [
@@ -838,6 +770,62 @@ export function PatentsPage({
     return <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-semibold text-[11px]">Filed</Badge>;
   };
 
+  // Proof status indicator badge
+  const renderProofBadge = (patent: PatentItem) => {
+    const proofs = patent.proofs || [];
+    const count = proofs.length;
+
+    if (count === 0) {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenProofViewer(patent);
+          }}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors"
+          title="Click to add proof documents"
+        >
+          <Paperclip className="w-3 h-3 text-gray-400" />
+          <span>Missing Proof</span>
+        </button>
+      );
+    }
+
+    const hasIssue = proofs.some(p => p.accessStatus === 'issue' || p.accessStatus === 'restricted');
+
+    if (hasIssue) {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenProofViewer(patent);
+          }}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors"
+          title="Drive access issue detected. Click to inspect."
+        >
+          <AlertTriangle className="w-3 h-3 text-amber-600" />
+          <span>{count} {count === 1 ? 'Proof' : 'Proofs'} (Issue)</span>
+        </button>
+      );
+    }
+
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleOpenProofViewer(patent);
+        }}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+        title="Click to view attached proof documents"
+      >
+        <FileCheck className="w-3 h-3 text-blue-600" />
+        <span>{count} {count === 1 ? 'Proof' : 'Proofs'}</span>
+      </button>
+    );
+  };
+
+  const isGrantedForm = formData.status.toLowerCase() === 'granted' || formData.status.toLowerCase() === 'commercialized';
+
   const content = (
     <div className="space-y-6">
       {/* Header Bar */}
@@ -849,7 +837,7 @@ export function PatentsPage({
         ]}
         title="Intellectual Property & Patents Portfolio"
         badge={`${stats.total.toLocaleString()} Patents`}
-        description="Comprehensive tracking of filed, published, granted, and commercialized patents across Christ University."
+        description="Comprehensive tracking of filed, published, granted, and commercialized patents with verified institutional Google Drive proof documents."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -877,13 +865,7 @@ export function PatentsPage({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setBulkFile(null);
-                setBulkPreview([]);
-                setBulkErrors([]);
-                setBulkSuccess('');
-                setIsBulkOpen(true);
-              }}
+              onClick={() => setIsBulkOpen(true)}
               className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
             >
               <Upload className="w-3.5 h-3.5 mr-1.5" />
@@ -986,16 +968,17 @@ export function PatentsPage({
               </Select>
             </div>
 
-            {/* Academic Year Filter */}
-            <div className="w-32">
+            {/* Year Filter (Calendar Year / Pending Grant) */}
+            <div className="w-36">
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                  <SelectValue placeholder="Academic Year" />
+                  <SelectValue placeholder="Year" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   <SelectItem value="all">All Years</SelectItem>
-                  {academicYears.map(yr => (
-                    <SelectItem key={yr} value={yr}>{yr}</SelectItem>
+                  <SelectItem value="pending">Pending Grant</SelectItem>
+                  {calendarYears.map(yr => (
+                    <SelectItem key={yr} value={String(yr)}>{yr}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1012,6 +995,21 @@ export function PatentsPage({
                   {departments.map(dept => (
                     <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Proof Status Filter */}
+            <div className="w-36">
+              <Select value={selectedProofFilter} onValueChange={setSelectedProofFilter}>
+                <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
+                  <SelectValue placeholder="Proof Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Proofs</SelectItem>
+                  <SelectItem value="has_proof">With Proof</SelectItem>
+                  <SelectItem value="missing">Missing Proof</SelectItem>
+                  <SelectItem value="issue">Access Issue</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1076,6 +1074,7 @@ export function PatentsPage({
                 setSelectedType('all');
                 setSelectedYear('all');
                 setSelectedDept('all');
+                setSelectedProofFilter('all');
                 setSearchQuery('');
               }}
               className="text-xs"
@@ -1100,12 +1099,13 @@ export function PatentsPage({
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-700 font-semibold">
                   <th className="p-3 pl-4 min-w-[240px]">Patent / Invention Title</th>
-                  <th className="p-3 min-w-[180px]">Inventor(s)</th>
-                  <th className="p-3 min-w-[130px]">Status</th>
-                  <th className="p-3 min-w-[140px]">Type / Jurisdiction</th>
-                  <th className="p-3 min-w-[150px]">App / Patent No.</th>
-                  <th className="p-3 min-w-[150px]">Department</th>
-                  <th className="p-3 text-center min-w-[90px]">Year</th>
+                  <th className="p-3 min-w-[170px]">Inventor(s)</th>
+                  <th className="p-3 min-w-[120px]">Status</th>
+                  <th className="p-3 min-w-[130px]">Type / Jurisdiction</th>
+                  <th className="p-3 min-w-[140px]">App / Patent No.</th>
+                  <th className="p-3 min-w-[140px]">Department</th>
+                  <th className="p-3 text-center min-w-[80px]">Year</th>
+                  <th className="p-3 text-center min-w-[110px]">Proof</th>
                   <th className="p-3 min-w-[110px]">Filing / Grant Date</th>
                   <th className="p-3 text-right pr-4 min-w-[100px]">Actions</th>
                 </tr>
@@ -1173,9 +1173,22 @@ export function PatentsPage({
 
                     {/* Year */}
                     <td className="p-3 text-center">
-                      <Badge variant="secondary" className="text-[10px] font-medium bg-gray-100 text-gray-700">
-                        {patent.academicYear}
-                      </Badge>
+                      {patent.grantYear ? (
+                        <Badge variant="secondary" className="text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                          {patent.grantYear}
+                        </Badge>
+                      ) : patent.status.toLowerCase() === 'granted' && patent.academicYear ? (
+                        <Badge variant="secondary" className="text-[10px] font-medium bg-gray-100 text-gray-700">
+                          {patent.academicYear}
+                        </Badge>
+                      ) : (
+                        <span className="text-[10px] text-gray-400 italic">Pending</span>
+                      )}
+                    </td>
+
+                    {/* Proof Indicator */}
+                    <td className="p-3 text-center">
+                      {renderProofBadge(patent)}
                     </td>
 
                     {/* Filing / Grant Date */}
@@ -1248,80 +1261,36 @@ export function PatentsPage({
           {patents.map((patent) => (
             <Card key={patent.id} className="shadow-sm hover:shadow-md transition-shadow border-gray-200 relative overflow-hidden bg-white">
               <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#2f4692]" />
-              <CardHeader className="p-4 pb-2 pl-5">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {getStatusBadge(patent.status)}
-                    <Badge variant="outline" className="text-[10px] bg-gray-50 text-gray-700 border-gray-200">
-                      {patent.patentType}
-                    </Badge>
-                    <Badge variant="secondary" className="text-[10px] bg-gray-100 text-gray-700">
-                      AY {patent.academicYear}
-                    </Badge>
-                  </div>
-                  {patent.revenue !== undefined && Number(patent.revenue) > 0 && (
-                    <Badge variant="outline" className="text-[10px] border-emerald-300 bg-emerald-50 text-emerald-800 font-bold">
-                      ₹{Number(patent.revenue).toLocaleString('en-IN')}
-                    </Badge>
-                  )}
-                </div>
-                <CardTitle
-                  onClick={() => setViewingPatent(patent)}
-                  className="text-sm font-bold text-gray-900 hover:text-[#2f4692] cursor-pointer leading-snug line-clamp-2"
-                >
-                  {patent.title}
-                </CardTitle>
-                <CardDescription className="text-xs text-gray-600 font-medium mt-1 flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                  <span className="line-clamp-1">{patent.inventors}</span>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 pt-1 pl-5 text-xs text-gray-500">
-                <div className="border-t border-gray-100 pt-2.5 space-y-1.5">
-                  {patent.patentNo && (
-                    <div className="text-[11px] text-green-800 font-medium">
-                      Patent No: <span className="font-bold font-mono">{patent.patentNo}</span>
+              <CardContent className="p-4 pl-5 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {getStatusBadge(patent.status)}
+                      <Badge variant="outline" className="text-[10px]">
+                        {patent.patentType}
+                      </Badge>
+                      {patent.grantYear ? (
+                        <Badge variant="secondary" className="text-[10px] font-semibold bg-blue-50 text-blue-800">
+                          Year: {patent.grantYear}
+                        </Badge>
+                      ) : (
+                        <span className="text-[10px] text-gray-400 italic">Pending Grant</span>
+                      )}
+                      {renderProofBadge(patent)}
                     </div>
-                  )}
-
-                  {patent.applicationNo && (
-                    <div className="text-[11px] text-gray-600">
-                      App No: <span className="font-mono text-gray-800">{patent.applicationNo}</span>
-                    </div>
-                  )}
-
-                  {patent.department && (
-                    <div className="text-[11px] text-gray-500">
-                      Dept: <span className="font-semibold text-gray-700">{patent.department}</span>
-                    </div>
-                  )}
-
-                  {patent.partner && (
-                    <div className="text-[11px] text-emerald-800 font-medium flex items-center gap-1">
-                      <Building className="w-3.5 h-3.5 shrink-0" />
-                      <span>Partner: {patent.partner}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-3">
-                  <span className="text-[10px] text-gray-400">
-                    {patent.grantedDate ? `Granted: ${patent.grantedDate}` : patent.filedDate ? `Filed: ${patent.filedDate}` : 'Patent Recorded'}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <h3
                       onClick={() => setViewingPatent(patent)}
-                      className="h-7 w-7 p-0 text-gray-500 hover:text-[#2f4692] hover:bg-blue-50"
+                      className="font-bold text-gray-900 text-sm hover:text-[#2f4692] cursor-pointer line-clamp-2 leading-snug"
                     >
-                      <Eye className="w-3.5 h-3.5" />
-                    </Button>
+                      {patent.title}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleOpenEditModal(patent)}
-                      className="h-7 w-7 p-0 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                      className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600"
                     >
                       <Edit className="w-3.5 h-3.5" />
                     </Button>
@@ -1329,12 +1298,47 @@ export function PatentsPage({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeletePatent(patent.id)}
-                      className="h-7 w-7 p-0 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                      className="h-7 w-7 p-0 text-gray-400 hover:text-red-600"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </div>
+
+                <div className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <span className="line-clamp-1">{patent.inventors}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] bg-gray-50/70 p-2.5 rounded-lg border border-gray-100">
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-semibold">Application No</span>
+                    <span className="font-mono text-gray-700">{patent.applicationNo || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-semibold">Patent No</span>
+                    <span className="font-mono font-semibold text-green-700">{patent.patentNo || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-semibold">Department</span>
+                    <span className="text-gray-700 truncate block">{patent.department || 'General'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-semibold">Dates</span>
+                    <span className="text-gray-700">
+                      {patent.grantedDate ? `Grant: ${patent.grantedDate}` : patent.filedDate ? `Filed: ${patent.filedDate}` : '-'}
+                    </span>
+                  </div>
+                </div>
+
+                {patent.partner && (
+                  <div className="text-[11px] text-emerald-800 bg-emerald-50/60 p-2 rounded border border-emerald-100 flex items-center justify-between">
+                    <span className="font-medium truncate">Partner: {patent.partner}</span>
+                    {patent.revenue ? (
+                      <span className="font-bold text-emerald-700 shrink-0">₹{Number(patent.revenue).toLocaleString('en-IN')}</span>
+                    ) : null}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -1342,17 +1346,17 @@ export function PatentsPage({
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* ADD / EDIT PATENT DIALOG */}
+      {/* SINGLE ENTRY / EDIT PATENT MODAL */}
       {/* ---------------------------------------------------- */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
           <DialogHeader className="p-5 pb-3 border-b border-gray-100 bg-gray-50/50">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <Award className="w-5 h-5 text-[#2f4692]" />
               {editingPatent ? 'Edit Patent Record' : 'Add Patent / Invention'}
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
-              Record intellectual property filing, grant, and commercialization metadata.
+              Record intellectual property filing, grant, and institutional proof document metadata.
             </DialogDescription>
           </DialogHeader>
 
@@ -1411,7 +1415,22 @@ export function PatentsPage({
                 <Label className="font-semibold text-gray-700">Patent Stage / Status *</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(val) => setFormData({ ...formData, status: val })}
+                  onValueChange={(val) => {
+                    const isNowGranted = val.toLowerCase() === 'granted' || val.toLowerCase() === 'commercialized';
+                    let derivedYear = formData.grantYear;
+                    if (isNowGranted && !derivedYear && formData.grantedDate) {
+                      const d = new Date(formData.grantedDate);
+                      if (!isNaN(d.getTime())) derivedYear = String(d.getFullYear());
+                    } else if (!isNowGranted) {
+                      derivedYear = '';
+                    }
+                    setFormData({
+                      ...formData,
+                      status: val,
+                      grantYear: derivedYear
+                    });
+                    if (formErrors.status) setFormErrors({ ...formErrors, status: '' });
+                  }}
                 >
                   <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
                     <SelectValue placeholder="Select Status" />
@@ -1465,7 +1484,7 @@ export function PatentsPage({
               </div>
             </div>
 
-            {/* Department & Academic Year */}
+            {/* Department & Year of Grant */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="font-semibold text-gray-700">Department</Label>
@@ -1485,20 +1504,35 @@ export function PatentsPage({
               </div>
 
               <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Academic Year *</Label>
-                <Select
-                  value={formData.academicYear}
-                  onValueChange={(val) => setFormData({ ...formData, academicYear: val })}
-                >
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Select Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {academicYears.map((yr) => (
-                      <SelectItem key={yr} value={yr}>{yr}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-between">
+                  <Label className="font-semibold text-gray-700">
+                    Year (Year of Grant) {isGrantedForm ? '*' : ''}
+                  </Label>
+                  {!isGrantedForm && (
+                    <span className="text-[10px] text-gray-400">Assigned upon grant</span>
+                  )}
+                </div>
+                {isGrantedForm ? (
+                  <div>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 2024"
+                      value={formData.grantYear}
+                      onChange={(e) => {
+                        setFormData({ ...formData, grantYear: e.target.value });
+                        if (formErrors.grantYear) setFormErrors({ ...formErrors, grantYear: '' });
+                      }}
+                      className={`h-9 text-xs border-gray-200 ${formErrors.grantYear ? 'border-red-500 bg-red-50/20' : ''}`}
+                    />
+                    {formErrors.grantYear && (
+                      <p className="text-red-500 text-[11px] font-medium mt-1">{formErrors.grantYear}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="h-9 px-3 py-2 bg-gray-100 rounded-md border border-gray-200 text-gray-400 text-xs flex items-center italic">
+                    Pending Grant — Year assigned only upon grant
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1529,7 +1563,22 @@ export function PatentsPage({
                 <Input
                   type="date"
                   value={formData.grantedDate || ''}
-                  onChange={(e) => setFormData({ ...formData, grantedDate: e.target.value })}
+                  onChange={(e) => {
+                    const gDate = e.target.value;
+                    let derivedYear = formData.grantYear;
+                    if (gDate) {
+                      const d = new Date(gDate);
+                      if (!isNaN(d.getTime())) {
+                        derivedYear = String(d.getFullYear());
+                      }
+                    }
+                    setFormData({
+                      ...formData,
+                      grantedDate: gDate,
+                      grantYear: isGrantedForm ? (derivedYear || formData.grantYear) : ''
+                    });
+                    if (formErrors.grantYear) setFormErrors({ ...formErrors, grantYear: '' });
+                  }}
                   className="h-9 text-xs border-gray-200"
                 />
               </div>
@@ -1565,6 +1614,81 @@ export function PatentsPage({
                   value={formData.licenseDate || ''}
                   onChange={(e) => setFormData({ ...formData, licenseDate: e.target.value })}
                   className="h-9 text-xs border-gray-200"
+                />
+              </div>
+            </div>
+
+            {/* Proof Documents Section (Optional, multi-document) */}
+            <div className="border border-blue-100 bg-blue-50/20 rounded-lg p-3.5 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="font-bold text-gray-800 flex items-center gap-1.5">
+                  <Paperclip className="w-3.5 h-3.5 text-[#2f4692]" />
+                  Proof Document Management (Optional)
+                </Label>
+                <span className="text-[10px] text-gray-500">Stored in institutional Google Drive</span>
+              </div>
+
+              {/* Method A: File Upload */}
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold text-gray-700">Method A: Direct File Upload (PDF, PNG, JPG max 10MB)</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    multiple
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        setSelectedProofFiles(Array.from(e.target.files));
+                      }
+                    }}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-8 text-xs bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+                    Browse Files
+                  </Button>
+                  <span className="text-[11px] text-gray-500">
+                    {selectedProofFiles.length === 0
+                      ? 'No files selected'
+                      : `${selectedProofFiles.length} file(s) selected`}
+                  </span>
+                </div>
+                {selectedProofFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {selectedProofFiles.map((file, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 bg-white border border-gray-200 rounded px-2 py-0.5 text-[10px] text-gray-700">
+                        <Paperclip className="w-2.5 h-2.5 text-gray-400" />
+                        <span className="truncate max-w-[150px]">{file.name}</span>
+                        <span className="text-gray-400 font-mono">({Math.round(file.size / 1024)} KB)</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProofFiles(selectedProofFiles.filter((_, i) => i !== idx))}
+                          className="text-gray-400 hover:text-red-500 ml-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Method B: Google Drive Links */}
+              <div className="space-y-1.5 pt-1">
+                <Label className="text-[11px] font-semibold text-gray-700">Method B: Google Drive Link(s)</Label>
+                <textarea
+                  rows={2}
+                  placeholder="Paste Google Drive link(s) here (separate multiple links with comma or newline)..."
+                  value={formData.proofLinks}
+                  onChange={(e) => setFormData({ ...formData, proofLinks: e.target.value })}
+                  className="w-full rounded-md border border-gray-200 p-2 text-xs bg-white outline-none focus:border-[#2f4692]"
                 />
               </div>
             </div>
@@ -1618,9 +1742,6 @@ export function PatentsPage({
       {/* ---------------------------------------------------- */}
       {/* BULK UPLOAD MODAL (EXCEL & CSV) */}
       {/* ---------------------------------------------------- */}
-      {/* ---------------------------------------------------- */}
-      {/* BULK UPLOAD MODAL (EXCEL & CSV) - REDESIGNED */}
-      {/* ---------------------------------------------------- */}
       <BulkUploadDialog
         isOpen={isBulkOpen}
         onClose={() => setIsBulkOpen(false)}
@@ -1628,6 +1749,208 @@ export function PatentsPage({
         onSuccess={fetchPatents}
         uploadType="patents"
       />
+
+      {/* ---------------------------------------------------- */}
+      {/* PROOF DOCUMENT VIEWER MODAL */}
+      {/* ---------------------------------------------------- */}
+      <Dialog open={!!proofViewerPatent} onOpenChange={(open) => !open && setProofViewerPatent(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0">
+          {proofViewerPatent && (
+            <div>
+              <DialogHeader className="p-5 pb-3 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center gap-2 mb-1">
+                  {getStatusBadge(proofViewerPatent.status)}
+                  <Badge variant="outline" className="text-[10px]">
+                    {proofViewerPatent.patentType}
+                  </Badge>
+                  {proofViewerPatent.grantYear ? (
+                    <Badge variant="secondary" className="text-[10px] font-semibold bg-blue-50 text-blue-800">
+                      Year: {proofViewerPatent.grantYear}
+                    </Badge>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 italic">Pending Grant</span>
+                  )}
+                </div>
+                <DialogTitle className="text-base font-bold text-gray-900 leading-snug">
+                  Proof Documents — {proofViewerPatent.title}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-gray-500">
+                  Institutional Google Drive proof documents attached to Patent ID #{proofViewerPatent.id} ({proofViewerPatent.department || 'General'})
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="p-5 space-y-4 text-xs">
+                {proofActionMessage && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded text-emerald-800 text-xs flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{proofActionMessage}</span>
+                  </div>
+                )}
+
+                {/* Attached Proofs List */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-gray-800 uppercase text-[10px] tracking-wider">
+                      Attached Documents ({activeProofs.length})
+                    </span>
+                    <span className="text-[10px] text-gray-400">Google Workspace Shared Drive</span>
+                  </div>
+
+                  {proofsLoading ? (
+                    <div className="p-6 text-center text-gray-400">Loading documents...</div>
+                  ) : activeProofs.length === 0 ? (
+                    <div className="p-6 border border-dashed border-gray-200 rounded-lg text-center bg-gray-50/50">
+                      <Paperclip className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                      <p className="font-semibold text-gray-700">No Proof Documents Attached</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Upload a file or add a Google Drive link below.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden bg-white">
+                      {activeProofs.map((proof) => (
+                        <div key={proof.id} className="p-3 flex items-center justify-between gap-3 hover:bg-gray-50/70 transition-colors">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            {proof.sourceType === 'drive_upload' ? (
+                              <FolderOpen className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                            ) : (
+                              <Link2 className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900 truncate leading-tight" title={proof.fileName}>
+                                {proof.fileName}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-500 flex-wrap">
+                                <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                                  proof.sourceType === 'drive_upload'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : 'bg-purple-50 text-purple-700 border-purple-200'
+                                }`}>
+                                  {proof.sourceType === 'drive_upload' ? 'Drive Upload' : 'Drive Link'}
+                                </Badge>
+                                {proof.fileSize ? (
+                                  <span>{Math.round(proof.fileSize / 1024)} KB</span>
+                                ) : null}
+                                {proof.accessStatus === 'verified' ? (
+                                  <span className="text-emerald-700 font-medium flex items-center gap-0.5">
+                                    <Check className="w-2.5 h-2.5" /> Verified
+                                  </span>
+                                ) : proof.accessStatus === 'issue' || proof.accessStatus === 'restricted' ? (
+                                  <span className="text-amber-700 font-medium flex items-center gap-0.5">
+                                    <AlertTriangle className="w-2.5 h-2.5" /> Access Issue
+                                  </span>
+                                ) : null}
+                                {proof.createdAt && (
+                                  <span className="text-gray-400">{new Date(proof.createdAt).toLocaleDateString()}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <a
+                              href={proof.driveUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#2f4692] bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              <span>View</span>
+                            </a>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={proofActionLoading}
+                              onClick={() => handleDeleteProofItem(proof.id)}
+                              className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                              title="Delete proof document"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Add More Proofs Section */}
+                <div className="border border-gray-200 rounded-lg p-3.5 bg-gray-50/50 space-y-3">
+                  <span className="font-bold text-gray-800 uppercase text-[10px] tracking-wider block">
+                    Attach Additional Proof
+                  </span>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Method A: Upload File */}
+                    <div className="space-y-1.5 bg-white p-2.5 rounded border border-gray-200">
+                      <Label className="text-[11px] font-semibold text-gray-700">Method A: Upload Files (PDF/JPG/PNG)</Label>
+                      <input
+                        type="file"
+                        ref={modalFileInputRef}
+                        multiple
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            setNewProofFiles(Array.from(e.target.files));
+                          }
+                        }}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => modalFileInputRef.current?.click()}
+                        className="w-full text-xs h-8 border-gray-200 text-gray-700"
+                      >
+                        <FolderOpen className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+                        Choose Files ({newProofFiles.length} selected)
+                      </Button>
+                      {newProofFiles.length > 0 && (
+                        <p className="text-[10px] text-gray-500 truncate">
+                          {newProofFiles.map(f => f.name).join(', ')}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Method B: Drive Links */}
+                    <div className="space-y-1.5 bg-white p-2.5 rounded border border-gray-200">
+                      <Label className="text-[11px] font-semibold text-gray-700">Method B: Google Drive Links</Label>
+                      <Input
+                        placeholder="https://drive.google.com/..."
+                        value={newProofLinks}
+                        onChange={(e) => setNewProofLinks(e.target.value)}
+                        className="h-8 text-xs border-gray-200"
+                      />
+                    </div>
+                  </div>
+
+                  {(newProofFiles.length > 0 || newProofLinks.trim()) && (
+                    <div className="flex justify-end pt-1">
+                      <Button
+                        size="sm"
+                        disabled={proofActionLoading}
+                        onClick={handleAddProofsInViewer}
+                        className="bg-[#2f4692] text-white hover:bg-[#243877] text-xs h-8 px-4"
+                      >
+                        {proofActionLoading ? 'Attaching...' : 'Attach Proof(s)'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter className="p-4 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+                <Button
+                  size="sm"
+                  onClick={() => setProofViewerPatent(null)}
+                  className="bg-[#2f4692] text-white hover:bg-[#243877] text-xs px-5"
+                >
+                  Done
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ---------------------------------------------------- */}
       {/* PATENT DETAILS SHEET / MODAL */}
@@ -1642,9 +1965,13 @@ export function PatentsPage({
                   <Badge variant="outline" className="text-[10px]">
                     {viewingPatent.patentType}
                   </Badge>
-                  <Badge variant="secondary" className="text-[10px]">
-                    AY {viewingPatent.academicYear}
-                  </Badge>
+                  {viewingPatent.grantYear ? (
+                    <Badge variant="secondary" className="text-[10px] font-semibold bg-blue-50 text-blue-800">
+                      Year: {viewingPatent.grantYear}
+                    </Badge>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 italic">Pending Grant</span>
+                  )}
                   {viewingPatent.department && (
                     <Badge variant="outline" className="text-[10px]">
                       {viewingPatent.department}
@@ -1688,11 +2015,53 @@ export function PatentsPage({
                   </div>
                 </div>
 
+                {/* Proof Documents Section in Details */}
+                <div className="border-t border-gray-100 pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Proof Documents</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const pat = viewingPatent;
+                        setViewingPatent(null);
+                        handleOpenProofViewer(pat);
+                      }}
+                      className="h-6 text-[10px] px-2"
+                    >
+                      Manage Proofs
+                    </Button>
+                  </div>
+                  {(viewingPatent.proofs && viewingPatent.proofs.length > 0) ? (
+                    <div className="space-y-1.5">
+                      {viewingPatent.proofs.map((proof) => (
+                        <div key={proof.id} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
+                          <div className="flex items-center gap-2 truncate">
+                            <FileCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span className="truncate font-medium">{proof.fileName}</span>
+                          </div>
+                          <a
+                            href={proof.driveUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[#2f4692] hover:underline font-semibold flex items-center gap-1 shrink-0 ml-2"
+                          >
+                            <span>Open Drive</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-400 italic text-[11px]">No proof document attached yet.</p>
+                  )}
+                </div>
+
                 {(viewingPatent.partner || Number(viewingPatent.revenue) > 0) && (
                   <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-3 bg-emerald-50/40 p-3 rounded-lg border border-emerald-100">
                     <div>
                       <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Commercial Partner / Licensee</span>
-                      <p className="font-semibold text-gray-900 mt-0.5">{viewingPatent.partner || 'Internal Christian Tech Incubation'}</p>
+                      <p className="font-semibold text-gray-900 mt-0.5">{viewingPatent.partner || 'Internal Tech Incubation'}</p>
                     </div>
                     <div>
                       <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Revenue / Royalty (₹)</span>

@@ -2,6 +2,7 @@ const User = require('./User');
 const Achievement = require('./Achievement');
 const Document = require('./Document');
 const Patent = require('./Patent');
+const PatentProof = require('./PatentProof');
 const Placement = require('./Placement');
 const StrategicPlan = require('./StrategicPlan');
 const EditRequest = require('./EditRequest');
@@ -55,6 +56,12 @@ Document.belongsTo(User, { foreignKey: 'uploadedBy', as: 'uploader' });
 
 User.hasMany(Patent, { foreignKey: 'createdBy', as: 'patents' });
 Patent.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+
+// Patent Proofs
+Patent.hasMany(PatentProof, { foreignKey: 'patentId', as: 'proofs', onDelete: 'CASCADE' });
+PatentProof.belongsTo(Patent, { foreignKey: 'patentId', as: 'patent' });
+User.hasMany(PatentProof, { foreignKey: 'uploadedBy', as: 'uploadedPatentProofs' });
+PatentProof.belongsTo(User, { foreignKey: 'uploadedBy', as: 'uploader' });
 
 User.hasMany(Placement, { foreignKey: 'createdBy', as: 'placements' });
 Placement.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
@@ -111,6 +118,7 @@ module.exports = {
   SponsoredProject,
   Document,
   Patent,
+  PatentProof,
   Placement,
   StrategicPlan,
   EditRequest,

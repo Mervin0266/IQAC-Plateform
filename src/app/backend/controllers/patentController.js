@@ -1,15 +1,20 @@
-const { Patent, User } = require('../models');
+'use strict';
+
+const { Patent, PatentProof, User } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { logAction, logActionSafe } = require('../middleware/auditLogger');
 const { sendNotification } = require('../middleware/notificationHelper');
 const { resolveDepartmentScope } = require('../utils/scopeHelper');
 const { parsePagination, formatPaginationResponse } = require('../utils/paginationHelper');
+const googleDriveService = require('../services/googleDriveService');
 
-
+/**
+ * Sanitize and normalize date string into ISO YYYY-MM-DD.
+ */
 const sanitizeDate = (val) => {
   if (!val) return null;
-  
+
   // Handle Excel numeric serial dates (e.g. 45123)
   if (typeof val === 'number') {
     const d = new Date((val - 25569) * 86400 * 1000);
@@ -46,7 +51,7 @@ const sanitizeDate = (val) => {
     let p1 = parts[0].trim();
     let p2 = parts[1].trim();
     let p3 = parts[2].trim();
-    
+
     // Check if format is YYYY-MM-DD
     if (p1.length === 4) {
       const y = p1;
@@ -54,7 +59,7 @@ const sanitizeDate = (val) => {
       const d = p3.padStart(2, '0');
       return `${y}-${m}-${d}`;
     }
-    
+
     // Otherwise assume DD-MM-YYYY
     let day = p1.padStart(2, '0');
     let month = p2.padStart(2, '0');
@@ -89,22 +94,156 @@ const sanitizeAmount = (val) => {
   return isNaN(parsed) ? 0.00 : parsed;
 };
 
-// @desc    Get all patents with filtering, searching, and role isolation
+/**
+ * Validate Year of Grant against Patent Status and Grant Date.
+ * Rules:
+ * - Filed / Under Examination / Published: Year must be blank/null.
+ * - Granted / Commercialized: Year is required (4-digit calendar year e.g. 2024).
+ * - When Grant Date is entered, Year must match the year part of Grant Date.
+ */
+const validateYearAndStatus = (status, grantDate, rawYear) => {
+  const normStatus = (status || '').toLowerCase().trim();
+  const isGranted = normStatus.includes('grant') || normStatus.includes('commercial') || normStatus.includes('licens');
+
+  const sanitizedGrantDate = sanitizeDate(grantDate);
+  let parsedYear = null;
+  let rawYearInvalid = false;
+
+  if (rawYear !== null && rawYear !== undefined && String(rawYear).trim() !== '') {
+    const yrStr = String(rawYear).trim().toLowerCase();
+    if (!['pending', 'pending grant', 'n/a', 'na', 'nil', '-', '--', 'null'].includes(yrStr)) {
+      if (/^\d{4}$/.test(yrStr)) {
+        parsedYear = parseInt(yrStr, 10);
+      } else if (yrStr.includes('-')) {
+        const parts = yrStr.split('-');
+        if (/^\d{4}$/.test(parts[0].trim())) {
+          parsedYear = parseInt(parts[0].trim(), 10);
+        } else {
+          rawYearInvalid = true;
+        }
+      } else {
+        rawYearInvalid = true;
+      }
+    }
+  }
+
+  if (isGranted) {
+    if (rawYearInvalid) {
+      return {
+        valid: false,
+        error: 'Year of Grant must be a valid 4-digit calendar year (e.g. 2024).'
+      };
+    }
+
+    if (!parsedYear) {
+      return {
+        valid: false,
+        error: 'Year of Grant (4-digit calendar year e.g. 2024) is required for Granted and Commercialized patents.'
+      };
+    }
+
+    if (parsedYear < 1950 || parsedYear > 2100) {
+      return {
+        valid: false,
+        error: `Invalid Year of Grant: ${parsedYear}. Must be a valid 4-digit calendar year.`
+      };
+    }
+
+    if (sanitizedGrantDate) {
+      const derivedYearFromDate = parseInt(sanitizedGrantDate.split('-')[0], 10);
+      if (derivedYearFromDate !== parsedYear) {
+        return {
+          valid: false,
+          error: `Year of Grant (${parsedYear}) does not match Grant Date year (${derivedYearFromDate}). Both must agree.`
+        };
+      }
+    }
+
+    return {
+      valid: true,
+      grantYear: parsedYear,
+      academicYear: `${parsedYear}-${parsedYear + 1}`
+    };
+  } else {
+    // Non-granted (Filed, Published, Under Examination)
+    if (parsedYear !== null || rawYearInvalid) {
+      return {
+        valid: false,
+        error: `Year of Grant must be left blank for ungranted patents (Status: ${status}). Year is assigned only upon grant.`
+      };
+    }
+
+    return {
+      valid: true,
+      grantYear: null,
+      academicYear: 'Pending Grant'
+    };
+  }
+};
+
+/**
+ * Enforce role & department permissions on patent records.
+ */
+const checkPatentAccess = (patent, user, action = 'view') => {
+  if (!user) return { allowed: false, message: 'Authentication required' };
+  if (user.role === 'admin') return { allowed: true };
+
+  if (action === 'view') {
+    if (user.role === 'authority') return { allowed: true };
+    if (['coordinator', 'hod'].includes(user.role)) {
+      if (!user.department || user.department === 'All' || patent.department === user.department) {
+        return { allowed: true };
+      }
+      return { allowed: false, message: 'Access denied: Patent belongs to another department' };
+    }
+    if (user.role === 'faculty') {
+      if (!user.department || patent.department === user.department || patent.createdBy === user.id) {
+        return { allowed: true };
+      }
+      return { allowed: false, message: 'Access denied: Patent belongs to another department' };
+    }
+  }
+
+  // Edit / Delete / Manage Proofs
+  if (action === 'manage') {
+    if (user.role === 'authority') {
+      return { allowed: false, message: 'Authority role has read-only inspection access.' };
+    }
+    if (['coordinator', 'hod'].includes(user.role)) {
+      if (!user.department || user.department === 'All' || patent.department === user.department) {
+        return { allowed: true };
+      }
+      return { allowed: false, message: 'Access denied: Cannot modify patents outside your department.' };
+    }
+    if (user.role === 'faculty') {
+      if (patent.createdBy === user.id) {
+        return { allowed: true };
+      }
+      return { allowed: false, message: 'Access denied: Faculty can only modify their own patent records.' };
+    }
+  }
+
+  return { allowed: false, message: 'Unauthorized action' };
+};
+
+// @desc    Get all patents with filtering, searching, proofs, and role isolation
 // @route   GET /api/patents
-// @access  Private / Public (optional)
+// @access  Private
 exports.getPatents = async (req, res) => {
   try {
     const {
       status,
       patentType,
-      academicYear,
       year,
+      grantYear,
+      academicYear,
       department,
+      proofStatus,
       search
     } = req.query;
 
     const where = {};
-    const selectedYear = academicYear || year;
+    const selectedYear = year || grantYear || academicYear;
 
     if (status && status !== 'all') {
       where.status = {
@@ -119,7 +258,18 @@ exports.getPatents = async (req, res) => {
     }
 
     if (selectedYear && selectedYear !== 'all') {
-      where.academicYear = selectedYear;
+      const yrTrim = String(selectedYear).trim();
+      if (yrTrim === 'Pending Grant' || yrTrim.toLowerCase() === 'unassigned' || yrTrim.toLowerCase() === 'blank') {
+        where.grantYear = null;
+      } else if (/^\d{4}$/.test(yrTrim)) {
+        const yrInt = parseInt(yrTrim, 10);
+        where[Op.or] = [
+          { grantYear: yrInt },
+          { academicYear: { [Op.iLike]: `%${yrTrim}%` } }
+        ];
+      } else {
+        where.academicYear = yrTrim;
+      }
     }
 
     // Role-based data isolation
@@ -159,14 +309,28 @@ exports.getPatents = async (req, res) => {
 
     const { count, rows: patents } = await Patent.findAndCountAll({
       where,
-      include: [{
-        model: User,
-        as: 'creator',
-        attributes: ['id', 'name', 'email', 'department']
-      }],
+      include: [
+        {
+          model: User,
+          as: 'creator',
+          attributes: ['id', 'name', 'email', 'department']
+        },
+        {
+          model: PatentProof,
+          as: 'proofs',
+          where: { isActive: true },
+          required: false,
+          attributes: [
+            'id', 'sourceType', 'driveFileId', 'driveFolderId',
+            'driveUrl', 'fileName', 'mimeType', 'fileSize',
+            'uploadedAt', 'accessStatus', 'accessRemarks'
+          ]
+        }
+      ],
       order: [
+        ['grantYear', 'DESC NULLS LAST'],
         ['academicYear', 'DESC'],
-        ['filedDate', 'DESC'],
+        ['filedDate', 'DESC NULLS LAST'],
         ['id', 'ASC']
       ],
       limit: isExport ? undefined : limit,
@@ -174,9 +338,22 @@ exports.getPatents = async (req, res) => {
       distinct: true
     });
 
+    // Optional Proof Status filter in memory if specified
+    let filteredRows = patents;
+    if (proofStatus && proofStatus !== 'all') {
+      filteredRows = patents.filter(p => {
+        const proofs = p.proofs || [];
+        if (proofStatus === 'missing') return proofs.length === 0;
+        if (proofStatus === 'verified') return proofs.some(pr => pr.accessStatus === 'verified');
+        if (proofStatus === 'issue') return proofs.some(pr => pr.accessStatus === 'access_issue');
+        if (proofStatus === 'has_proof') return proofs.length > 0;
+        return true;
+      });
+    }
+
     res.json(formatPaginationResponse({
-      count,
-      rows: patents,
+      count: proofStatus && proofStatus !== 'all' ? filteredRows.length : count,
+      rows: filteredRows,
       page,
       limit
     }));
@@ -190,7 +367,7 @@ exports.getPatents = async (req, res) => {
   }
 };
 
-// @desc    Get aggregate patent statistics
+// @desc    Get aggregate patent statistics (including Proof & Grant Year breakdowns)
 // @route   GET /api/patents/stats
 // @access  Private / Public
 exports.getPatentStats = async (req, res) => {
@@ -198,12 +375,32 @@ exports.getPatentStats = async (req, res) => {
     const { year, department } = req.query;
     const where = {};
 
-    if (year && year !== 'all') where.academicYear = year;
+    if (year && year !== 'all') {
+      const yrTrim = String(year).trim();
+      if (/^\d{4}$/.test(yrTrim)) {
+        where[Op.or] = [
+          { grantYear: parseInt(yrTrim, 10) },
+          { academicYear: { [Op.iLike]: `%${yrTrim}%` } }
+        ];
+      } else {
+        where.academicYear = yrTrim;
+      }
+    }
+
     if (department && department !== 'all') {
       where.department = { [Op.iLike]: `%${department}%` };
     }
 
-    const allPatents = await Patent.findAll({ where });
+    const allPatents = await Patent.findAll({
+      where,
+      include: [{
+        model: PatentProof,
+        as: 'proofs',
+        where: { isActive: true },
+        required: false,
+        attributes: ['id', 'accessStatus']
+      }]
+    });
 
     let filedCount = 0;
     let publishedCount = 0;
@@ -212,13 +409,15 @@ exports.getPatentStats = async (req, res) => {
     let totalRevenue = 0;
     let nationalCount = 0;
     let internationalCount = 0;
+    let withProofCount = 0;
+    let missingProofCount = 0;
 
     const departmentBreakdown = {};
     const yearBreakdown = {};
 
     allPatents.forEach(p => {
       const s = (p.status || '').toLowerCase();
-      if (s.includes('commercial')) {
+      if (s.includes('commercial') || s.includes('licens')) {
         commercializedCount++;
       } else if (s.includes('grant')) {
         grantedCount++;
@@ -240,8 +439,16 @@ exports.getPatentStats = async (req, res) => {
       const dept = p.department || 'Unassigned';
       departmentBreakdown[dept] = (departmentBreakdown[dept] || 0) + 1;
 
-      const y = p.academicYear || 'Unknown';
-      yearBreakdown[y] = (yearBreakdown[y] || 0) + 1;
+      // Year breakdown: Prefer grantYear; for ungranted use 'Pending Grant'
+      const yrKey = p.grantYear ? String(p.grantYear) : (p.status === 'granted' || p.status === 'commercialized' ? (p.academicYear || 'Unknown') : 'Pending Grant');
+      yearBreakdown[yrKey] = (yearBreakdown[yrKey] || 0) + 1;
+
+      const proofs = p.proofs || [];
+      if (proofs.length > 0) {
+        withProofCount++;
+      } else {
+        missingProofCount++;
+      }
     });
 
     res.json({
@@ -255,6 +462,8 @@ exports.getPatentStats = async (req, res) => {
         national: nationalCount,
         international: internationalCount,
         totalRevenue,
+        withProofCount,
+        missingProofCount,
         departmentBreakdown,
         yearBreakdown
       }
@@ -269,23 +478,39 @@ exports.getPatentStats = async (req, res) => {
   }
 };
 
-// @desc    Get single patent by ID
+// @desc    Get single patent by ID with active Proofs
 // @route   GET /api/patents/:id
 // @access  Private
 exports.getPatent = async (req, res) => {
   try {
     const patent = await Patent.findByPk(req.params.id, {
-      include: [{
-        model: User,
-        as: 'creator',
-        attributes: ['id', 'name', 'email', 'department']
-      }]
+      include: [
+        {
+          model: User,
+          as: 'creator',
+          attributes: ['id', 'name', 'email', 'department']
+        },
+        {
+          model: PatentProof,
+          as: 'proofs',
+          where: { isActive: true },
+          required: false
+        }
+      ]
     });
 
     if (!patent) {
       return res.status(404).json({
         success: false,
         message: 'Patent record not found'
+      });
+    }
+
+    const access = checkPatentAccess(patent, req.user, 'view');
+    if (!access.allowed) {
+      return res.status(403).json({
+        success: false,
+        message: access.message
       });
     }
 
@@ -303,7 +528,7 @@ exports.getPatent = async (req, res) => {
   }
 };
 
-// @desc    Create new patent record
+// @desc    Create new patent record with optional Proof attachments or links
 // @route   POST /api/patents
 // @access  Private
 exports.createPatent = async (req, res) => {
@@ -316,6 +541,8 @@ exports.createPatent = async (req, res) => {
       status,
       patentType,
       department,
+      year,
+      grantYear,
       academicYear,
       filedDate,
       publishedDate,
@@ -325,7 +552,8 @@ exports.createPatent = async (req, res) => {
       revenue,
       patentUrl,
       description,
-      approvalStatus
+      approvalStatus,
+      proofLinks
     } = req.body;
 
     // Validation for required fields
@@ -336,14 +564,22 @@ exports.createPatent = async (req, res) => {
     if (missing.length > 0) {
       return res.status(400).json({
         success: false,
-        message: `Validation Error: Missing required field(s): ${missing.join(', ')}. Please provide all required information before submitting.`,
+        message: `Validation Error: Missing required field(s): ${missing.join(', ')}.`,
         missingFields: missing
+      });
+    }
+
+    // Validate Year of Grant
+    const yearValidation = validateYearAndStatus(status, grantedDate, year || grantYear || academicYear);
+    if (!yearValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: yearValidation.error
       });
     }
 
     const rawInventors = Array.isArray(inventors) ? inventors.join(', ') : String(inventors);
     const assignedDept = req.user?.role === 'admin' ? (department || 'General') : (req.user?.department || 'General');
-    const assignedYear = academicYear || '2024-2025';
     const finalApproval = (['admin', 'coordinator', 'hod'].includes(req.user?.role) && approvalStatus)
       ? approvalStatus
       : (req.user?.role === 'admin' ? 'approved' : 'submitted');
@@ -362,7 +598,8 @@ exports.createPatent = async (req, res) => {
       status: status || 'published',
       patentType: patentType || 'National (Indian)',
       department: assignedDept.trim(),
-      academicYear: assignedYear.trim(),
+      grantYear: yearValidation.grantYear,
+      academicYear: yearValidation.academicYear,
       filedDate: sanitizeDate(filedDate),
       publishedDate: sanitizeDate(publishedDate),
       grantedDate: sanitizeDate(grantedDate),
@@ -374,6 +611,35 @@ exports.createPatent = async (req, res) => {
       approvalStatus: finalApproval,
       createdBy: creatorId
     });
+
+    // Save any initial Proof Google Drive links provided during Single Entry
+    if (proofLinks) {
+      const linkList = Array.isArray(proofLinks)
+        ? proofLinks
+        : String(proofLinks).split('\n');
+
+      for (const rawUrl of linkList) {
+        const u = rawUrl.trim();
+        if (!u) continue;
+        const validation = googleDriveService.validateDriveUrl(u);
+        if (validation.valid) {
+          const verification = await googleDriveService.verifyDriveLinkAccess(u);
+          await PatentProof.create({
+            patentId: patent.id,
+            sourceType: 'drive_link',
+            driveFileId: validation.fileId,
+            driveUrl: u,
+            fileName: verification.fileName || `Google Drive Document (${validation.fileId.slice(0, 8)})`,
+            mimeType: verification.mimeType || 'application/vnd.google-apps.document',
+            fileSize: verification.fileSize || null,
+            uploadedBy: creatorId,
+            accessStatus: verification.status,
+            accessRemarks: verification.remarks,
+            isActive: true
+          });
+        }
+      }
+    }
 
     try {
       if (creatorId) {
@@ -391,10 +657,19 @@ exports.createPatent = async (req, res) => {
       console.warn('Audit logging failed for create patent (ignoring):', auditErr.message);
     }
 
+    const reloaded = await Patent.findByPk(patent.id, {
+      include: [{
+        model: PatentProof,
+        as: 'proofs',
+        where: { isActive: true },
+        required: false
+      }]
+    });
+
     res.status(201).json({
       success: true,
       message: 'Patent record created successfully',
-      data: patent
+      data: reloaded || patent
     });
   } catch (error) {
     console.error('Create patent error:', error);
@@ -406,12 +681,19 @@ exports.createPatent = async (req, res) => {
   }
 };
 
-// @desc    Update patent record
+// @desc    Update patent record & handle folder relocation on Grant Year change
 // @route   PUT /api/patents/:id
 // @access  Private
 exports.updatePatent = async (req, res) => {
   try {
-    const patent = await Patent.findByPk(req.params.id);
+    const patent = await Patent.findByPk(req.params.id, {
+      include: [{
+        model: PatentProof,
+        as: 'proofs',
+        where: { isActive: true },
+        required: false
+      }]
+    });
 
     if (!patent) {
       return res.status(404).json({
@@ -420,26 +702,35 @@ exports.updatePatent = async (req, res) => {
       });
     }
 
-    if (req.user.role === 'faculty' && patent.createdBy !== req.user.id) {
+    const access = checkPatentAccess(patent, req.user, 'manage');
+    if (!access.allowed) {
       return res.status(403).json({
         success: false,
-        message: 'You can only edit patents created by you.'
-      });
-    }
-
-    if (['coordinator', 'hod'].includes(req.user.role) && req.user.department && patent.department !== req.user.department) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied: Cannot update patents outside your department.'
+        message: access.message
       });
     }
 
     const oldValues = patent.toJSON();
+    const oldGrantYear = patent.grantYear;
+    const oldStatus = patent.status;
+
+    // Validate Year & Status if modified
+    const targetStatus = req.body.status !== undefined ? req.body.status : patent.status;
+    const targetGrantDate = req.body.grantedDate !== undefined ? req.body.grantedDate : patent.grantedDate;
+    const targetYear = req.body.year !== undefined ? req.body.year : (req.body.grantYear !== undefined ? req.body.grantYear : patent.grantYear);
+
+    const yearValidation = validateYearAndStatus(targetStatus, targetGrantDate, targetYear);
+    if (!yearValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: yearValidation.error
+      });
+    }
 
     const allowedFields = [
       'title', 'inventors', 'applicationNo', 'patentNo', 'status', 'patentType',
-      'academicYear', 'filedDate', 'publishedDate', 'grantedDate',
-      'licenseDate', 'partner', 'revenue', 'patentUrl', 'description'
+      'filedDate', 'publishedDate', 'grantedDate', 'licenseDate',
+      'partner', 'revenue', 'patentUrl', 'description'
     ];
 
     allowedFields.forEach(field => {
@@ -456,6 +747,9 @@ exports.updatePatent = async (req, res) => {
       }
     });
 
+    patent.grantYear = yearValidation.grantYear;
+    patent.academicYear = yearValidation.academicYear;
+
     // Only coordinator, hod, and admin can change approval status
     if (['admin', 'coordinator', 'hod'].includes(req.user.role) && req.body.approvalStatus !== undefined) {
       patent.approvalStatus = req.body.approvalStatus;
@@ -467,6 +761,22 @@ exports.updatePatent = async (req, res) => {
     }
 
     await patent.save();
+
+    // Check if institutional Drive folder needs relocation due to status change to Granted or Grant Year correction
+    if (
+      (oldStatus !== patent.status || oldGrantYear !== patent.grantYear) &&
+      patent.proofs && patent.proofs.some(p => p.sourceType === 'drive_upload' && p.driveFolderId)
+    ) {
+      const managedProof = patent.proofs.find(p => p.driveFolderId);
+      if (managedProof && managedProof.driveFolderId) {
+        googleDriveService.relocatePatentFolder({
+          currentPatentFolderId: managedProof.driveFolderId,
+          newYear: patent.grantYear,
+          department: patent.department,
+          patentId: patent.id
+        }).catch(err => console.warn('[Relocation] Background relocation warning:', err.message));
+      }
+    }
 
     await logAction(
       req.user.id,
@@ -493,12 +803,19 @@ exports.updatePatent = async (req, res) => {
   }
 };
 
-// @desc    Delete patent
+// @desc    Delete patent & clean up managed Drive proofs
 // @route   DELETE /api/patents/:id
 // @access  Private
 exports.deletePatent = async (req, res) => {
   try {
-    const patent = await Patent.findByPk(req.params.id);
+    const patent = await Patent.findByPk(req.params.id, {
+      include: [{
+        model: PatentProof,
+        as: 'proofs',
+        where: { isActive: true },
+        required: false
+      }]
+    });
 
     if (!patent) {
       return res.status(404).json({
@@ -507,14 +824,25 @@ exports.deletePatent = async (req, res) => {
       });
     }
 
-    if (req.user.role === 'faculty' && patent.createdBy !== req.user.id) {
+    const access = checkPatentAccess(patent, req.user, 'manage');
+    if (!access.allowed) {
       return res.status(403).json({
         success: false,
-        message: 'You can only delete patents created by you.'
+        message: access.message
       });
     }
 
     const oldValues = patent.toJSON();
+
+    // Clean up managed files from Google Drive
+    if (patent.proofs && patent.proofs.length > 0) {
+      for (const proof of patent.proofs) {
+        if (proof.sourceType === 'drive_upload' && proof.driveFileId) {
+          googleDriveService.deletePatentProofFile(proof.driveFileId).catch(() => {});
+        }
+      }
+    }
+
     await patent.destroy();
 
     await logAction(
@@ -541,22 +869,7 @@ exports.deletePatent = async (req, res) => {
   }
 };
 
-const extractField = (obj, ...keys) => {
-  if (!obj || typeof obj !== 'object') return '';
-  const objKeys = Object.keys(obj);
-  for (const k of keys) {
-    const cleanTarget = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-    for (const ok of objKeys) {
-      const cleanOk = ok.toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (cleanOk === cleanTarget && obj[ok] !== undefined && obj[ok] !== null && String(obj[ok]).trim() !== '') {
-        return obj[ok];
-      }
-    }
-  }
-  return '';
-};
-
-// @desc    Bulk Upload Patents (from parsed CSV / Excel)
+// @desc    Bulk Upload Patents (from parsed CSV / Excel with Google Drive Proof links)
 // @route   POST /api/patents/bulk
 // @access  Private (Admin, HOD, Coordinator, Faculty)
 exports.bulkUploadPatents = async (req, res) => {
@@ -579,6 +892,7 @@ exports.bulkUploadPatents = async (req, res) => {
     }
 
     const validRecords = [];
+    const recordProofLinks = [];
     const errors = [];
 
     items.forEach((item, index) => {
@@ -613,10 +927,10 @@ exports.bulkUploadPatents = async (req, res) => {
         item,
         'patentType', 'type', 'jurisdiction', 'typeOfPatent', 'category', 'patentCategory'
       ) || 'National (Indian)';
-      const academicYear = extractField(
+      const rawYear = extractField(
         item,
-        'academicYear', 'year', 'ay', 'period', 'academicSession'
-      ) || defaultYear || '2024-2025';
+        'year', 'grantYear', 'yearOfGrant', 'academicYear', 'ay', 'period'
+      ) || defaultYear;
       const department = extractField(
         item,
         'department', 'dept', 'hostDepartment', 'departmentName', 'school', 'branch'
@@ -649,14 +963,18 @@ exports.bulkUploadPatents = async (req, res) => {
         item,
         'patentUrl', 'patentLink', 'url', 'link', 'documentUrl', 'gazetteUrl', 'googlePatentsLink'
       );
+      const rawProof = extractField(
+        item,
+        'proof', 'proofs', 'proofUrl', 'proofUrls', 'driveUrl', 'googleDrive', 'googleDriveLink', 'proofDocuments'
+      );
       const description = extractField(
         item,
         'description', 'abstract', 'summary', 'claims', 'briefDescription'
       );
 
-      // Check if entire row is empty
+      // Silently skip completely blank row
       if (!String(title).trim() && !String(rawInventors).trim() && !String(applicationNo).trim() && !String(patentNo).trim()) {
-        return; // silently skip blank row
+        return;
       }
 
       if (!String(title).trim()) {
@@ -666,6 +984,14 @@ exports.bulkUploadPatents = async (req, res) => {
       if (!String(rawInventors).trim()) {
         errors.push(`Row ${rowNum}: Inventor Name(s) are required for "${String(title).trim()}".`);
         return;
+      }
+
+      // Department authorization check
+      if (req.user && ['coordinator', 'hod'].includes(req.user.role)) {
+        if (req.user.department && req.user.department !== 'All' && String(department).trim() !== req.user.department) {
+          errors.push(`Row ${rowNum}: Department '${department}' is outside your authorized scope (${req.user.department}).`);
+          return;
+        }
       }
 
       // Normalize status
@@ -680,6 +1006,34 @@ exports.bulkUploadPatents = async (req, res) => {
         normalizedStatus = 'under_examination';
       } else {
         normalizedStatus = 'filed';
+      }
+
+      // Year of Grant validation
+      const yearValidation = validateYearAndStatus(normalizedStatus, grantedDate, rawYear);
+      if (!yearValidation.valid) {
+        errors.push(`Row ${rowNum} ("${String(title).trim().slice(0, 30)}..."): ${yearValidation.error}`);
+        return;
+      }
+
+      // Validate Google Drive Proof links (if provided in Proof cell)
+      const validProofUrlsForRow = [];
+      if (rawProof && String(rawProof).trim()) {
+        // Split on newlines or commas
+        const candidateLinks = String(rawProof).split(/[\n,]+/);
+        for (const cl of candidateLinks) {
+          const trimmedLink = cl.trim();
+          if (!trimmedLink) continue;
+          const v = googleDriveService.validateDriveUrl(trimmedLink);
+          if (v.valid) {
+            validProofUrlsForRow.push({
+              url: v.sanitizedUrl,
+              fileId: v.fileId
+            });
+          } else {
+            errors.push(`Row ${rowNum}: Invalid Google Drive Proof URL '${trimmedLink}' (${v.error}).`);
+            return;
+          }
+        }
       }
 
       // Normalize patent type
@@ -707,7 +1061,8 @@ exports.bulkUploadPatents = async (req, res) => {
         status: normalizedStatus,
         patentType: normalizedType,
         department: String(department).trim(),
-        academicYear: String(academicYear).trim(),
+        grantYear: yearValidation.grantYear,
+        academicYear: yearValidation.academicYear,
         filedDate: sanitizeDate(filedDate),
         publishedDate: sanitizeDate(publishedDate),
         grantedDate: sanitizeDate(grantedDate),
@@ -719,6 +1074,8 @@ exports.bulkUploadPatents = async (req, res) => {
         approvalStatus: req.user?.role === 'admin' ? 'approved' : 'submitted',
         createdBy: creatorId
       });
+
+      recordProofLinks.push(validProofUrlsForRow);
     });
 
     if (validRecords.length === 0) {
@@ -730,10 +1087,34 @@ exports.bulkUploadPatents = async (req, res) => {
       });
     }
 
-    const created = await Patent.bulkCreate(validRecords, {
+    const createdPatents = await Patent.bulkCreate(validRecords, {
       transaction: t,
       returning: true
     });
+
+    // Create Proof records for each patent that had Google Drive links
+    const proofRecordsToCreate = [];
+    createdPatents.forEach((patent, idx) => {
+      const proofsForRow = recordProofLinks[idx] || [];
+      proofsForRow.forEach(p => {
+        proofRecordsToCreate.push({
+          patentId: patent.id,
+          sourceType: 'drive_link',
+          driveFileId: p.fileId,
+          driveUrl: p.url,
+          fileName: `Google Drive Document (${p.fileId.slice(0, 8)})`,
+          uploadedBy: creatorId,
+          accessStatus: 'pending_verification',
+          isActive: true
+        });
+      });
+    });
+
+    if (proofRecordsToCreate.length > 0) {
+      await PatentProof.bulkCreate(proofRecordsToCreate, {
+        transaction: t
+      });
+    }
 
     await t.commit();
 
@@ -745,7 +1126,11 @@ exports.bulkUploadPatents = async (req, res) => {
           'Patent',
           null,
           null,
-          { count: created.length, errorsCount: errors.length },
+          {
+            count: createdPatents.length,
+            proofLinksCount: proofRecordsToCreate.length,
+            errorsCount: errors.length
+          },
           req
         );
       }
@@ -755,10 +1140,11 @@ exports.bulkUploadPatents = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: `Successfully uploaded ${created.length} patent records.`,
-      count: created.length,
+      message: `Successfully uploaded ${createdPatents.length} patent records (${proofRecordsToCreate.length} Proof links attached).`,
+      count: createdPatents.length,
+      proofCount: proofRecordsToCreate.length,
       errors: errors.length > 0 ? errors : undefined,
-      data: created
+      data: createdPatents
     });
   } catch (error) {
     if (t && !t.finished) {
@@ -772,6 +1158,314 @@ exports.bulkUploadPatents = async (req, res) => {
     res.status(500).json({
       success: false,
       message: `Failed to process bulk upload for patents: ${error.message}`,
+      error: error.message
+    });
+  }
+};
+
+// @desc    Upload Proof files to Google Drive for a patent (Method A)
+// @route   POST /api/patents/:id/proofs
+// @access  Private
+exports.uploadPatentProof = async (req, res) => {
+  try {
+    const patent = await Patent.findByPk(req.params.id);
+    if (!patent) {
+      return res.status(404).json({ success: false, message: 'Patent not found' });
+    }
+
+    const access = checkPatentAccess(patent, req.user, 'manage');
+    if (!access.allowed) {
+      return res.status(403).json({ success: false, message: access.message });
+    }
+
+    const files = req.files;
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, message: 'No proof files provided for upload.' });
+    }
+
+    // Check maximum active attachments limit (10 per patent)
+    const existingCount = await PatentProof.count({
+      where: { patentId: patent.id, isActive: true }
+    });
+
+    if (existingCount + files.length > 10) {
+      return res.status(400).json({
+        success: false,
+        message: `Attachment limit exceeded: Maximum 10 active proof attachments allowed per patent. Current: ${existingCount}, Attempted: ${files.length}.`
+      });
+    }
+
+    if (!googleDriveService.isDriveConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Google Drive integration is not configured on this server. Direct file uploads require Google Drive environment variables (GOOGLE_DRIVE_CLIENT_EMAIL, GOOGLE_DRIVE_PRIVATE_KEY).'
+      });
+    }
+
+    const uploaded = [];
+    const failed = [];
+
+    for (const file of files) {
+      try {
+        const driveResult = await googleDriveService.uploadPatentProofFile({
+          patentId: patent.id,
+          department: patent.department,
+          year: patent.grantYear,
+          fileBuffer: file.buffer,
+          fileName: file.originalname,
+          mimeType: file.mimetype
+        });
+
+        const proofRecord = await PatentProof.create({
+          patentId: patent.id,
+          sourceType: 'drive_upload',
+          driveFileId: driveResult.driveFileId,
+          driveFolderId: driveResult.driveFolderId,
+          driveUrl: driveResult.driveUrl,
+          fileName: driveResult.fileName,
+          mimeType: driveResult.mimeType,
+          fileSize: driveResult.fileSize,
+          uploadedBy: req.user.id,
+          accessStatus: 'verified',
+          accessRemarks: 'Uploaded to institutional Google Drive',
+          isActive: true
+        });
+
+        uploaded.push(proofRecord);
+      } catch (uploadErr) {
+        console.error(`Failed to upload ${file.originalname} to Google Drive:`, uploadErr);
+        failed.push({
+          fileName: file.originalname,
+          error: uploadErr.message
+        });
+      }
+    }
+
+    if (uploaded.length > 0) {
+      await logAction(
+        req.user.id,
+        'ADD_PATENT_PROOF',
+        'PatentProof',
+        patent.id,
+        null,
+        { uploadedCount: uploaded.length, failedCount: failed.length },
+        req
+      );
+    }
+
+    res.status(201).json({
+      success: uploaded.length > 0,
+      message: `Successfully uploaded ${uploaded.length} of ${files.length} proof document(s) to Google Drive.`,
+      uploaded,
+      failed
+    });
+  } catch (error) {
+    console.error('Upload proof error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process proof upload',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Add external Google Drive Proof links to a patent (Method B)
+// @route   POST /api/patents/:id/proof-links
+// @access  Private
+exports.addPatentProofLinks = async (req, res) => {
+  try {
+    const patent = await Patent.findByPk(req.params.id);
+    if (!patent) {
+      return res.status(404).json({ success: false, message: 'Patent not found' });
+    }
+
+    const access = checkPatentAccess(patent, req.user, 'manage');
+    if (!access.allowed) {
+      return res.status(403).json({ success: false, message: access.message });
+    }
+
+    const { links } = req.body;
+    if (!links) {
+      return res.status(400).json({ success: false, message: 'No Google Drive links provided.' });
+    }
+
+    const linkList = Array.isArray(links)
+      ? links
+      : String(links).split('\n');
+
+    const cleanLinks = linkList.map(l => l.trim()).filter(Boolean);
+    if (cleanLinks.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please provide at least one valid Google Drive link.' });
+    }
+
+    // Check maximum active attachments limit
+    const existingCount = await PatentProof.count({
+      where: { patentId: patent.id, isActive: true }
+    });
+
+    if (existingCount + cleanLinks.length > 10) {
+      return res.status(400).json({
+        success: false,
+        message: `Attachment limit exceeded: Maximum 10 active proof attachments allowed per patent. Current: ${existingCount}, Attempted: ${cleanLinks.length}.`
+      });
+    }
+
+    const createdProofs = [];
+    const invalidLinks = [];
+
+    for (const url of cleanLinks) {
+      const validation = googleDriveService.validateDriveUrl(url);
+      if (!validation.valid) {
+        invalidLinks.push({ url, error: validation.error });
+        continue;
+      }
+
+      // Check if this fileId / URL is already attached to this patent
+      const duplicate = await PatentProof.findOne({
+        where: {
+          patentId: patent.id,
+          driveUrl: validation.sanitizedUrl,
+          isActive: true
+        }
+      });
+
+      if (duplicate) {
+        invalidLinks.push({ url, error: 'Document link already attached to this patent' });
+        continue;
+      }
+
+      const verification = await googleDriveService.verifyDriveLinkAccess(validation.sanitizedUrl);
+
+      const record = await PatentProof.create({
+        patentId: patent.id,
+        sourceType: 'drive_link',
+        driveFileId: validation.fileId,
+        driveUrl: validation.sanitizedUrl,
+        fileName: verification.fileName || `Google Drive Document (${validation.fileId.slice(0, 8)})`,
+        mimeType: verification.mimeType || 'application/vnd.google-apps.document',
+        fileSize: verification.fileSize || null,
+        uploadedBy: req.user.id,
+        accessStatus: verification.status,
+        accessRemarks: verification.remarks,
+        isActive: true
+      });
+
+      createdProofs.push(record);
+    }
+
+    if (createdProofs.length > 0) {
+      await logAction(
+        req.user.id,
+        'ADD_PATENT_PROOF_LINK',
+        'PatentProof',
+        patent.id,
+        null,
+        { createdCount: createdProofs.length, invalidCount: invalidLinks.length },
+        req
+      );
+    }
+
+    res.status(201).json({
+      success: createdProofs.length > 0,
+      message: `Successfully attached ${createdProofs.length} Google Drive link(s).`,
+      proofs: createdProofs,
+      invalidLinks: invalidLinks.length > 0 ? invalidLinks : undefined
+    });
+  } catch (error) {
+    console.error('Add proof links error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add proof links',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get active Proofs for a specific patent
+// @route   GET /api/patents/:id/proofs
+// @access  Private
+exports.getPatentProofs = async (req, res) => {
+  try {
+    const patent = await Patent.findByPk(req.params.id);
+    if (!patent) {
+      return res.status(404).json({ success: false, message: 'Patent not found' });
+    }
+
+    const access = checkPatentAccess(patent, req.user, 'view');
+    if (!access.allowed) {
+      return res.status(403).json({ success: false, message: access.message });
+    }
+
+    const proofs = await PatentProof.findAll({
+      where: { patentId: patent.id, isActive: true },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      data: proofs
+    });
+  } catch (error) {
+    console.error('Get patent proofs error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve patent proofs',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Remove a Proof reference from a patent
+// @route   DELETE /api/patents/:id/proofs/:proofId
+// @access  Private
+exports.deletePatentProof = async (req, res) => {
+  try {
+    const { id: patentId, proofId } = req.params;
+
+    const patent = await Patent.findByPk(patentId);
+    if (!patent) {
+      return res.status(404).json({ success: false, message: 'Patent not found' });
+    }
+
+    const access = checkPatentAccess(patent, req.user, 'manage');
+    if (!access.allowed) {
+      return res.status(403).json({ success: false, message: access.message });
+    }
+
+    const proof = await PatentProof.findOne({
+      where: { id: proofId, patentId: patent.id, isActive: true }
+    });
+
+    if (!proof) {
+      return res.status(404).json({ success: false, message: 'Proof attachment not found' });
+    }
+
+    // If managed file in institutional Drive, delete from Drive
+    if (proof.sourceType === 'drive_upload' && proof.driveFileId) {
+      googleDriveService.deletePatentProofFile(proof.driveFileId).catch(() => {});
+    }
+
+    await proof.destroy();
+
+    await logAction(
+      req.user.id,
+      'REMOVE_PATENT_PROOF',
+      'PatentProof',
+      proof.id,
+      proof.toJSON(),
+      null,
+      req
+    );
+
+    res.json({
+      success: true,
+      message: 'Proof document removed successfully'
+    });
+  } catch (error) {
+    console.error('Delete patent proof error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete proof document',
       error: error.message
     });
   }
@@ -809,3 +1503,6 @@ exports.clearAllPatents = async (req, res) => {
     });
   }
 };
+
+// Export validation helper for unit testing
+exports.validateYearAndStatus = validateYearAndStatus;
