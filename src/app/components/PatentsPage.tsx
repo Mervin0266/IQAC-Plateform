@@ -23,7 +23,7 @@ import { AppShell, PageHeader, StatCard } from './design-system';
 export interface PatentProofItem {
   id: string;
   patentId: string;
-  sourceType: 'drive_upload' | 'drive_link';
+  sourceType: 'drive_upload' | 'drive_link' | 'local_upload';
   driveFileId?: string | null;
   driveFolderId?: string | null;
   driveUrl: string;
@@ -73,6 +73,14 @@ interface PatentsPageProps {
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+const getProofViewUrl = (url?: string) => {
+  if (!url) return '#';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 
 const PATENT_STATUS_OPTIONS = [
   { value: 'published', label: 'Published' },
@@ -448,18 +456,30 @@ export function PatentsPage({
       if (savedPatentId) {
         // Method A: File uploads
         if (selectedProofFiles.length > 0) {
+          console.log('[IQAC Debug] Uploading initial proof files:', selectedProofFiles.map(f => f.name));
           const uploadData = new FormData();
           selectedProofFiles.forEach(file => {
             uploadData.append('files', file);
           });
 
-          await fetch(`${API_BASE}/api/patents/${savedPatentId}/proofs`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            },
-            body: uploadData
-          }).catch(err => console.error('Error uploading proof files:', err));
+          try {
+            const uploadRes = await fetch(`${API_BASE}/api/patents/${savedPatentId}/proofs`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              },
+              body: uploadData
+            });
+            const uploadDataRes = await uploadRes.json();
+            console.log('[IQAC Debug] Initial proof upload response from backend:', uploadDataRes);
+
+            if (uploadDataRes.failed && uploadDataRes.failed.length > 0 && (!uploadDataRes.uploaded || uploadDataRes.uploaded.length === 0)) {
+              console.error('[IQAC Debug] File upload failed for:', uploadDataRes.failed);
+              alert(`Patent record saved, but proof document upload failed:\n\n${uploadDataRes.failed[0].error}`);
+            }
+          } catch (err: any) {
+            console.error('[IQAC Debug] Network error uploading proof files:', err);
+          }
         }
 
         // Method B: Google Drive Links
@@ -621,6 +641,7 @@ export function PatentsPage({
           formDataPayload.append('files', file);
         });
 
+        console.log('[IQAC Proof Viewer Debug] Uploading files:', newProofFiles.map(f => f.name));
         const res = await fetch(`${API_BASE}/api/patents/${proofViewerPatent.id}/proofs`, {
           method: 'POST',
           headers: {
@@ -629,8 +650,15 @@ export function PatentsPage({
           body: formDataPayload
         });
         const data = await res.json();
+        console.log('[IQAC Proof Viewer Debug] Backend upload response:', data);
+
         if (data.success && data.uploaded) {
           uploadCount += data.uploaded.length;
+        }
+
+        if (data.failed && data.failed.length > 0 && (!data.uploaded || data.uploaded.length === 0)) {
+          console.error('[IQAC Proof Viewer Debug] Files failed to upload:', data.failed);
+          setProofActionMessage(`Upload error: ${data.failed[0].error}`);
         }
       }
 
@@ -1811,6 +1839,8 @@ export function PatentsPage({
                           <div className="flex items-start gap-2.5 min-w-0">
                             {proof.sourceType === 'drive_upload' ? (
                               <FolderOpen className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                            ) : proof.sourceType === 'local_upload' ? (
+                              <FileText className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
                             ) : (
                               <Link2 className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
                             )}
@@ -1822,9 +1852,11 @@ export function PatentsPage({
                                 <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
                                   proof.sourceType === 'drive_upload'
                                     ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : proof.sourceType === 'local_upload'
+                                    ? 'bg-teal-50 text-teal-700 border-teal-200'
                                     : 'bg-purple-50 text-purple-700 border-purple-200'
                                 }`}>
-                                  {proof.sourceType === 'drive_upload' ? 'Drive Upload' : 'Drive Link'}
+                                  {proof.sourceType === 'drive_upload' ? 'Drive Upload' : proof.sourceType === 'local_upload' ? 'Server Upload' : 'Drive Link'}
                                 </Badge>
                                 {proof.fileSize ? (
                                   <span>{Math.round(proof.fileSize / 1024)} KB</span>
@@ -1847,7 +1879,7 @@ export function PatentsPage({
 
                           <div className="flex items-center gap-1.5 shrink-0">
                             <a
-                              href={proof.driveUrl}
+                              href={getProofViewUrl(proof.driveUrl)}
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#2f4692] bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
@@ -2041,12 +2073,12 @@ export function PatentsPage({
                             <span className="truncate font-medium">{proof.fileName}</span>
                           </div>
                           <a
-                            href={proof.driveUrl}
+                            href={getProofViewUrl(proof.driveUrl)}
                             target="_blank"
                             rel="noreferrer"
                             className="text-[#2f4692] hover:underline font-semibold flex items-center gap-1 shrink-0 ml-2"
                           >
-                            <span>Open Drive</span>
+                            <span>{proof.sourceType === 'local_upload' ? 'View Document' : 'Open Drive'}</span>
                             <ExternalLink className="w-3 h-3" />
                           </a>
                         </div>

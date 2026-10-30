@@ -19,16 +19,28 @@ async function verifyGoogleDriveSetup() {
 
   // Check 1: Environment Variables
   console.log('1. Checking Environment Variables...');
+  const hasUserOAuth = Boolean(
+    process.env.GOOGLE_DRIVE_REFRESH_TOKEN &&
+    process.env.GOOGLE_DRIVE_CLIENT_ID &&
+    process.env.GOOGLE_DRIVE_CLIENT_SECRET
+  );
   const email = process.env.GOOGLE_DRIVE_CLIENT_EMAIL;
   const hasKey = Boolean(process.env.GOOGLE_DRIVE_PRIVATE_KEY);
   const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
 
-  console.log(`   - Client Email:       ${email ? email : 'MISSING'}`);
-  console.log(`   - Private Key:        ${hasKey ? 'Configured (Found)' : 'MISSING'}`);
+  if (hasUserOAuth) {
+    console.log('   - Mode:               Personal User OAuth 2.0 (Refresh Token)');
+    console.log(`   - Client ID:          ${process.env.GOOGLE_DRIVE_CLIENT_ID.slice(0, 25)}...`);
+    console.log(`   - Refresh Token:      Configured (Found)`);
+  } else {
+    console.log('   - Mode:               Service Account (Workspace)');
+    console.log(`   - Client Email:       ${email ? email : 'MISSING'}`);
+    console.log(`   - Private Key:        ${hasKey ? 'Configured (Found)' : 'MISSING'}`);
+  }
   console.log(`   - Root Folder ID:     ${rootFolderId ? rootFolderId : 'Not set (will use Drive root)'}`);
 
-  if (!email || !hasKey) {
-    console.error('\n✗ FAILED: GOOGLE_DRIVE_CLIENT_EMAIL or GOOGLE_DRIVE_PRIVATE_KEY is missing.');
+  if (!hasUserOAuth && (!email || !hasKey)) {
+    console.error('\n✗ FAILED: Google Drive credentials are missing.');
     process.exit(1);
   }
   console.log('   ✓ Environment variables verified.\n');

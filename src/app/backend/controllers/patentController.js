@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const { Patent, PatentProof, User } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
@@ -834,10 +837,14 @@ exports.deletePatent = async (req, res) => {
 
     const oldValues = patent.toJSON();
 
-    // Clean up managed files from Google Drive
+    // Clean up managed files from Google Drive or local server storage
     if (patent.proofs && patent.proofs.length > 0) {
       for (const proof of patent.proofs) {
-        if (proof.sourceType === 'drive_upload' && proof.driveFileId) {
+        if (proof.sourceType === 'local_upload' && proof.driveFileId) {
+          try {
+            if (fs.existsSync(proof.driveFileId)) fs.unlinkSync(proof.driveFileId);
+          } catch (_) {}
+        } else if (proof.sourceType === 'drive_upload' && proof.driveFileId) {
           googleDriveService.deletePatentProofFile(proof.driveFileId).catch(() => {});
         }
       }
@@ -1163,7 +1170,7 @@ exports.bulkUploadPatents = async (req, res) => {
   }
 };
 
-// @desc    Upload Proof files to Google Drive for a patent (Method A)
+// @desc    Upload Proof files for a patent (Google Drive with automatic local server storage fallback)
 // @route   POST /api/patents/:id/proofs
 // @access  Private
 exports.uploadPatentProof = async (req, res) => {
@@ -1195,49 +1202,92 @@ exports.uploadPatentProof = async (req, res) => {
       });
     }
 
-    if (!googleDriveService.isDriveConfigured()) {
-      return res.status(503).json({
-        success: false,
-        message: 'Google Drive integration is not configured on this server. Direct file uploads require Google Drive environment variables (GOOGLE_DRIVE_CLIENT_EMAIL, GOOGLE_DRIVE_PRIVATE_KEY).'
-      });
-    }
-
     const uploaded = [];
     const failed = [];
 
     for (const file of files) {
-      try {
-        const driveResult = await googleDriveService.uploadPatentProofFile({
-          patentId: patent.id,
-          department: patent.department,
-          year: patent.grantYear,
-          fileBuffer: file.buffer,
-          fileName: file.originalname,
-          mimeType: file.mimetype
-        });
+      let createdProof = null;
 
-        const proofRecord = await PatentProof.create({
-          patentId: patent.id,
-          sourceType: 'drive_upload',
-          driveFileId: driveResult.driveFileId,
-          driveFolderId: driveResult.driveFolderId,
-          driveUrl: driveResult.driveUrl,
-          fileName: driveResult.fileName,
-          mimeType: driveResult.mimeType,
-          fileSize: driveResult.fileSize,
-          uploadedBy: req.user.id,
-          accessStatus: 'verified',
-          accessRemarks: 'Uploaded to institutional Google Drive',
-          isActive: true
-        });
+      // 1. Attempt Google Drive upload first (works seamlessly on Google Workspace Shared Drives)
+      if (googleDriveService.isDriveConfigured()) {
+        try {
+          const driveResult = await googleDriveService.uploadPatentProofFile({
+            patentId: patent.id,
+            department: patent.department,
+            year: patent.grantYear,
+            fileBuffer: file.buffer,
+            fileName: file.originalname,
+            mimeType: file.mimetype
+          });
 
-        uploaded.push(proofRecord);
-      } catch (uploadErr) {
-        console.error(`Failed to upload ${file.originalname} to Google Drive:`, uploadErr);
-        failed.push({
-          fileName: file.originalname,
-          error: uploadErr.message
-        });
+          createdProof = await PatentProof.create({
+            patentId: patent.id,
+            sourceType: 'drive_upload',
+            driveFileId: driveResult.driveFileId,
+            driveFolderId: driveResult.driveFolderId,
+            driveUrl: driveResult.driveUrl,
+            fileName: driveResult.fileName,
+            mimeType: driveResult.mimeType,
+            fileSize: driveResult.fileSize,
+            uploadedBy: req.user.id,
+            accessStatus: 'verified',
+            accessRemarks: 'Uploaded to institutional Google Drive',
+            isActive: true
+          });
+        } catch (driveErr) {
+          console.warn(`[PatentController] Google Drive upload attempt note for ${file.originalname}: ${driveErr.message}`);
+          console.warn(`[PatentController] Notice: Falling back to platform server storage so user upload succeeds without interruption...`);
+        }
+      }
+
+      // 2. Graceful fallback: If Google Drive is not configured or fails due to personal account 0MB quota limitation, store locally
+      if (!createdProof) {
+        try {
+          const proofId = crypto.randomUUID();
+          const ext = path.extname(file.originalname);
+          const safeBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+          const diskFileName = `${proofId}_${safeBase}${ext}`;
+
+          const yearFolder = String(patent.grantYear || 'pending');
+          const deptFolder = (patent.department || 'general').replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+          const uploadsDir = path.resolve(__dirname, '../uploads/patents', yearFolder, deptFolder);
+          fs.mkdirSync(uploadsDir, { recursive: true });
+
+          const targetFilePath = path.join(uploadsDir, diskFileName);
+          fs.writeFileSync(targetFilePath, file.buffer);
+
+          const host = req.get('host') || 'localhost:5000';
+          const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+          const fileUrl = `${protocol}://${host}/api/patents/proofs/file/${proofId}`;
+
+          createdProof = await PatentProof.create({
+            id: proofId,
+            patentId: patent.id,
+            sourceType: 'local_upload',
+            driveFileId: targetFilePath,
+            driveFolderId: null,
+            driveUrl: fileUrl,
+            fileName: file.originalname,
+            mimeType: file.mimetype,
+            fileSize: file.size || file.buffer.length,
+            uploadedBy: req.user.id,
+            accessStatus: 'verified',
+            accessRemarks: 'Stored securely on platform server storage',
+            isActive: true
+          });
+
+          console.log(`[PatentController] Successfully saved proof file to platform storage: ${targetFilePath} (Proof ID: ${proofId})`);
+        } catch (localErr) {
+          console.error(`[PatentController ERROR] Server storage fallback failed for ${file.originalname}:`, localErr.message);
+          failed.push({
+            fileName: file.originalname,
+            error: localErr.message
+          });
+        }
+      }
+
+      if (createdProof) {
+        uploaded.push(createdProof);
       }
     }
 
@@ -1253,9 +1303,13 @@ exports.uploadPatentProof = async (req, res) => {
       );
     }
 
-    res.status(201).json({
+    console.log(`[PatentController] Completed upload processing: ${uploaded.length} succeeded, ${failed.length} failed.`);
+
+    res.status(uploaded.length > 0 ? 201 : 400).json({
       success: uploaded.length > 0,
-      message: `Successfully uploaded ${uploaded.length} of ${files.length} proof document(s) to Google Drive.`,
+      message: uploaded.length > 0
+        ? `Successfully uploaded ${uploaded.length} of ${files.length} proof document(s).`
+        : `Failed to upload proof document(s). Check server logs for details.`,
       uploaded,
       failed
     });
@@ -1440,8 +1494,17 @@ exports.deletePatentProof = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Proof attachment not found' });
     }
 
-    // If managed file in institutional Drive, delete from Drive
-    if (proof.sourceType === 'drive_upload' && proof.driveFileId) {
+    // If local file, delete from disk; if managed file in Drive, delete from Drive
+    if (proof.sourceType === 'local_upload' && proof.driveFileId) {
+      try {
+        if (fs.existsSync(proof.driveFileId)) {
+          fs.unlinkSync(proof.driveFileId);
+          console.log(`[PatentController] Deleted local proof file: ${proof.driveFileId}`);
+        }
+      } catch (fsErr) {
+        console.warn('[PatentController] Could not unlink local file (non-fatal):', fsErr.message);
+      }
+    } else if (proof.sourceType === 'drive_upload' && proof.driveFileId) {
       googleDriveService.deletePatentProofFile(proof.driveFileId).catch(() => {});
     }
 
@@ -1468,6 +1531,43 @@ exports.deletePatentProof = async (req, res) => {
       message: 'Failed to delete proof document',
       error: error.message
     });
+  }
+};
+
+// @desc    Stream / view a locally stored patent proof file
+// @route   GET /api/patents/proofs/file/:proofId
+// @access  Public / Direct Link with secure proof UUID
+exports.getPatentProofFile = async (req, res) => {
+  try {
+    const proof = await PatentProof.findByPk(req.params.proofId);
+    if (!proof || !proof.isActive) {
+      return res.status(404).json({ success: false, message: 'Proof document not found or inactive.' });
+    }
+
+    // If external Google Drive link, redirect to Google Drive
+    if (proof.sourceType === 'drive_link' || (proof.sourceType === 'drive_upload' && proof.driveUrl && proof.driveUrl.includes('drive.google.com'))) {
+      return res.redirect(proof.driveUrl);
+    }
+
+    const filePath = proof.driveFileId;
+    if (!filePath || !fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'Local proof file could not be found on server storage.' });
+    }
+
+    res.setHeader('Content-Type', proof.mimeType || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(proof.fileName)}"`);
+
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', (streamErr) => {
+      console.error('File stream error:', streamErr);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: 'Error streaming file.' });
+      }
+    });
+    stream.pipe(res);
+  } catch (error) {
+    console.error('Get proof file error:', error);
+    res.status(500).json({ success: false, message: 'Server error retrieving file.', error: error.message });
   }
 };
 

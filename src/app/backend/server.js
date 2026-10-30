@@ -223,6 +223,15 @@ const startServer = async () => {
       // Unrecognized environment string - fail closed
       console.error(`✗ Unrecognized NODE_ENV="${nodeEnv}". Refusing to run auto-seeding or runtime DDL (fail-closed).`);
     }
+
+    // Ensure additive patent schema migrations are applied on all environments
+    try {
+      const patentMigration = require('./migrations/20261030_add_patent_grant_year_and_proofs');
+      await patentMigration.up(sequelize.getQueryInterface(), sequelize.Sequelize);
+      console.log('✓ Patent schema migrations verified.');
+    } catch (migErr) {
+      console.warn('⚠️ Patent migration notice (non-fatal):', migErr.message);
+    }
     
     // Start server
     app.listen(PORT, () => {

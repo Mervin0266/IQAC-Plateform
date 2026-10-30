@@ -13,7 +13,8 @@ const {
   uploadPatentProof,
   addPatentProofLinks,
   getPatentProofs,
-  deletePatentProof
+  deletePatentProof,
+  getPatentProofFile
 } = require('../controllers/patentController');
 const { auth, authorize } = require('../middleware/auth');
 
@@ -33,7 +34,10 @@ const upload = multer({
   }
 });
 
-// All routes require authentication
+// Direct proof file streaming endpoint (accessible by secure proof UUID so browser <a> links can view/download)
+router.get('/proofs/file/:proofId', getPatentProofFile);
+
+// All subsequent routes require authentication
 router.use(auth);
 
 router.get('/stats', getPatentStats);

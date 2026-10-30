@@ -28,9 +28,16 @@ let tokenExpiresAt = 0;
  * Check if Google Drive integration is configured in environment variables.
  */
 function isDriveConfigured() {
-  const email = process.env.GOOGLE_DRIVE_CLIENT_EMAIL || process.env.GOOGLE_CLIENT_EMAIL;
-  const key = process.env.GOOGLE_DRIVE_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY;
-  return Boolean(email && key);
+  const hasServiceAccount = Boolean(
+    (process.env.GOOGLE_DRIVE_CLIENT_EMAIL || process.env.GOOGLE_CLIENT_EMAIL) &&
+    (process.env.GOOGLE_DRIVE_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY)
+  );
+  const hasUserOAuth = Boolean(
+    process.env.GOOGLE_DRIVE_REFRESH_TOKEN &&
+    process.env.GOOGLE_DRIVE_CLIENT_ID &&
+    process.env.GOOGLE_DRIVE_CLIENT_SECRET
+  );
+  return hasServiceAccount || hasUserOAuth;
 }
 
 /**
@@ -108,7 +115,10 @@ function validateDriveUrl(url) {
 }
 
 /**
- * Obtain an OAuth2 Bearer token from Google using Service Account JWT.
+ * Obtain an OAuth2 Bearer token from Google.
+ * Supports:
+ *   1. User OAuth2 Refresh Token (for personal @gmail.com accounts; files are owned by the user with full 15GB quota)
+ *   2. Service Account JWT assertion (for Google Workspace Shared Drives in university production)
  */
 async function getAccessToken() {
   const now = Math.floor(Date.now() / 1000);
@@ -116,11 +126,40 @@ async function getAccessToken() {
     return cachedToken;
   }
 
+  // 1. User OAuth2 Refresh Token mode (for personal accounts)
+  const refreshToken = (process.env.GOOGLE_DRIVE_REFRESH_TOKEN || '').trim();
+  const clientId = (process.env.GOOGLE_DRIVE_CLIENT_ID || '').trim();
+  const clientSecret = (process.env.GOOGLE_DRIVE_CLIENT_SECRET || '').trim();
+
+  if (refreshToken && clientId && clientSecret) {
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token'
+      })
+    });
+
+    if (!tokenRes.ok) {
+      const errorBody = await tokenRes.text();
+      throw new Error(`Failed to refresh Google Drive user token: ${tokenRes.status} ${errorBody}`);
+    }
+
+    const tokenData = await tokenRes.json();
+    cachedToken = tokenData.access_token;
+    tokenExpiresAt = now + (tokenData.expires_in || 3600);
+    return cachedToken;
+  }
+
+  // 2. Service Account JWT mode (for Workspace Shared Drives)
   const clientEmail = (process.env.GOOGLE_DRIVE_CLIENT_EMAIL || process.env.GOOGLE_CLIENT_EMAIL || '').trim();
   let privateKey = (process.env.GOOGLE_DRIVE_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY || '').trim();
 
   if (!clientEmail || !privateKey) {
-    throw new Error('Google Drive credentials are not configured. Set GOOGLE_DRIVE_CLIENT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY on Render.');
+    throw new Error('Google Drive credentials are not configured. Set GOOGLE_DRIVE_CLIENT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY (or GOOGLE_DRIVE_REFRESH_TOKEN, GOOGLE_DRIVE_CLIENT_ID, GOOGLE_DRIVE_CLIENT_SECRET) in .env.');
   }
 
   // Handle escaped newlines in environment variable
@@ -346,6 +385,7 @@ async function uploadPatentProofFile({ patentId, department, year, fileBuffer, f
   }
 
   // 1. Ensure folder hierarchy exists
+  console.log(`[GoogleDrive Debug] 1. Ensuring folder hierarchy for Patent ID: ${patentId}, Dept: ${department}, Year: ${year}`);
   const hierarchy = await ensurePatentFolderHierarchy({
     year,
     department,
@@ -354,6 +394,8 @@ async function uploadPatentProofFile({ patentId, department, year, fileBuffer, f
 
   const parentFolderId = hierarchy.patentFolderId;
   const safeFileName = sanitizeName(fileName);
+  console.log(`[GoogleDrive Debug] 2. Target patent folder confirmed: ${parentFolderId}`);
+  console.log(`[GoogleDrive Debug] 3. Sending file '${safeFileName}' (${fileBuffer.length} bytes, type: ${mimeType || 'octet-stream'}) to Google Drive...`);
 
   // 2. Prepare multipart upload for Google Drive API v3
   const boundary = `-------314159265358979323846_${Date.now()}`;
@@ -397,11 +439,26 @@ async function uploadPatentProofFile({ patentId, department, year, fileBuffer, f
 
   if (!uploadRes.ok) {
     const errorText = await uploadRes.text();
+    console.error(`\n[GoogleDrive ERROR] File upload failed! HTTP Status: ${uploadRes.status}`);
+    console.error(`[GoogleDrive ERROR] Raw response from Google: ${errorText}`);
+
+    if (errorText.includes('storageQuotaExceeded') || errorText.includes('Service Accounts do not have storage quota')) {
+      console.error('────────────────────────────────────────────────────────────────────────');
+      console.error('⚠️ [DIAGNOSIS]: GOOGLE DRIVE 0-BYTE SERVICE ACCOUNT QUOTA LIMIT');
+      console.error('Reason: The target folder is located in a personal or user "My Drive".');
+      console.error('Google allocates 0 bytes of storage quota to Service Accounts in "My Drive".');
+      console.error('Solution A: Move the root folder to an official Google Workspace "Shared Drive".');
+      console.error('Solution B: Use Method B (upload directly to Drive and paste the link).');
+      console.error('────────────────────────────────────────────────────────────────────────\n');
+      throw new Error(`Google Drive Quota Error: Service Accounts have 0MB personal storage in user "My Drive". Move folder to a Google Workspace "Shared Drive" or use Method B (Drive Links). Full Google error: ${errorText}`);
+    }
+
     throw new Error(`Google Drive file upload failed (${uploadRes.status}): ${errorText}`);
   }
 
   const fileData = await uploadRes.json();
   const driveUrl = fileData.webViewLink || `https://drive.google.com/file/d/${fileData.id}/view`;
+  console.log(`[GoogleDrive Debug] 4. File upload SUCCESS! File ID: ${fileData.id}, URL: ${driveUrl}`);
 
   return {
     driveFileId: fileData.id,
