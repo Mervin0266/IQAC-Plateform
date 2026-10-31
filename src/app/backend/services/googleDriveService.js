@@ -557,6 +557,185 @@ async function verifyDriveLinkAccess(url) {
   }
 }
 
+/**
+ * Ensure folder hierarchy exists for a Sponsored Research Project.
+ * Hierarchy: Sponsored Research / <Sanction Year or 'Pending Sanction Year'> / <Department> / PROJECT-<Project-ID> / <Category>
+ */
+async function ensureSponsoredFolderHierarchy({ sanctionYear, department, projectId, category }) {
+  if (!isDriveConfigured()) {
+    throw new Error('Google Drive integration is not configured. Missing credentials in backend environment.');
+  }
+
+  const rootParentId = (process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || '').trim() || null;
+
+  // 1. Root folder: Sponsored Research
+  const sponsoredRootFolderId = await findOrCreateFolder('Sponsored Research', rootParentId);
+
+  // 2. Sanction Year folder (e.g. "2024", "2025") or "Pending Sanction Year"
+  const yearFolderName = sanctionYear && String(sanctionYear).trim() ? String(sanctionYear).trim() : 'Pending Sanction Year';
+  const yearFolderId = await findOrCreateFolder(yearFolderName, sponsoredRootFolderId);
+
+  // 3. Department folder
+  const deptFolderName = sanitizeName(department || 'General');
+  const deptFolderId = await findOrCreateFolder(deptFolderName, yearFolderId);
+
+  // 4. Project ID folder
+  const projectFolderName = `PROJECT-${projectId}`;
+  const projectFolderId = await findOrCreateFolder(projectFolderName, deptFolderId);
+
+  // 5. Category folder (Agreement Letter or Payment Receipt)
+  let categoryFolderId = projectFolderId;
+  if (category) {
+    const categoryFolderName = category === 'payment_receipt' ? 'Payment Receipt' : 'Agreement Letter';
+    categoryFolderId = await findOrCreateFolder(categoryFolderName, projectFolderId);
+  }
+
+  return {
+    sponsoredRootFolderId,
+    yearFolderId,
+    deptFolderId,
+    projectFolderId,
+    categoryFolderId
+  };
+}
+
+/**
+ * Move a sponsored project folder to a new hierarchy when its Sanction Year or Department changes.
+ */
+async function relocateSponsoredProjectFolder({ currentProjectFolderId, newSanctionYear, department, projectId }) {
+  if (!isDriveConfigured() || !currentProjectFolderId) return null;
+
+  try {
+    const targetHierarchy = await ensureSponsoredFolderHierarchy({
+      sanctionYear: newSanctionYear,
+      department,
+      projectId
+    });
+
+    const targetDeptFolderId = targetHierarchy.deptFolderId;
+
+    const fileRes = await driveRequest(`/files/${currentProjectFolderId}?fields=parents&supportsAllDrives=true`);
+    if (!fileRes.ok) return null;
+
+    const fileData = await fileRes.json();
+    const oldParents = (fileData.parents || []).join(',');
+
+    if (fileData.parents && fileData.parents.includes(targetDeptFolderId)) {
+      return targetHierarchy.projectFolderId;
+    }
+
+    const patchParams = new URLSearchParams({
+      addParents: targetDeptFolderId,
+      removeParents: oldParents,
+      supportsAllDrives: 'true'
+    });
+
+    const moveRes = await driveRequest(`/files/${currentProjectFolderId}?${patchParams.toString()}`, {
+      method: 'PATCH'
+    });
+
+    if (moveRes.ok) {
+      console.log(`[GoogleDrive] Relocated sponsored project folder ${currentProjectFolderId} to Sanction Year: ${newSanctionYear || 'Pending Sanction Year'}, Dept: ${department}`);
+      return currentProjectFolderId;
+    }
+  } catch (err) {
+    console.warn('[GoogleDrive] Failed to relocate sponsored project folder (non-fatal):', err.message);
+  }
+
+  return currentProjectFolderId;
+}
+
+/**
+ * Upload a document file directly into the project's category Google Drive folder.
+ */
+async function uploadSponsoredDocumentFile({ projectId, department, sanctionYear, category, fileBuffer, fileName, mimeType }) {
+  if (!isDriveConfigured()) {
+    throw new Error('Google Drive integration is not configured. Direct uploads cannot be saved to institutional storage.');
+  }
+
+  const hierarchy = await ensureSponsoredFolderHierarchy({
+    sanctionYear,
+    department,
+    projectId,
+    category
+  });
+
+  const parentFolderId = hierarchy.categoryFolderId;
+  const safeFileName = sanitizeName(fileName);
+
+  const boundary = `-------314159265358979323846_${Date.now()}`;
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelimiter = `\r\n--${boundary}--`;
+
+  const metadata = {
+    name: safeFileName,
+    parents: [parentFolderId]
+  };
+
+  const multipartBody = Buffer.concat([
+    Buffer.from(
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`
+    ),
+    fileBuffer,
+    Buffer.from(closeDelimiter)
+  ]);
+
+  const uploadParams = new URLSearchParams({
+    uploadType: 'multipart',
+    supportsAllDrives: 'true',
+    fields: 'id, name, mimeType, webViewLink, webContentLink, size'
+  });
+
+  const uploadRes = await driveRequest(
+    `https://www.googleapis.com/upload/drive/v3/files?${uploadParams.toString()}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+        'Content-Length': String(multipartBody.length)
+      },
+      body: multipartBody
+    }
+  );
+
+  if (!uploadRes.ok) {
+    const errorText = await uploadRes.text();
+    throw new Error(`Google Drive upload failed with HTTP ${uploadRes.status}: ${errorText}`);
+  }
+
+  const uploadedFile = await uploadRes.json();
+  const driveUrl = uploadedFile.webViewLink || `https://drive.google.com/file/d/${uploadedFile.id}/view`;
+
+  return {
+    driveFileId: uploadedFile.id,
+    driveFolderId: parentFolderId,
+    driveUrl,
+    fileName: uploadedFile.name || safeFileName,
+    mimeType: uploadedFile.mimeType || mimeType,
+    fileSize: uploadedFile.size ? parseInt(uploadedFile.size, 10) : fileBuffer.length
+  };
+}
+
+/**
+ * Delete a document file from Google Drive.
+ */
+async function deleteSponsoredDocumentFile(driveFileId) {
+  if (!isDriveConfigured() || !driveFileId) return false;
+  try {
+    const res = await driveRequest(`/files/${driveFileId}?supportsAllDrives=true`, {
+      method: 'DELETE'
+    });
+    return res.ok || res.status === 404;
+  } catch (err) {
+    console.warn(`[GoogleDrive] Could not delete sponsored file ${driveFileId}:`, err.message);
+    return false;
+  }
+}
+
 module.exports = {
   isDriveConfigured,
   sanitizeName,
@@ -568,5 +747,9 @@ module.exports = {
   relocatePatentFolder,
   uploadPatentProofFile,
   deletePatentProofFile,
-  verifyDriveLinkAccess
+  verifyDriveLinkAccess,
+  ensureSponsoredFolderHierarchy,
+  relocateSponsoredProjectFolder,
+  uploadSponsoredDocumentFile,
+  deleteSponsoredDocumentFile
 };

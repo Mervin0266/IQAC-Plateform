@@ -108,14 +108,29 @@ Publication.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
 // Sponsored Research Project Associations
 const SponsoredProject = require('./SponsoredProject');
+const SponsoredResearchDocument = require('./SponsoredResearchDocument');
+const SponsoredResearchInstallment = require('./SponsoredResearchInstallment');
+
 User.hasMany(SponsoredProject, { foreignKey: 'createdBy', as: 'sponsoredProjects' });
 SponsoredProject.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+
+SponsoredProject.hasMany(SponsoredResearchDocument, { foreignKey: 'projectId', as: 'documents', onDelete: 'CASCADE' });
+SponsoredResearchDocument.belongsTo(SponsoredProject, { foreignKey: 'projectId', as: 'project' });
+User.hasMany(SponsoredResearchDocument, { foreignKey: 'uploadedBy', as: 'uploadedSponsoredDocuments' });
+SponsoredResearchDocument.belongsTo(User, { foreignKey: 'uploadedBy', as: 'uploader' });
+
+SponsoredProject.hasMany(SponsoredResearchInstallment, { foreignKey: 'projectId', as: 'installments', onDelete: 'CASCADE' });
+SponsoredResearchInstallment.belongsTo(SponsoredProject, { foreignKey: 'projectId', as: 'project' });
+User.hasMany(SponsoredResearchInstallment, { foreignKey: 'createdBy', as: 'createdSponsoredInstallments' });
+SponsoredResearchInstallment.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
 module.exports = {
   User,
   Achievement,
   Publication,
   SponsoredProject,
+  SponsoredResearchDocument,
+  SponsoredResearchInstallment,
   Document,
   Patent,
   PatentProof,

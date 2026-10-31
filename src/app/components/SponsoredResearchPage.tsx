@@ -6,7 +6,8 @@ import {
   TrendingUp, FileText, Award, Users, Calendar,
   Building, CheckCircle, Clock, Plus, Search, Trash2, Edit,
   Eye, Download, AlertCircle, Upload, X, ExternalLink,
-  Layers, ChevronRight, Check, RefreshCw, DollarSign, ShieldCheck, PieChart, Landmark
+  Layers, ChevronRight, Check, RefreshCw, DollarSign, ShieldCheck, PieChart, Landmark,
+  FileCheck, Receipt, AlertTriangle, Paperclip, ArrowRight
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
@@ -20,6 +21,34 @@ import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { AppShell, PageHeader, StatCard } from './design-system';
+import { calculateProjectDuration, deriveSanctionYear } from '../utils/projectDurationHelper';
+
+export interface SponsoredDocumentItem {
+  id: string;
+  projectId: string;
+  documentCategory: 'agreement_letter' | 'payment_receipt';
+  sourceType: 'drive_upload' | 'drive_link' | 'local_upload';
+  driveFileId?: string | null;
+  driveFolderId?: string | null;
+  driveUrl: string;
+  fileName: string;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  accessStatus?: string;
+  accessRemarks?: string | null;
+  createdAt?: string;
+}
+
+export interface SponsoredInstallmentItem {
+  id: string;
+  projectId: string;
+  installmentNumber?: number | null;
+  paymentDate?: string | null;
+  amount: number;
+  paymentReference?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+}
 
 export interface SponsoredProjectItem {
   id: string;
@@ -31,6 +60,8 @@ export interface SponsoredProjectItem {
   agencyType: string;
   sanctionOrderNo?: string | null;
   sanctionDate?: string | null;
+  sanctionYear?: number | null;
+  academicYear: string;
   startDate?: string | null;
   endDate?: string | null;
   sanctionedAmount: number | string;
@@ -38,11 +69,23 @@ export interface SponsoredProjectItem {
   status: string; // 'Ongoing' | 'Completed' | 'Sanctioned' | 'Proposal Submitted' | 'Terminated'
   progressPercentage?: number | null;
   department?: string;
-  academicYear: string;
   projectUrl?: string | null;
   description?: string | null;
   approvalStatus?: string;
   createdAt?: string;
+  // Computed & attached fields
+  durationFormatted?: string;
+  effectiveAmountReceived?: number;
+  installmentTotal?: number;
+  balanceYetToBeReceived?: number;
+  reconciliationStatus?: string;
+  reconciliationDiff?: number;
+  agreementLetters?: SponsoredDocumentItem[];
+  paymentReceipts?: SponsoredDocumentItem[];
+  agreementLetterCount?: number;
+  paymentReceiptCount?: number;
+  documents?: SponsoredDocumentItem[];
+  installments?: SponsoredInstallmentItem[];
   creator?: {
     id: string;
     name: string;
@@ -60,6 +103,7 @@ interface SponsoredResearchPageProps {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+// Exact five original statuses preserved
 const PROJECT_STATUS_OPTIONS = [
   { value: 'Ongoing', label: 'Ongoing Research' },
   { value: 'Completed', label: 'Completed' },
@@ -77,7 +121,7 @@ const AGENCY_TYPE_OPTIONS = [
   'Non-Governmental Organization (NGO)'
 ];
 
-const EMPTY_FORM: Omit<SponsoredProjectItem, 'id' | 'createdAt' | 'creator'> = {
+const EMPTY_FORM = {
   title: '',
   principalInvestigator: '',
   coInvestigators: '',
@@ -86,14 +130,14 @@ const EMPTY_FORM: Omit<SponsoredProjectItem, 'id' | 'createdAt' | 'creator'> = {
   agencyType: 'Government (National)',
   sanctionOrderNo: '',
   sanctionDate: '',
+  sanctionYear: '',
   startDate: '',
   endDate: '',
   sanctionedAmount: 0,
-  amountReceived: 0,
+  amountReceived: '' as string | number,
   status: 'Ongoing',
   progressPercentage: 0,
   department: '',
-  academicYear: '2024-2025',
   projectUrl: '',
   description: '',
   approvalStatus: 'approved'
@@ -120,7 +164,7 @@ export function SponsoredResearchPage({
   const [selectedAgencyType, setSelectedAgencyType] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedDept, setSelectedDept] = useState('all');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   // Add / Edit Modal States
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -129,17 +173,31 @@ export function SponsoredResearchPage({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
+  // Document attachments state for modal
+  const [agreementFiles, setAgreementFiles] = useState<File[]>([]);
+  const [agreementLinks, setAgreementLinks] = useState('');
+  const [paymentFiles, setPaymentFiles] = useState<File[]>([]);
+  const [paymentLinks, setPaymentLinks] = useState('');
+
+  // Installment entry inside Add/Edit modal
+  const [tempInstallments, setTempInstallments] = useState<Array<{
+    id?: string;
+    installmentNumber?: number;
+    paymentDate: string;
+    amount: number;
+    paymentReference: string;
+    notes: string;
+  }>>([]);
+  const [newInstDate, setNewInstDate] = useState('');
+  const [newInstAmount, setNewInstAmount] = useState('');
+  const [newInstRef, setNewInstRef] = useState('');
+
   // View Details Drawer / Modal
   const [viewingProject, setViewingProject] = useState<SponsoredProjectItem | null>(null);
+  const [detailTab, setDetailTab] = useState<'overview' | 'financial' | 'documents'>('overview');
 
   // Bulk Upload Modal
   const [isBulkOpen, setIsBulkOpen] = useState(false);
-  const [bulkFile, setBulkFile] = useState<File | null>(null);
-  const [bulkPreview, setBulkPreview] = useState<any[]>([]);
-  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
-  const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkSuccess, setBulkSuccess] = useState('');
-  const [bulkDefaultYear, setBulkDefaultYear] = useState('2024-2025');
   const [isClearOpen, setIsClearOpen] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
 
@@ -165,11 +223,12 @@ export function SponsoredResearchPage({
     return Array.from(set).sort();
   }, [departmentList]);
 
-  const academicYears = useMemo(() => {
+  // Sanction Years for filter dropdown (2020 to 2028)
+  const sanctionYears = useMemo(() => {
     const current = new Date().getFullYear();
-    const list: string[] = [];
-    for (let y = current + 1; y >= current - 5; y--) {
-      list.push(`${y}-${y + 1}`);
+    const list: number[] = [];
+    for (let y = current + 2; y >= current - 6; y--) {
+      list.push(y);
     }
     return list;
   }, []);
@@ -183,7 +242,7 @@ export function SponsoredResearchPage({
       params.append('all', 'true');
       if (selectedStatus !== 'all') params.append('status', selectedStatus);
       if (selectedAgencyType !== 'all') params.append('agencyType', selectedAgencyType);
-      if (selectedYear !== 'all') params.append('academicYear', selectedYear);
+      if (selectedYear !== 'all') params.append('sanctionYear', selectedYear);
       if (selectedDept !== 'all') params.append('department', selectedDept);
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
 
@@ -214,7 +273,7 @@ export function SponsoredResearchPage({
     if (!token) return;
     try {
       const params = new URLSearchParams();
-      if (selectedYear !== 'all') params.append('academicYear', selectedYear);
+      if (selectedYear !== 'all') params.append('sanctionYear', selectedYear);
       if (selectedDept !== 'all') params.append('department', selectedDept);
 
       const res = await fetch(`${API_BASE}/api/sponsored-projects/stats?${params.toString()}`, {
@@ -239,18 +298,71 @@ export function SponsoredResearchPage({
     fetchStats();
   }, [fetchProjects, fetchStats]);
 
-  // Handle Form Open for Add
+  // Currency Formatter
+  const formatCurrency = (val: number | string | undefined | null) => {
+    const num = Number(val) || 0;
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(num);
+  };
+
+  // Status Badge Helper
+  const getStatusBadge = (status: string) => {
+    const s = (status || '').toLowerCase().trim();
+    if (s.includes('ongoing')) {
+      return <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-semibold">Ongoing Research</Badge>;
+    }
+    if (s.includes('complete')) {
+      return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-semibold">Completed</Badge>;
+    }
+    if (s.includes('sanction')) {
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] font-semibold">Sanctioned / Awaiting Funds</Badge>;
+    }
+    if (s.includes('proposal') || s.includes('submit')) {
+      return <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-semibold">Proposal Submitted / Under Review</Badge>;
+    }
+    if (s.includes('terminate')) {
+      return <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] font-semibold">Terminated / Closed</Badge>;
+    }
+    return <Badge variant="outline" className="text-[10px]">{status || 'Ongoing'}</Badge>;
+  };
+
+  const getAgencyBadge = (type: string) => {
+    const t = (type || '').toLowerCase();
+    if (t.includes('government') || t.includes('national')) {
+      return <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]">National Govt</Badge>;
+    }
+    if (t.includes('state')) {
+      return <Badge variant="secondary" className="bg-cyan-50 text-cyan-700 border-cyan-200 text-[10px]">State Govt</Badge>;
+    }
+    if (t.includes('international')) {
+      return <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-200 text-[10px]">International</Badge>;
+    }
+    if (t.includes('industry')) {
+      return <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Industry</Badge>;
+    }
+    return <Badge variant="outline" className="text-[10px]">Internal/Other</Badge>;
+  };
+
+  // Open Modal for Add
   const handleOpenAdd = () => {
     setEditingProject(null);
     setFormData({
       ...EMPTY_FORM,
       department: authUser?.department || (departments[0] || '')
     });
+    setAgreementFiles([]);
+    setAgreementLinks('');
+    setPaymentFiles([]);
+    setPaymentLinks('');
+    setTempInstallments([]);
     setFormErrors({});
     setIsFormOpen(true);
   };
 
-  // Handle Form Open for Edit
+  // Open Modal for Edit
   const handleOpenEdit = (proj: SponsoredProjectItem) => {
     setEditingProject(proj);
     setFormData({
@@ -261,22 +373,74 @@ export function SponsoredResearchPage({
       scheme: proj.scheme || '',
       agencyType: proj.agencyType || 'Government (National)',
       sanctionOrderNo: proj.sanctionOrderNo || '',
-      sanctionDate: proj.sanctionDate || '',
-      startDate: proj.startDate || '',
-      endDate: proj.endDate || '',
-      sanctionedAmount: proj.sanctionedAmount || 0,
-      amountReceived: proj.amountReceived || 0,
+      sanctionDate: proj.sanctionDate ? proj.sanctionDate.split('T')[0] : '',
+      sanctionYear: proj.sanctionYear ? String(proj.sanctionYear) : '',
+      startDate: proj.startDate ? proj.startDate.split('T')[0] : '',
+      endDate: proj.endDate ? proj.endDate.split('T')[0] : '',
+      sanctionedAmount: Number(proj.sanctionedAmount) || 0,
+      amountReceived: proj.amountReceived !== null && proj.amountReceived !== undefined ? proj.amountReceived : '',
       status: proj.status || 'Ongoing',
       progressPercentage: proj.progressPercentage || 0,
       department: proj.department || '',
-      academicYear: proj.academicYear || '2024-2025',
       projectUrl: proj.projectUrl || '',
       description: proj.description || '',
       approvalStatus: proj.approvalStatus || 'approved'
     });
+    setAgreementFiles([]);
+    setAgreementLinks('');
+    setPaymentFiles([]);
+    setPaymentLinks('');
+    setTempInstallments((proj.installments || []).map(i => ({
+      id: i.id,
+      installmentNumber: i.installmentNumber || undefined,
+      paymentDate: i.paymentDate ? i.paymentDate.split('T')[0] : '',
+      amount: Number(i.amount) || 0,
+      paymentReference: i.paymentReference || '',
+      notes: i.notes || ''
+    })));
     setFormErrors({});
     setIsFormOpen(true);
   };
+
+  // Live duration calculation for Add/Edit Form
+  const liveDuration = useMemo(() => {
+    return calculateProjectDuration(formData.startDate, formData.endDate);
+  }, [formData.startDate, formData.endDate]);
+
+  // Live financial reconciliation for Add/Edit Form
+  const liveFinancials = useMemo(() => {
+    const sAmt = parseFloat(String(formData.sanctionedAmount)) || 0;
+    const hasManualRec = formData.amountReceived !== '' && formData.amountReceived !== null && formData.amountReceived !== undefined;
+    const manualRec = hasManualRec ? (parseFloat(String(formData.amountReceived)) || 0) : null;
+    const instTotal = tempInstallments.reduce((sum, inst) => sum + (Number(inst.amount) || 0), 0);
+
+    let effective = 0;
+    let recStatus = 'none';
+    let diff = 0;
+
+    if (manualRec !== null && tempInstallments.length === 0) {
+      effective = manualRec;
+      recStatus = 'manual_only';
+    } else if (manualRec === null && tempInstallments.length > 0) {
+      effective = instTotal;
+      recStatus = 'installments_only';
+    } else if (manualRec !== null && tempInstallments.length > 0) {
+      effective = manualRec;
+      diff = Math.abs(manualRec - instTotal);
+      recStatus = diff < 0.01 ? 'matched' : 'mismatched';
+    }
+
+    const balance = Math.max(0, sAmt - effective);
+
+    return {
+      sanctionedAmount: sAmt,
+      effectiveReceived: effective,
+      installmentTotal: instTotal,
+      balanceYetToBeReceived: balance,
+      recStatus,
+      diff
+    };
+  }, [formData.sanctionedAmount, formData.amountReceived, tempInstallments]);
 
   // Form Submit Handler
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -288,6 +452,20 @@ export function SponsoredResearchPage({
     if (!formData.fundingAgency.trim()) errors.fundingAgency = 'Funding Agency name is required';
     if (Number(formData.sanctionedAmount) < 0) errors.sanctionedAmount = 'Sanctioned amount must be positive';
 
+    if (formData.startDate && formData.endDate) {
+      const dur = calculateProjectDuration(formData.startDate, formData.endDate);
+      if (!dur.isValid) {
+        errors.endDate = dur.error || 'End Date cannot be earlier than Start Date';
+      }
+    }
+
+    if (formData.sanctionYear && formData.sanctionYear.trim()) {
+      const y = parseInt(formData.sanctionYear.trim(), 10);
+      if (isNaN(y) || y < 1950 || y > 2100) {
+        errors.sanctionYear = 'Sanction Year must be a valid 4-digit calendar year (e.g., 2024)';
+      }
+    }
+
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
@@ -295,6 +473,28 @@ export function SponsoredResearchPage({
 
     setSubmitting(true);
     try {
+      const payload: any = {
+        title: formData.title,
+        principalInvestigator: formData.principalInvestigator,
+        coInvestigators: formData.coInvestigators,
+        fundingAgency: formData.fundingAgency,
+        scheme: formData.scheme,
+        agencyType: formData.agencyType,
+        sanctionOrderNo: formData.sanctionOrderNo,
+        sanctionDate: formData.sanctionDate || null,
+        sanctionYear: formData.sanctionYear ? parseInt(formData.sanctionYear, 10) : null,
+        startDate: formData.startDate || null,
+        endDate: formData.endDate || null,
+        sanctionedAmount: formData.sanctionedAmount,
+        amountReceived: formData.amountReceived !== '' ? formData.amountReceived : null,
+        status: formData.status,
+        progressPercentage: formData.progressPercentage,
+        department: formData.department,
+        projectUrl: formData.projectUrl,
+        description: formData.description,
+        approvalStatus: formData.approvalStatus
+      };
+
       const url = editingProject
         ? `${API_BASE}/api/sponsored-projects/${editingProject.id}`
         : `${API_BASE}/api/sponsored-projects`;
@@ -306,17 +506,73 @@ export function SponsoredResearchPage({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
-      if (data.success) {
-        setIsFormOpen(false);
-        fetchProjects();
-        fetchStats();
-      } else {
+      if (!res.ok || !data.success) {
         setFormErrors({ submit: data.message || 'Operation failed' });
+        setSubmitting(false);
+        return;
       }
+
+      const savedProjectId = editingProject ? editingProject.id : data.data.id;
+
+      // 1. Process Agreement Letter Files Upload
+      if (agreementFiles.length > 0) {
+        const formDataFiles = new FormData();
+        agreementFiles.forEach(f => formDataFiles.append('files', f));
+        await fetch(`${API_BASE}/api/sponsored-projects/${savedProjectId}/documents/upload?category=agreement_letter`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formDataFiles
+        });
+      }
+
+      // 2. Process Agreement Letter Drive Links
+      if (agreementLinks.trim()) {
+        const links = agreementLinks.split(/[\r\n;,]+/).map(s => s.trim()).filter(Boolean);
+        if (links.length > 0) {
+          await fetch(`${API_BASE}/api/sponsored-projects/${savedProjectId}/documents/links`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ category: 'agreement_letter', links })
+          });
+        }
+      }
+
+      // 3. Process Payment Receipt Files Upload
+      if (paymentFiles.length > 0) {
+        const formDataReceipts = new FormData();
+        paymentFiles.forEach(f => formDataReceipts.append('files', f));
+        await fetch(`${API_BASE}/api/sponsored-projects/${savedProjectId}/documents/upload?category=payment_receipt`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formDataReceipts
+        });
+      }
+
+      // 4. Process Payment Receipt Drive Links
+      if (paymentLinks.trim()) {
+        const links = paymentLinks.split(/[\r\n;,]+/).map(s => s.trim()).filter(Boolean);
+        if (links.length > 0) {
+          await fetch(`${API_BASE}/api/sponsored-projects/${savedProjectId}/documents/links`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ category: 'payment_receipt', links })
+          });
+        }
+      }
+
+      setIsFormOpen(false);
+      fetchProjects();
+      fetchStats();
     } catch (err: any) {
       setFormErrors({ submit: err.message || 'Connection error' });
     } finally {
@@ -324,9 +580,100 @@ export function SponsoredResearchPage({
     }
   };
 
+  // Add an installment to active project
+  const handleAddInstallment = async () => {
+    if (!newInstAmount || Number(newInstAmount) <= 0) {
+      alert('Please enter a valid installment amount.');
+      return;
+    }
+
+    if (editingProject) {
+      try {
+        const res = await fetch(`${API_BASE}/api/sponsored-projects/${editingProject.id}/installments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            installmentNumber: tempInstallments.length + 1,
+            paymentDate: newInstDate || null,
+            amount: parseFloat(newInstAmount),
+            paymentReference: newInstRef || null
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+          setTempInstallments(prev => [...prev, data.data]);
+        }
+      } catch (err) {
+        console.error('Add installment error:', err);
+      }
+    } else {
+      setTempInstallments(prev => [
+        ...prev,
+        {
+          installmentNumber: prev.length + 1,
+          paymentDate: newInstDate,
+          amount: parseFloat(newInstAmount),
+          paymentReference: newInstRef,
+          notes: ''
+        }
+      ]);
+    }
+
+    setNewInstAmount('');
+    setNewInstDate('');
+    setNewInstRef('');
+  };
+
+  // Remove an installment
+  const handleRemoveInstallment = async (idx: number, instId?: string) => {
+    if (editingProject && instId) {
+      try {
+        await fetch(`${API_BASE}/api/sponsored-projects/${editingProject.id}/installments/${instId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (err) {
+        console.error('Delete installment error:', err);
+      }
+    }
+    setTempInstallments(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  // Delete attached document
+  const handleDeleteDocument = async (docId: string, projectId: string) => {
+    if (!window.confirm('Are you sure you want to remove this attached document?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/sponsored-projects/${projectId}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchProjects();
+        if (viewingProject && viewingProject.id === projectId) {
+          setViewingProject(prev => {
+            if (!prev) return null;
+            const updatedDocs = (prev.documents || []).filter(d => d.id !== docId);
+            return {
+              ...prev,
+              documents: updatedDocs,
+              agreementLetters: updatedDocs.filter(d => d.documentCategory === 'agreement_letter'),
+              paymentReceipts: updatedDocs.filter(d => d.documentCategory === 'payment_receipt')
+            };
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Delete document error:', err);
+    }
+  };
+
   // Delete Project Handler
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this sponsored research grant record?')) return;
+    if (!window.confirm('Are you sure you want to delete this sponsored research grant record? All attached Agreement Letters and Payment Receipts will also be removed.')) return;
     try {
       const res = await fetch(`${API_BASE}/api/sponsored-projects/${id}`, {
         method: 'DELETE',
@@ -392,455 +739,31 @@ export function SponsoredResearchPage({
       'Agency Type': p.agencyType,
       'Sanction Order No': p.sanctionOrderNo || '-',
       'Sanction Date': p.sanctionDate || '-',
+      'Sanction Year': p.sanctionYear || p.academicYear || '-',
       'Start Date': p.startDate || '-',
       'End Date': p.endDate || '-',
+      'Project Duration': p.durationFormatted || (p.startDate && p.endDate ? calculateProjectDuration(p.startDate, p.endDate).formatted : '-'),
       'Sanctioned Amount (INR)': Number(p.sanctionedAmount) || 0,
-      'Amount Received (INR)': Number(p.amountReceived) || 0,
+      'Amount Received (INR)': p.amountReceived !== null && p.amountReceived !== undefined ? Number(p.amountReceived) : (p.effectiveAmountReceived || 0),
+      'Balance Yet to Be Received (INR)': p.balanceYetToBeReceived ?? Math.max(0, (Number(p.sanctionedAmount) || 0) - (Number(p.amountReceived) || 0)),
       'Status': p.status,
       'Milestone Progress (%)': p.progressPercentage ?? (p.status === 'Completed' ? 100 : 50),
-      'Department': p.department || '-',
-      'Academic Year': p.academicYear,
-      'Project Portal URL': p.projectUrl || '-',
-      'Description / Scope': p.description || '-'
+      'Department': p.department || 'General',
+      'Agreement Letters': (p.agreementLetters || []).map(d => d.driveUrl).join('\n') || '-',
+      'Payment Receipts': (p.paymentReceipts || []).map(d => d.driveUrl).join('\n') || '-',
+      'Project URL': p.projectUrl || '-',
+      'Description': p.description || '-'
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sponsored_Projects');
+    XLSX.utils.book_append_sheet(wb, ws, 'Sponsored Research');
 
-    const fileName = `sponsored_research_grants_${new Date().toISOString().split('T')[0]}.${format}`;
+    const fileName = `CHRIST_Sponsored_Research_${new Date().toISOString().slice(0, 10)}.${format}`;
     if (format === 'xlsx') {
       XLSX.writeFile(wb, fileName);
     } else {
       XLSX.writeFile(wb, fileName, { bookType: 'csv' });
-    }
-  };
-
-  // Format INR Currency nicely
-  const formatCurrency = (amount: number | string | undefined | null) => {
-    const num = Number(amount) || 0;
-    return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-  };
-
-  // Status Badge Colors
-  const getStatusBadge = (status: string) => {
-    const s = (status || '').toLowerCase();
-    if (s.includes('completed')) {
-      return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 text-[11px] font-medium">Completed</Badge>;
-    }
-    if (s.includes('ongoing')) {
-      return <Badge className="bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100 text-[11px] font-medium">Ongoing Research</Badge>;
-    }
-    if (s.includes('sanction')) {
-      return <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100 text-[11px] font-medium">Sanctioned</Badge>;
-    }
-    if (s.includes('proposal') || s.includes('submit')) {
-      return <Badge className="bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-100 text-[11px] font-medium">Under Review</Badge>;
-    }
-    return <Badge variant="outline" className="text-gray-700 text-[11px] capitalize">{status}</Badge>;
-  };
-
-  // Agency Type Badges
-  const getAgencyBadge = (type: string) => {
-    const t = (type || '').toLowerCase();
-    if (t.includes('international')) {
-      return <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]">International</Badge>;
-    }
-    if (t.includes('industry') || t.includes('corporate')) {
-      return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 text-[10px]">Industry Sponsored</Badge>;
-    }
-    if (t.includes('seed') || t.includes('internal')) {
-      return <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">Seed Money</Badge>;
-    }
-    return <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 text-[10px]">Govt Grant</Badge>;
-  };
-
-  // ----------------------------------------------------
-  // ROBUST BULK UPLOAD HANDLING (EXCEL & CSV)
-  // ----------------------------------------------------
-  const extractProjectValue = (row: any, ...aliases: string[]): any => {
-    if (!row || typeof row !== 'object') return '';
-    const rowKeys = Object.keys(row);
-    for (const alias of aliases) {
-      const cleanAlias = alias.toLowerCase().replace(/[^a-z0-9]/g, '');
-      for (const rk of rowKeys) {
-        const cleanRk = rk.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (cleanRk === cleanAlias && row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== '') {
-          return row[rk];
-        }
-      }
-    }
-    return '';
-  };
-
-  const formatProjectDate = (val: any): string | null => {
-    if (!val) return null;
-    if (val instanceof Date && !isNaN(val.getTime())) {
-      return val.toISOString().split('T')[0];
-    }
-    if (typeof val === 'number') {
-      const d = new Date((val - 25569) * 86400 * 1000);
-      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-    }
-    const str = String(val).trim();
-    if (!str) return null;
-    const lower = str.toLowerCase();
-    if (['n/a', 'na', 'nil', 'null', '-', '--', 'pending', 'under examination', 'not applicable', 'none', 'tbd', 'ongoing'].includes(lower)) {
-      return null;
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-
-    const parts = str.split(/[\/\-\.]/);
-    if (parts.length === 3) {
-      let p1 = parts[0].trim();
-      let p2 = parts[1].trim();
-      let p3 = parts[2].trim();
-      if (p1.length === 4) {
-        return `${p1}-${p2.padStart(2, '0')}-${p3.padStart(2, '0')}`;
-      }
-      let day = p1.padStart(2, '0');
-      let month = p2.padStart(2, '0');
-      let year = p3.length === 2 ? '20' + p3 : p3;
-      const m = parseInt(month, 10);
-      const d = parseInt(day, 10);
-      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-        return `${year}-${month}-${day}`;
-      }
-    }
-    if (/^\d{4}$/.test(str)) return `${str}-01-01`;
-
-    const d = new Date(str);
-    if (!isNaN(d.getTime())) {
-      const iso = d.toISOString().split('T')[0];
-      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
-    }
-    return null;
-  };
-
-  // Download Sample Bulk Templates
-  const handleDownloadBulkTemplate = (format: 'csv' | 'xlsx') => {
-    const headers = [
-      'Project Title',
-      'Principal Investigator',
-      'Co-Investigators',
-      'Funding Agency',
-      'Scheme / Program',
-      'Agency Type',
-      'Sanction Order No',
-      'Sanction Date',
-      'Start Date',
-      'End Date',
-      'Sanctioned Amount (INR)',
-      'Amount Received (INR)',
-      'Status',
-      'Progress (%)',
-      'Department',
-      'Academic Year',
-      'Project URL',
-      'Description'
-    ];
-
-    const sampleRows = [
-      [
-        'Development of Edge AI Gateway and Deep Learning Sensors for Real-Time Cardiac Monitoring',
-        'Dr. Rajesh Kumar',
-        'Dr. Priya Sharma, Dr. Arun Kumar',
-        'Department of Science & Technology (DST - SERB)',
-        'Core Research Grant (CRG)',
-        'Government (National)',
-        'DST/SERB/CRG/2023/004821',
-        '2023-09-15',
-        '2023-10-01',
-        '2026-09-30',
-        4850000,
-        2800000,
-        'Ongoing',
-        65,
-        'Computer Science and Engineering',
-        '2024-2025',
-        'https://serbonline.in',
-        'Miniaturized wearable ECG/SpO2 IoT edge devices with sub-10ms anomaly detection.'
-      ],
-      [
-        'Sustainable High-Performance Geopolymer Structural Binders Utilizing Fly Ash and Slag',
-        'Dr. Suresh Menon',
-        'Dr. Anita Rao',
-        'AICTE - Research Promotion Scheme (RPS)',
-        'Research Promotion Scheme (RPS)',
-        'Government (National)',
-        'AICTE/RPS/CIVIL/2023/892',
-        '2023-11-20',
-        '2024-01-05',
-        '2026-01-04',
-        2200000,
-        1450000,
-        'Ongoing',
-        50,
-        'Civil Engineering',
-        '2024-2025',
-        'https://aicte-india.org',
-        'Experimental investigation of zero-cement alkali-activated green concrete.'
-      ]
-    ];
-
-    const fileName = `sponsored_research_template.${format}`;
-    if (format === 'csv') {
-      const csvContent = headers.join(',') + '\n' + sampleRows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Template');
-      XLSX.writeFile(wb, fileName);
-    }
-  };
-
-  // Handle Bulk File Upload Parse with Validation
-  const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const lower = file.name.toLowerCase();
-    if (!lower.endsWith('.csv') && !lower.endsWith('.xlsx') && !lower.endsWith('.xls')) {
-      setBulkErrors(['Please upload a valid CSV or Excel file (.csv, .xlsx, .xls).']);
-      return;
-    }
-
-    setBulkFile(file);
-    setBulkErrors([]);
-    setBulkSuccess('');
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const buffer = event.target?.result;
-        if (!buffer) return;
-
-        const workbook = XLSX.read(new Uint8Array(buffer as ArrayBuffer), {
-          type: 'array',
-          cellDates: true,
-          dateNF: 'yyyy-mm-dd'
-        });
-        const sheetName = workbook.SheetNames[0];
-        const rawParsedRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
-
-        if (rawParsedRows.length === 0) {
-          setBulkErrors(['The uploaded file contains no data rows.']);
-          setBulkPreview([]);
-          return;
-        }
-
-        const errors: string[] = [];
-        const validated: any[] = [];
-
-        rawParsedRows.forEach((row: any, idx: number) => {
-          const title = extractProjectValue(
-            row,
-            'Project Title', 'Title', 'Title of Project', 'Project Name',
-            'Research Title', 'Name of Project', 'Title of Research Project', 'Grant Title'
-          );
-          const pi = extractProjectValue(
-            row,
-            'Principal Investigator', 'PI', 'Principal Investigator (PI)', 'PI Name',
-            'Name of PI', 'Project Leader', 'Lead Investigator', 'Faculty Name',
-            'Name of Principal Investigator', 'Investigator', 'Author Name'
-          );
-          const coPi = extractProjectValue(
-            row,
-            'Co-Investigators', 'Co Investigators', 'Co-PI', 'Co-Principal Investigator',
-            'Co PIs', 'Co-PIs', 'Other Investigators', 'Team Members', 'Team'
-          );
-          const agency = extractProjectValue(
-            row,
-            'Funding Agency', 'Agency', 'Sponsoring Agency', 'Funding Organization',
-            'Organization', 'Sponsor', 'Funding Body', 'Name of Agency'
-          );
-          const scheme = extractProjectValue(
-            row,
-            'Scheme', 'Funding Scheme', 'Scheme / Program', 'Scheme Name',
-            'Call', 'Program', 'Subcategory', 'Grant Scheme'
-          );
-          const agencyType = extractProjectValue(
-            row,
-            'Agency Type', 'Funding Type', 'Type of Agency', 'Category', 'Sponsor Type'
-          ) || 'Government (National)';
-          const sanctionOrderNo = extractProjectValue(
-            row,
-            'Sanction Order No', 'Sanction Order Number', 'Sanction Number',
-            'Sanction No', 'Sanction Order No.', 'Project ID', 'Sanction Reference',
-            'Reference No', 'Ref No', 'Order No'
-          );
-          const sanctionDate = formatProjectDate(extractProjectValue(
-            row,
-            'Sanction Date', 'Award Date', 'Date of Sanction', 'Sanctioned Date', 'Grant Date'
-          ));
-          const startDate = formatProjectDate(extractProjectValue(
-            row,
-            'Start Date', 'Commencement Date', 'Date of Commencement', 'Project Start Date', 'Date'
-          ));
-          const endDate = formatProjectDate(extractProjectValue(
-            row,
-            'End Date', 'Completion Date', 'Date of Completion', 'Project End Date', 'Target Date'
-          ));
-          const rawSanctionedAmount = extractProjectValue(
-            row,
-            'Sanctioned Amount (INR)', 'Sanctioned Amount', 'Grant Amount', 'Sanction Amount',
-            'Total Grant (INR)', 'Amount Sanctioned', 'Amount', 'Total Grant', 'Grant Value'
-          );
-          const rawAmountReceived = extractProjectValue(
-            row,
-            'Amount Received (INR)', 'Amount Received', 'Funds Released', 'Funds Released (INR)',
-            'Funds Received', 'Received Amount (INR)', 'Released Amount'
-          );
-          const rawStatus = extractProjectValue(
-            row,
-            'Status', 'Project Status', 'Current Status', 'Stage'
-          ) || 'Ongoing';
-          const rawProgress = extractProjectValue(
-            row,
-            'Progress (%)', 'Progress', 'Milestone Progress', 'Completion (%)', 'Percentage'
-          );
-          const rawDept = extractProjectValue(
-            row,
-            'Department', 'Dept', 'Host Department', 'Department Name', 'School', 'Branch'
-          ) || authUser?.department || 'General';
-          const rawYear = extractProjectValue(
-            row,
-            'Academic Year', 'Year', 'AY', 'Period', 'Session'
-          ) || bulkDefaultYear || '2024-2025';
-          const projectUrl = extractProjectValue(
-            row,
-            'Project URL', 'URL', 'Link', 'Document URL', 'Website', 'Project Link', 'Project Portal URL'
-          );
-          const description = extractProjectValue(
-            row,
-            'Description', 'Project Summary', 'Abstract', 'Objectives', 'Brief Description', 'Summary', 'Description / Scope'
-          );
-
-          // Skip completely empty rows
-          if (!String(title).trim() && !String(pi).trim() && !String(agency).trim() && !String(rawSanctionedAmount).trim()) {
-            return;
-          }
-
-          const rowNum = idx + 1;
-          const missing: string[] = [];
-          if (!String(title).trim()) missing.push('Project Title');
-          if (!String(pi).trim()) missing.push('Principal Investigator');
-          if (!String(agency).trim()) missing.push('Funding Agency');
-
-          if (missing.length > 0) {
-            errors.push(`Row ${rowNum}: Missing required ${missing.join(', ')}`);
-          }
-
-          const sanctionedAmount = typeof rawSanctionedAmount === 'number'
-            ? rawSanctionedAmount
-            : parseFloat(String(rawSanctionedAmount || '0').replace(/[^0-9.]/g, '')) || 0;
-
-          const amountReceived = typeof rawAmountReceived === 'number'
-            ? rawAmountReceived
-            : (rawAmountReceived ? parseFloat(String(rawAmountReceived).replace(/[^0-9.]/g, '')) || 0 : sanctionedAmount);
-
-          let progress = parseInt(String(rawProgress || ''), 10);
-          if (isNaN(progress)) {
-            const stLower = String(rawStatus).toLowerCase();
-            progress = stLower.includes('complete') ? 100 : (stLower.includes('sanction') ? 10 : 50);
-          }
-
-          validated.push({
-            title: String(title).trim(),
-            principalInvestigator: String(pi).trim(),
-            coInvestigators: coPi ? String(coPi).trim() : null,
-            fundingAgency: String(agency).trim(),
-            scheme: scheme ? String(scheme).trim() : null,
-            agencyType: String(agencyType).trim(),
-            sanctionOrderNo: sanctionOrderNo ? String(sanctionOrderNo).trim() : null,
-            sanctionDate,
-            startDate,
-            endDate,
-            sanctionedAmount,
-            amountReceived,
-            status: String(rawStatus).trim(),
-            progressPercentage: progress,
-            department: String(rawDept).trim(),
-            academicYear: String(rawYear).trim(),
-            projectUrl: projectUrl ? String(projectUrl).trim() : null,
-            description: description ? String(description).trim() : null,
-            isValid: missing.length === 0,
-            missingFields: missing
-          });
-        });
-
-        if (validated.length === 0) {
-          setBulkErrors(['No valid data rows found. Please check your file content.']);
-          setBulkPreview([]);
-          return;
-        }
-
-        setBulkErrors(errors);
-        setBulkPreview(validated);
-      } catch (err: any) {
-        console.error('File parsing error:', err);
-        setBulkErrors([`Failed to parse file: ${err.message || 'Unknown format error'}`]);
-      }
-    };
-
-    reader.readAsArrayBuffer(file);
-  };
-
-  // Submit Bulk Upload
-  const handleExecuteBulkUpload = async () => {
-    const validRows = bulkPreview.filter(r => r.isValid);
-    if (validRows.length === 0) {
-      setBulkErrors(['No valid rows to upload. Please fix the missing required fields first.']);
-      return;
-    }
-
-    setBulkLoading(true);
-    setBulkErrors([]);
-    setBulkSuccess('');
-
-    try {
-      const res = await fetch(`${API_BASE}/api/sponsored-projects/bulk`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          items: validRows,
-          defaultDepartment: authUser?.department || 'General',
-          defaultYear: bulkDefaultYear
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setBulkSuccess(`Successfully imported ${data.count || validRows.length} sponsored research project(s).`);
-        fetchProjects();
-        if (typeof fetchStats === 'function') fetchStats();
-        setTimeout(() => {
-          setIsBulkOpen(false);
-          setBulkFile(null);
-          setBulkPreview([]);
-          setBulkSuccess('');
-        }, 1500);
-      } else {
-        const errorMsg = data.message || 'Failed to upload research records.';
-        const detailedErrors: string[] = data.errors && Array.isArray(data.errors) ? data.errors : [errorMsg];
-        setBulkErrors(detailedErrors);
-      }
-    } catch (err: any) {
-      console.error('Bulk upload execution error:', err);
-      setBulkErrors(['Server communication error during bulk upload.']);
-    } finally {
-      setBulkLoading(false);
     }
   };
 
@@ -851,11 +774,11 @@ export function SponsoredResearchPage({
         breadcrumbs={[
           { label: 'Academics' },
           { label: 'Research' },
-          { label: 'Sponsored Research' }
+          { label: 'Sponsored Research & Grants' }
         ]}
-        title="Sponsored Research Grants"
+        title="Sponsored Research & Grants"
         badge={`${(stats?.totalProjects ?? projects.length).toLocaleString()} Grants`}
-        description="Track funded research projects, principal investigators, funding agencies, sanctioned grants, and milestone deliverables."
+        description="Track funded research projects, principal investigators, sanctioned grants, financial installments, agreement letters, and payment receipts."
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <Button
@@ -884,7 +807,7 @@ export function SponsoredResearchPage({
               className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
             >
               <Plus className="w-4 h-4 mr-1.5" />
-              <span>Add Grant</span>
+              <span>Record Grant</span>
             </Button>
           </div>
         }
@@ -901,26 +824,26 @@ export function SponsoredResearchPage({
         <StatCard
           title="Total Sanctioned"
           value={formatCurrency(stats?.totalSanctionedAmount ?? projects.reduce((sum, p) => sum + (Number(p.sanctionedAmount) || 0), 0))}
-          subtitle="Aggregate awarded funding"
+          subtitle="Approved funding"
           icon={DollarSign}
         />
         <StatCard
           title="Funds Received"
-          value={formatCurrency(stats?.totalFundsReceived ?? projects.reduce((sum, p) => sum + (Number(p.amountReceived) || 0), 0))}
-          subtitle="Installments credited to date"
+          value={formatCurrency(stats?.totalFundsReceived ?? projects.reduce((sum, p) => sum + (Number(p.effectiveAmountReceived || p.amountReceived) || 0), 0))}
+          subtitle="Credited to date"
           icon={Landmark}
         />
         <StatCard
-          title="Ongoing Projects"
-          value={(stats?.ongoingCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('ongoing')).length).toLocaleString()}
-          subtitle="Active milestone tracking"
-          icon={Clock}
+          title="Balance Receivable"
+          value={formatCurrency(stats?.totalBalanceReceivable ?? projects.reduce((sum, p) => sum + (Number(p.balanceYetToBeReceived) || 0), 0))}
+          subtitle="Remaining grant funds"
+          icon={TrendingUp}
         />
         <StatCard
-          title="Completed"
-          value={(stats?.completedCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('complete')).length).toLocaleString()}
-          subtitle="Finalized & UCs submitted"
-          icon={CheckCircle}
+          title="Active Projects"
+          value={(stats?.ongoingCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('ongoing')).length).toLocaleString()}
+          subtitle="Ongoing Research"
+          icon={Clock}
         />
       </div>
 
@@ -941,7 +864,8 @@ export function SponsoredResearchPage({
 
             {/* Filter Dropdowns */}
             <div className="flex flex-wrap items-center gap-2">
-              <div className="w-[150px]">
+              {/* Status Filter (5 Statuses + All) */}
+              <div className="w-[160px]">
                 <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                   <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
                     <SelectValue placeholder="All Statuses" />
@@ -955,39 +879,26 @@ export function SponsoredResearchPage({
                 </Select>
               </div>
 
-              <div className="w-[170px]">
-                <Select value={selectedAgencyType} onValueChange={setSelectedAgencyType}>
+              {/* Sanction Year Filter */}
+              <div className="w-[130px]">
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
                   <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="All Agency Types" />
+                    <SelectValue placeholder="Sanction Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Agency Types</SelectItem>
-                    {AGENCY_TYPE_OPTIONS.map(opt => (
-                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                    <SelectItem value="all">All Years</SelectItem>
+                    {sanctionYears.map(y => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="w-[130px]">
-                <Select value={selectedYear} onValueChange={setSelectedYear}>
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Academic Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Years</SelectItem>
-                    <SelectItem value="2025-2026">2025-2026</SelectItem>
-                    <SelectItem value="2024-2025">2024-2025</SelectItem>
-                    <SelectItem value="2023-2024">2023-2024</SelectItem>
-                    <SelectItem value="2022-2023">2022-2023</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="w-[180px]">
+              {/* Department Filter */}
+              <div className="w-[160px]">
                 <Select value={selectedDept} onValueChange={setSelectedDept}>
                   <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Department" />
+                    <SelectValue placeholder="All Departments" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
@@ -998,196 +909,147 @@ export function SponsoredResearchPage({
                 </Select>
               </div>
 
-              {/* View Toggle */}
-              <div className="flex items-center border border-gray-200 rounded-lg p-0.5 bg-gray-50">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('cards')}
-                  className={`p-1.5 rounded-md text-xs transition-colors ${viewMode === 'cards' ? 'bg-white text-[#2f4692] shadow-sm font-semibold' : 'text-gray-500 hover:text-gray-900'}`}
-                  title="Card View"
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('table')}
-                  className={`p-1.5 rounded-md text-xs transition-colors ${viewMode === 'table' ? 'bg-white text-[#2f4692] shadow-sm font-semibold' : 'text-gray-500 hover:text-gray-900'}`}
-                  title="Table View"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Refresh Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { fetchProjects(); fetchStats(); }}
-                className="h-9 w-9 p-0 text-gray-500 hover:text-gray-900"
-                title="Refresh Sponsored Grants"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              </Button>
-
-              {(selectedStatus !== 'all' || selectedAgencyType !== 'all' || selectedYear !== 'all' || selectedDept !== 'all' || searchQuery) && (
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-gray-100 rounded-lg p-0.5 border border-gray-200">
                 <Button
-                  variant="ghost"
+                  variant={viewMode === 'table' ? 'default' : 'ghost'}
                   size="sm"
-                  onClick={() => {
-                    setSelectedStatus('all');
-                    setSelectedAgencyType('all');
-                    setSelectedYear('all');
-                    setSelectedDept('all');
-                    setSearchQuery('');
-                  }}
-                  className="text-xs text-red-600 hover:text-red-700 h-9 px-2"
+                  onClick={() => setViewMode('table')}
+                  className={`h-8 px-2.5 text-xs ${viewMode === 'table' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600'}`}
                 >
-                  Reset
+                  Table
                 </Button>
-              )}
+                <Button
+                  variant={viewMode === 'cards' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('cards')}
+                  className={`h-8 px-2.5 text-xs ${viewMode === 'cards' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600'}`}
+                >
+                  Cards
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Main List Rendering */}
+      {/* Projects List Content */}
       {loading ? (
-        <div className="text-center py-16">
-          <div className="w-8 h-8 border-3 border-[#2f4692] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-gray-500 font-medium">Loading sponsored research grants...</p>
-        </div>
+        <Card className="p-12 text-center border-gray-200">
+          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#2f4692] mb-2" />
+          <p className="text-xs text-gray-500 font-medium">Loading sponsored research grants...</p>
+        </Card>
       ) : projects.length === 0 ? (
-        <Card className="border-dashed border-2 py-16 text-center border-gray-200 bg-white">
-          <CardContent>
-            <TrendingUp className="w-10 h-10 mx-auto text-gray-400 mb-3" />
-            <p className="text-base font-semibold text-gray-800">No sponsored research projects found</p>
-            <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
-              No grants matched your selected search and filtering criteria. Try modifying your filters or record a new sponsored grant.
-            </p>
-            <Button onClick={handleOpenAdd} size="sm" className="mt-4 bg-[#2f4692] text-white">
-              <Plus className="w-4 h-4 mr-1.5" /> Add Sponsored Project
-            </Button>
-          </CardContent>
+        <Card className="p-12 text-center border-dashed border-gray-300">
+          <FileText className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+          <h3 className="text-sm font-bold text-gray-700">No sponsored research projects found</h3>
+          <p className="text-xs text-gray-500 mt-1">Try adjusting your filters, or record a new grant.</p>
+          <Button onClick={handleOpenAdd} size="sm" className="mt-4 bg-[#2f4692] text-white text-xs">
+            <Plus className="w-3.5 h-3.5 mr-1" /> Record New Grant
+          </Button>
         </Card>
       ) : viewMode === 'cards' ? (
-        /* CARD GRID VIEW */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        /* CARD VIEW */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {projects.map((proj) => {
-            const progressVal = proj.progressPercentage ?? (proj.status === 'Completed' ? 100 : (proj.status === 'Sanctioned' ? 15 : 50));
+            const progressVal = proj.progressPercentage ?? (proj.status === 'Completed' ? 100 : 50);
             return (
-              <Card key={proj.id} className="shadow-sm hover:shadow-md transition-all border-gray-200 bg-white overflow-hidden flex flex-col justify-between relative group">
-                <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${proj.status === 'Completed' ? 'bg-emerald-500' : proj.status === 'Ongoing' ? 'bg-[#2f4692]' : 'bg-amber-500'}`} />
-
-                <CardHeader className="pb-2 pt-4 pl-5 pr-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <Card key={proj.id} className="border-gray-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {getStatusBadge(proj.status)}
                       {getAgencyBadge(proj.agencyType)}
-                      <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-normal text-gray-600">
-                        AY {proj.academicYear}
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        {proj.sanctionYear ? `SY ${proj.sanctionYear}` : `AY ${proj.academicYear}`}
                       </Badge>
                     </div>
-
-                    <div className="text-right">
-                      <span className="text-xs font-bold text-teal-700 font-mono bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                        {formatCurrency(proj.sanctionedAmount)}
-                      </span>
-                    </div>
                   </div>
-
-                  <CardTitle className="text-base font-bold text-gray-900 leading-snug group-hover:text-[#2f4692] transition-colors line-clamp-2" title={proj.title}>
+                  <CardTitle className="text-sm font-bold text-gray-900 mt-2 line-clamp-2 leading-snug" title={proj.title}>
                     {proj.title}
                   </CardTitle>
-
-                  <div className="text-xs text-gray-600 mt-1.5 flex flex-col gap-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="font-semibold text-gray-800 truncate" title={proj.principalInvestigator}>
-                        PI: {proj.principalInvestigator}
-                      </span>
-                      {proj.coInvestigators && (
-                        <span className="text-gray-500 text-[11px] truncate" title={proj.coInvestigators}>
-                          (+ {proj.coInvestigators})
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
-                      <Building className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="font-medium text-gray-700 truncate" title={proj.fundingAgency}>
-                        {proj.fundingAgency}
-                      </span>
-                      {proj.scheme && <span className="text-blue-600 font-mono">({proj.scheme})</span>}
-                    </div>
-                  </div>
+                  <CardDescription className="text-xs text-gray-500 mt-0.5">
+                    PI: <span className="font-semibold text-gray-700">{proj.principalInvestigator}</span>
+                    {proj.department && <span> • {proj.department}</span>}
+                  </CardDescription>
                 </CardHeader>
 
-                <CardContent className="pb-4 pt-1 pl-5 pr-4 text-xs">
-                  {proj.description && (
-                    <p className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-lg border border-gray-150 line-clamp-2 mb-3 leading-relaxed">
-                      {proj.description}
-                    </p>
-                  )}
-
-                  {/* Milestone Progress Bar */}
-                  <div className="mb-3 space-y-1">
-                    <div className="flex justify-between items-center text-[11px] font-medium text-gray-600">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-gray-400" /> Milestone Progress
-                      </span>
-                      <span className="font-mono font-bold text-gray-800">{progressVal}%</span>
+                <CardContent className="space-y-3 pt-0">
+                  <div className="p-2.5 bg-gray-50 rounded-lg text-xs space-y-1.5 border border-gray-150">
+                    <div className="flex justify-between items-center text-gray-600">
+                      <span>Funding Agency:</span>
+                      <span className="font-semibold text-gray-800 truncate max-w-[170px]" title={proj.fundingAgency}>{proj.fundingAgency}</span>
                     </div>
-                    <div className="w-full bg-gray-150 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${proj.status === 'Completed' ? 'bg-emerald-500' : 'bg-[#2f4692]'}`}
-                        style={{ width: `${progressVal}%` }}
-                      />
+                    {proj.sanctionOrderNo && (
+                      <div className="flex justify-between items-center text-gray-600">
+                        <span>Sanction Ref:</span>
+                        <span className="font-mono text-[11px] text-gray-700 truncate max-w-[170px]">{proj.sanctionOrderNo}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-gray-600">
+                      <span>Project Duration:</span>
+                      <span className="font-mono text-[11px] text-gray-700">{proj.durationFormatted || 'Not Available'}</span>
                     </div>
-                  </div>
-
-                  {/* Financial Mini Summary */}
-                  <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200 text-[11px] mb-3">
-                    <div>
-                      <span className="text-gray-500 block text-[10px] uppercase">Sanctioned</span>
-                      <span className="font-mono font-bold text-gray-900">{formatCurrency(proj.sanctionedAmount)}</span>
+                    <div className="flex justify-between items-center text-gray-600">
+                      <span>Sanctioned:</span>
+                      <span className="font-mono font-bold text-teal-800">{formatCurrency(proj.sanctionedAmount)}</span>
                     </div>
-                    <div>
-                      <span className="text-gray-500 block text-[10px] uppercase">Funds Released</span>
-                      <span className="font-mono font-bold text-emerald-700">{formatCurrency(proj.amountReceived || proj.sanctionedAmount)}</span>
+                    <div className="flex justify-between items-center text-gray-600">
+                      <span>Received:</span>
+                      <span className="font-mono font-semibold text-emerald-700">{formatCurrency(proj.effectiveAmountReceived || proj.amountReceived || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-gray-600">
+                      <span>Balance Receivable:</span>
+                      <span className="font-mono font-semibold text-amber-700">{formatCurrency(proj.balanceYetToBeReceived || 0)}</span>
                     </div>
                   </div>
 
-                  {/* Footer & Actions */}
-                  <div className="flex items-center justify-between border-t border-gray-100 pt-2.5 mt-2">
-                    <div className="text-[11px] text-gray-500 flex items-center gap-1.5">
-                      {proj.sanctionOrderNo ? (
-                        <span className="font-mono text-[10px] bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 truncate max-w-[170px]" title={proj.sanctionOrderNo}>
-                          Ref: {proj.sanctionOrderNo}
-                        </span>
+                  {/* Document Attachment Badges */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="flex-1 flex items-center gap-1.5 text-[11px] text-gray-600">
+                      <FileCheck className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Agreement:</span>
+                      {proj.agreementLetterCount && proj.agreementLetterCount > 0 ? (
+                        <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0">
+                          {proj.agreementLetterCount} {proj.agreementLetterCount === 1 ? 'Doc' : 'Docs'}
+                        </Badge>
                       ) : (
-                        <span>{proj.department || 'Christ University'}</span>
+                        <span className="text-gray-400 text-[10px] italic">Missing</span>
                       )}
                     </div>
+                    <div className="flex-1 flex items-center gap-1.5 text-[11px] text-gray-600">
+                      <Receipt className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Receipt:</span>
+                      {proj.paymentReceiptCount && proj.paymentReceiptCount > 0 ? (
+                        <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] px-1.5 py-0">
+                          {proj.paymentReceiptCount} {proj.paymentReceiptCount === 1 ? 'Doc' : 'Docs'}
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400 text-[10px] italic">Missing</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewingProject(proj)}
+                      className="text-xs text-[#2f4692] font-semibold hover:bg-blue-50 h-8 px-2"
+                    >
+                      <Eye className="w-3.5 h-3.5 mr-1" /> View Details
+                    </Button>
 
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setViewingProject(proj)}
-                        className="h-7 w-7 p-0 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                        title="View Full Details"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </Button>
-
                       {isPrivileged && (
                         <>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleOpenEdit(proj)}
-                            className="h-7 w-7 p-0 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md"
-                            title="Edit Grant Record"
+                            className="h-8 w-8 p-0 text-gray-500 hover:text-blue-600"
+                            title="Edit"
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
@@ -1195,8 +1057,8 @@ export function SponsoredResearchPage({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDelete(proj.id)}
-                            className="h-7 w-7 p-0 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md"
-                            title="Delete Record"
+                            className="h-8 w-8 p-0 text-gray-500 hover:text-red-600"
+                            title="Delete"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -1216,74 +1078,94 @@ export function SponsoredResearchPage({
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold text-[11px] uppercase tracking-wider">
-                  <th className="py-3 px-4 w-12 text-center">#</th>
-                  <th className="py-3 px-4 min-w-[240px]">Project Title & PI</th>
-                  <th className="py-3 px-4 min-w-[180px]">Funding Agency & Scheme</th>
-                  <th className="py-3 px-4 min-w-[120px]">Sanction Ref</th>
-                  <th className="py-3 px-4 text-right min-w-[130px]">Grant Value</th>
-                  <th className="py-3 px-4 text-center min-w-[110px]">Status</th>
-                  <th className="py-3 px-4 min-w-[110px]">Progress</th>
-                  <th className="py-3 px-4 text-center w-24">Actions</th>
+                  <th className="py-3 px-3 w-10 text-center">#</th>
+                  <th className="py-3 px-3 min-w-[220px]">Project Title & PI</th>
+                  <th className="py-3 px-3 min-w-[150px]">Agency & Category</th>
+                  <th className="py-3 px-3 min-w-[90px] text-center">Sanction Year</th>
+                  <th className="py-3 px-3 min-w-[130px]">Duration</th>
+                  <th className="py-3 px-3 text-right min-w-[140px]">Grant Finances</th>
+                  <th className="py-3 px-3 text-center min-w-[100px]">Status</th>
+                  <th className="py-3 px-3 text-center min-w-[100px]">Agreement Letter</th>
+                  <th className="py-3 px-3 text-center min-w-[100px]">Payment Receipt</th>
+                  <th className="py-3 px-3 text-center w-24">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
                 {projects.map((proj, idx) => {
-                  const progressVal = proj.progressPercentage ?? (proj.status === 'Completed' ? 100 : 50);
                   return (
                     <tr key={proj.id} className="hover:bg-blue-50/40 transition-colors">
-                      <td className="py-3 px-4 text-center font-mono text-gray-400">{idx + 1}</td>
+                      <td className="py-3 px-3 text-center font-mono text-gray-400">{idx + 1}</td>
 
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-gray-900 line-clamp-2 max-w-[280px]" title={proj.title}>
+                      <td className="py-3 px-3">
+                        <div className="font-semibold text-gray-900 line-clamp-2 max-w-[260px]" title={proj.title}>
                           {proj.title}
                         </div>
                         <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
                           <span className="font-medium text-gray-700">PI: {proj.principalInvestigator}</span>
                           {proj.department && <span className="text-gray-400">• {proj.department}</span>}
-                          <span className="text-gray-400">• AY {proj.academicYear}</span>
                         </div>
                       </td>
 
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-gray-800">{proj.fundingAgency}</div>
+                      <td className="py-3 px-3">
+                        <div className="font-medium text-gray-800 truncate max-w-[150px]" title={proj.fundingAgency}>{proj.fundingAgency}</div>
                         <div className="flex items-center gap-1 mt-0.5">
                           {getAgencyBadge(proj.agencyType)}
-                          {proj.scheme && <span className="text-[10px] text-gray-500 truncate max-w-[120px]">{proj.scheme}</span>}
                         </div>
                       </td>
 
-                      <td className="py-3 px-4 font-mono text-[11px] text-gray-600">
-                        {proj.sanctionOrderNo ? (
-                          <span className="bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
-                            {proj.sanctionOrderNo}
+                      <td className="py-3 px-3 text-center font-mono font-semibold text-gray-800">
+                        {proj.sanctionYear ? (
+                          <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] border border-slate-200">
+                            {proj.sanctionYear}
                           </span>
-                        ) : '-'}
+                        ) : (
+                          <span className="text-gray-400 text-[10px] italic">Pending</span>
+                        )}
                       </td>
 
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3 px-3 font-mono text-[11px] text-gray-700">
+                        {proj.durationFormatted || 'Not Available'}
+                      </td>
+
+                      <td className="py-3 px-3 text-right">
                         <div className="font-mono font-bold text-teal-800">{formatCurrency(proj.sanctionedAmount)}</div>
-                        {proj.amountReceived ? (
-                          <div className="text-[10px] text-gray-500 font-mono">Rec: {formatCurrency(proj.amountReceived)}</div>
-                        ) : null}
+                        <div className="text-[10px] text-emerald-700 font-mono">
+                          Rec: {formatCurrency(proj.effectiveAmountReceived || proj.amountReceived || 0)}
+                        </div>
+                        <div className="text-[10px] text-amber-700 font-mono">
+                          Bal: {formatCurrency(proj.balanceYetToBeReceived || 0)}
+                        </div>
                       </td>
 
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-3 text-center">
                         {getStatusBadge(proj.status)}
                       </td>
 
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-full bg-gray-200 rounded-full h-1.5">
-                            <div
-                              className={`h-1.5 rounded-full ${proj.status === 'Completed' ? 'bg-emerald-500' : 'bg-[#2f4692]'}`}
-                              style={{ width: `${progressVal}%` }}
-                            />
-                          </div>
-                          <span className="font-mono text-[10px] text-gray-600 font-semibold">{progressVal}%</span>
-                        </div>
+                      {/* Agreement Letter Column */}
+                      <td className="py-3 px-3 text-center">
+                        {proj.agreementLetterCount && proj.agreementLetterCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-semibold">
+                            <FileCheck className="w-3 h-3 text-blue-600" />
+                            {proj.agreementLetterCount} {proj.agreementLetterCount === 1 ? 'Doc' : 'Docs'}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-[10px] italic">Missing</span>
+                        )}
                       </td>
 
-                      <td className="py-3 px-4 text-center">
+                      {/* Payment Receipt Column */}
+                      <td className="py-3 px-3 text-center">
+                        {proj.paymentReceiptCount && proj.paymentReceiptCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-semibold">
+                            <Receipt className="w-3 h-3 text-purple-600" />
+                            {proj.paymentReceiptCount} {proj.paymentReceiptCount === 1 ? 'Doc' : 'Docs'}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-[10px] italic">Missing</span>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <Button
                             variant="ghost"
@@ -1341,16 +1223,18 @@ export function SponsoredResearchPage({
         </Card>
       )}
 
-      {/* ADD / EDIT PROJECT DIALOG */}
+      {/* ======================================================== */}
+      {/* RECORD / EDIT SPONSORED PROJECT DIALOG */}
+      {/* ======================================================== */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto bg-white p-6 rounded-xl">
+        <DialogContent className="sm:max-w-[760px] max-h-[92vh] overflow-y-auto bg-white p-6 rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-[#2f4692]" />
               <span>{editingProject ? 'Edit Sponsored Research Project' : 'Record New Sponsored Research Grant'}</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
-              Fill in all sanctioned grant details, Principal Investigator information, and milestone deliverables.
+              Fill in all sanctioned grant details, Principal Investigator information, timeline, financial installments, and upload supporting documents.
             </DialogDescription>
           </DialogHeader>
 
@@ -1362,232 +1246,490 @@ export function SponsoredResearchPage({
               </div>
             )}
 
-            {/* Project Title */}
-            <div>
-              <Label className="text-xs font-semibold text-gray-700">Project Title <span className="text-red-500">*</span></Label>
-              <Input
-                placeholder="Full sanctioned project title..."
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="mt-1 h-9 text-xs"
-              />
-              {formErrors.title && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.title}</p>}
+            {/* SECTION A — PROJECT INFORMATION */}
+            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-[#2F4692]" />
+                <span>Section A — Project Information</span>
+              </h4>
+
+              <div>
+                <Label className="text-xs font-semibold text-gray-700">Project Title <span className="text-red-500">*</span></Label>
+                <Input
+                  placeholder="Full sanctioned project title..."
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="mt-1 h-9 text-xs bg-white"
+                />
+                {formErrors.title && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.title}</p>}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Principal Investigator (PI) <span className="text-red-500">*</span></Label>
+                  <Input
+                    placeholder="e.g., Dr. Rajesh Kumar"
+                    value={formData.principalInvestigator}
+                    onChange={(e) => setFormData({ ...formData, principalInvestigator: e.target.value })}
+                    className="mt-1 h-9 text-xs bg-white"
+                  />
+                  {formErrors.principalInvestigator && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.principalInvestigator}</p>}
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Co-Investigators (Co-PI)</Label>
+                  <Input
+                    placeholder="e.g., Dr. Priya Sharma, Dr. Arun Kumar"
+                    value={formData.coInvestigators || ''}
+                    onChange={(e) => setFormData({ ...formData, coInvestigators: e.target.value })}
+                    className="mt-1 h-9 text-xs bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Funding Agency <span className="text-red-500">*</span></Label>
+                  <Input
+                    placeholder="e.g., DST - SERB, AICTE, ICMR, ISRO"
+                    value={formData.fundingAgency}
+                    onChange={(e) => setFormData({ ...formData, fundingAgency: e.target.value })}
+                    className="mt-1 h-9 text-xs bg-white"
+                  />
+                  {formErrors.fundingAgency && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.fundingAgency}</p>}
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Scheme / Program Name</Label>
+                  <Input
+                    placeholder="e.g., Core Research Grant (CRG), RPS, FIST"
+                    value={formData.scheme || ''}
+                    onChange={(e) => setFormData({ ...formData, scheme: e.target.value })}
+                    className="mt-1 h-9 text-xs bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Funding Agency Category</Label>
+                  <Select
+                    value={formData.agencyType}
+                    onValueChange={(val) => setFormData({ ...formData, agencyType: val })}
+                  >
+                    <SelectTrigger className="mt-1 h-9 text-xs bg-white">
+                      <SelectValue placeholder="Select Agency Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AGENCY_TYPE_OPTIONS.map(opt => (
+                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Sanction Order Number / Ref ID</Label>
+                  <Input
+                    placeholder="e.g., DST/SERB/CRG/2023/004821"
+                    value={formData.sanctionOrderNo || ''}
+                    onChange={(e) => setFormData({ ...formData, sanctionOrderNo: e.target.value })}
+                    className="mt-1 h-9 text-xs bg-white"
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* PI & Co-PIs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Principal Investigator (PI) <span className="text-red-500">*</span></Label>
-                <Input
-                  placeholder="e.g., Dr. Rajesh Kumar"
-                  value={formData.principalInvestigator}
-                  onChange={(e) => setFormData({ ...formData, principalInvestigator: e.target.value })}
-                  className="mt-1 h-9 text-xs"
-                />
-                {formErrors.principalInvestigator && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.principalInvestigator}</p>}
+            {/* SECTION B — FINANCIAL INFORMATION */}
+            <div className="space-y-3 p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl">
+              <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-700" />
+                  Section B — Financial Information & Installments
+                </span>
+                {liveFinancials.recStatus === 'matched' && (
+                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px]">Reconciliation: Matched</Badge>
+                )}
+                {liveFinancials.recStatus === 'mismatched' && (
+                  <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px]">
+                    Discrepancy: Difference of {formatCurrency(liveFinancials.diff)}
+                  </Badge>
+                )}
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Total Sanctioned Amount (₹) <span className="text-red-500">*</span></Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g., 4850000"
+                    value={formData.sanctionedAmount}
+                    onChange={(e) => setFormData({ ...formData, sanctionedAmount: parseFloat(e.target.value) || 0 })}
+                    className="mt-1 h-9 text-xs font-mono bg-white font-semibold text-teal-900"
+                  />
+                  {formErrors.sanctionedAmount && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.sanctionedAmount}</p>}
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Reported Amount Received (₹)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g., 2425000"
+                    value={formData.amountReceived !== null && formData.amountReceived !== undefined ? formData.amountReceived : ''}
+                    onChange={(e) => setFormData({ ...formData, amountReceived: e.target.value })}
+                    className="mt-1 h-9 text-xs font-mono bg-white text-emerald-800 font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Balance Receivable (₹)</Label>
+                  <div className="mt-1 h-9 px-3 bg-white rounded-md border border-gray-200 flex items-center font-mono font-bold text-amber-700">
+                    {formatCurrency(liveFinancials.balanceYetToBeReceived)}
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Co-Investigators (Co-PI)</Label>
-                <Input
-                  placeholder="e.g., Dr. Priya Sharma, Dr. Arun Kumar"
-                  value={formData.coInvestigators || ''}
-                  onChange={(e) => setFormData({ ...formData, coInvestigators: e.target.value })}
-                  className="mt-1 h-9 text-xs"
-                />
-              </div>
-            </div>
+              {/* Installments Tracker */}
+              <div className="mt-2 pt-2 border-t border-emerald-200/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                    <Landmark className="w-3.5 h-3.5 text-emerald-700" />
+                    Funding Installments ({tempInstallments.length})
+                  </span>
+                  <span className="text-[11px] font-mono text-gray-600">
+                    Sum: <strong className="text-emerald-700">{formatCurrency(liveFinancials.installmentTotal)}</strong>
+                  </span>
+                </div>
 
-            {/* Funding Agency & Scheme */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Funding Agency <span className="text-red-500">*</span></Label>
-                <Input
-                  placeholder="e.g., DST - SERB, AICTE, ICMR, ISRO"
-                  value={formData.fundingAgency}
-                  onChange={(e) => setFormData({ ...formData, fundingAgency: e.target.value })}
-                  className="mt-1 h-9 text-xs"
-                />
-                {formErrors.fundingAgency && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.fundingAgency}</p>}
-              </div>
+                {/* Add Installment Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-white p-2 rounded-lg border border-emerald-200">
+                  <Input
+                    type="date"
+                    value={newInstDate}
+                    onChange={(e) => setNewInstDate(e.target.value)}
+                    className="h-8 text-[11px]"
+                    placeholder="Payment Date"
+                  />
+                  <Input
+                    type="number"
+                    value={newInstAmount}
+                    onChange={(e) => setNewInstAmount(e.target.value)}
+                    className="h-8 text-[11px] font-mono"
+                    placeholder="Amount (₹)"
+                  />
+                  <Input
+                    type="text"
+                    value={newInstRef}
+                    onChange={(e) => setNewInstRef(e.target.value)}
+                    className="h-8 text-[11px]"
+                    placeholder="Ref / UTR / PFMS No"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddInstallment}
+                    size="sm"
+                    className="h-8 bg-emerald-700 text-white hover:bg-emerald-800 text-[11px]"
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Add Installment
+                  </Button>
+                </div>
 
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Scheme / Program Name</Label>
-                <Input
-                  placeholder="e.g., Core Research Grant (CRG), RPS, FIST"
-                  value={formData.scheme || ''}
-                  onChange={(e) => setFormData({ ...formData, scheme: e.target.value })}
-                  className="mt-1 h-9 text-xs"
-                />
-              </div>
-            </div>
-
-            {/* Agency Type & Sanction Order Number */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Funding Agency Category</Label>
-                <Select
-                  value={formData.agencyType}
-                  onValueChange={(val) => setFormData({ ...formData, agencyType: val })}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                    <SelectValue placeholder="Select Agency Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AGENCY_TYPE_OPTIONS.map(opt => (
-                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                {/* Existing Installments List */}
+                {tempInstallments.length > 0 && (
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {tempInstallments.map((inst, i) => (
+                      <div key={i} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-gray-200 text-[11px]">
+                        <span className="font-semibold text-gray-700">Installment #{i + 1}</span>
+                        <span className="text-gray-500">{inst.paymentDate || 'Date N/A'}</span>
+                        <span className="font-mono font-bold text-emerald-800">{formatCurrency(inst.amount)}</span>
+                        <span className="font-mono text-gray-500 text-[10px] truncate max-w-[100px]">{inst.paymentReference || '-'}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveInstallment(i, inst.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Sanction Order Number / Ref ID</Label>
-                <Input
-                  placeholder="e.g., DST/SERB/CRG/2023/004821"
-                  value={formData.sanctionOrderNo || ''}
-                  onChange={(e) => setFormData({ ...formData, sanctionOrderNo: e.target.value })}
-                  className="mt-1 h-9 text-xs"
-                />
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Financial Amounts (Sanctioned & Received) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Total Sanctioned Grant Amount (₹) <span className="text-red-500">*</span></Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="e.g., 4850000"
-                  value={formData.sanctionedAmount}
-                  onChange={(e) => setFormData({ ...formData, sanctionedAmount: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 h-9 text-xs font-mono"
-                />
-                {formErrors.sanctionedAmount && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.sanctionedAmount}</p>}
+            {/* SECTION C — PROJECT TIMELINE */}
+            <div className="space-y-3 p-3.5 bg-blue-50/50 border border-blue-200 rounded-xl">
+              <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-blue-700" />
+                <span>Section C — Project Timeline & Duration</span>
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Sanction Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.sanctionDate || ''}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      const derived = deriveSanctionYear(newDate);
+                      setFormData({
+                        ...formData,
+                        sanctionDate: newDate,
+                        sanctionYear: derived ? String(derived) : formData.sanctionYear
+                      });
+                    }}
+                    className="mt-1 h-9 text-xs bg-white"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">Automatically derives calendar Sanction Year</p>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Sanction Year (Calendar Year)</Label>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 2024"
+                    value={formData.sanctionYear || ''}
+                    onChange={(e) => setFormData({ ...formData, sanctionYear: e.target.value })}
+                    className="mt-1 h-9 text-xs bg-white font-mono"
+                  />
+                  {formErrors.sanctionYear && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.sanctionYear}</p>}
+                </div>
               </div>
 
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Amount Received to Date (₹)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="e.g., 2800000"
-                  value={formData.amountReceived || 0}
-                  onChange={(e) => setFormData({ ...formData, amountReceived: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 h-9 text-xs font-mono text-emerald-800"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Start Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.startDate || ''}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    className="mt-1 h-9 text-xs bg-white"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Completion / End Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.endDate || ''}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                    className="mt-1 h-9 text-xs bg-white"
+                  />
+                  {formErrors.endDate && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.endDate}</p>}
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Calculated Project Duration</Label>
+                  <div className={`mt-1 h-9 px-3 rounded-md border flex items-center font-mono text-[11px] font-semibold ${
+                    liveDuration.isValid ? 'bg-white text-blue-900 border-blue-200' : 'bg-gray-100 text-gray-400 border-gray-200'
+                  }`}>
+                    <Clock className="w-3.5 h-3.5 mr-1 text-blue-600 shrink-0" />
+                    <span>{liveDuration.formatted}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Timeline Dates */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Sanction Date</Label>
-                <Input
-                  type="date"
-                  value={formData.sanctionDate || ''}
-                  onChange={(e) => setFormData({ ...formData, sanctionDate: e.target.value })}
-                  className="mt-1 h-9 text-xs"
-                />
-              </div>
+            {/* SECTION D — PROJECT CLASSIFICATION */}
+            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#2F4692]" />
+                <span>Section D — Project Classification & Progress</span>
+              </h4>
 
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Start Date</Label>
-                <Input
-                  type="date"
-                  value={formData.startDate || ''}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="mt-1 h-9 text-xs"
-                />
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Project Status</Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(val) => {
+                      setFormData({
+                        ...formData,
+                        status: val,
+                        progressPercentage: val === 'Completed' ? 100 : (val === 'Sanctioned' ? 10 : formData.progressPercentage)
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="mt-1 h-9 text-xs bg-white">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROJECT_STATUS_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Completion / End Date</Label>
-                <Input
-                  type="date"
-                  value={formData.endDate || ''}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  className="mt-1 h-9 text-xs"
-                />
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Milestone Progress (%)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="0 - 100"
+                    value={formData.progressPercentage || 0}
+                    onChange={(e) => setFormData({ ...formData, progressPercentage: parseInt(e.target.value, 10) || 0 })}
+                    className="mt-1 h-9 text-xs font-mono bg-white"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700">Host Department</Label>
+                  <Select
+                    value={formData.department || ''}
+                    onValueChange={(val) => setFormData({ ...formData, department: val })}
+                  >
+                    <SelectTrigger className="mt-1 h-9 text-xs bg-white">
+                      <SelectValue placeholder="Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map(d => (
+                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
-            {/* Status, Progress & Academic Year */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Project Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(val) => {
-                    setFormData({
-                      ...formData,
-                      status: val,
-                      progressPercentage: val === 'Completed' ? 100 : (val === 'Sanctioned' ? 10 : formData.progressPercentage)
-                    });
-                  }}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROJECT_STATUS_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* SECTION E — SUPPORTING DOCUMENTS (TWO SEPARATE CATEGORIES) */}
+            <div className="space-y-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Paperclip className="w-3.5 h-3.5 text-[#2F4692]" />
+                <span>Section E — Supporting Documents (Google Drive Integration)</span>
+              </h4>
 
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Milestone Progress (%)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  placeholder="0 - 100"
-                  value={formData.progressPercentage || 0}
-                  onChange={(e) => setFormData({ ...formData, progressPercentage: parseInt(e.target.value, 10) || 0 })}
-                  className="mt-1 h-9 text-xs font-mono"
-                />
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. AGREEMENT LETTER */}
+                <div className="p-3 bg-white rounded-lg border border-blue-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
+                      <FileCheck className="w-4 h-4 text-blue-600" />
+                      Agreement Letter
+                    </span>
+                    <span className="text-[10px] text-gray-400">PDF, JPG, PNG (Max 10MB)</span>
+                  </div>
 
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Academic Year</Label>
-                <Select
-                  value={formData.academicYear}
-                  onValueChange={(val) => setFormData({ ...formData, academicYear: val })}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                    <SelectValue placeholder="Academic Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2025-2026">2025-2026</SelectItem>
-                    <SelectItem value="2024-2025">2024-2025</SelectItem>
-                    <SelectItem value="2023-2024">2023-2024</SelectItem>
-                    <SelectItem value="2022-2023">2022-2023</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <div>
+                    <Label className="text-[11px] text-gray-600 block mb-1">Upload File(s)</Label>
+                    <Input
+                      type="file"
+                      multiple
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => setAgreementFiles(Array.from(e.target.files || []))}
+                      className="h-8 text-[11px] cursor-pointer"
+                    />
+                    {agreementFiles.length > 0 && (
+                      <p className="text-[10px] text-emerald-600 mt-1 font-medium">{agreementFiles.length} file(s) selected for upload</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-[11px] text-gray-600 block mb-1">Or Existing Google Drive Link(s)</Label>
+                    <textarea
+                      rows={2}
+                      placeholder="https://drive.google.com/file/d/... (one per line)"
+                      value={agreementLinks}
+                      onChange={(e) => setAgreementLinks(e.target.value)}
+                      className="w-full p-1.5 text-[11px] border border-gray-200 rounded focus:ring-1 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+
+                  {/* Show existing attached agreement letters if editing */}
+                  {editingProject && editingProject.agreementLetters && editingProject.agreementLetters.length > 0 && (
+                    <div className="pt-1.5 border-t border-gray-150 space-y-1">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">Attached ({editingProject.agreementLetters.length}):</span>
+                      {editingProject.agreementLetters.map(doc => (
+                        <div key={doc.id} className="flex items-center justify-between text-[11px] bg-slate-50 p-1.5 rounded">
+                          <a href={doc.driveUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[180px] flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3 shrink-0" />
+                            {doc.fileName}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDocument(doc.id, editingProject.id)}
+                            className="text-red-500 hover:text-red-700"
+                            title="Remove Document"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. PAYMENT RECEIPT */}
+                <div className="p-3 bg-white rounded-lg border border-purple-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
+                      <Receipt className="w-4 h-4 text-purple-600" />
+                      Payment Receipt
+                    </span>
+                    <span className="text-[10px] text-gray-400">PDF, JPG, PNG (Max 10MB)</span>
+                  </div>
+
+                  <div>
+                    <Label className="text-[11px] text-gray-600 block mb-1">Upload File(s)</Label>
+                    <Input
+                      type="file"
+                      multiple
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => setPaymentFiles(Array.from(e.target.files || []))}
+                      className="h-8 text-[11px] cursor-pointer"
+                    />
+                    {paymentFiles.length > 0 && (
+                      <p className="text-[10px] text-emerald-600 mt-1 font-medium">{paymentFiles.length} receipt(s) selected for upload</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-[11px] text-gray-600 block mb-1">Or Existing Google Drive Link(s)</Label>
+                    <textarea
+                      rows={2}
+                      placeholder="https://drive.google.com/file/d/... (one per line)"
+                      value={paymentLinks}
+                      onChange={(e) => setPaymentLinks(e.target.value)}
+                      className="w-full p-1.5 text-[11px] border border-gray-200 rounded focus:ring-1 focus:ring-purple-500 font-mono"
+                    />
+                  </div>
+
+                  {/* Show existing attached payment receipts if editing */}
+                  {editingProject && editingProject.paymentReceipts && editingProject.paymentReceipts.length > 0 && (
+                    <div className="pt-1.5 border-t border-gray-150 space-y-1">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">Attached ({editingProject.paymentReceipts.length}):</span>
+                      {editingProject.paymentReceipts.map(doc => (
+                        <div key={doc.id} className="flex items-center justify-between text-[11px] bg-slate-50 p-1.5 rounded">
+                          <a href={doc.driveUrl} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline truncate max-w-[180px] flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3 shrink-0" />
+                            {doc.fileName}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDocument(doc.id, editingProject.id)}
+                            className="text-red-500 hover:text-red-700"
+                            title="Remove Receipt"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Department & Portal Link */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Host Department</Label>
-                <Select
-                  value={formData.department || ''}
-                  onValueChange={(val) => setFormData({ ...formData, department: val })}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                    <SelectValue placeholder="Department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map(d => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* SECTION F — ADDITIONAL INFORMATION */}
+            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <ExternalLink className="w-3.5 h-3.5 text-[#2F4692]" />
+                <span>Section F — Additional Information</span>
+              </h4>
 
               <div>
                 <Label className="text-xs font-semibold text-gray-700">Project / Sanction Letter URL</Label>
@@ -1595,21 +1737,20 @@ export function SponsoredResearchPage({
                   placeholder="https://serbonline.in/grant/..."
                   value={formData.projectUrl || ''}
                   onChange={(e) => setFormData({ ...formData, projectUrl: e.target.value })}
-                  className="mt-1 h-9 text-xs"
+                  className="mt-1 h-9 text-xs bg-white"
                 />
               </div>
-            </div>
 
-            {/* Project Summary / Scope */}
-            <div>
-              <Label className="text-xs font-semibold text-gray-700">Project Objectives & Deliverables Summary</Label>
-              <textarea
-                rows={3}
-                placeholder="Brief summary of research scope, objectives, experimental setup, and anticipated deliverables..."
-                value={formData.description || ''}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full mt-1 p-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#2f4692]"
-              />
+              <div>
+                <Label className="text-xs font-semibold text-gray-700">Project Objectives & Deliverables</Label>
+                <textarea
+                  rows={2}
+                  placeholder="Brief summary of research scope, objectives, and deliverables..."
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full mt-1 p-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#2f4692] bg-white"
+                />
+              </div>
             </div>
 
             <DialogFooter className="pt-3 border-t border-gray-150 flex items-center justify-end gap-2">
@@ -1634,16 +1775,25 @@ export function SponsoredResearchPage({
         </DialogContent>
       </Dialog>
 
-      {/* VIEW DETAILS MODAL */}
+      {/* ======================================================== */}
+      {/* VIEW PROJECT DETAILS MODAL */}
+      {/* ======================================================== */}
       <Dialog open={!!viewingProject} onOpenChange={(open) => !open && setViewingProject(null)}>
-        <DialogContent className="sm:max-w-[650px] max-h-[85vh] overflow-y-auto bg-white p-6 rounded-xl">
+        <DialogContent className="sm:max-w-[720px] max-h-[88vh] overflow-y-auto bg-white p-6 rounded-xl">
           {viewingProject && (
             <div className="space-y-4">
               <DialogHeader>
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   {getStatusBadge(viewingProject.status)}
                   {getAgencyBadge(viewingProject.agencyType)}
-                  <Badge variant="secondary" className="text-[10px]">AY {viewingProject.academicYear}</Badge>
+                  <Badge variant="secondary" className="text-[10px] font-mono">
+                    {viewingProject.sanctionYear ? `SY ${viewingProject.sanctionYear}` : `AY ${viewingProject.academicYear}`}
+                  </Badge>
+                  {viewingProject.durationFormatted && (
+                    <Badge variant="outline" className="text-[10px] font-mono bg-blue-50 text-blue-800 border-blue-200">
+                      Duration: {viewingProject.durationFormatted}
+                    </Badge>
+                  )}
                 </div>
                 <DialogTitle className="text-lg font-bold text-gray-900 leading-snug">
                   {viewingProject.title}
@@ -1654,86 +1804,213 @@ export function SponsoredResearchPage({
               </DialogHeader>
 
               {/* Research Team Banner */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5 text-xs">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-[#2f4692]" />
-                  <span className="font-semibold text-gray-900">Principal Investigator:</span>
-                  <span className="font-bold text-[#2f4692]">{viewingProject.principalInvestigator}</span>
-                </div>
+              <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-200 text-xs">
+                <div className="font-semibold text-[#2f4692]">Principal Investigator (PI):</div>
+                <div className="text-gray-900 font-bold text-sm mt-0.5">{viewingProject.principalInvestigator}</div>
                 {viewingProject.coInvestigators && (
-                  <div className="text-gray-600 pl-6">
-                    <span className="font-medium text-gray-700">Co-Investigators:</span> {viewingProject.coInvestigators}
+                  <div className="text-gray-600 mt-1">
+                    <span className="font-semibold">Co-Investigators:</span> {viewingProject.coInvestigators}
                   </div>
                 )}
               </div>
 
-              {/* Funding Breakdown */}
-              <div className="grid grid-cols-2 gap-3 bg-teal-50/50 border border-teal-100 rounded-lg p-3 text-xs">
-                <div>
-                  <span className="text-gray-500 block text-[10px] uppercase font-semibold">Total Grant Sanctioned</span>
-                  <span className="text-lg font-bold font-mono text-teal-900">{formatCurrency(viewingProject.sanctionedAmount)}</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block text-[10px] uppercase font-semibold">Funds Received</span>
-                  <span className="text-lg font-bold font-mono text-emerald-700">
-                    {formatCurrency(viewingProject.amountReceived || viewingProject.sanctionedAmount)}
-                  </span>
-                </div>
-              </div>
+              {/* Navigation Tabs */}
+              <Tabs value={detailTab} onValueChange={(val: any) => setDetailTab(val)} className="w-full">
+                <TabsList className="grid w-full grid-cols-3 bg-gray-100 p-1 rounded-lg">
+                  <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
+                  <TabsTrigger value="financial" className="text-xs">Finances & Installments</TabsTrigger>
+                  <TabsTrigger value="documents" className="text-xs">Documents ({((viewingProject.agreementLetters?.length || 0) + (viewingProject.paymentReceipts?.length || 0))})</TabsTrigger>
+                </TabsList>
 
-              {/* Agency & Sanction Details */}
-              <div className="grid grid-cols-2 gap-3 text-xs border border-gray-150 rounded-lg p-3 bg-white">
-                <div>
-                  <span className="text-gray-400 block text-[10px] uppercase font-semibold">Funding Agency</span>
-                  <span className="font-semibold text-gray-800">{viewingProject.fundingAgency}</span>
-                  {viewingProject.scheme && <p className="text-[11px] text-blue-600 font-mono mt-0.5">Scheme: {viewingProject.scheme}</p>}
-                </div>
-                <div>
-                  <span className="text-gray-400 block text-[10px] uppercase font-semibold">Sanction Order Reference</span>
-                  <span className="font-mono text-gray-700">{viewingProject.sanctionOrderNo || 'N/A'}</span>
-                </div>
-              </div>
+                {/* TAB 1: OVERVIEW */}
+                <TabsContent value="overview" className="space-y-3 pt-3 text-xs">
+                  <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <div>
+                      <span className="text-gray-500 block text-[11px]">Funding Agency</span>
+                      <span className="font-semibold text-gray-900">{viewingProject.fundingAgency}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[11px]">Scheme / Program</span>
+                      <span className="font-semibold text-gray-900">{viewingProject.scheme || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[11px]">Sanction Order Number</span>
+                      <span className="font-mono font-semibold text-gray-900">{viewingProject.sanctionOrderNo || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[11px]">Sanction Date</span>
+                      <span className="font-semibold text-gray-900">{viewingProject.sanctionDate ? viewingProject.sanctionDate.split('T')[0] : '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[11px]">Commencement / Start Date</span>
+                      <span className="font-semibold text-gray-900">{viewingProject.startDate ? viewingProject.startDate.split('T')[0] : '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[11px]">Completion / End Date</span>
+                      <span className="font-semibold text-gray-900">{viewingProject.endDate ? viewingProject.endDate.split('T')[0] : '-'}</span>
+                    </div>
+                  </div>
 
-              {/* Timeline Dates */}
-              <div className="grid grid-cols-3 gap-2 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-200">
-                <div>
-                  <span className="text-gray-400 text-[10px] block">Sanction Date</span>
-                  <span className="font-medium text-gray-800">{viewingProject.sanctionDate ? new Date(viewingProject.sanctionDate).toLocaleDateString() : '-'}</span>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-[10px] block">Commencement</span>
-                  <span className="font-medium text-gray-800">{viewingProject.startDate ? new Date(viewingProject.startDate).toLocaleDateString() : '-'}</span>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-[10px] block">Completion Date</span>
-                  <span className="font-medium text-gray-800">{viewingProject.endDate ? new Date(viewingProject.endDate).toLocaleDateString() : '-'}</span>
-                </div>
-              </div>
+                  {viewingProject.description && (
+                    <div className="p-3 bg-white border border-gray-200 rounded-lg">
+                      <span className="text-[11px] font-bold text-gray-700 block mb-1">Objectives & Deliverables</span>
+                      <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{viewingProject.description}</p>
+                    </div>
+                  )}
 
-              {/* Scope & Objectives */}
-              {viewingProject.description && (
-                <div className="space-y-1 text-xs">
-                  <h4 className="font-semibold text-gray-900">Project Scope & Objectives</h4>
-                  <p className="text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-150 leading-relaxed">
-                    {viewingProject.description}
-                  </p>
-                </div>
-              )}
+                  {viewingProject.projectUrl && (
+                    <div className="flex items-center justify-between p-2.5 bg-blue-50/50 border border-blue-200 rounded-lg">
+                      <span className="text-gray-600">External Research Portal:</span>
+                      <a
+                        href={viewingProject.projectUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#2f4692] font-semibold hover:underline flex items-center gap-1"
+                      >
+                        Visit Portal <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  )}
+                </TabsContent>
 
-              {/* Project Portal URL */}
-              {viewingProject.projectUrl && (
-                <div className="pt-1">
-                  <a
-                    href={viewingProject.projectUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-semibold underline"
-                  >
-                    <span>View Grant Document / Project Portal</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-              )}
+                {/* TAB 2: FINANCIAL */}
+                <TabsContent value="financial" className="space-y-3 pt-3 text-xs">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg">
+                      <span className="text-[10px] text-teal-700 uppercase font-semibold block">Total Sanctioned</span>
+                      <span className="text-sm font-bold font-mono text-teal-900">{formatCurrency(viewingProject.sanctionedAmount)}</span>
+                    </div>
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                      <span className="text-[10px] text-emerald-700 uppercase font-semibold block">Amount Received</span>
+                      <span className="text-sm font-bold font-mono text-emerald-900">{formatCurrency(viewingProject.effectiveAmountReceived || viewingProject.amountReceived || 0)}</span>
+                    </div>
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <span className="text-[10px] text-amber-700 uppercase font-semibold block">Balance Receivable</span>
+                      <span className="text-sm font-bold font-mono text-amber-900">{formatCurrency(viewingProject.balanceYetToBeReceived || 0)}</span>
+                    </div>
+                  </div>
+
+                  {/* Reconciliation Banner */}
+                  <div className="p-2.5 rounded-lg border flex items-center justify-between text-[11px] bg-slate-50 border-slate-200">
+                    <span className="font-semibold text-gray-700">Financial Reconciliation Status:</span>
+                    {viewingProject.reconciliationStatus === 'matched' && (
+                      <span className="text-emerald-700 font-bold flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" /> Matched (Installments equal reported funds)
+                      </span>
+                    )}
+                    {viewingProject.reconciliationStatus === 'mismatched' && (
+                      <span className="text-amber-700 font-bold flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5" /> Discrepancy: Difference of {formatCurrency(viewingProject.reconciliationDiff || 0)}
+                      </span>
+                    )}
+                    {viewingProject.reconciliationStatus === 'manual_only' && (
+                      <span className="text-gray-600">Manual Aggregate (No installments entered)</span>
+                    )}
+                    {viewingProject.reconciliationStatus === 'installments_only' && (
+                      <span className="text-emerald-700 font-semibold">Derived from installments sum</span>
+                    )}
+                  </div>
+
+                  {/* Installments Table */}
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-3 py-2 font-bold text-gray-800 text-[11px] flex justify-between items-center">
+                      <span>Installments History</span>
+                      <span className="text-gray-500 font-mono font-normal">{(viewingProject.installments || []).length} credited</span>
+                    </div>
+                    {(viewingProject.installments || []).length === 0 ? (
+                      <div className="p-4 text-center text-gray-400 italic">No individual funding installments recorded yet.</div>
+                    ) : (
+                      <table className="w-full text-left text-[11px]">
+                        <thead>
+                          <tr className="bg-gray-100 text-gray-600 border-b border-gray-200">
+                            <th className="py-1.5 px-3">#</th>
+                            <th className="py-1.5 px-3">Date</th>
+                            <th className="py-1.5 px-3 text-right">Amount</th>
+                            <th className="py-1.5 px-3">Reference / UTR</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {(viewingProject.installments || []).map((inst, i) => (
+                            <tr key={inst.id || i}>
+                              <td className="py-1.5 px-3 font-semibold">{i + 1}</td>
+                              <td className="py-1.5 px-3">{inst.paymentDate ? inst.paymentDate.split('T')[0] : '-'}</td>
+                              <td className="py-1.5 px-3 text-right font-mono font-bold text-emerald-800">{formatCurrency(inst.amount)}</td>
+                              <td className="py-1.5 px-3 font-mono text-gray-600">{inst.paymentReference || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </TabsContent>
+
+                {/* TAB 3: DOCUMENTS */}
+                <TabsContent value="documents" className="space-y-4 pt-3 text-xs">
+                  {/* Agreement Letters */}
+                  <div className="border border-blue-200 rounded-lg p-3 bg-blue-50/20 space-y-2">
+                    <h5 className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
+                      <FileCheck className="w-4 h-4 text-blue-600" />
+                      Agreement Letters & Sanction Orders ({(viewingProject.agreementLetters || []).length})
+                    </h5>
+                    {(viewingProject.agreementLetters || []).length === 0 ? (
+                      <p className="text-gray-400 italic text-[11px]">No Agreement Letters attached yet.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {(viewingProject.agreementLetters || []).map(doc => (
+                          <div key={doc.id} className="flex items-center justify-between p-2 bg-white rounded border border-blue-100 text-[11px]">
+                            <div className="flex items-center gap-2 truncate">
+                              <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span className="font-medium text-gray-800 truncate" title={doc.fileName}>{doc.fileName}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a
+                                href={doc.driveUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold text-[10px] flex items-center gap-1"
+                              >
+                                View in Drive <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Payment Receipts */}
+                  <div className="border border-purple-200 rounded-lg p-3 bg-purple-50/20 space-y-2">
+                    <h5 className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
+                      <Receipt className="w-4 h-4 text-purple-600" />
+                      Payment Receipts & UC Documents ({(viewingProject.paymentReceipts || []).length})
+                    </h5>
+                    {(viewingProject.paymentReceipts || []).length === 0 ? (
+                      <p className="text-gray-400 italic text-[11px]">No Payment Receipts attached yet.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {(viewingProject.paymentReceipts || []).map(doc => (
+                          <div key={doc.id} className="flex items-center justify-between p-2 bg-white rounded border border-purple-100 text-[11px]">
+                            <div className="flex items-center gap-2 truncate">
+                              <Receipt className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                              <span className="font-medium text-gray-800 truncate" title={doc.fileName}>{doc.fileName}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a
+                                href={doc.driveUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 font-semibold text-[10px] flex items-center gap-1"
+                              >
+                                View in Drive <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
 
               <DialogFooter className="pt-3 border-t border-gray-150">
                 <Button variant="outline" size="sm" onClick={() => setViewingProject(null)} className="text-xs">
@@ -1743,13 +2020,13 @@ export function SponsoredResearchPage({
                   <Button
                     size="sm"
                     onClick={() => {
-                      const p = viewingProject;
+                      const proj = viewingProject;
                       setViewingProject(null);
-                      handleOpenEdit(p);
+                      handleOpenEdit(proj);
                     }}
-                    className="bg-[#2f4692] text-white text-xs"
+                    className="bg-[#2f4692] text-white hover:bg-[#243a7a] text-xs font-semibold"
                   >
-                    <Edit className="w-3.5 h-3.5 mr-1" /> Edit Project
+                    <Edit className="w-3.5 h-3.5 mr-1" /> Edit Grant
                   </Button>
                 )}
               </DialogFooter>
@@ -1758,14 +2035,15 @@ export function SponsoredResearchPage({
         </DialogContent>
       </Dialog>
 
-      {/* ---------------------------------------------------- */}
-      {/* BULK UPLOAD MODAL (EXCEL & CSV) - REDESIGNED */}
-      {/* ---------------------------------------------------- */}
+      {/* BULK UPLOAD MODAL */}
       <BulkUploadDialog
         isOpen={isBulkOpen}
         onClose={() => setIsBulkOpen(false)}
         token={token || ''}
-        onSuccess={fetchProjects}
+        onSuccess={() => {
+          fetchProjects();
+          fetchStats();
+        }}
         uploadType="sponsored-projects"
       />
 
@@ -1778,7 +2056,7 @@ export function SponsoredResearchPage({
               Clear Sponsored Project Records
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-600">
-              Are you sure you want to delete all sponsored project and grant records? This action is irreversible.
+              Are you sure you want to delete all sponsored project records and attached documents in your scope? This action is irreversible.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
@@ -1786,10 +2064,10 @@ export function SponsoredResearchPage({
               Cancel
             </Button>
             <Button
+              variant="destructive"
               size="sm"
-              disabled={clearLoading}
               onClick={handleClearAll}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+              disabled={clearLoading}
             >
               {clearLoading ? 'Clearing...' : 'Yes, Delete All'}
             </Button>
@@ -1804,7 +2082,7 @@ export function SponsoredResearchPage({
   }
 
   return (
-    <AppShell currentPage="sponsored-research" onNavigate={onNavigate}>
+    <AppShell currentPage="research-innovation" onNavigate={onNavigate}>
       {content}
     </AppShell>
   );

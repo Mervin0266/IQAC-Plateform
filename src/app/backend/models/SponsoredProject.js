@@ -87,6 +87,11 @@ const SponsoredProject = sequelize.define('SponsoredProject', {
     allowNull: true,
     comment: 'Host department'
   },
+  sanctionYear: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'Calendar year in which funding was officially sanctioned (e.g., 2024)'
+  },
   academicYear: {
     type: DataTypes.STRING,
     allowNull: false,
@@ -117,6 +122,7 @@ const SponsoredProject = sequelize.define('SponsoredProject', {
   timestamps: true,
   indexes: [
     { fields: ['department'] },
+    { fields: ['sanctionYear'] },
     { fields: ['academicYear'] },
     { fields: ['status'] },
     { fields: ['agencyType'] },

@@ -233,6 +233,15 @@ const startServer = async () => {
       console.warn('⚠️ Patent migration notice (non-fatal):', migErr.message);
     }
     
+    // Ensure additive sponsored research schema migrations are applied on all environments
+    try {
+      const sponsoredMigration = require('./migrations/20261031_add_sponsored_research_sanction_year_documents_installments');
+      await sponsoredMigration.up(sequelize.getQueryInterface(), sequelize.Sequelize);
+      console.log('✓ Sponsored Research schema migrations verified.');
+    } catch (migErr) {
+      console.warn('⚠️ Sponsored Research migration notice (non-fatal):', migErr.message);
+    }
+    
     // Start server
     app.listen(PORT, () => {
       console.log(`✓ Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);

@@ -77,14 +77,17 @@ const SPONSORED_RESEARCH_HEADERS = [
   'Agency Type',
   'Sanction Order No',
   'Sanction Date',
+  'Sanction Year',
   'Start Date',
   'End Date',
+  'Project Duration',
   'Sanctioned Amount (INR)',
   'Amount Received (INR)',
   'Status',
   'Progress (%)',
   'Department',
-  'Academic Year',
+  'Agreement Letter',
+  'Payment Receipt',
   'Project URL',
   'Description'
 ];
@@ -387,8 +390,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     if (isSponsored) {
       csvContent =
         SPONSORED_RESEARCH_HEADERS.join(',') + '\n' +
-        `"Autonomous Aerial Edge Computing Swarm for Precision Agriculture","Dr. Rajesh Kumar","Dr. Priya Sharma, Dr. Deepa Singh","Department of Science and Technology (DST) - SERB","CRG (Core Research Grant)","Government (National)","DST/SERB/2024/CRG-0891","2024-03-15","2024-04-01","2027-03-31",4850000,2425000,"Ongoing",45,"Computer Science and Engineering","2024-2025","https://serb.gov.in","Multi-UAV cooperative reinforcement learning framework."\n` +
-        `"Low-Cost Nanostructured Photocatalytic Wastewater Remediation","Dr. Suresh Menon","Dr. Anita Rao","AICTE - Research Promotion Scheme (RPS)","RPS Grant-in-Aid","Government (National)","AICTE/RPS/8-45/2023-24","2023-11-20","2024-01-01","2026-12-31",2200000,2200000,"Ongoing",60,"Civil Engineering","2023-2024","https://aicte-india.org","Visible light responsive titanium dioxide membrane filtration."`;
+        `"Autonomous Aerial Edge Computing Swarm for Precision Agriculture","Dr. Rajesh Kumar","Dr. Priya Sharma, Dr. Deepa Singh","Department of Science and Technology (DST) - SERB","CRG (Core Research Grant)","Government (National)","DST/SERB/2024/CRG-0891","2024-03-15",2024,"2024-04-01","2027-03-31","3 Years (36 Months)",4850000,2425000,"Ongoing",45,"Computer Science and Engineering","https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view","https://drive.google.com/file/d/1CyjNWt1YSB6oGNeLwCeCakhnVvrqueet8/view","https://serb.gov.in","Multi-UAV cooperative reinforcement learning framework."\n` +
+        `"Low-Cost Nanostructured Photocatalytic Wastewater Remediation","Dr. Suresh Menon","Dr. Anita Rao","AICTE - Research Promotion Scheme (RPS)","RPS Grant-in-Aid","Government (National)","AICTE/RPS/8-45/2023-24","2023-11-20",2023,"2024-01-01","2026-12-31","3 Years (36 Months)",2200000,2200000,"Ongoing",60,"Civil Engineering","https://drive.google.com/file/d/1DzkOXu2ZTC7pHOfMxDfDbliowwsrvvfu9/view","","https://aicte-india.org","Visible light responsive titanium dioxide membrane filtration."`;
       fileName = 'sponsored_projects_bulk_template.csv';
     } else if (isPatent) {
       csvContent =
@@ -470,8 +473,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     if (isSponsored) {
       headers = SPONSORED_RESEARCH_HEADERS;
       sampleRows = [
-        ['Autonomous Aerial Edge Computing Swarm for Precision Agriculture', 'Dr. Rajesh Kumar', 'Dr. Priya Sharma, Dr. Deepa Singh', 'Department of Science and Technology (DST) - SERB', 'CRG (Core Research Grant)', 'Government (National)', 'DST/SERB/2024/CRG-0891', '2024-03-15', '2024-04-01', '2027-03-31', 4850000, 2425000, 'Ongoing', 45, 'Computer Science and Engineering', '2024-2025', 'https://serb.gov.in', 'Multi-UAV cooperative reinforcement learning framework.'],
-        ['Low-Cost Nanostructured Photocatalytic Wastewater Remediation', 'Dr. Suresh Menon', 'Dr. Anita Rao', 'AICTE - Research Promotion Scheme (RPS)', 'RPS Grant-in-Aid', 'Government (National)', 'AICTE/RPS/8-45/2023-24', '2023-11-20', '2024-01-01', '2026-12-31', 2200000, 2200000, 'Ongoing', 60, 'Civil Engineering', '2023-2024', 'https://aicte-india.org', 'Visible light responsive titanium dioxide membrane filtration.']
+        ['Autonomous Aerial Edge Computing Swarm for Precision Agriculture', 'Dr. Rajesh Kumar', 'Dr. Priya Sharma, Dr. Deepa Singh', 'Department of Science and Technology (DST) - SERB', 'CRG (Core Research Grant)', 'Government (National)', 'DST/SERB/2024/CRG-0891', '2024-03-15', 2024, '2024-04-01', '2027-03-31', '3 Years (36 Months)', 4850000, 2425000, 'Ongoing', 45, 'Computer Science and Engineering', 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view', 'https://drive.google.com/file/d/1CyjNWt1YSB6oGNeLwCeCakhnVvrqueet8/view', 'https://serb.gov.in', 'Multi-UAV cooperative reinforcement learning framework.'],
+        ['Low-Cost Nanostructured Photocatalytic Wastewater Remediation', 'Dr. Suresh Menon', 'Dr. Anita Rao', 'AICTE - Research Promotion Scheme (RPS)', 'RPS Grant-in-Aid', 'Government (National)', 'AICTE/RPS/8-45/2023-24', '2023-11-20', 2023, '2024-01-01', '2026-12-31', '3 Years (36 Months)', 2200000, 2200000, 'Ongoing', 60, 'Civil Engineering', 'https://drive.google.com/file/d/1DzkOXu2ZTC7pHOfMxDfDbliowwsrvvfu9/view', '', 'https://aicte-india.org', 'Visible light responsive titanium dioxide membrane filtration.']
       ];
       fileName = 'sponsored_projects_bulk_template.xlsx';
     } else if (isPatent) {
@@ -1105,8 +1108,15 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               record['progressPercentage'] = parseInt(val.replace(/[^0-9]/g, '')) || 0;
             } else if (lh.includes('department') || lh === 'dept') {
               record['department'] = val;
-            } else if (lh.includes('academic year') || lh === 'year') {
+            } else if (lh.includes('sanction year') || lh.includes('academic year') || lh === 'year') {
+              record['sanctionYear'] = val;
               record['academicYear'] = val;
+            } else if (lh.includes('agreement') || lh.includes('sanction letter') || lh.includes('award letter')) {
+              record['agreementLetter'] = val;
+            } else if (lh.includes('receipt') || lh.includes('payment') || lh.includes('installment doc')) {
+              record['paymentReceipt'] = val;
+            } else if (lh.includes('duration')) {
+              record['projectDuration'] = val;
             } else if (lh.includes('url') || lh.includes('link') || lh.includes('portal')) {
               record['projectUrl'] = val;
             } else if (lh.includes('description') || lh.includes('abstract') || lh.includes('summary') || lh.includes('objectives')) {
@@ -1369,7 +1379,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
 
               {isSponsored ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
-                  Project Title**, Principal Investigator**, Co-Investigators, Funding Agency**, Scheme / Program, Agency Type, Sanction Order No, Sanction Date, Start Date, End Date, Sanctioned Amount (INR), Amount Received (INR), Status, Progress (%), Department, Academic Year, Project URL, Description
+                  Project Title**, Principal Investigator**, Co-Investigators, Funding Agency**, Scheme / Program, Agency Type, Sanction Order No, Sanction Date, Sanction Year, Start Date, End Date, Project Duration, Sanctioned Amount (INR), Amount Received (INR), Status, Progress (%), Department, Agreement Letter, Payment Receipt, Project URL, Description
                 </p>
               ) : isPatent ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
@@ -1766,7 +1776,10 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                           <th className="py-2 px-3 whitespace-nowrap text-right">Sanctioned (₹)</th>
                           <th className="py-2 px-3 whitespace-nowrap">Status</th>
                           <th className="py-2 px-3 whitespace-nowrap">Department</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Year</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Sanction Year</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Duration</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Agreement Letter</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Payment Receipt</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 bg-white">
@@ -1787,7 +1800,10 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                               </span>
                             </td>
                             <td className="py-2 px-3 truncate max-w-[110px]" title={row.department}>{row.department || '-'}</td>
-                            <td className="py-2 px-3 font-mono">{row.academicYear || '-'}</td>
+                            <td className="py-2 px-3 font-mono">{row.sanctionYear || row.academicYear || '-'}</td>
+                            <td className="py-2 px-3 whitespace-nowrap text-[11px] font-mono">{row.projectDuration || '-'}</td>
+                            <td className="py-2 px-3">{row.agreementLetter ? <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-medium border border-blue-200">Drive Link</span> : <span className="text-gray-400 text-xs">-</span>}</td>
+                            <td className="py-2 px-3">{row.paymentReceipt ? <span className="inline-block px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px] font-medium border border-purple-200">Drive Link</span> : <span className="text-gray-400 text-xs">-</span>}</td>
                           </tr>
                         ))}
                       </tbody>
