@@ -97,3 +97,4 @@ const SponsoredResearchDocument = sequelize.define('SponsoredResearchDocument', 
 });
 
 module.exports = SponsoredResearchDocument;
+

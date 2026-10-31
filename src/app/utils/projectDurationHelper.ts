@@ -114,3 +114,4 @@ export function deriveSanctionYear(sanctionDateStr?: string | null): number | nu
   if (isNaN(d.getTime())) return null;
   return d.getFullYear();
 }
+

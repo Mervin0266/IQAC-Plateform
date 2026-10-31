@@ -60,3 +60,4 @@ const SponsoredResearchInstallment = sequelize.define('SponsoredResearchInstallm
 });
 
 module.exports = SponsoredResearchInstallment;
+

@@ -1789,9 +1789,9 @@ export function SponsoredResearchPage({
                   <Badge variant="secondary" className="text-[10px] font-mono">
                     {viewingProject.sanctionYear ? `SY ${viewingProject.sanctionYear}` : `AY ${viewingProject.academicYear}`}
                   </Badge>
-                  {viewingProject.durationFormatted && (
+                  {(viewingProject.durationFormatted || (viewingProject.startDate && viewingProject.endDate)) && (
                     <Badge variant="outline" className="text-[10px] font-mono bg-blue-50 text-blue-800 border-blue-200">
-                      Duration: {viewingProject.durationFormatted}
+                      Duration: {viewingProject.durationFormatted || calculateProjectDuration(viewingProject.startDate, viewingProject.endDate).formatted}
                     </Badge>
                   )}
                 </div>
@@ -1848,6 +1848,19 @@ export function SponsoredResearchPage({
                     <div>
                       <span className="text-gray-500 block text-[11px]">Completion / End Date</span>
                       <span className="font-semibold text-gray-900">{viewingProject.endDate ? viewingProject.endDate.split('T')[0] : '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[11px]">Project Duration</span>
+                      <span className="font-semibold text-[#2f4692] flex items-center gap-1.5 mt-0.5">
+                        <Clock className="w-3.5 h-3.5 text-[#2f4692] shrink-0" />
+                        {viewingProject.durationFormatted || (viewingProject.startDate && viewingProject.endDate ? calculateProjectDuration(viewingProject.startDate, viewingProject.endDate).formatted : 'Not Available')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[11px]">Sanction Year</span>
+                      <span className="font-mono font-semibold text-gray-900 mt-0.5 block">
+                        {viewingProject.sanctionYear ? `SY ${viewingProject.sanctionYear}` : (viewingProject.academicYear ? `AY ${viewingProject.academicYear}` : '-')}
+                      </span>
                     </div>
                   </div>
 
