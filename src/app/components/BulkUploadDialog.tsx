@@ -149,19 +149,31 @@ const PUBLICATIONS_REQUIRED = [
 ];
 
 const CONSULTANCY_HEADERS = [
-  'S. No.',
-  'Name of the Teacher Consultant',
+  'Name of Teacher Consultant',
   'Name of Consultancy Project',
-  'Consulting/Sponsoring Agency with Contact Details',
-  'Year',
-  'Revenue Generated (INR in Lakhs)'
+  'Agency Name',
+  'Agency Contact Email',
+  'Agency Contact Number',
+  'Consultancy Start Year',
+  'Start Date',
+  'Expected End Date',
+  'Actual Completion Date',
+  'Project Status',
+  'Contract Value (INR in Lakhs)',
+  'Revenue Generated (INR in Lakhs)',
+  'Amount Received (INR in Lakhs)',
+  'Department',
+  'Scope of Work / Deliverables Summary',
+  'Agreement / Work Order',
+  'Invoice',
+  'Payment Receipt'
 ];
 
 const CONSULTANCY_REQUIRED = [
-  'Name of the Teacher Consultant',
+  'Name of Teacher Consultant',
   'Name of Consultancy Project',
-  'Consulting/Sponsoring Agency with Contact Details',
-  'Year'
+  'Agency Name',
+  'Consultancy Start Year'
 ];
 
 const DEPARTMENT_HEADERS = [
@@ -402,8 +414,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isConsultancy) {
       csvContent =
         CONSULTANCY_HEADERS.join(',') + '\n' +
-        `1,"Dr. Rajesh Kumar","Smart City Infrastructure Planning","Bangalore Smart City Corporation, Contact: info@bscc.gov.in, Ph: 080-12345678","2024-25",25.00\n` +
-        `2,"Dr. Deepa Singh","AI-Powered Customer Analytics Platform","RetailMax Solutions Pvt. Ltd., Contact: projects@retailmax.in, Ph: 080-87654321","2023-24",18.50`;
+        `"Dr. Rajesh Kumar","AI-Powered Smart City Infrastructure Planning","Bangalore Smart City Corporation","contact@bscc.gov.in","+91 9876543210",2024,"2024-04-01","2026-03-31","","On Going",35.00,25.00,15.00,"Computer Science and Engineering","Technical advisory for smart traffic control and AI sensor grid","https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view","https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds8/view","https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds9/view"\n` +
+        `"Dr. Deepa Singh","Automated Retail Analytics Platform","RetailMax Solutions Pvt. Ltd.","projects@retailmax.in","+91 9876543211",2023,"2023-01-15","2023-12-15","2023-12-20","Completed",20.00,18.50,18.50,"AI and Data Science Engineering","Predictive customer footfall analytics and inventory advisory","","",""`;
       fileName = 'consultancy_bulk_template.csv';
     } else if (isFaculty) {
       csvContent =
@@ -487,8 +499,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isConsultancy) {
       headers = CONSULTANCY_HEADERS;
       sampleRows = [
-        ['1', 'Dr. Rajesh Kumar', 'Smart City Infrastructure Planning', 'Bangalore Smart City Corporation, Contact: info@bscc.gov.in, Ph: 080-12345678', '2024-25', 25.00],
-        ['2', 'Dr. Deepa Singh', 'AI-Powered Customer Analytics Platform', 'RetailMax Solutions Pvt. Ltd., Contact: projects@retailmax.in, Ph: 080-87654321', '2023-24', 18.50]
+        ['Dr. Rajesh Kumar', 'AI-Powered Smart City Infrastructure Planning', 'Bangalore Smart City Corporation', 'contact@bscc.gov.in', '+91 9876543210', 2024, '2024-04-01', '2026-03-31', '', 'On Going', 35.00, 25.00, 15.00, 'Computer Science and Engineering', 'Technical advisory for smart traffic control and AI sensor grid', 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view', 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds8/view', 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds9/view'],
+        ['Dr. Deepa Singh', 'Automated Retail Analytics Platform', 'RetailMax Solutions Pvt. Ltd.', 'projects@retailmax.in', '+91 9876543211', 2023, '2023-01-15', '2023-12-15', '2023-12-20', 'Completed', 20.00, 18.50, 18.50, 'AI and Data Science Engineering', 'Predictive customer footfall analytics and inventory advisory', '', '', '']
       ];
       fileName = 'consultancy_bulk_template.xlsx';
     } else if (isFaculty) {
@@ -686,15 +698,17 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     let missing: string[] = [];
     if (isConsultancy) {
       const lowerHeaders = headers.map(h => h.toLowerCase().trim());
-      const reqConsultancy = [
-        { name: 'Name of the Teacher Consultant', match: 'teacher consultant' },
-        { name: 'Name of Consultancy Project', match: 'consultancy project' },
-        { name: 'Consulting/Sponsoring Agency with Contact Details', match: 'sponsoring agency' },
-        { name: 'Year', match: 'year' }
-      ];
-      missing = reqConsultancy
-        .filter(req => !lowerHeaders.some(lh => lh.includes(req.match)))
-        .map(req => req.name);
+      const hasConsultant = lowerHeaders.some(lh => lh.includes('teacher consultant') || lh.includes('consultant'));
+      const hasProject = lowerHeaders.some(lh => lh.includes('consultancy project') || lh.includes('project name') || lh === 'title');
+      const hasAgency = lowerHeaders.some(lh => lh.includes('agency') || lh.includes('sponsoring') || lh.includes('client'));
+      const hasYear = lowerHeaders.some(lh => lh.includes('year') || lh.includes('start year'));
+
+      const missingFields = [];
+      if (!hasConsultant) missingFields.push('Name of Teacher Consultant');
+      if (!hasProject) missingFields.push('Name of Consultancy Project');
+      if (!hasAgency) missingFields.push('Agency Name');
+      if (!hasYear) missingFields.push('Consultancy Start Year');
+      missing = missingFields;
     } else if (isFaculty) {
       missing = FACULTY_REQUIRED.filter(field => !headers.includes(field));
     } else if (isStudent) {
@@ -838,16 +852,45 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             const lowerHeader = header.toLowerCase().trim();
             if (lowerHeader.includes('s. no') || lowerHeader.includes('s.no')) {
               // Ignore serial number column
-            } else if (lowerHeader.includes('teacher consultant')) {
+            } else if (lowerHeader.includes('teacher consultant') || lowerHeader.includes('consultant')) {
               record['teacherConsultant'] = val || '';
-            } else if (lowerHeader.includes('consultancy project')) {
+            } else if (lowerHeader.includes('consultancy project') || lowerHeader.includes('project name') || lowerHeader === 'title') {
               record['projectName'] = val || '';
+            } else if (lowerHeader === 'agency name' || lowerHeader.includes('client name')) {
+              record['agencyName'] = val || '';
+            } else if (lowerHeader.includes('agency contact email') || lowerHeader.includes('contact email') || lowerHeader.includes('client email')) {
+              record['agencyContactEmail'] = val || '';
+            } else if (lowerHeader.includes('agency contact number') || lowerHeader.includes('contact number') || lowerHeader.includes('phone') || lowerHeader.includes('mobile')) {
+              record['agencyContactNumber'] = val || '';
             } else if (lowerHeader.includes('sponsoring agency') || lowerHeader.includes('consulting/sponsoring')) {
               record['sponsoringAgency'] = val || '';
-            } else if (lowerHeader === 'year') {
+            } else if (lowerHeader.includes('start year') || lowerHeader === 'year' || lowerHeader.includes('academic year')) {
+              record['consultancyStartYear'] = val || '';
               record['year'] = val || '';
+            } else if (lowerHeader.includes('start date') || lowerHeader === 'startdate') {
+              record['startDate'] = val || '';
+            } else if (lowerHeader.includes('expected end date') || lowerHeader.includes('expected end') || lowerHeader === 'end date') {
+              record['expectedEndDate'] = val || '';
+            } else if (lowerHeader.includes('actual completion date') || lowerHeader.includes('completion date') || lowerHeader.includes('actual completion')) {
+              record['actualCompletionDate'] = val || '';
+            } else if (lowerHeader.includes('project status') || lowerHeader === 'status') {
+              record['projectStatus'] = val || '';
+            } else if (lowerHeader.includes('contract value')) {
+              record['contractValueInLakhs'] = val ? parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0 : null;
             } else if (lowerHeader.includes('revenue')) {
-              record['revenueInLakhs'] = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+              record['revenueInLakhs'] = parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0;
+            } else if (lowerHeader.includes('amount received')) {
+              record['amountReceivedInLakhs'] = val ? parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0 : null;
+            } else if (lowerHeader === 'department') {
+              record['department'] = val || '';
+            } else if (lowerHeader.includes('scope') || lowerHeader.includes('deliverable') || lowerHeader.includes('description') || lowerHeader.includes('summary')) {
+              record['description'] = val || '';
+            } else if (lowerHeader.includes('agreement') || lowerHeader.includes('work order')) {
+              record['agreementLinks'] = val || '';
+            } else if (lowerHeader.includes('invoice')) {
+              record['invoiceLinks'] = val || '';
+            } else if (lowerHeader.includes('receipt')) {
+              record['receiptLinks'] = val || '';
             } else {
               record[header] = val;
             }
@@ -1225,13 +1268,19 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         }
       }
 
-      const dateKeys = ['dateOfBirth', 'dateOfJoining', 'dob', 'admissionDate', 'eventDate', 'placementDate', 'date', 'publicationDate', 'filedDate', 'publishedDate', 'grantedDate', 'licenseDate', 'sanctionDate', 'startDate', 'endDate'];
+      if (isConsultancy) {
+        if (record.consultancyStartYear || record.year) {
+          item.consultancyStartYear = record.consultancyStartYear || record.year;
+        }
+      }
+
+      const dateKeys = ['dateOfBirth', 'dateOfJoining', 'dob', 'admissionDate', 'eventDate', 'placementDate', 'date', 'publicationDate', 'filedDate', 'publishedDate', 'grantedDate', 'licenseDate', 'sanctionDate', 'startDate', 'endDate', 'expectedEndDate', 'actualCompletionDate'];
       Object.keys(item).forEach(k => {
         if (dateKeys.includes(k)) {
           if (!item[k] || String(item[k]).toLowerCase() === 'nil' || String(item[k]).toLowerCase() === 'n/a' || String(item[k]).toLowerCase() === 'invalid date' || String(item[k]).trim() === '') {
             item[k] = null;
           }
-        } else if (!isPublication && !isPatent && !isSponsored) {
+        } else if (!isPublication && !isPatent && !isSponsored && !isConsultancy) {
           if (item[k] === undefined || item[k] === null || item[k] === '' || String(item[k]).trim() === '') {
             item[k] = 'NIL';
           }
@@ -1391,7 +1440,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                 </p>
               ) : isConsultancy ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
-                  S. No., Name of the Teacher Consultant**, Name of Consultancy Project**, Consulting/Sponsoring Agency with Contact Details**, Year**, Revenue Generated (INR in Lakhs)
+                  Name of Teacher Consultant**, Name of Consultancy Project**, Agency Name**, Agency Contact Email, Agency Contact Number, Consultancy Start Year**, Start Date, Expected End Date, Actual Completion Date, Project Status, Contract Value (INR in Lakhs), Revenue Generated (INR in Lakhs), Amount Received (INR in Lakhs), Department, Scope of Work / Deliverables Summary, Agreement / Work Order, Invoice, Payment Receipt
                 </p>
               ) : isFaculty ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
@@ -1745,8 +1794,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                           <th className="py-2 px-3 whitespace-nowrap">S. No.</th>
                           <th className="py-2 px-3 whitespace-nowrap">Teacher Consultant</th>
                           <th className="py-2 px-3 whitespace-nowrap">Project Name</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Agency</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Year</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Agency Name</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Start Year</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Project Status</th>
                           <th className="py-2 px-3 whitespace-nowrap">Revenue (₹ Lakhs)</th>
                         </tr>
                       </thead>
@@ -1756,8 +1806,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                             <td className="py-2 px-3 font-mono">{idx + 1}</td>
                             <td className="py-2 px-3 font-semibold text-gray-900 truncate max-w-[150px]" title={row.teacherConsultant}>{row.teacherConsultant}</td>
                             <td className="py-2 px-3 truncate max-w-[150px]" title={row.projectName}>{row.projectName}</td>
-                            <td className="py-2 px-3 truncate max-w-[150px]" title={row.sponsoringAgency}>{row.sponsoringAgency}</td>
-                            <td className="py-2 px-3 font-mono">{row.year}</td>
+                            <td className="py-2 px-3 truncate max-w-[150px]" title={row.agencyName || row.sponsoringAgency}>{row.agencyName || row.sponsoringAgency}</td>
+                            <td className="py-2 px-3 font-mono">{row.consultancyStartYear || row.year}</td>
+                            <td className="py-2 px-3 font-mono">{row.projectStatus || 'On Going'}</td>
                             <td className="py-2 px-3 font-mono font-semibold text-green-700">{row.revenueInLakhs}</td>
                           </tr>
                         ))}

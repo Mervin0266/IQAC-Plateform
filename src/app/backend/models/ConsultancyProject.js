@@ -17,16 +17,65 @@ const ConsultancyProject = sequelize.define('ConsultancyProject', {
   },
   sponsoringAgency: {
     type: DataTypes.TEXT,
-    allowNull: false
+    allowNull: true
+  },
+  agencyName: {
+    type: DataTypes.STRING(500),
+    allowNull: true
+  },
+  agencyContactEmail: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  agencyContactNumber: {
+    type: DataTypes.STRING(100),
+    allowNull: true
   },
   year: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true
+  },
+  consultancyStartYear: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  startDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
+  expectedEndDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
+  actualCompletionDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
+  projectStatus: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    validate: {
+      isIn: [['Sanctioned', 'On Going', 'Completed']]
+    }
+  },
+  contractValueInLakhs: {
+    type: DataTypes.DECIMAL(15, 2),
+    allowNull: true,
+    defaultValue: null
   },
   revenueInLakhs: {
     type: DataTypes.DECIMAL(15, 2),
     allowNull: false,
     defaultValue: 0.00
+  },
+  amountReceivedInLakhs: {
+    type: DataTypes.DECIMAL(15, 2),
+    allowNull: true,
+    defaultValue: null
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true
   },
   department: {
     type: DataTypes.STRING,

@@ -115,3 +115,17 @@ export function deriveSanctionYear(sanctionDateStr?: string | null): number | nu
   return d.getFullYear();
 }
 
+/**
+ * Derives 4-digit Consultancy Start Year from Start Date string.
+ */
+export function deriveConsultancyStartYear(startDateStr?: string | null): number | null {
+  if (!startDateStr || !String(startDateStr).trim()) return null;
+  const cleanDate = String(startDateStr).trim().split('T')[0];
+  const d = new Date(cleanDate);
+  if (isNaN(d.getTime())) return null;
+  return d.getFullYear();
+}
+
+export const VALID_CONSULTANCY_PROJECT_STATUSES = ['Sanctioned', 'On Going', 'Completed'] as const;
+export type ConsultancyProjectStatusType = typeof VALID_CONSULTANCY_PROJECT_STATUSES[number];
+

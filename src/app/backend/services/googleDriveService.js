@@ -736,6 +736,162 @@ async function deleteSponsoredDocumentFile(driveFileId) {
   }
 }
 
+/**
+ * Ensure folder hierarchy exists for a Consultancy Project.
+ * Hierarchy:
+ * CHRIST University — IQAC Shared Drive /
+ * └── Consultancy Projects /
+ *     ├── <Consultancy Start Year or 'Pending Start Year'> /
+ *     │   └── <Department> /
+ *     │       └── PROJECT-<Project-ID> /
+ *     │           └── <Agreement - Work Order | Invoice | Payment Receipt>
+ */
+async function ensureConsultancyFolderHierarchy({ startYear, department, projectId, category }) {
+  if (!isDriveConfigured()) {
+    throw new Error('Google Drive integration is not configured. Missing credentials in backend environment.');
+  }
+
+  const rootParentId = (process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || '').trim() || null;
+
+  // 1. Root folder: Consultancy Projects
+  const consultancyRootFolderId = await findOrCreateFolder('Consultancy Projects', rootParentId);
+
+  // 2. Start Year folder (e.g. "2024", "2025") or "Pending Start Year"
+  const yearFolderName = startYear && String(startYear).trim() ? String(startYear).trim() : 'Pending Start Year';
+  const yearFolderId = await findOrCreateFolder(yearFolderName, consultancyRootFolderId);
+
+  // 3. Department folder
+  const deptFolderName = sanitizeName(department || 'General');
+  const deptFolderId = await findOrCreateFolder(deptFolderName, yearFolderId);
+
+  // 4. Project ID folder
+  const projectFolderName = `PROJECT-${projectId}`;
+  const projectFolderId = await findOrCreateFolder(projectFolderName, deptFolderId);
+
+  // 5. Category folder (Agreement - Work Order, Invoice, or Payment Receipt)
+  let categoryFolderId = projectFolderId;
+  if (category) {
+    let categoryFolderName = 'Agreement - Work Order';
+    if (category === 'invoice') {
+      categoryFolderName = 'Invoice';
+    } else if (category === 'payment_receipt') {
+      categoryFolderName = 'Payment Receipt';
+    }
+    categoryFolderId = await findOrCreateFolder(categoryFolderName, projectFolderId);
+  }
+
+  return {
+    consultancyRootFolderId,
+    yearFolderId,
+    deptFolderId,
+    projectFolderId,
+    categoryFolderId
+  };
+}
+
+/**
+ * Upload a document file directly into the consultancy project's category Google Drive folder.
+ */
+async function uploadConsultancyDocumentFile({ projectId, department, startYear, category, fileBuffer, fileName, mimeType }) {
+  if (!isDriveConfigured()) {
+    throw new Error('Google Drive integration is not configured. Direct uploads cannot be saved to institutional storage.');
+  }
+
+  const hierarchy = await ensureConsultancyFolderHierarchy({
+    startYear,
+    department,
+    projectId,
+    category
+  });
+
+  const parentFolderId = hierarchy.categoryFolderId;
+  const safeFileName = sanitizeName(fileName);
+
+  const boundary = `-------314159265358979323846_${Date.now()}`;
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelimiter = `\r\n--${boundary}--`;
+
+  const metadata = {
+    name: safeFileName,
+    parents: [parentFolderId]
+  };
+
+  const multipartBody = Buffer.concat([
+    Buffer.from(
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`
+    ),
+    fileBuffer,
+    Buffer.from(closeDelimiter)
+  ]);
+
+  const token = await getAccessToken();
+  const uploadParams = new URLSearchParams({
+    uploadType: 'multipart',
+    supportsAllDrives: 'true'
+  });
+
+  const uploadRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files?${uploadParams.toString()}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`,
+      'Content-Length': String(multipartBody.length)
+    },
+    body: multipartBody
+  });
+
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text();
+    throw new Error(`Failed to upload consultancy document to Google Drive: ${uploadRes.status} ${errText}`);
+  }
+
+  const fileData = await uploadRes.json();
+  const fileId = fileData.id;
+
+  // Make readable by anyone with link if personal/service account permissions allow
+  try {
+    await driveRequest(`/files/${fileId}/permissions?supportsAllDrives=true`, {
+      method: 'POST',
+      body: JSON.stringify({
+        role: 'reader',
+        type: 'anyone'
+      })
+    });
+  } catch (permErr) {
+    console.warn('[GoogleDrive] Note: Could not set public permission on consultancy file:', permErr.message);
+  }
+
+  const webViewLink = `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`;
+
+  return {
+    driveFileId: fileId,
+    driveFolderId: parentFolderId,
+    driveUrl: webViewLink,
+    fileName: safeFileName
+  };
+}
+
+/**
+ * Delete a consultancy file from Google Drive if needed.
+ */
+async function deleteConsultancyDocumentFile(driveFileId) {
+  if (!isDriveConfigured() || !driveFileId) return false;
+
+  try {
+    const res = await driveRequest(`/files/${driveFileId}?supportsAllDrives=true`, {
+      method: 'DELETE'
+    });
+    return res.ok || res.status === 404;
+  } catch (err) {
+    console.warn(`[GoogleDrive] Could not delete consultancy file ${driveFileId}:`, err.message);
+    return false;
+  }
+}
+
 module.exports = {
   isDriveConfigured,
   sanitizeName,
@@ -751,5 +907,8 @@ module.exports = {
   ensureSponsoredFolderHierarchy,
   relocateSponsoredProjectFolder,
   uploadSponsoredDocumentFile,
-  deleteSponsoredDocumentFile
+  deleteSponsoredDocumentFile,
+  ensureConsultancyFolderHierarchy,
+  uploadConsultancyDocumentFile,
+  deleteConsultancyDocumentFile
 };

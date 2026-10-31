@@ -22,6 +22,22 @@ const initDatabase = async () => {
     } catch (migErr) {
       console.warn('⚠️ Patent migration notice:', migErr.message);
     }
+
+    try {
+      const sponsoredMigration = require('../migrations/20261031_add_sponsored_research_sanction_year_documents_installments');
+      await sponsoredMigration.up(sequelize.getQueryInterface(), sequelize.constructor);
+      console.log('✓ Sponsored Research sanctionYear, documents, and installments schema verified and migrated');
+    } catch (migErr) {
+      console.warn('⚠️ Sponsored Research migration notice:', migErr.message);
+    }
+
+    try {
+      const consultancyMigration = require('../migrations/20261031_add_consultancy_project_status_dates_financials_documents');
+      await consultancyMigration.up(sequelize.getQueryInterface(), sequelize.constructor);
+      console.log('✓ Consultancy projectStatus, dates, financials, and documents schema verified and migrated');
+    } catch (migErr) {
+      console.warn('⚠️ Consultancy migration notice:', migErr.message);
+    }
     console.log('✓ Database tables verified and created if not present');
 
     // Check if database already contains academic hierarchy and administrative users

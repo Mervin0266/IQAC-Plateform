@@ -153,8 +153,118 @@ function deriveAndValidateSanctionYear(sanctionDateStr, manualSanctionYear) {
   };
 }
 
+/**
+ * Validates and derives 4-digit Consultancy Start Year from Start Date.
+ * If both are provided, ensures they match.
+ */
+function deriveAndValidateConsultancyStartYear(startDateStr, manualStartYear) {
+  let derivedYear = null;
+
+  if (startDateStr && String(startDateStr).trim()) {
+    const cleanDate = String(startDateStr).trim().split('T')[0];
+    const parsedDate = new Date(cleanDate);
+    if (!isNaN(parsedDate.getTime())) {
+      derivedYear = parsedDate.getFullYear();
+    }
+  }
+
+  let finalYear = null;
+  if (derivedYear) {
+    finalYear = derivedYear;
+    if (manualStartYear !== undefined && manualStartYear !== null && String(manualStartYear).trim() !== '') {
+      const parsedManual = parseInt(String(manualStartYear).trim(), 10);
+      if (!isNaN(parsedManual) && parsedManual !== derivedYear) {
+        return {
+          valid: false,
+          error: `Consultancy Start Year (${parsedManual}) does not match Start Date year (${derivedYear}).`,
+          startYear: null
+        };
+      }
+    }
+  } else if (manualStartYear !== undefined && manualStartYear !== null && String(manualStartYear).trim() !== '') {
+    const str = String(manualStartYear).trim();
+    if (!/^\d{4}$/.test(str)) {
+      return {
+        valid: false,
+        error: 'Consultancy Start Year must be a valid 4-digit calendar year (e.g. 2024).',
+        startYear: null
+      };
+    }
+    const y = parseInt(str, 10);
+    if (y < 1950 || y > 2100) {
+      return {
+        valid: false,
+        error: 'Consultancy Start Year must be between 1950 and 2100.',
+        startYear: null
+      };
+    }
+    finalYear = y;
+  }
+
+  return {
+    valid: true,
+    startYear: finalYear,
+    legacyYear: finalYear ? `${finalYear - 1}-${finalYear}` : (manualStartYear ? String(manualStartYear) : '2024-2025')
+  };
+}
+
+const VALID_CONSULTANCY_PROJECT_STATUSES = ['Sanctioned', 'On Going', 'Completed'];
+
+/**
+ * Normalizes and validates Consultancy Project Status.
+ * Allowed values are strictly: 'Sanctioned', 'On Going', 'Completed'.
+ */
+function normalizeConsultancyProjectStatus(status) {
+  if (!status) return null;
+  const s = String(status).trim();
+  if (VALID_CONSULTANCY_PROJECT_STATUSES.includes(s)) return s;
+  const lower = s.toLowerCase();
+  if (lower === 'ongoing' || lower === 'on going' || lower === 'on-going') return 'On Going';
+  if (lower === 'sanctioned') return 'Sanctioned';
+  if (lower === 'completed') return 'Completed';
+  return null;
+}
+
+/**
+ * Safely extracts Agency Name, Email and Phone number from combined legacy agency string.
+ */
+function parseAgencyDetails(rawAgencyText) {
+  if (!rawAgencyText || typeof rawAgencyText !== 'string') {
+    return { agencyName: '', email: null, phone: null };
+  }
+  const text = rawAgencyText.trim();
+  const emailMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+  const email = emailMatch ? emailMatch[1] : null;
+
+  const phoneMatch = text.match(/(?:ph(?:one)?|tel|mob(?:ile)?|contact)?[:\s-]*(\+?[0-9]{1,4}[\s-]?[0-9]{2,5}[\s-]?[0-9]{4,8})/i);
+  const phone = phoneMatch ? phoneMatch[1].trim() : null;
+
+  let agencyName = text;
+  if (email) {
+    agencyName = agencyName.replace(email, '');
+  }
+  if (phone) {
+    agencyName = agencyName.replace(phone, '');
+  }
+  agencyName = agencyName
+    .replace(/(?:contact|ph|phone|tel|email|mobile)[\s:]*/gi, '')
+    .replace(/,\s*,/g, ',')
+    .replace(/^[\s,;-]+|[\s,;-]+$/g, '')
+    .trim();
+
+  return {
+    agencyName: agencyName || text,
+    email,
+    phone
+  };
+}
+
 module.exports = {
   calculateProjectDuration,
-  deriveAndValidateSanctionYear
+  deriveAndValidateSanctionYear,
+  deriveAndValidateConsultancyStartYear,
+  normalizeConsultancyProjectStatus,
+  parseAgencyDetails,
+  VALID_CONSULTANCY_PROJECT_STATUSES
 };
 

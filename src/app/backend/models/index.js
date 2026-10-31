@@ -81,6 +81,12 @@ Notification.belongsTo(User, { foreignKey: 'recipientId', as: 'recipient' });
 User.hasMany(ConsultancyProject, { foreignKey: 'createdBy', as: 'consultancyProjects' });
 ConsultancyProject.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
+const ConsultancyDocument = require('./ConsultancyDocument');
+ConsultancyProject.hasMany(ConsultancyDocument, { foreignKey: 'projectId', as: 'documents', onDelete: 'CASCADE' });
+ConsultancyDocument.belongsTo(ConsultancyProject, { foreignKey: 'projectId', as: 'project' });
+User.hasMany(ConsultancyDocument, { foreignKey: 'uploadedBy', as: 'uploadedConsultancyDocuments' });
+ConsultancyDocument.belongsTo(User, { foreignKey: 'uploadedBy', as: 'uploader' });
+
 // Accreditation & Parameter Master Associations
 AccreditationFramework.hasMany(AccreditationParameter, { foreignKey: 'frameworkId', as: 'parameters', onDelete: 'CASCADE' });
 AccreditationParameter.belongsTo(AccreditationFramework, { foreignKey: 'frameworkId', as: 'framework' });
@@ -144,6 +150,7 @@ module.exports = {
   Department,
   ResearchMetric,
   ConsultancyProject,
+  ConsultancyDocument,
   AccreditationFramework,
   AccreditationParameter,
   ParameterDataSubmission,
