@@ -389,6 +389,8 @@ export function PatentsPage({
           errs.grantYear = `Year (${formData.grantYear}) does not match Grant Date year (${gd.getFullYear()}).`;
         }
       }
+    } else {
+      delete errs.grantYear;
     }
 
     setFormErrors(errs);
@@ -420,8 +422,8 @@ export function PatentsPage({
         status: formData.status,
         patentType: formData.patentType,
         department: formData.department,
-        grantYear: parsedGrantYear,
-        academicYear: parsedGrantYear ? `${parsedGrantYear - 1}-${parsedGrantYear}` : formData.academicYear,
+        grantYear: isGranted ? parsedGrantYear : null,
+        academicYear: isGranted && parsedGrantYear ? `${parsedGrantYear - 1}-${parsedGrantYear}` : (formData.academicYear || '2024-2025'),
         filedDate: formData.filedDate || null,
         publishedDate: formData.publishedDate || null,
         grantedDate: formData.grantedDate || null,
@@ -1512,8 +1514,8 @@ export function PatentsPage({
               </div>
             </div>
 
-            {/* Department & Year of Grant */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Department & Year of Grant (Year shown only for Granted / Commercialized) */}
+            <div className={`grid grid-cols-1 ${isGrantedForm ? 'md:grid-cols-2' : ''} gap-4`}>
               <div className="space-y-1.5">
                 <Label className="font-semibold text-gray-700">Department</Label>
                 <Select
@@ -1531,37 +1533,29 @@ export function PatentsPage({
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="font-semibold text-gray-700">
-                    Year (Year of Grant) {isGrantedForm ? '*' : ''}
-                  </Label>
-                  {!isGrantedForm && (
-                    <span className="text-[10px] text-gray-400">Assigned upon grant</span>
+              {isGrantedForm && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-semibold text-gray-700">
+                      Year of Grant <span className="text-red-500">*</span>
+                    </Label>
+                    <span className="text-[10px] text-blue-600 font-medium">Calendar year (e.g. 2024)</span>
+                  </div>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 2024"
+                    value={formData.grantYear}
+                    onChange={(e) => {
+                      setFormData({ ...formData, grantYear: e.target.value });
+                      if (formErrors.grantYear) setFormErrors({ ...formErrors, grantYear: '' });
+                    }}
+                    className={`h-9 text-xs border-gray-200 ${formErrors.grantYear ? 'border-red-500 bg-red-50/20' : ''}`}
+                  />
+                  {formErrors.grantYear && (
+                    <p className="text-red-500 text-[11px] font-medium mt-1">{formErrors.grantYear}</p>
                   )}
                 </div>
-                {isGrantedForm ? (
-                  <div>
-                    <Input
-                      type="number"
-                      placeholder="e.g. 2024"
-                      value={formData.grantYear}
-                      onChange={(e) => {
-                        setFormData({ ...formData, grantYear: e.target.value });
-                        if (formErrors.grantYear) setFormErrors({ ...formErrors, grantYear: '' });
-                      }}
-                      className={`h-9 text-xs border-gray-200 ${formErrors.grantYear ? 'border-red-500 bg-red-50/20' : ''}`}
-                    />
-                    {formErrors.grantYear && (
-                      <p className="text-red-500 text-[11px] font-medium mt-1">{formErrors.grantYear}</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="h-9 px-3 py-2 bg-gray-100 rounded-md border border-gray-200 text-gray-400 text-xs flex items-center italic">
-                    Pending Grant — Year assigned only upon grant
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
             {/* Dates: Filing Date, Publication Date, Grant Date */}

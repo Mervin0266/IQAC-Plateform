@@ -573,7 +573,17 @@ exports.createPatent = async (req, res) => {
     }
 
     // Validate Year of Grant
-    const yearValidation = validateYearAndStatus(status, grantedDate, year || grantYear || academicYear);
+    const isGranted = (status || '').toLowerCase().includes('grant') || 
+                      (status || '').toLowerCase().includes('commercial') || 
+                      (status || '').toLowerCase().includes('licens');
+
+    // For granted patents, validate year/grantYear (fallback to academicYear if passed);
+    // For ungranted patents (Published, Filed, Under Examination), Year of Grant must be null
+    const yearToValidate = isGranted 
+      ? (year !== undefined && year !== null && String(year).trim() !== '' ? year : (grantYear || academicYear))
+      : (year !== undefined && year !== null && String(year).trim() !== '' ? year : (grantYear || null));
+
+    const yearValidation = validateYearAndStatus(status, grantedDate, yearToValidate);
     if (!yearValidation.valid) {
       return res.status(400).json({
         success: false,
@@ -601,8 +611,8 @@ exports.createPatent = async (req, res) => {
       status: status || 'published',
       patentType: patentType || 'National (Indian)',
       department: assignedDept.trim(),
-      grantYear: yearValidation.grantYear,
-      academicYear: yearValidation.academicYear,
+      grantYear: isGranted ? yearValidation.grantYear : null,
+      academicYear: isGranted ? yearValidation.academicYear : (academicYear || 'Pending Grant'),
       filedDate: sanitizeDate(filedDate),
       publishedDate: sanitizeDate(publishedDate),
       grantedDate: sanitizeDate(grantedDate),
@@ -644,21 +654,16 @@ exports.createPatent = async (req, res) => {
       }
     }
 
-    try {
-      if (creatorId) {
-        await logAction(
-          creatorId,
-          'CREATE_PATENT',
-          'Patent',
-          patent.id,
-          null,
-          patent.toJSON(),
-          req
-        );
-      }
-    } catch (auditErr) {
-      console.warn('Audit logging failed for create patent (ignoring):', auditErr.message);
-    }
+    await logActionSafe({
+      recordId: patent.id,
+      title: patent.title,
+      user: req.user,
+      action: 'CREATE_PATENT',
+      previousValue: null,
+      updatedValue: patent.toJSON(),
+      ipAddress: req.ip || (req.socket && req.socket.remoteAddress) || null,
+      remarks: `Created patent: ${patent.title}`
+    });
 
     const reloaded = await Patent.findByPk(patent.id, {
       include: [{
@@ -719,8 +724,20 @@ exports.updatePatent = async (req, res) => {
 
     // Validate Year & Status if modified
     const targetStatus = req.body.status !== undefined ? req.body.status : patent.status;
+    const isTargetGranted = (targetStatus || '').toLowerCase().includes('grant') || 
+                            (targetStatus || '').toLowerCase().includes('commercial') || 
+                            (targetStatus || '').toLowerCase().includes('licens');
     const targetGrantDate = req.body.grantedDate !== undefined ? req.body.grantedDate : patent.grantedDate;
-    const targetYear = req.body.year !== undefined ? req.body.year : (req.body.grantYear !== undefined ? req.body.grantYear : patent.grantYear);
+
+    let targetYear = null;
+    if (isTargetGranted) {
+      targetYear = req.body.year !== undefined ? req.body.year : (req.body.grantYear !== undefined ? req.body.grantYear : patent.grantYear);
+    } else {
+      // Ungranted: Year of Grant must be null
+      targetYear = (req.body.grantYear !== undefined && req.body.grantYear !== null && String(req.body.grantYear).trim() !== '') 
+        ? req.body.grantYear 
+        : ((req.body.year !== undefined && req.body.year !== null && String(req.body.year).trim() !== '') ? req.body.year : null);
+    }
 
     const yearValidation = validateYearAndStatus(targetStatus, targetGrantDate, targetYear);
     if (!yearValidation.valid) {
@@ -750,8 +767,8 @@ exports.updatePatent = async (req, res) => {
       }
     });
 
-    patent.grantYear = yearValidation.grantYear;
-    patent.academicYear = yearValidation.academicYear;
+    patent.grantYear = isTargetGranted ? yearValidation.grantYear : null;
+    patent.academicYear = isTargetGranted ? yearValidation.academicYear : (req.body.academicYear || patent.academicYear || 'Pending Grant');
 
     // Only coordinator, hod, and admin can change approval status
     if (['admin', 'coordinator', 'hod'].includes(req.user.role) && req.body.approvalStatus !== undefined) {
@@ -781,15 +798,16 @@ exports.updatePatent = async (req, res) => {
       }
     }
 
-    await logAction(
-      req.user.id,
-      'UPDATE_PATENT',
-      'Patent',
-      patent.id,
-      oldValues,
-      patent.toJSON(),
-      req
-    );
+    await logActionSafe({
+      recordId: patent.id,
+      title: patent.title,
+      user: req.user,
+      action: 'UPDATE_PATENT',
+      previousValue: oldValues,
+      updatedValue: patent.toJSON(),
+      ipAddress: req.ip || (req.socket && req.socket.remoteAddress) || null,
+      remarks: `Updated patent: ${patent.title}`
+    });
 
     res.json({
       success: true,
@@ -837,7 +855,7 @@ exports.deletePatent = async (req, res) => {
 
     const oldValues = patent.toJSON();
 
-    // Clean up managed files from Google Drive or local server storage
+    // 1. Clean up managed files from Google Drive or local server storage
     if (patent.proofs && patent.proofs.length > 0) {
       for (const proof of patent.proofs) {
         if (proof.sourceType === 'local_upload' && proof.driveFileId) {
@@ -845,22 +863,34 @@ exports.deletePatent = async (req, res) => {
             if (fs.existsSync(proof.driveFileId)) fs.unlinkSync(proof.driveFileId);
           } catch (_) {}
         } else if (proof.sourceType === 'drive_upload' && proof.driveFileId) {
-          googleDriveService.deletePatentProofFile(proof.driveFileId).catch(() => {});
+          try {
+            googleDriveService.deletePatentProofFile(proof.driveFileId).catch(() => {});
+          } catch (_) {}
         }
       }
     }
 
+    // 2. Explicitly remove all proof records from database to prevent foreign key constraint issues
+    try {
+      await PatentProof.destroy({ where: { patentId: patent.id } });
+    } catch (proofErr) {
+      console.warn('[PatentController] Notice during proof cleanup:', proofErr.message);
+    }
+
+    // 3. Delete patent record
     await patent.destroy();
 
-    await logAction(
-      req.user.id,
-      'DELETE_PATENT',
-      'Patent',
-      req.params.id,
-      oldValues,
-      null,
-      req
-    );
+    // 4. Safe audit logging
+    await logActionSafe({
+      recordId: req.params.id,
+      title: oldValues.title || 'Patent',
+      user: req.user,
+      action: 'DELETE_PATENT',
+      previousValue: oldValues,
+      updatedValue: null,
+      ipAddress: req.ip || (req.socket && req.socket.remoteAddress) || null,
+      remarks: `Deleted patent: ${oldValues.title || req.params.id}`
+    });
 
     res.json({
       success: true,
@@ -1125,25 +1155,18 @@ exports.bulkUploadPatents = async (req, res) => {
 
     await t.commit();
 
-    try {
-      if (creatorId) {
-        await logAction(
-          creatorId,
-          'BULK_UPLOAD_PATENTS',
-          'Patent',
-          null,
-          null,
-          {
-            count: createdPatents.length,
-            proofLinksCount: proofRecordsToCreate.length,
-            errorsCount: errors.length
-          },
-          req
-        );
-      }
-    } catch (auditErr) {
-      console.warn('Audit logging failed for bulk patents (ignoring):', auditErr.message);
-    }
+    await logActionSafe({
+      user: req.user,
+      action: 'BULK_UPLOAD_PATENTS',
+      previousValue: null,
+      updatedValue: {
+        count: createdPatents.length,
+        proofLinksCount: proofRecordsToCreate.length,
+        errorsCount: errors.length
+      },
+      ipAddress: req.ip || (req.socket && req.socket.remoteAddress) || null,
+      remarks: `Bulk uploaded ${createdPatents.length} patents with ${proofRecordsToCreate.length} proof links`
+    });
 
     res.status(201).json({
       success: true,
@@ -1292,15 +1315,16 @@ exports.uploadPatentProof = async (req, res) => {
     }
 
     if (uploaded.length > 0) {
-      await logAction(
-        req.user.id,
-        'ADD_PATENT_PROOF',
-        'PatentProof',
-        patent.id,
-        null,
-        { uploadedCount: uploaded.length, failedCount: failed.length },
-        req
-      );
+      await logActionSafe({
+        recordId: patent.id,
+        title: patent.title,
+        user: req.user,
+        action: 'ADD_PATENT_PROOF',
+        previousValue: null,
+        updatedValue: { uploadedCount: uploaded.length, failedCount: failed.length },
+        ipAddress: req.ip || (req.socket && req.socket.remoteAddress) || null,
+        remarks: `Uploaded ${uploaded.length} proof document(s) for patent: ${patent.title}`
+      });
     }
 
     console.log(`[PatentController] Completed upload processing: ${uploaded.length} succeeded, ${failed.length} failed.`);
@@ -1408,15 +1432,16 @@ exports.addPatentProofLinks = async (req, res) => {
     }
 
     if (createdProofs.length > 0) {
-      await logAction(
-        req.user.id,
-        'ADD_PATENT_PROOF_LINK',
-        'PatentProof',
-        patent.id,
-        null,
-        { createdCount: createdProofs.length, invalidCount: invalidLinks.length },
-        req
-      );
+      await logActionSafe({
+        recordId: patent.id,
+        title: patent.title,
+        user: req.user,
+        action: 'ADD_PATENT_PROOF_LINK',
+        previousValue: null,
+        updatedValue: { createdCount: createdProofs.length, invalidCount: invalidLinks.length },
+        ipAddress: req.ip || (req.socket && req.socket.remoteAddress) || null,
+        remarks: `Attached ${createdProofs.length} Google Drive link(s) for patent: ${patent.title}`
+      });
     }
 
     res.status(201).json({
@@ -1510,15 +1535,16 @@ exports.deletePatentProof = async (req, res) => {
 
     await proof.destroy();
 
-    await logAction(
-      req.user.id,
-      'REMOVE_PATENT_PROOF',
-      'PatentProof',
-      proof.id,
-      proof.toJSON(),
-      null,
-      req
-    );
+    await logActionSafe({
+      recordId: proof.id,
+      title: proof.fileName || 'Patent Proof',
+      user: req.user,
+      action: 'REMOVE_PATENT_PROOF',
+      previousValue: proof.toJSON(),
+      updatedValue: null,
+      ipAddress: req.ip || (req.socket && req.socket.remoteAddress) || null,
+      remarks: `Removed proof document from patent: ${patent.title}`
+    });
 
     res.json({
       success: true,
