@@ -1379,20 +1379,20 @@ export function PatentsPage({
       {/* SINGLE ENTRY / EDIT PATENT MODAL */}
       {/* ---------------------------------------------------- */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-          <DialogHeader className="p-5 pb-3 border-b border-gray-100 bg-gray-50/50">
+        <DialogContent className="sm:max-w-[700px] max-h-[88vh] overflow-y-auto bg-white p-6 rounded-2xl">
+          <DialogHeader className="border-b border-gray-100 pb-3">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <Award className="w-5 h-5 text-[#2f4692]" />
-              {editingPatent ? 'Edit Patent Record' : 'Add Patent / Invention'}
+              <span>{editingPatent ? 'Edit Patent Record' : 'Record New Patent / Invention'}</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
-              Record intellectual property filing, grant, and institutional proof document metadata.
+              Record intellectual property filing, grant, and institutional proof document metadata (NIRF & NAAC 3.4).
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSavePatent} className="p-5 space-y-4 text-xs">
+          <form onSubmit={handleSavePatent} className="space-y-4 py-2 text-xs">
             {formServerError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs flex items-start gap-2.5">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs flex items-start gap-2.5 font-medium">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
                   <p className="font-bold text-red-800">Submission Error</p>
@@ -1401,342 +1401,402 @@ export function PatentsPage({
               </div>
             )}
 
-            {/* Title */}
-            <div className="space-y-1.5">
-              <Label className="font-semibold text-gray-700">Title of Invention / Patent *</Label>
-              <Input
-                placeholder="e.g. IoT-Based Edge Computational Device for Agricultural Sensing"
-                value={formData.title}
-                onChange={(e) => {
-                  setFormData({ ...formData, title: e.target.value });
-                  if (formErrors.title) setFormErrors({ ...formErrors, title: '' });
-                }}
-                className={`h-9 text-xs border-gray-200 focus-visible:ring-[#2f4692] ${
-                  formErrors.title ? 'border-red-500 bg-red-50/20' : ''
-                }`}
-              />
-              {formErrors.title && (
-                <p className="text-red-500 text-[11px] font-medium">{formErrors.title}</p>
-              )}
-            </div>
-
-            {/* Inventors */}
-            <div className="space-y-1.5">
-              <Label className="font-semibold text-gray-700">Inventor Name(s) (Comma separated) *</Label>
-              <Input
-                placeholder="e.g. Dr. Rajesh Kumar, Dr. Priya Sharma, Dr. Anand V"
-                value={formData.inventors}
-                onChange={(e) => {
-                  setFormData({ ...formData, inventors: e.target.value });
-                  if (formErrors.inventors) setFormErrors({ ...formErrors, inventors: '' });
-                }}
-                className={`h-9 text-xs border-gray-200 focus-visible:ring-[#2f4692] ${
-                  formErrors.inventors ? 'border-red-500 bg-red-50/20' : ''
-                }`}
-              />
-              {formErrors.inventors && (
-                <p className="text-red-500 text-[11px] font-medium">{formErrors.inventors}</p>
-              )}
-            </div>
-
-            {/* Status & Patent Type */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Patent Stage / Status *</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(val) => {
-                    const isNowGranted = val.toLowerCase() === 'granted' || val.toLowerCase() === 'commercialized';
-                    let derivedYear = formData.grantYear;
-                    if (isNowGranted && !derivedYear && formData.grantedDate) {
-                      const d = new Date(formData.grantedDate);
-                      if (!isNaN(d.getTime())) derivedYear = String(d.getFullYear());
-                    } else if (!isNowGranted) {
-                      derivedYear = '';
-                    }
-                    setFormData({
-                      ...formData,
-                      status: val,
-                      grantYear: derivedYear
-                    });
-                    if (formErrors.status) setFormErrors({ ...formErrors, status: '' });
-                  }}
-                >
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Select Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PATENT_STATUS_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* SECTION A — PATENT & INVENTION DETAILS */}
+            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Award className="w-3.5 h-3.5 text-[#2f4692]" />
+                <span>Section A — Patent & Invention Details</span>
+              </h4>
 
               <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Patent Type / Jurisdiction *</Label>
-                <Select
-                  value={formData.patentType}
-                  onValueChange={(val) => setFormData({ ...formData, patentType: val })}
-                >
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Select Jurisdiction" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PATENT_TYPE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Application No & Patent No */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Application Number / Filing Ref</Label>
-                <Input
-                  placeholder="e.g. IN202441012345"
-                  value={formData.applicationNo || ''}
-                  onChange={(e) => setFormData({ ...formData, applicationNo: e.target.value })}
-                  className="h-9 text-xs border-gray-200 font-mono"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Patent / Grant Number (if granted)</Label>
-                <Input
-                  placeholder="e.g. PAT-IN-489021 / US11894520B2"
-                  value={formData.patentNo || ''}
-                  onChange={(e) => setFormData({ ...formData, patentNo: e.target.value })}
-                  className="h-9 text-xs border-gray-200 font-mono"
-                />
-              </div>
-            </div>
-
-            {/* Department & Year of Grant (Year shown only for Granted / Commercialized) */}
-            <div className={`grid grid-cols-1 ${isGrantedForm ? 'md:grid-cols-2' : ''} gap-4`}>
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Department</Label>
-                <Select
-                  value={formData.department}
-                  onValueChange={(val) => setFormData({ ...formData, department: val })}
-                >
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Select Department" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-56">
-                    {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {isGrantedForm && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="font-semibold text-gray-700">
-                      Year of Grant <span className="text-red-500">*</span>
-                    </Label>
-                    <span className="text-[10px] text-blue-600 font-medium">Calendar year (e.g. 2024)</span>
-                  </div>
-                  <Input
-                    type="number"
-                    placeholder="e.g. 2024"
-                    value={formData.grantYear}
-                    onChange={(e) => {
-                      setFormData({ ...formData, grantYear: e.target.value });
-                      if (formErrors.grantYear) setFormErrors({ ...formErrors, grantYear: '' });
-                    }}
-                    className={`h-9 text-xs border-gray-200 ${formErrors.grantYear ? 'border-red-500 bg-red-50/20' : ''}`}
-                  />
-                  {formErrors.grantYear && (
-                    <p className="text-red-500 text-[11px] font-medium mt-1">{formErrors.grantYear}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Dates: Filing Date, Publication Date, Grant Date */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Filing Date</Label>
-                <Input
-                  type="date"
-                  value={formData.filedDate || ''}
-                  onChange={(e) => setFormData({ ...formData, filedDate: e.target.value })}
-                  className="h-9 text-xs border-gray-200"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Publication Date</Label>
-                <Input
-                  type="date"
-                  value={formData.publishedDate || ''}
-                  onChange={(e) => setFormData({ ...formData, publishedDate: e.target.value })}
-                  className="h-9 text-xs border-gray-200"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Grant Date</Label>
-                <Input
-                  type="date"
-                  value={formData.grantedDate || ''}
-                  onChange={(e) => {
-                    const gDate = e.target.value;
-                    let derivedYear = formData.grantYear;
-                    if (gDate) {
-                      const d = new Date(gDate);
-                      if (!isNaN(d.getTime())) {
-                        derivedYear = String(d.getFullYear());
-                      }
-                    }
-                    setFormData({
-                      ...formData,
-                      grantedDate: gDate,
-                      grantYear: isGrantedForm ? (derivedYear || formData.grantYear) : ''
-                    });
-                    if (formErrors.grantYear) setFormErrors({ ...formErrors, grantYear: '' });
-                  }}
-                  className="h-9 text-xs border-gray-200"
-                />
-              </div>
-            </div>
-
-            {/* Commercialization: Partner, Revenue, License Date */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Commercial Partner / Licensee</Label>
-                <Input
-                  placeholder="e.g. AgriTech Automation Pvt. Ltd."
-                  value={formData.partner || ''}
-                  onChange={(e) => setFormData({ ...formData, partner: e.target.value })}
-                  className="h-9 text-xs border-gray-200"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">Revenue / Royalty (₹)</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 450000"
-                  value={formData.revenue || ''}
-                  onChange={(e) => setFormData({ ...formData, revenue: parseFloat(e.target.value) || 0 })}
-                  className="h-9 text-xs border-gray-200"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-gray-700">License Date</Label>
-                <Input
-                  type="date"
-                  value={formData.licenseDate || ''}
-                  onChange={(e) => setFormData({ ...formData, licenseDate: e.target.value })}
-                  className="h-9 text-xs border-gray-200"
-                />
-              </div>
-            </div>
-
-            {/* Proof Documents Section (Optional, multi-document) */}
-            <div className="border border-blue-100 bg-blue-50/20 rounded-lg p-3.5 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="font-bold text-gray-800 flex items-center gap-1.5">
-                  <Paperclip className="w-3.5 h-3.5 text-[#2f4692]" />
-                  Proof Document Management (Optional)
+                <Label className="font-semibold text-gray-700">
+                  Title of Invention / Patent <span className="text-red-500">*</span>
                 </Label>
-                <span className="text-[10px] text-gray-500">Stored in institutional Google Drive</span>
-              </div>
-
-              {/* Method A: File Upload */}
-              <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-gray-700">Method A: Direct File Upload (PDF, PNG, JPG max 10MB)</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    multiple
-                    accept=".pdf,.png,.jpg,.jpeg"
-                    onChange={(e) => {
-                      if (e.target.files) {
-                        setSelectedProofFiles(Array.from(e.target.files));
-                      }
-                    }}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="h-8 text-xs bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-                  >
-                    <FolderOpen className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
-                    Browse Files
-                  </Button>
-                  <span className="text-[11px] text-gray-500">
-                    {selectedProofFiles.length === 0
-                      ? 'No files selected'
-                      : `${selectedProofFiles.length} file(s) selected`}
-                  </span>
-                </div>
-                {selectedProofFiles.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {selectedProofFiles.map((file, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1 bg-white border border-gray-200 rounded px-2 py-0.5 text-[10px] text-gray-700">
-                        <Paperclip className="w-2.5 h-2.5 text-gray-400" />
-                        <span className="truncate max-w-[150px]">{file.name}</span>
-                        <span className="text-gray-400 font-mono">({Math.round(file.size / 1024)} KB)</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedProofFiles(selectedProofFiles.filter((_, i) => i !== idx))}
-                          className="text-gray-400 hover:text-red-500 ml-0.5"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
+                <Input
+                  placeholder="e.g. IoT-Based Edge Computational Device for Agricultural Sensing"
+                  value={formData.title}
+                  onChange={(e) => {
+                    setFormData({ ...formData, title: e.target.value });
+                    if (formErrors.title) setFormErrors({ ...formErrors, title: '' });
+                  }}
+                  className={`h-9 text-xs border-gray-200 bg-white focus-visible:ring-[#2f4692] ${
+                    formErrors.title ? 'border-red-500 bg-red-50/20' : ''
+                  }`}
+                />
+                {formErrors.title && (
+                  <p className="text-red-500 text-[11px] font-medium">{formErrors.title}</p>
                 )}
               </div>
 
-              {/* Method B: Google Drive Links */}
-              <div className="space-y-1.5 pt-1">
-                <Label className="text-[11px] font-semibold text-gray-700">Method B: Google Drive Link(s)</Label>
-                <textarea
-                  rows={2}
-                  placeholder="Paste Google Drive link(s) here (separate multiple links with comma or newline)..."
-                  value={formData.proofLinks}
-                  onChange={(e) => setFormData({ ...formData, proofLinks: e.target.value })}
-                  className="w-full rounded-md border border-gray-200 p-2 text-xs bg-white outline-none focus:border-[#2f4692]"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">
+                    Inventor Name(s) (Comma separated) <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    placeholder="e.g. Dr. Rajesh Kumar, Dr. Priya Sharma"
+                    value={formData.inventors}
+                    onChange={(e) => {
+                      setFormData({ ...formData, inventors: e.target.value });
+                      if (formErrors.inventors) setFormErrors({ ...formErrors, inventors: '' });
+                    }}
+                    className={`h-9 text-xs border-gray-200 bg-white focus-visible:ring-[#2f4692] ${
+                      formErrors.inventors ? 'border-red-500 bg-red-50/20' : ''
+                    }`}
+                  />
+                  {formErrors.inventors && (
+                    <p className="text-red-500 text-[11px] font-medium">{formErrors.inventors}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Department</Label>
+                  <Select
+                    value={formData.department}
+                    onValueChange={(val) => setFormData({ ...formData, department: val })}
+                  >
+                    <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
+                      <SelectValue placeholder="Select Department" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56">
+                      {departments.map((dept) => (
+                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
-            {/* Patent Document URL */}
-            <div className="space-y-1.5">
-              <Label className="font-semibold text-gray-700">Official Patent URL / Gazette Link</Label>
-              <Input
-                type="url"
-                placeholder="https://ipindiaservices.gov.in / https://patents.google.com"
-                value={formData.patentUrl || ''}
-                onChange={(e) => setFormData({ ...formData, patentUrl: e.target.value })}
-                className="h-9 text-xs border-gray-200"
-              />
+            {/* SECTION B — CLASSIFICATION & JURISDICTION */}
+            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#2f4692]" />
+                <span>Section B — Classification & Reference Numbers</span>
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">
+                    Patent Stage / Status <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(val) => {
+                      const isNowGranted = val.toLowerCase() === 'granted' || val.toLowerCase() === 'commercialized';
+                      let derivedYear = formData.grantYear;
+                      if (isNowGranted && !derivedYear && formData.grantedDate) {
+                        const d = new Date(formData.grantedDate);
+                        if (!isNaN(d.getTime())) derivedYear = String(d.getFullYear());
+                      } else if (!isNowGranted) {
+                        derivedYear = '';
+                      }
+                      setFormData({
+                        ...formData,
+                        status: val,
+                        grantYear: derivedYear
+                      });
+                      if (formErrors.status) setFormErrors({ ...formErrors, status: '' });
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
+                      <SelectValue placeholder="Select Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PATENT_STATUS_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formErrors.status && (
+                    <p className="text-red-500 text-[11px] font-medium">{formErrors.status}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">
+                    Patent Type / Jurisdiction <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={formData.patentType}
+                    onValueChange={(val) => setFormData({ ...formData, patentType: val })}
+                  >
+                    <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
+                      <SelectValue placeholder="Select Jurisdiction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PATENT_TYPE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Application Number / Filing Ref</Label>
+                  <Input
+                    placeholder="e.g. IN202441012345"
+                    value={formData.applicationNo || ''}
+                    onChange={(e) => setFormData({ ...formData, applicationNo: e.target.value })}
+                    className="h-9 text-xs border-gray-200 bg-white font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Patent / Grant Number (if granted)</Label>
+                  <Input
+                    placeholder="e.g. PAT-IN-489021 / US11894520B2"
+                    value={formData.patentNo || ''}
+                    onChange={(e) => setFormData({ ...formData, patentNo: e.target.value })}
+                    className="h-9 text-xs border-gray-200 bg-white font-mono"
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* Abstract / Summary */}
-            <div className="space-y-1.5">
-              <Label className="font-semibold text-gray-700">Abstract / Summary of Invention</Label>
-              <textarea
-                rows={3}
-                placeholder="Brief technical description, claims, or utility synopsis..."
-                value={formData.description || ''}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full rounded-md border border-gray-200 p-2.5 text-xs outline-none focus:border-[#2f4692]"
-              />
+            {/* SECTION C — TIMELINE & CRITICAL DATES */}
+            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[#2f4692]" />
+                <span>Section C — Timeline & Critical Dates</span>
+              </h4>
+
+              <div className={`grid grid-cols-1 ${isGrantedForm ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-3`}>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Filing Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.filedDate || ''}
+                    onChange={(e) => setFormData({ ...formData, filedDate: e.target.value })}
+                    className="h-9 text-xs border-gray-200 bg-white"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Publication Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.publishedDate || ''}
+                    onChange={(e) => setFormData({ ...formData, publishedDate: e.target.value })}
+                    className="h-9 text-xs border-gray-200 bg-white"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Grant Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.grantedDate || ''}
+                    onChange={(e) => {
+                      const gDate = e.target.value;
+                      let derivedYear = formData.grantYear;
+                      if (gDate) {
+                        const d = new Date(gDate);
+                        if (!isNaN(d.getTime())) {
+                          derivedYear = String(d.getFullYear());
+                        }
+                      }
+                      setFormData({
+                        ...formData,
+                        grantedDate: gDate,
+                        grantYear: isGrantedForm ? (derivedYear || formData.grantYear) : ''
+                      });
+                      if (formErrors.grantYear) setFormErrors({ ...formErrors, grantYear: '' });
+                    }}
+                    className="h-9 text-xs border-gray-200 bg-white"
+                  />
+                </div>
+
+                {isGrantedForm && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-gray-700">
+                        Year of Grant <span className="text-red-500">*</span>
+                      </Label>
+                    </div>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 2024"
+                      value={formData.grantYear}
+                      onChange={(e) => {
+                        setFormData({ ...formData, grantYear: e.target.value });
+                        if (formErrors.grantYear) setFormErrors({ ...formErrors, grantYear: '' });
+                      }}
+                      className={`h-9 text-xs border-gray-200 bg-white font-mono ${
+                        formErrors.grantYear ? 'border-red-500 bg-red-50/20' : ''
+                      }`}
+                    />
+                    {formErrors.grantYear && (
+                      <p className="text-red-500 text-[11px] font-medium mt-1">{formErrors.grantYear}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SECTION D — COMMERCIALIZATION & REVENUE */}
+            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5 text-[#2f4692]" />
+                <span>Section D — Commercialization & Royalty</span>
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Commercial Partner / Licensee</Label>
+                  <Input
+                    placeholder="e.g. AgriTech Automation Pvt. Ltd."
+                    value={formData.partner || ''}
+                    onChange={(e) => setFormData({ ...formData, partner: e.target.value })}
+                    className="h-9 text-xs border-gray-200 bg-white"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">Revenue / Royalty (₹)</Label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 450000"
+                    value={formData.revenue || ''}
+                    onChange={(e) => setFormData({ ...formData, revenue: parseFloat(e.target.value) || 0 })}
+                    className="h-9 text-xs border-gray-200 bg-white font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-gray-700">License Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.licenseDate || ''}
+                    onChange={(e) => setFormData({ ...formData, licenseDate: e.target.value })}
+                    className="h-9 text-xs border-gray-200 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION E — PROOF DOCUMENTS (GOOGLE DRIVE INTEGRATION) */}
+            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Paperclip className="w-3.5 h-3.5 text-[#2f4692]" />
+                <span>Section E — Supporting Documents (Google Drive Integration)</span>
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {/* Method A: Direct File Upload */}
+                <div className="p-3 bg-white rounded-lg border border-blue-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
+                      <FolderOpen className="w-3.5 h-3.5 text-blue-600" />
+                      Direct File Upload
+                    </span>
+                    <span className="text-[10px] text-gray-400">PDF, PNG, JPG (Max 10MB)</span>
+                  </div>
+
+                  <div>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      multiple
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          setSelectedProofFiles(Array.from(e.target.files));
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="h-8 text-xs bg-slate-50 border-gray-200 text-gray-700 hover:bg-slate-100 w-full flex items-center justify-center gap-1.5"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5 text-blue-600" />
+                      Browse Files from Computer
+                    </Button>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      {selectedProofFiles.length === 0
+                        ? 'No files chosen for upload'
+                        : `${selectedProofFiles.length} file(s) selected`}
+                    </p>
+                  </div>
+
+                  {selectedProofFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {selectedProofFiles.map((file, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-[10px] text-gray-700">
+                          <Paperclip className="w-2.5 h-2.5 text-gray-400" />
+                          <span className="truncate max-w-[130px]">{file.name}</span>
+                          <span className="text-gray-400 font-mono">({Math.round(file.size / 1024)} KB)</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProofFiles(selectedProofFiles.filter((_, i) => i !== idx))}
+                            className="text-gray-400 hover:text-red-500 ml-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Method B: Google Drive Links */}
+                <div className="p-3 bg-white rounded-lg border border-purple-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
+                      <Link2 className="w-3.5 h-3.5 text-purple-600" />
+                      Existing Google Drive Link(s)
+                    </span>
+                    <span className="text-[10px] text-gray-400">One URL per line</span>
+                  </div>
+
+                  <textarea
+                    rows={3}
+                    placeholder="https://drive.google.com/file/d/... (one per line)"
+                    value={formData.proofLinks}
+                    onChange={(e) => setFormData({ ...formData, proofLinks: e.target.value })}
+                    className="w-full p-2 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-[#2f4692] font-mono outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION F — OFFICIAL PORTAL LINK & ABSTRACT */}
+            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-[#2f4692]" />
+                <span>Section F — Official Link & Invention Summary</span>
+              </h4>
+
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-gray-700">Official Patent URL / Gazette Link</Label>
+                <div className="relative">
+                  <ExternalLink className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                  <Input
+                    type="url"
+                    placeholder="https://ipindiaservices.gov.in / https://patents.google.com"
+                    value={formData.patentUrl || ''}
+                    onChange={(e) => setFormData({ ...formData, patentUrl: e.target.value })}
+                    className="h-9 pl-8 text-xs border-gray-200 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-gray-700">Abstract / Summary of Invention</Label>
+                <textarea
+                  rows={3}
+                  placeholder="Brief technical description, claims, utility synopsis, or novel findings..."
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full rounded-md border border-gray-200 p-2.5 text-xs outline-none focus:border-[#2f4692] bg-white"
+                />
+              </div>
             </div>
 
             <DialogFooter className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
@@ -1752,9 +1812,9 @@ export function PatentsPage({
                 type="submit"
                 size="sm"
                 disabled={submitting}
-                className="bg-[#2f4692] text-white hover:bg-[#243877] px-5"
+                className="bg-[#2f4692] text-white hover:bg-[#243877] px-5 font-semibold text-xs"
               >
-                {submitting ? 'Saving...' : editingPatent ? 'Update Patent' : 'Save Patent'}
+                {submitting ? 'Saving...' : editingPatent ? 'Update Patent Record' : 'Save Patent Record'}
               </Button>
             </DialogFooter>
           </form>
