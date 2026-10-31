@@ -9,7 +9,7 @@
  * - Phase 4: Planned & Actual Project Duration calculations
  * - Phase 5: Financial tracking (Contract Value, Revenue Generated, Amount Received)
  * - Phase 6: Supporting Documents (Agreement/Work Order, Invoice, Payment Receipt) & Drive Links
- * - Phase 7: Bulk Excel parsing & validation
+ * - Phase 7: Approval Workflow Retirement & Strict Lifecycle (Sanctioned, On Going, Completed)
  */
 
 const assert = require('assert');
@@ -207,6 +207,50 @@ runTest('Rejects arbitrary non-Drive external URLs', () => {
   const badUrl = 'https://malicious-site.com/file.pdf';
   const val = validateDriveUrl(badUrl);
   assert.strictEqual(val.valid, false);
+});
+
+// ─── SUITE 7: APPROVAL WORKFLOW REMOVAL & STRICT LIFECYCLE ─────────────────
+console.log('\n--- Suite 7: Approval Workflow Removal & Strict Lifecycle (Phase 3 & 4) ---');
+
+runTest('All 11 legacy approval states are rejected as Project Status', () => {
+  const legacyApprovalStates = [
+    'draft',
+    'submitted',
+    'under_coordinator_review',
+    'returned_for_correction',
+    'rejected',
+    'approved',
+    'under_hod_review',
+    'finalized',
+    'edit_requested',
+    'edit_request_approved',
+    'record_reopened'
+  ];
+  for (const st of legacyApprovalStates) {
+    assert.strictEqual(normalizeConsultancyProjectStatus(st), null, `Legacy approval state "${st}" must not be accepted as project status`);
+  }
+});
+
+runTest('Project Status strictly accepts only Sanctioned, On Going, Completed', () => {
+  assert.strictEqual(normalizeConsultancyProjectStatus('Sanctioned'), 'Sanctioned');
+  assert.strictEqual(normalizeConsultancyProjectStatus('On Going'), 'On Going');
+  assert.strictEqual(normalizeConsultancyProjectStatus('Completed'), 'Completed');
+  assert.strictEqual(normalizeConsultancyProjectStatus('Pending'), null);
+  assert.strictEqual(normalizeConsultancyProjectStatus('Active'), null);
+  assert.strictEqual(normalizeConsultancyProjectStatus('In Review'), null);
+});
+
+runTest('ConsultancyProject model status default is null (no active draft/submitted state)', () => {
+  const ConsultancyProject = require('../models/ConsultancyProject');
+  const statusAttr = ConsultancyProject.rawAttributes.status;
+  assert.strictEqual(statusAttr.allowNull, true);
+  assert.strictEqual(statusAttr.defaultValue, null);
+});
+
+runTest('ConsultancyProject model projectStatus validation restricts to allowed 3 values', () => {
+  const ConsultancyProject = require('../models/ConsultancyProject');
+  const projectStatusAttr = ConsultancyProject.rawAttributes.projectStatus;
+  assert.deepStrictEqual(projectStatusAttr.validate.isIn[0], ['Sanctioned', 'On Going', 'Completed']);
 });
 
 console.log('\n================================================================');

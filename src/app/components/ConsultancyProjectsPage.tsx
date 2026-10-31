@@ -68,7 +68,7 @@ export interface ConsultancyProject {
   revenueInLakhs: number;
   amountReceivedInLakhs?: number | null;
   department: string;
-  status: string;
+  status?: string | null;
   description?: string | null;
   plannedDurationFormatted?: string | null;
   actualDurationFormatted?: string | null;
@@ -106,7 +106,6 @@ const EMPTY_FORM = {
   revenueInLakhs: '',
   amountReceivedInLakhs: '',
   department: '',
-  status: 'approved',
   description: ''
 };
 
@@ -138,33 +137,6 @@ function formatProjectStatusBadge(status?: string | null) {
   );
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
-  approved: { label: 'Approved', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: <CheckCircle className="w-3 h-3 text-emerald-600" /> },
-  finalized: { label: 'Finalized', color: 'text-teal-700', bg: 'bg-teal-50', border: 'border-teal-200', icon: <CheckCircle className="w-3 h-3 text-teal-600" /> },
-  submitted: { label: 'Submitted', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: <Clock className="w-3 h-3 text-blue-600" /> },
-  under_coordinator_review: { label: 'Under Review', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', icon: <AlertCircle className="w-3 h-3 text-amber-600" /> },
-  draft: { label: 'Draft', color: 'text-gray-700', bg: 'bg-gray-50', border: 'border-gray-200', icon: <Clock className="w-3 h-3 text-gray-500" /> },
-  returned_for_correction: { label: 'Correction', color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: <AlertCircle className="w-3 h-3 text-orange-600" /> },
-  rejected: { label: 'Rejected', color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', icon: <X className="w-3 h-3 text-red-600" /> },
-};
-
-function formatStatusBadge(statusKey: string) {
-  const cfg = STATUS_CONFIG[statusKey] || {
-    label: statusKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-    color: 'text-gray-700',
-    bg: 'bg-gray-50',
-    border: 'border-gray-200',
-    icon: <Clock className="w-3 h-3 text-gray-500" />
-  };
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
-      {cfg.icon}
-      <span>{cfg.label}</span>
-    </span>
-  );
-}
-
 export function ConsultancyProjectsPage({
   onNavigate,
   isPublicView = false,
@@ -181,7 +153,6 @@ export function ConsultancyProjectsPage({
   const [selectedStartYear, setSelectedStartYear] = useState('all');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [selectedProjectStatus, setSelectedProjectStatus] = useState('all');
-  const [selectedApprovalStatus, setSelectedApprovalStatus] = useState('all');
   const [viewMode, setViewMode] = useState<'table' | 'cards' | 'department'>('table');
 
   // Modals & Drawers
@@ -239,7 +210,6 @@ export function ConsultancyProjectsPage({
       if (selectedStartYear !== 'all') params.append('consultancyStartYear', selectedStartYear);
       if (selectedDepartment !== 'all') params.append('department', selectedDepartment);
       if (selectedProjectStatus !== 'all') params.append('projectStatus', selectedProjectStatus);
-      if (selectedApprovalStatus !== 'all') params.append('status', selectedApprovalStatus);
 
       const res = await fetch(`${API_BASE}/api/consultancy-projects?${params}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -255,7 +225,7 @@ export function ConsultancyProjectsPage({
     } finally {
       setLoading(false);
     }
-  }, [token, selectedStartYear, selectedDepartment, selectedProjectStatus, selectedApprovalStatus]);
+  }, [token, selectedStartYear, selectedDepartment, selectedProjectStatus]);
 
   useEffect(() => {
     fetchProjects();
@@ -292,7 +262,6 @@ export function ConsultancyProjectsPage({
       if (selectedProjectStatus !== 'all') {
         if ((item.projectStatus || 'Review Required') !== selectedProjectStatus) return false;
       }
-      if (selectedApprovalStatus !== 'all' && item.status !== selectedApprovalStatus) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const titleMatch = item.projectName?.toLowerCase().includes(q);
@@ -303,7 +272,7 @@ export function ConsultancyProjectsPage({
       }
       return true;
     });
-  }, [projects, selectedStartYear, selectedDepartment, selectedProjectStatus, selectedApprovalStatus, searchQuery]);
+  }, [projects, selectedStartYear, selectedDepartment, selectedProjectStatus, searchQuery]);
 
   // Aggregate stats
   const totalRevenue = useMemo(() => {
@@ -364,7 +333,6 @@ export function ConsultancyProjectsPage({
         revenueInLakhs: String(project.revenueInLakhs || ''),
         amountReceivedInLakhs: project.amountReceivedInLakhs !== null && project.amountReceivedInLakhs !== undefined ? String(project.amountReceivedInLakhs) : '',
         department: project.department || departments[0] || '',
-        status: project.status || 'approved',
         description: project.description || ''
       });
     } else {
@@ -564,8 +532,7 @@ export function ConsultancyProjectsPage({
       'Scope of Work / Deliverables Summary',
       'Agreement / Work Order',
       'Invoice',
-      'Payment Receipt',
-      'Approval Status'
+      'Payment Receipt'
     ];
 
     const rows = filteredProjects.map((p, idx) => {
@@ -592,8 +559,7 @@ export function ConsultancyProjectsPage({
         `"${(p.description || '').replace(/"/g, '""')}"`,
         `"${agreementUrls.replace(/"/g, '""')}"`,
         `"${invoiceUrls.replace(/"/g, '""')}"`,
-        `"${receiptUrls.replace(/"/g, '""')}"`,
-        `"${p.status || ''}"`
+        `"${receiptUrls.replace(/"/g, '""')}"`
       ];
     });
 
@@ -633,8 +599,7 @@ export function ConsultancyProjectsPage({
       'Scope of Work / Deliverables Summary',
       'Agreement / Work Order',
       'Invoice',
-      'Payment Receipt',
-      'Approval Status'
+      'Payment Receipt'
     ];
 
     const rows = filteredProjects.map((p, idx) => {
@@ -661,8 +626,7 @@ export function ConsultancyProjectsPage({
         p.description || '',
         agreementUrls,
         invoiceUrls,
-        receiptUrls,
-        p.status
+        receiptUrls
       ];
     });
 
@@ -674,7 +638,7 @@ export function ConsultancyProjectsPage({
   };
 
   const canEdit = userRole === 'admin' || userRole === 'coordinator' || userRole === 'hod' || userRole === 'faculty';
-  const canDelete = userRole === 'admin' || userRole === 'coordinator';
+  const canDelete = userRole === 'admin' || userRole === 'coordinator' || userRole === 'hod';
   const canBulkUpload = userRole === 'admin' || userRole === 'coordinator' || userRole === 'hod' || userRole === 'faculty';
 
   // ─── PUBLIC VIEW ────────────────────────────────────────────────────────────
@@ -959,26 +923,8 @@ export function ConsultancyProjectsPage({
               </Select>
             </div>
 
-            {/* IQAC Approval Status Filter */}
-            <div className="w-[140px]">
-              <Select value={selectedApprovalStatus} onValueChange={setSelectedApprovalStatus}>
-                <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                  <SelectValue placeholder="Approval Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Approval States</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="finalized">Finalized</SelectItem>
-                  <SelectItem value="submitted">Submitted</SelectItem>
-                  <SelectItem value="under_coordinator_review">Under Review</SelectItem>
-                  <SelectItem value="returned_for_correction">Correction</SelectItem>
-                  <SelectItem value="draft">Draft</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Clear Filter button */}
-            {(selectedStartYear !== 'all' || selectedDepartment !== 'all' || selectedProjectStatus !== 'all' || selectedApprovalStatus !== 'all' || searchQuery) && (
+            {(selectedStartYear !== 'all' || selectedDepartment !== 'all' || selectedProjectStatus !== 'all' || searchQuery) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -986,7 +932,6 @@ export function ConsultancyProjectsPage({
                   setSelectedStartYear('all');
                   setSelectedDepartment('all');
                   setSelectedProjectStatus('all');
-                  setSelectedApprovalStatus('all');
                   setSearchQuery('');
                 }}
                 className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 h-9 px-2"
@@ -1065,7 +1010,7 @@ export function ConsultancyProjectsPage({
           <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <h3 className="text-base font-bold text-gray-800">No Consultancy Projects Found</h3>
           <p className="text-xs text-gray-500 max-w-md mx-auto mt-1 mb-5">
-            {searchQuery || selectedStartYear !== 'all' || selectedDepartment !== 'all' || selectedProjectStatus !== 'all' || selectedApprovalStatus !== 'all'
+            {searchQuery || selectedStartYear !== 'all' || selectedDepartment !== 'all' || selectedProjectStatus !== 'all'
               ? 'No project records matched your active filter criteria. Try resetting the filters.'
               : 'Start by recording faculty consultancy assignments or upload bulk spreadsheets.'}
           </p>
@@ -1099,7 +1044,6 @@ export function ConsultancyProjectsPage({
                   <th className="py-3 px-3.5 text-center whitespace-nowrap">Project Status</th>
                   <th className="py-3 px-3.5 text-right whitespace-nowrap font-bold text-emerald-800">Revenue (₹ Lakhs)</th>
                   <th className="py-3 px-3.5 text-center whitespace-nowrap">Documents</th>
-                  <th className="py-3 px-3.5 text-center whitespace-nowrap">Approval</th>
                   <th className="py-3 px-3.5 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
@@ -1166,9 +1110,6 @@ export function ConsultancyProjectsPage({
                           R:{project.paymentReceiptCount || 0}
                         </span>
                       </div>
-                    </td>
-                    <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                      {formatStatusBadge(project.status)}
                     </td>
                     <td className="py-3 px-3.5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
@@ -1675,26 +1616,6 @@ export function ConsultancyProjectsPage({
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   />
                 </div>
-
-                {['admin', 'hod', 'coordinator'].includes(userRole) && (
-                  <div className="space-y-1.5">
-                    <Label className="font-semibold text-gray-700">IQAC Approval Workflow State</Label>
-                    <Select
-                      value={formData.status}
-                      onValueChange={(val) => setFormData({ ...formData, status: val })}
-                    >
-                      <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                        <SelectValue placeholder="Approval Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="approved">Approved</SelectItem>
-                        <SelectItem value="finalized">Finalized</SelectItem>
-                        <SelectItem value="submitted">Submitted</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </div>
 
               <DialogFooter className="pt-4 border-t border-gray-100 flex justify-end gap-2">
@@ -1733,7 +1654,6 @@ export function ConsultancyProjectsPage({
                   {viewingProject.consultancyStartYear ? `CSY ${viewingProject.consultancyStartYear}` : `AY ${viewingProject.year}`}
                 </Badge>
                 {formatProjectStatusBadge(viewingProject.projectStatus)}
-                {formatStatusBadge(viewingProject.status)}
                 {(viewingProject.plannedDurationFormatted || (viewingProject.startDate && viewingProject.expectedEndDate)) && (
                   <Badge variant="outline" className="text-[10px] font-mono bg-teal-50 text-teal-800 border-teal-200">
                     Planned: {viewingProject.plannedDurationFormatted || calculateProjectDuration(viewingProject.startDate, viewingProject.expectedEndDate).formatted}

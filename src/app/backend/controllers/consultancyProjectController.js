@@ -102,7 +102,7 @@ async function ingestLinks(projectId, category, rawLinks, userId) {
 // @access  Private
 exports.getConsultancyProjects = async (req, res) => {
   try {
-    const { year, department, status, academicYear, consultancyStartYear, projectStatus } = req.query;
+    const { year, department, academicYear, consultancyStartYear, projectStatus } = req.query;
 
     const where = {};
     const targetYear = year || academicYear;
@@ -119,11 +119,6 @@ exports.getConsultancyProjects = async (req, res) => {
     // Filter by Project Status (Sanctioned, On Going, Completed)
     if (projectStatus && projectStatus !== 'all') {
       where.projectStatus = projectStatus;
-    }
-
-    // Filter by IQAC Approval Status
-    if (status && status !== 'all') {
-      where.status = status;
     }
 
     // Enforce data isolation based on role
@@ -234,10 +229,6 @@ exports.getConsultancyProject = async (req, res) => {
 // @access  Private (Admin, Coordinator, Faculty)
 exports.createConsultancyProject = async (req, res) => {
   try {
-    let initialStatus = req.body.status || 'draft';
-    if (req.user.role === 'faculty') {
-      initialStatus = 'submitted';
-    }
     const dept = req.user.role === 'admin' || req.user.role === 'authority'
       ? (req.body.department || req.user.department || 'General')
       : req.user.department;
@@ -319,12 +310,12 @@ exports.createConsultancyProject = async (req, res) => {
       }
     }
 
-    // Project Status validation
+    // Project Status validation (Strictly Sanctioned, On Going, Completed)
     const finalProjectStatus = normalizeConsultancyProjectStatus(rawProjectStatus);
-    if (rawProjectStatus && !finalProjectStatus) {
+    if (!finalProjectStatus) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid Project Status. Allowed values: Sanctioned, On Going, Completed.'
+        message: 'Project Status is required. Allowed values: Sanctioned, On Going, Completed.'
       });
     }
 
@@ -381,7 +372,7 @@ exports.createConsultancyProject = async (req, res) => {
       amountReceivedInLakhs: parsedAmountReceived,
       description: description ? String(description).trim() : null,
       department: dept,
-      status: initialStatus,
+      status: null,
       createdBy: req.user.id
     };
 
@@ -401,24 +392,6 @@ exports.createConsultancyProject = async (req, res) => {
       previousValue: null,
       updatedValue: project.toJSON()
     });
-
-    // If submitted directly, send notification to Coordinators
-    if (initialStatus === 'submitted') {
-      const coordinators = await User.findAll({
-        where: {
-          role: 'coordinator',
-          department: dept
-        }
-      });
-      for (const coord of coordinators) {
-        await sendNotification(
-          coord.id,
-          'New Consultancy Submission',
-          `A new consultancy project "${project.projectName}" has been submitted by ${req.user.name}.`,
-          'info'
-        );
-      }
-    }
 
     // Reload with documents
     const createdWithDocs = await ConsultancyProject.findByPk(project.id, {
@@ -455,21 +428,12 @@ exports.updateConsultancyProject = async (req, res) => {
       });
     }
 
-    const previousStatus = project.status;
-
-    // Enforce Role Constraints
+    // Enforce Role Constraints (Approval locks removed; based purely on role & department)
     if (req.user.role === 'faculty') {
       if (project.createdBy !== req.user.id) {
         return res.status(403).json({
           success: false,
           message: 'Access denied. You can only update your own records.'
-        });
-      }
-      const allowedFacultyStatuses = ['draft', 'returned_for_correction', 'record_reopened'];
-      if (!allowedFacultyStatuses.includes(previousStatus)) {
-        return res.status(403).json({
-          success: false,
-          message: 'This record is locked. Please submit an Edit Request to modify it.'
         });
       }
     } else if (req.user.role === 'coordinator' || req.user.role === 'hod') {
@@ -504,7 +468,6 @@ exports.updateConsultancyProject = async (req, res) => {
       revenueInLakhs,
       amountReceivedInLakhs,
       description,
-      status: approvalStatus,
       department
     } = req.body;
 
@@ -634,11 +597,6 @@ exports.updateConsultancyProject = async (req, res) => {
       updates.description = description ? String(description).trim() : null;
     }
 
-    // Approval status transitions
-    if (['admin', 'hod', 'coordinator'].includes(req.user.role) && approvalStatus !== undefined) {
-      updates.status = approvalStatus;
-    }
-
     // Department change (admin only)
     if (req.user.role === 'admin' && department !== undefined) {
       updates.department = department;
@@ -660,38 +618,6 @@ exports.updateConsultancyProject = async (req, res) => {
       previousValue: oldValues,
       updatedValue: newValues
     });
-
-    // Handle Workflow Notifications
-    if (previousStatus !== project.status) {
-      const creator = await User.findByPk(project.createdBy);
-
-      if (project.status === 'submitted') {
-        const coordinators = await User.findAll({ where: { role: 'coordinator', department: project.department } });
-        for (const coord of coordinators) {
-          await sendNotification(coord.id, 'Consultancy Submission Under Review', `Consultancy project "${project.projectName}" has been submitted by ${req.user.name}.`);
-        }
-      } else if (project.status === 'approved') {
-        const hods = await User.findAll({ where: { role: 'hod', department: project.department } });
-        for (const hod of hods) {
-          await sendNotification(hod.id, 'Action Required: Consultancy HOD Review', `Consultancy project "${project.projectName}" is approved by coordinator and awaits final HOD check.`);
-        }
-        if (creator) {
-          await sendNotification(creator.id, 'Status Update: Approved by Coordinator', `Your consultancy project "${project.projectName}" has been approved by the coordinator.`);
-        }
-      } else if (project.status === 'finalized') {
-        if (creator) {
-          await sendNotification(creator.id, 'Consultancy Project Finalized', `Congratulations! Your consultancy project "${project.projectName}" has received final HOD approval.`, 'success');
-        }
-      } else if (project.status === 'returned_for_correction') {
-        if (creator) {
-          await sendNotification(creator.id, 'Action Required: Returned for Correction', `Your consultancy project "${project.projectName}" was returned for correction. Comments: ${req.body.remarks || 'Please check and resubmit.'}`, 'warning');
-        }
-      } else if (project.status === 'rejected') {
-        if (creator) {
-          await sendNotification(creator.id, 'Consultancy Project Rejected', `Your consultancy project "${project.projectName}" has been rejected.`, 'error');
-        }
-      }
-    }
 
     // Ingest drive links if provided in update payload
     if (req.body.agreementLinks) {
@@ -1133,11 +1059,11 @@ exports.bulkCreateConsultancyProjects = async (req, res) => {
         continue;
       }
 
-      // Project Status
-      const rawStatus = record.projectStatus || record['Project Status'] || 'On Going';
+      // Project Status (Strictly Sanctioned, On Going, Completed)
+      const rawStatus = record.projectStatus || record['Project Status'];
       const projectStatus = normalizeConsultancyProjectStatus(rawStatus);
-      if (rawStatus && !projectStatus) {
-        errors.push(`Row ${rowNum}: Invalid Project Status "${rawStatus}". Allowed values: Sanctioned, On Going, Completed`);
+      if (!projectStatus) {
+        errors.push(`Row ${rowNum}: Missing or invalid Project Status "${rawStatus || ''}". Allowed values: Sanctioned, On Going, Completed.`);
         continue;
       }
 
@@ -1193,7 +1119,7 @@ exports.bulkCreateConsultancyProjects = async (req, res) => {
         amountReceivedInLakhs: !isNaN(amountReceivedInLakhs) ? amountReceivedInLakhs : null,
         description: record.description || record['Scope of Work / Deliverables Summary'] || null,
         department: finalDept,
-        status: req.user.role === 'faculty' ? 'submitted' : (record.status || 'draft'),
+        status: null,
         createdBy: req.user.id,
         _agreementLinks: record.agreementLinks || record['Agreement / Work Order'],
         _invoiceLinks: record.invoiceLinks || record['Invoice'],

@@ -68,7 +68,7 @@ router.delete(
 
 router.route('/')
   .get(getConsultancyProjects)
-  .post(authorize('admin', 'coordinator', 'faculty'), createConsultancyProject);
+  .post(authorize('admin', 'coordinator', 'hod', 'faculty'), createConsultancyProject);
 
 router.route('/:id')
   .get(getConsultancyProject)

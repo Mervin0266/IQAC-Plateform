@@ -95,7 +95,8 @@ const ConsultancyProject = sequelize.define('ConsultancyProject', {
       'edit_request_approved',
       'record_reopened'
     ),
-    defaultValue: 'draft'
+    allowNull: true,
+    defaultValue: null
   },
   createdBy: {
     type: DataTypes.UUID,
