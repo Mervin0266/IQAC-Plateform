@@ -29,7 +29,7 @@ export function PageHeader({
   className = '',
 }: PageHeaderProps) {
   return (
-    <header className={`bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs ${className}`}>
+    <header className={`bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs ${className}`}>
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="space-y-1.5 min-w-0">
           {/* Breadcrumbs */}
@@ -62,7 +62,7 @@ export function PageHeader({
               {title}
             </h1>
             {badge && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/80 tracking-normal">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-[#E2E8F0] tracking-normal">
                 {badge}
               </span>
             )}

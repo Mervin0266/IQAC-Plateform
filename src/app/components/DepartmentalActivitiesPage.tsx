@@ -399,7 +399,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
                 });
                 setIsAddModalOpen(true);
               }}
-              className="bg-[#2F4692] hover:bg-[#243A7A] text-white font-medium text-xs shadow-xs"
+              className="bg-[#2855B9] hover:bg-[#1C355B] text-white font-medium text-xs shadow-xs"
             >
               <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Activity Record
             </Button>
@@ -445,10 +445,10 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
           <div className="flex items-center space-x-2 text-slate-800 font-semibold text-xs tracking-wider uppercase">
-            <Filter className="w-4 h-4 text-[#2F4692]" />
+            <Filter className="w-4 h-4 text-[#2855B9]" />
             <span>Filter Criteria</span>
             {(academicYearFilter !== 'All' || campusFilter !== 'All' || schoolFilter !== 'All' || departmentFilter !== 'All' || categoryFilter !== 'All' || statusFilter !== 'All' || searchTerm !== '') && (
-              <span className="ml-2 px-2 py-0.5 bg-blue-50 text-[#2F4692] border border-blue-200 text-[10px] font-bold rounded-full">
+              <span className="ml-2 px-2 py-0.5 bg-blue-50 text-[#2855B9] border border-blue-200 text-[10px] font-bold rounded-full">
                 Filters Active
               </span>
             )}
@@ -481,7 +481,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
             <select
               value={academicYearFilter}
               onChange={e => setAcademicYearFilter(e.target.value)}
-              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2855B9]"
             >
               <option value="All">All Academic Years</option>
               {availableAcademicYears.map(yr => (
@@ -498,7 +498,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
             <select
               value={campusFilter}
               onChange={e => setCampusFilter(e.target.value)}
-              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2855B9]"
             >
               <option value="All">All Campuses</option>
               {CAMPUSES.map((c, i) => (
@@ -513,7 +513,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
             <select
               value={schoolFilter}
               onChange={e => setSchoolFilter(e.target.value)}
-              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2855B9]"
             >
               <option value="All">All Schools</option>
               {SCHOOLS.map((s, i) => (
@@ -528,7 +528,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
             <select
               value={departmentFilter}
               onChange={e => setDepartmentFilter(e.target.value)}
-              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2855B9]"
             >
               <option value="All">All Departments</option>
               {DEPARTMENTS.map((d, i) => (
@@ -543,7 +543,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
-              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2855B9]"
             >
               <option value="All">All Categories</option>
               {ACTIVITY_CATEGORIES.map((cat, i) => (
@@ -558,7 +558,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F4692]"
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2855B9]"
             >
               <option value="All">All Statuses</option>
               <option value="Completed">Completed</option>
@@ -578,7 +578,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
               onClick={() => setActiveTab('matrix')}
               className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
                 activeTab === 'matrix'
-                  ? 'bg-[#0B132B] text-white shadow-xs'
+                  ? 'bg-[#2855B9] text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -588,7 +588,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
               onClick={() => setActiveTab('directory')}
               className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
                 activeTab === 'directory'
-                  ? 'bg-[#0B132B] text-white shadow-xs'
+                  ? 'bg-[#2855B9] text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -598,7 +598,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
               onClick={() => setActiveTab('pending')}
               className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 activeTab === 'pending'
-                  ? 'bg-[#0B132B] text-white shadow-xs'
+                  ? 'bg-[#2855B9] text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -631,9 +631,9 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
 
           {/* TAB 1: SPREADSHEET MATRIX VIEW */}
           {activeTab === 'matrix' && (
-            <Card className="bg-white border border-slate-200 shadow-xs overflow-hidden">
+            <Card className="bg-white border border-[#E2E8F0] shadow-xs rounded-xl overflow-hidden">
               <CardContent className="p-0">
-                <div className="p-3 bg-[#0B132B] text-white font-semibold text-xs md:text-sm tracking-wide border-b border-slate-800 flex items-center justify-between px-4">
+                <div className="p-3 bg-[#1C355B] text-white font-semibold text-xs md:text-sm tracking-wide border-b border-white/10 flex items-center justify-between px-4">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-[#E8C84A]" />
                     <span>Departmental Activities Matrix — School of Engineering and Technology</span>
@@ -644,21 +644,21 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
                 </div>
 
                 <div className="overflow-x-auto max-w-full">
-                  <table className="w-full text-xs text-left border-collapse border border-gray-300 min-w-[1500px]">
-                    <thead className="bg-gray-100 text-gray-800 font-bold uppercase text-[10px]">
+                  <table className="w-full text-xs text-left border-collapse border border-[#E2E8F0] min-w-[1500px]">
+                    <thead className="bg-slate-100 text-slate-800 font-semibold text-xs border-b border-[#E2E8F0]">
                       <tr>
-                        <th className="sticky left-0 z-20 border border-gray-300 px-3 py-2 text-center min-w-[210px] max-w-[230px] bg-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+                        <th className="sticky left-0 z-20 border border-[#E2E8F0] px-3 py-2 text-center min-w-[210px] max-w-[230px] bg-slate-100 text-slate-800 font-semibold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)]">
                           No. of Departments
                         </th>
                         {matrixData.visibleCats.map((cat, idx) => (
-                          <th key={idx} className="border border-gray-300 px-2 py-2 text-center max-w-[110px] min-w-[95px] bg-gray-100 leading-snug">
+                          <th key={idx} className="border border-[#E2E8F0] px-2 py-2 text-center max-w-[110px] min-w-[95px] bg-slate-50 text-slate-700 font-semibold leading-snug">
                             {cat}
                           </th>
                         ))}
-                        <th className="border border-gray-300 px-2 py-2 text-center min-w-[110px] bg-gray-200">
+                        <th className="border border-[#E2E8F0] px-2 py-2 text-center min-w-[110px] bg-slate-100 text-slate-800 font-semibold">
                           Departmental Events
                         </th>
-                        <th className="border border-gray-300 px-3 py-2 text-center min-w-[220px] bg-amber-100 text-amber-900">
+                        <th className="border border-[#E2E8F0] px-3 py-2 text-center min-w-[220px] bg-[#FFF4D8] text-[#9A6700] font-semibold">
                           Pending Reports
                         </th>
                       </tr>
@@ -739,11 +739,11 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
 
           {/* TAB 2: EVENT DIRECTORY VIEW */}
           {activeTab === 'directory' && (
-            <Card className="bg-white border border-gray-200 shadow-sm overflow-hidden">
+            <Card className="bg-white border border-[#E2E8F0] shadow-xs rounded-xl overflow-hidden">
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs text-gray-700">
-                    <thead className="bg-gray-50 border-b border-gray-200 font-semibold text-gray-600 uppercase">
+                    <thead className="bg-slate-50 border-b border-[#E2E8F0] font-semibold text-slate-700 text-xs">
                       <tr>
                         <th className="px-4 py-3">Academic Year</th>
                         <th className="px-4 py-3">Department</th>
@@ -754,7 +754,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
                         <th className="px-4 py-3 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-[#E2E8F0] text-xs sm:text-[13px] text-slate-700">
                       {filteredActivities.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">
@@ -763,7 +763,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
                         </tr>
                       ) : (
                         filteredActivities.map(act => (
-                          <tr key={act.id} className="hover:bg-gray-50/80 transition-colors">
+                          <tr key={act.id} className="hover:bg-[#F1F5F9] transition-colors">
                             <td className="px-4 py-3 font-semibold text-indigo-700">
                               <span className="bg-indigo-50 px-2 py-0.5 rounded-full text-[10px] border border-indigo-100">
                                 {act.academicYear}
@@ -936,7 +936,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
               <Button
                 size="sm"
                 onClick={() => setSelectedCellData(null)}
-                className="bg-[#2f4692] text-white text-xs"
+                className="bg-[#2855B9] text-white text-xs"
               >
                 Close
               </Button>
@@ -957,7 +957,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
             </button>
 
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-[#2f4692]" />
+              <Plus className="w-5 h-5 text-[#2855B9]" />
               {editingActivity ? 'Edit Departmental Activity Record' : 'Add New Departmental Activity'}
             </h2>
 
@@ -1067,7 +1067,7 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
                 </Button>
                 <Button
                   type="submit"
-                  className="bg-[#2f4692] text-white text-xs font-bold"
+                  className="bg-[#2855B9] text-white text-xs font-bold"
                 >
                   {editingActivity ? 'Save Changes' : 'Create Activity'}
                 </Button>

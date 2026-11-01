@@ -670,7 +670,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                         setIsUploadModalOpen(true);
                       }}
                       size="sm"
-                      className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+                      className="bg-[#2855B9] hover:bg-[#1C355B] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
                     >
                       <UploadCloud className="w-3.5 h-3.5" />
                       <span>Upload Excel</span>
@@ -702,7 +702,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                       <Button 
                         onClick={() => setIsEditingGrid(true)}
                         size="sm"
-                        className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs flex items-center gap-1.5"
+                        className="bg-[#2855B9] hover:bg-[#1C355B] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs flex items-center gap-1.5"
                       >
                         <Edit className="w-3.5 h-3.5" />
                         <span>Edit Grid</span>
@@ -716,12 +716,12 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
         />
 
         {/* Master Tabs List */}
-        <div className="bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-1.5 rounded-xl border border-slate-200/80 shadow-xs">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="bg-slate-100 p-1 rounded-lg w-full flex flex-wrap justify-start gap-1 border border-slate-200/60 h-auto">
+            <TabsList className="bg-slate-100 p-1 rounded-lg w-full flex overflow-x-auto sm:flex-wrap justify-start gap-1 border border-slate-200/80 h-auto">
               <TabsTrigger 
                 value="metrics" 
-                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2F4692] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600"
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
               >
                 <BarChart3 className="w-4 h-4" />
                 <span>Research Metrics Grid</span>
@@ -729,7 +729,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
 
               <TabsTrigger 
                 value="publications" 
-                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2F4692] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600"
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
               >
                 <BookOpen className="w-4 h-4" />
                 <span>Publications</span>
@@ -737,7 +737,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
 
               <TabsTrigger 
                 value="patents" 
-                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2F4692] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600"
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
               >
                 <Award className="w-4 h-4" />
                 <span>Patents & IP</span>
@@ -745,7 +745,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
 
               <TabsTrigger 
                 value="sponsored" 
-                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2F4692] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600"
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
               >
                 <TrendingUp className="w-4 h-4" />
                 <span>Sponsored Research</span>
@@ -753,7 +753,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
 
               <TabsTrigger 
                 value="consultancy" 
-                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2F4692] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600"
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
               >
                 <Briefcase className="w-4 h-4" />
                 <span>Consultancy</span>
@@ -890,12 +890,12 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
               </Card>
 
               {/* Spreadsheet Table Container */}
-              <Card className="shadow-sm border-gray-200 rounded-xl overflow-hidden bg-white">
-                <CardHeader className="bg-[#243a7a] text-white p-4">
+              <Card className="shadow-xs border border-[#E2E8F0] rounded-xl overflow-hidden bg-white">
+                <CardHeader className="bg-slate-50 border-b border-[#E2E8F0] text-slate-900 p-4">
                   <CardTitle className="text-sm font-bold flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-teal-400" />
-                      <span>
+                      <FileText className="w-4 h-4 text-[#2855B9]" />
+                      <span className="text-slate-800">
                         {breakdownType === 'dept' 
                           ? `Publications, Patents, Consultancy & Grants Matrix — Academic Year ${metricYear}` 
                           : `Research Profile Matrix — Department of ${metricDept} (${metricYear})`
@@ -903,74 +903,74 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                       </span>
                     </div>
                     {isEditingGrid && (
-                      <Badge className="bg-amber-500 text-white text-[10px] animate-pulse">
+                      <Badge className="bg-[#FFF4D8] text-[#9A6700] border border-[#FFE5A3] text-[10px] animate-pulse">
                         Editing Active
                       </Badge>
                     )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0 overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-[11px]">
+                  <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       {/* Sub-Header Spans */}
-                      <tr className="bg-slate-100 text-slate-800 font-bold border-b border-gray-300 text-center">
-                        <th rowSpan={2} className="border-r border-gray-300 p-2.5 text-left font-bold min-w-[170px] bg-slate-200 text-slate-900">
+                      <tr className="bg-slate-100/90 text-slate-800 font-semibold border-b border-[#E2E8F0] text-center">
+                        <th rowSpan={2} className="border-r border-[#E2E8F0] p-3 text-left font-semibold min-w-[170px] bg-slate-100 text-slate-800">
                           {breakdownType === 'dept' ? 'Department' : 'Month'}
                         </th>
-                        <th colSpan={5} className="border-r border-gray-300 p-2 text-center bg-blue-50 text-blue-900 font-extrabold">
+                        <th colSpan={5} className="border-r border-[#E2E8F0] p-2 text-center bg-slate-50 text-slate-800 font-semibold">
                           Publications & Articles
                         </th>
-                        <th rowSpan={2} className="border-r border-gray-300 p-2 text-center bg-slate-50">Citations</th>
-                        <th colSpan={2} className="border-r border-gray-300 p-1.5 text-center bg-amber-50 text-amber-900 font-extrabold">Patents</th>
-                        <th colSpan={2} className="border-r border-gray-300 p-1.5 text-center bg-yellow-50 text-yellow-900 font-extrabold">Conferences</th>
-                        <th colSpan={2} className="border-r border-gray-300 p-1.5 text-center bg-teal-50 text-teal-900 font-extrabold">Consultancy</th>
-                        <th colSpan={2} className="border-r border-gray-300 p-1.5 text-center bg-purple-50 text-purple-900 font-extrabold">Seed Money</th>
-                        <th colSpan={2} className="p-1.5 text-center bg-emerald-50 text-emerald-900 font-extrabold">Externally Funded Grants</th>
+                        <th rowSpan={2} className="border-r border-[#E2E8F0] p-2 text-center bg-slate-50 text-slate-800 font-semibold">Citations</th>
+                        <th colSpan={2} className="border-r border-[#E2E8F0] p-2 text-center bg-slate-50 text-slate-800 font-semibold">Patents</th>
+                        <th colSpan={2} className="border-r border-[#E2E8F0] p-2 text-center bg-slate-50 text-slate-800 font-semibold">Conferences</th>
+                        <th colSpan={2} className="border-r border-[#E2E8F0] p-2 text-center bg-slate-50 text-slate-800 font-semibold">Consultancy</th>
+                        <th colSpan={2} className="border-r border-[#E2E8F0] p-2 text-center bg-slate-50 text-slate-800 font-semibold">Seed Money</th>
+                        <th colSpan={2} className="p-2 text-center bg-slate-50 text-slate-800 font-semibold">Externally Funded Grants</th>
                       </tr>
                       {/* Secondary Columns */}
-                      <tr className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-300 text-center text-[10px]">
-                        <th className="border-r border-gray-200 p-1 bg-blue-50/40">Books</th>
-                        <th className="border-r border-gray-200 p-1 bg-blue-50/40">Chapters</th>
-                        <th className="border-r border-gray-200 p-1 bg-blue-50/70 font-bold text-blue-950">Scopus</th>
-                        <th className="border-r border-gray-200 p-1 bg-blue-50/40">National</th>
-                        <th className="border-r border-gray-200 p-1 bg-blue-50/40">International</th>
+                      <tr className="bg-slate-50 text-slate-600 font-medium border-b border-[#E2E8F0] text-center text-[11px]">
+                        <th className="border-r border-[#E2E8F0] p-1.5">Books</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">Chapters</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5 font-semibold text-slate-800">Scopus</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">National</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">International</th>
 
                         {/* Patents */}
-                        <th className="border-r border-gray-200 p-1 bg-amber-50/30">Indian</th>
-                        <th className="border-r border-gray-200 p-1 bg-amber-50/30">International</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">Indian</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">International</th>
                         {/* Conference */}
-                        <th className="border-r border-gray-200 p-1 bg-yellow-50/20">National</th>
-                        <th className="border-r border-gray-200 p-1 bg-yellow-50/20">International</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">National</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">International</th>
                         {/* Consultancy */}
-                        <th className="border-r border-gray-200 p-1 bg-teal-50/30">Count</th>
-                        <th className="border-r border-gray-200 p-1 bg-teal-50/30">₹ Lakhs</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">Count</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">₹ Lakhs</th>
                         {/* Seed Money */}
-                        <th className="border-r border-gray-200 p-1 bg-purple-50/30">Count</th>
-                        <th className="border-r border-gray-200 p-1 bg-purple-50/30">₹ Lakhs</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">Count</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">₹ Lakhs</th>
                         {/* External Projects */}
-                        <th className="border-r border-gray-200 p-1 bg-emerald-50/30">Count</th>
-                        <th className="p-1 bg-emerald-50/30">₹ Lakhs</th>
+                        <th className="border-r border-[#E2E8F0] p-1.5">Count</th>
+                        <th className="p-1.5">₹ Lakhs</th>
                       </tr>
                     </thead>
                     <tbody>
                       {editableGridData.map((row, rowIndex) => (
                         <tr 
                           key={rowIndex} 
-                          className={`hover:bg-teal-50/30 transition-colors border-b border-gray-200 ${
+                          className={`hover:bg-[#F1F5F9] transition-colors border-b border-[#E2E8F0] ${
                             rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
                           }`}
                         >
                           {/* Label row */}
-                          <td className="border-r border-gray-300 p-2.5 font-bold text-gray-800 bg-slate-50/80 text-[11px]">
+                          <td className="border-r border-[#E2E8F0] p-2.5 font-medium text-slate-800 bg-slate-50/60 text-xs">
                             {breakdownType === 'dept' ? row.department : row.periodValue}
                           </td>
                           
                           {/* Books */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.books} 
                                 onChange={(e) => handleCellChange(rowIndex, 'books', e.target.value)}
                               />
@@ -978,11 +978,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Chapters */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.chapters} 
                                 onChange={(e) => handleCellChange(rowIndex, 'chapters', e.target.value)}
                               />
@@ -990,11 +990,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Scopus */}
-                          <td className="border-r border-gray-200 p-1.5 text-center font-bold text-blue-900 bg-blue-50/20">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center font-semibold text-[#2855B9] bg-[#EAF1FD]/30">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono font-bold text-blue-900" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono font-semibold text-[#2855B9] text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.scopusJournals} 
                                 onChange={(e) => handleCellChange(rowIndex, 'scopusJournals', e.target.value)}
                               />
@@ -1002,11 +1002,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* National Journals */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.nationalJournals} 
                                 onChange={(e) => handleCellChange(rowIndex, 'nationalJournals', e.target.value)}
                               />
@@ -1014,11 +1014,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* International Journals */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.internationalJournals} 
                                 onChange={(e) => handleCellChange(rowIndex, 'internationalJournals', e.target.value)}
                               />
@@ -1026,11 +1026,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Citations */}
-                          <td className="border-r border-gray-200 p-1.5 text-center font-mono">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center font-mono">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-14 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-14 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.citations} 
                                 onChange={(e) => handleCellChange(rowIndex, 'citations', e.target.value)}
                               />
@@ -1038,11 +1038,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Patent Indian */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.patentsIndian} 
                                 onChange={(e) => handleCellChange(rowIndex, 'patentsIndian', e.target.value)}
                               />
@@ -1050,11 +1050,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Patent International */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.patentsInternational} 
                                 onChange={(e) => handleCellChange(rowIndex, 'patentsInternational', e.target.value)}
                               />
@@ -1062,11 +1062,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Conf National */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.conferencesNational} 
                                 onChange={(e) => handleCellChange(rowIndex, 'conferencesNational', e.target.value)}
                               />
@@ -1074,11 +1074,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Conf International */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.conferencesInternational} 
                                 onChange={(e) => handleCellChange(rowIndex, 'conferencesInternational', e.target.value)}
                               />
@@ -1086,11 +1086,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Consultancy Count */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.consultancyCount} 
                                 onChange={(e) => handleCellChange(rowIndex, 'consultancyCount', e.target.value)}
                               />
@@ -1098,12 +1098,12 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Consultancy Amount */}
-                          <td className="border-r border-gray-200 p-1.5 text-right font-bold text-teal-800 font-mono">
+                          <td className="border-r border-[#E2E8F0] p-2 text-right font-semibold text-slate-800 font-mono">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                step="0.01"
-                                className="w-20 h-6 text-right border rounded p-0.5 bg-white font-mono" 
+                                step="0.01" 
+                                className="w-20 h-6 text-right border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.consultancyAmount} 
                                 onChange={(e) => handleCellChange(rowIndex, 'consultancyAmount', e.target.value)}
                               />
@@ -1111,11 +1111,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Seed Money Count */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.seedMoneyCount} 
                                 onChange={(e) => handleCellChange(rowIndex, 'seedMoneyCount', e.target.value)}
                               />
@@ -1123,12 +1123,12 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* Seed Money Amount */}
-                          <td className="border-r border-gray-200 p-1.5 text-right font-medium text-purple-900 font-mono">
+                          <td className="border-r border-[#E2E8F0] p-2 text-right font-medium text-slate-800 font-mono">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                step="0.01"
-                                className="w-20 h-6 text-right border rounded p-0.5 bg-white font-mono" 
+                                step="0.01" 
+                                className="w-20 h-6 text-right border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.seedMoneyAmount} 
                                 onChange={(e) => handleCellChange(rowIndex, 'seedMoneyAmount', e.target.value)}
                               />
@@ -1136,11 +1136,11 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* External Projects Count */}
-                          <td className="border-r border-gray-200 p-1.5 text-center">
+                          <td className="border-r border-[#E2E8F0] p-2 text-center">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                className="w-12 h-6 text-center border rounded p-0.5 bg-white font-mono" 
+                                className="w-12 h-6 text-center border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.externalProjectsCount} 
                                 onChange={(e) => handleCellChange(rowIndex, 'externalProjectsCount', e.target.value)}
                               />
@@ -1148,12 +1148,12 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                           </td>
 
                           {/* External Projects Amount */}
-                          <td className="p-1.5 text-right font-bold text-emerald-800 font-mono">
+                          <td className="p-2 text-right font-semibold text-slate-800 font-mono">
                             {isEditingGrid ? (
                               <input 
                                 type="number" 
-                                step="0.01"
-                                className="w-20 h-6 text-right border rounded p-0.5 bg-white font-mono" 
+                                step="0.01" 
+                                className="w-20 h-6 text-right border border-[#E2E8F0] rounded p-0.5 bg-white font-mono text-xs focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]" 
                                 value={row.externalProjectsAmount} 
                                 onChange={(e) => handleCellChange(rowIndex, 'externalProjectsAmount', e.target.value)}
                               />
@@ -1163,40 +1163,40 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                       ))}
 
                       {/* TOTAL SUMMARY ROW */}
-                      <tr className="bg-[#243a7a] font-extrabold border-t-2 border-[#243a7a] text-white text-center">
-                        <td className="border-r border-[#243a7a] p-3 text-left font-extrabold uppercase text-amber-400">
+                      <tr className="bg-[#1C355B] font-bold border-t-2 border-[#1C355B] text-white text-center">
+                        <td className="border-r border-white/10 p-2.5 text-left font-bold uppercase text-white tracking-wide text-xs">
                           Total Summary
                         </td>
-                        <td className="border-r border-[#243a7a] p-2 text-center">{gridTotals.books}</td>
-                        <td className="border-r border-[#243a7a] p-2 text-center">{gridTotals.chapters}</td>
-                        <td className="border-r border-[#243a7a] p-2 text-center text-blue-300 font-extrabold">{gridTotals.scopusJournals}</td>
-                        <td className="border-r border-[#243a7a] p-2 text-center">{gridTotals.nationalJournals}</td>
-                        <td className="border-r border-[#243a7a] p-2 text-center">{gridTotals.internationalJournals}</td>
-                        <td className="border-r border-[#243a7a] p-2 text-center font-mono">{gridTotals.citations}</td>
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.books}</td>
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.chapters}</td>
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-bold text-[#C8DCFB]">{gridTotals.scopusJournals}</td>
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.nationalJournals}</td>
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.internationalJournals}</td>
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-mono">{gridTotals.citations}</td>
                         
                         {/* Patents */}
-                        <td className="border-r border-slate-700 p-2 text-center text-amber-300">{gridTotals.patentsIndian}</td>
-                        <td className="border-r border-slate-700 p-2 text-center text-amber-300">{gridTotals.patentsInternational}</td>
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.patentsIndian}</td>
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.patentsInternational}</td>
                         
                         {/* Conference */}
-                        <td className="border-r border-slate-700 p-2 text-center">{gridTotals.conferencesNational}</td>
-                        <td className="border-r border-slate-700 p-2 text-center">{gridTotals.conferencesInternational}</td>
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.conferencesNational}</td>
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.conferencesInternational}</td>
                         
                         {/* Consultancy */}
-                        <td className="border-r border-slate-700 p-2 text-center">{gridTotals.consultancyCount}</td>
-                        <td className="border-r border-slate-700 p-2 text-right text-teal-300 font-mono font-extrabold">
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.consultancyCount}</td>
+                        <td className="border-r border-white/10 p-2 text-right text-xs font-mono font-bold">
                           ₹{gridTotals.consultancyAmount.toFixed(2)}
                         </td>
                         
                         {/* Seed Money */}
-                        <td className="border-r border-slate-700 p-2 text-center">{gridTotals.seedMoneyCount}</td>
-                        <td className="border-r border-slate-700 p-2 text-right text-purple-300 font-mono font-extrabold">
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.seedMoneyCount}</td>
+                        <td className="border-r border-white/10 p-2 text-right text-xs font-mono font-bold">
                           ₹{gridTotals.seedMoneyAmount.toFixed(2)}
                         </td>
                         
                         {/* External Projects */}
-                        <td className="border-r border-slate-700 p-2 text-center">{gridTotals.externalProjectsCount}</td>
-                        <td className="p-2 text-right text-emerald-300 font-mono font-extrabold">
+                        <td className="border-r border-white/10 p-2 text-center text-xs font-semibold">{gridTotals.externalProjectsCount}</td>
+                        <td className="p-2 text-right text-xs font-mono font-bold">
                           ₹{gridTotals.externalProjectsAmount.toFixed(2)}
                         </td>
                       </tr>
@@ -1251,9 +1251,9 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
           <div className="space-y-5 py-4">
             
             {/* Step 1: Download Template Helper */}
-            <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="bg-[#EAF1FD]/50 border border-[#C8DCFB] rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-start gap-2.5">
-                <FileCheck className="w-5 h-5 text-[#2f4692] flex-shrink-0 mt-0.5" />
+                <FileCheck className="w-5 h-5 text-[#2855B9] flex-shrink-0 mt-0.5" />
                 <div>
                   <h4 className="text-xs font-bold text-slate-800">Need the official spreadsheet structure?</h4>
                   <p className="text-[11px] text-slate-600">
@@ -1265,7 +1265,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                 onClick={handleDownloadExcelTemplate}
                 size="sm"
                 variant="outline"
-                className="bg-white border-blue-300 text-[#2f4692] hover:bg-blue-100/50 text-xs font-bold shadow-sm whitespace-nowrap"
+                className="bg-white border-[#C8DCFB] text-[#2855B9] hover:bg-[#EAF1FD] text-xs font-bold shadow-xs whitespace-nowrap"
               >
                 <Download className="w-3.5 h-3.5 mr-1.5" />
                 Download Excel Template (.xlsx)

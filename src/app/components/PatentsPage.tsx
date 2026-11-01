@@ -786,18 +786,18 @@ export function PatentsPage({
   const getStatusBadge = (status: string) => {
     const s = (status || '').toLowerCase();
     if (s.includes('commercial')) {
-      return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold text-[11px] flex items-center gap-1"><DollarSign className="w-3 h-3" /> Commercialized</Badge>;
+      return <Badge className="bg-[#E8F5ED] text-[#167447] border-[#C6E7D2] font-semibold text-[11px] flex items-center gap-1"><DollarSign className="w-3 h-3" /> Commercialized</Badge>;
     }
     if (s.includes('grant')) {
-      return <Badge className="bg-green-100 text-green-800 border-green-300 font-semibold text-[11px] flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Granted</Badge>;
+      return <Badge className="bg-[#E8F5ED] text-[#167447] border-[#C6E7D2] font-semibold text-[11px] flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Granted</Badge>;
     }
     if (s.includes('publish')) {
-      return <Badge className="bg-blue-100 text-blue-800 border-blue-300 font-semibold text-[11px]">Published</Badge>;
+      return <Badge className="bg-[#EAF1FD] text-[#2855B9] border-[#C8DCFB] font-semibold text-[11px]">Published</Badge>;
     }
     if (s.includes('exam')) {
-      return <Badge className="bg-purple-100 text-purple-800 border-purple-300 font-semibold text-[11px]">Under Examination</Badge>;
+      return <Badge className="bg-[#FFF4D8] text-[#9A6700] border-[#FFE5A3] font-semibold text-[11px]">Under Examination</Badge>;
     }
-    return <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-semibold text-[11px]">Filed</Badge>;
+    return <Badge className="bg-[#FFF4D8] text-[#9A6700] border-[#FFE5A3] font-semibold text-[11px]">Filed</Badge>;
   };
 
   // Proof status indicator badge
@@ -812,10 +812,10 @@ export function PatentsPage({
             e.stopPropagation();
             handleOpenProofViewer(patent);
           }}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-[#E2E8F0] bg-[#F1F5F9] text-[#475569] hover:bg-slate-200/70 transition-colors"
           title="Click to add proof documents"
         >
-          <Paperclip className="w-3 h-3 text-gray-400" />
+          <Paperclip className="w-3 h-3 text-[#475569]" />
           <span>Missing Proof</span>
         </button>
       );
@@ -830,10 +830,10 @@ export function PatentsPage({
             e.stopPropagation();
             handleOpenProofViewer(patent);
           }}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FEF2F2] text-[#B42318] border border-[#FECDCA] hover:bg-red-100 transition-colors"
           title="Drive access issue detected. Click to inspect."
         >
-          <AlertTriangle className="w-3 h-3 text-amber-600" />
+          <AlertTriangle className="w-3 h-3 text-[#B42318]" />
           <span>{count} {count === 1 ? 'Proof' : 'Proofs'} (Issue)</span>
         </button>
       );
@@ -845,10 +845,10 @@ export function PatentsPage({
           e.stopPropagation();
           handleOpenProofViewer(patent);
         }}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2] hover:bg-emerald-100 transition-colors"
         title="Click to view attached proof documents"
       >
-        <FileCheck className="w-3 h-3 text-blue-600" />
+        <FileCheck className="w-3 h-3 text-[#167447]" />
         <span>{count} {count === 1 ? 'Proof' : 'Proofs'}</span>
       </button>
     );
@@ -905,7 +905,7 @@ export function PatentsPage({
             <Button
               size="sm"
               onClick={handleOpenAddModal}
-              className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+              className="bg-[#2855B9] hover:bg-[#1C355B] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
             >
               <Plus className="w-4 h-4 mr-1.5" />
               <span>Add Patent</span>
@@ -1084,7 +1084,7 @@ export function PatentsPage({
       {loading ? (
         <Card className="border-gray-200 p-12 text-center bg-white">
           <div className="flex flex-col items-center justify-center gap-3">
-            <div className="w-8 h-8 border-2 border-[#2f4692] border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-[#2855B9] border-t-transparent rounded-full animate-spin" />
             <p className="text-xs text-gray-500 font-medium">Loading patent records...</p>
           </div>
         </Card>
@@ -1114,7 +1114,7 @@ export function PatentsPage({
             <Button
               size="sm"
               onClick={handleOpenAddModal}
-              className="bg-[#2f4692] text-white text-xs font-semibold"
+              className="bg-[#2855B9] text-white text-xs font-semibold"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
               Add First Patent
@@ -1123,11 +1123,11 @@ export function PatentsPage({
         </Card>
       ) : viewMode === 'table' ? (
         /* TABLE VIEW */
-        <Card className="shadow-sm border-gray-200 overflow-hidden bg-white">
+        <Card className="shadow-xs border border-[#E2E8F0] overflow-hidden bg-white rounded-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-gray-700 font-semibold">
+                <tr className="bg-slate-50 border-b border-[#E2E8F0] text-slate-700 font-semibold text-xs">
                   <th className="p-3 pl-4 min-w-[240px]">Patent / Invention Title</th>
                   <th className="p-3 min-w-[170px]">Inventor(s)</th>
                   <th className="p-3 min-w-[120px]">Status</th>
@@ -1140,14 +1140,14 @@ export function PatentsPage({
                   <th className="p-3 text-right pr-4 min-w-[100px]">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[#E2E8F0] text-xs sm:text-[13px]">
                 {patents.map((patent) => (
-                  <tr key={patent.id} className="hover:bg-blue-50/30 transition-colors group">
+                  <tr key={patent.id} className="hover:bg-[#F1F5F9] transition-colors group">
                     {/* Title */}
                     <td className="p-3 pl-4">
                       <div
                         onClick={() => setViewingPatent(patent)}
-                        className="font-semibold text-gray-800 hover:text-[#2f4692] cursor-pointer line-clamp-2 leading-snug"
+                        className="font-semibold text-gray-800 hover:text-[#2855B9] cursor-pointer line-clamp-2 leading-snug"
                         title={patent.title}
                       >
                         {patent.title}
@@ -1241,7 +1241,7 @@ export function PatentsPage({
                           variant="ghost"
                           size="sm"
                           onClick={() => setViewingPatent(patent)}
-                          className="h-7 w-7 p-0 text-gray-500 hover:text-[#2f4692] hover:bg-blue-50"
+                          className="h-7 w-7 p-0 text-gray-500 hover:text-[#2855B9] hover:bg-blue-50"
                           title="View Details"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -1289,8 +1289,8 @@ export function PatentsPage({
         /* CARD VIEW */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {patents.map((patent) => (
-            <Card key={patent.id} className="shadow-sm hover:shadow-md transition-shadow border-gray-200 relative overflow-hidden bg-white">
-              <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#2f4692]" />
+            <Card key={patent.id} className="shadow-xs hover:shadow-sm transition-shadow border border-[#E2E8F0] relative overflow-hidden bg-white rounded-xl">
+              <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#2855B9]" />
               <CardContent className="p-4 pl-5 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1">
@@ -1310,7 +1310,7 @@ export function PatentsPage({
                     </div>
                     <h3
                       onClick={() => setViewingPatent(patent)}
-                      className="font-bold text-gray-900 text-sm hover:text-[#2f4692] cursor-pointer line-clamp-2 leading-snug"
+                      className="font-bold text-gray-900 text-sm hover:text-[#2855B9] cursor-pointer line-clamp-2 leading-snug"
                     >
                       {patent.title}
                     </h3>
@@ -1382,7 +1382,7 @@ export function PatentsPage({
         <DialogContent className="sm:max-w-[700px] max-h-[88vh] overflow-y-auto bg-white p-6 rounded-2xl">
           <DialogHeader className="border-b border-gray-100 pb-3">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <Award className="w-5 h-5 text-[#2f4692]" />
+              <Award className="w-5 h-5 text-[#2855B9]" />
               <span>{editingPatent ? 'Edit Patent Record' : 'Record New Patent / Invention'}</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
@@ -1404,7 +1404,7 @@ export function PatentsPage({
             {/* SECTION A — PATENT & INVENTION DETAILS */}
             <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Award className="w-3.5 h-3.5 text-[#2f4692]" />
+                <Award className="w-3.5 h-3.5 text-[#2855B9]" />
                 <span>Section A — Patent & Invention Details</span>
               </h4>
 
@@ -1419,7 +1419,7 @@ export function PatentsPage({
                     setFormData({ ...formData, title: e.target.value });
                     if (formErrors.title) setFormErrors({ ...formErrors, title: '' });
                   }}
-                  className={`h-9 text-xs border-gray-200 bg-white focus-visible:ring-[#2f4692] ${
+                  className={`h-9 text-xs border-gray-200 bg-white focus-visible:ring-[#2855B9] ${
                     formErrors.title ? 'border-red-500 bg-red-50/20' : ''
                   }`}
                 />
@@ -1440,7 +1440,7 @@ export function PatentsPage({
                       setFormData({ ...formData, inventors: e.target.value });
                       if (formErrors.inventors) setFormErrors({ ...formErrors, inventors: '' });
                     }}
-                    className={`h-9 text-xs border-gray-200 bg-white focus-visible:ring-[#2f4692] ${
+                    className={`h-9 text-xs border-gray-200 bg-white focus-visible:ring-[#2855B9] ${
                       formErrors.inventors ? 'border-red-500 bg-red-50/20' : ''
                     }`}
                   />
@@ -1471,7 +1471,7 @@ export function PatentsPage({
             {/* SECTION B — CLASSIFICATION & JURISDICTION */}
             <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-[#2f4692]" />
+                <Layers className="w-3.5 h-3.5 text-[#2855B9]" />
                 <span>Section B — Classification & Reference Numbers</span>
               </h4>
 
@@ -1559,7 +1559,7 @@ export function PatentsPage({
             {/* SECTION C — TIMELINE & CRITICAL DATES */}
             <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#2f4692]" />
+                <Calendar className="w-3.5 h-3.5 text-[#2855B9]" />
                 <span>Section C — Timeline & Critical Dates</span>
               </h4>
 
@@ -1639,7 +1639,7 @@ export function PatentsPage({
             {/* SECTION D — COMMERCIALIZATION & REVENUE */}
             <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-[#2f4692]" />
+                <DollarSign className="w-3.5 h-3.5 text-[#2855B9]" />
                 <span>Section D — Commercialization & Royalty</span>
               </h4>
 
@@ -1680,7 +1680,7 @@ export function PatentsPage({
             {/* SECTION E — PROOF DOCUMENTS (GOOGLE DRIVE INTEGRATION) */}
             <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Paperclip className="w-3.5 h-3.5 text-[#2f4692]" />
+                <Paperclip className="w-3.5 h-3.5 text-[#2855B9]" />
                 <span>Section E — Supporting Documents (Google Drive Integration)</span>
               </h4>
 
@@ -1760,7 +1760,7 @@ export function PatentsPage({
                     placeholder="https://drive.google.com/file/d/... (one per line)"
                     value={formData.proofLinks}
                     onChange={(e) => setFormData({ ...formData, proofLinks: e.target.value })}
-                    className="w-full p-2 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-[#2f4692] font-mono outline-none"
+                    className="w-full p-2 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-[#2855B9] font-mono outline-none"
                   />
                 </div>
               </div>
@@ -1769,7 +1769,7 @@ export function PatentsPage({
             {/* SECTION F — OFFICIAL PORTAL LINK & ABSTRACT */}
             <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-[#2f4692]" />
+                <FileText className="w-3.5 h-3.5 text-[#2855B9]" />
                 <span>Section F — Official Link & Invention Summary</span>
               </h4>
 
@@ -1794,7 +1794,7 @@ export function PatentsPage({
                   placeholder="Brief technical description, claims, utility synopsis, or novel findings..."
                   value={formData.description || ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full rounded-md border border-gray-200 p-2.5 text-xs outline-none focus:border-[#2f4692] bg-white"
+                  className="w-full rounded-md border border-gray-200 p-2.5 text-xs outline-none focus:border-[#2855B9] bg-white"
                 />
               </div>
             </div>
@@ -1812,7 +1812,7 @@ export function PatentsPage({
                 type="submit"
                 size="sm"
                 disabled={submitting}
-                className="bg-[#2f4692] text-white hover:bg-[#243877] px-5 font-semibold text-xs"
+                className="bg-[#2855B9] text-white hover:bg-[#1C355B] px-5 font-semibold text-xs"
               >
                 {submitting ? 'Saving...' : editingPatent ? 'Update Patent Record' : 'Save Patent Record'}
               </Button>
@@ -1936,7 +1936,7 @@ export function PatentsPage({
                               href={getProofViewUrl(proof.driveUrl)}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#2f4692] bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#2855B9] bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
                             >
                               <ExternalLink className="w-3 h-3" />
                               <span>View</span>
@@ -2015,7 +2015,7 @@ export function PatentsPage({
                         size="sm"
                         disabled={proofActionLoading}
                         onClick={handleAddProofsInViewer}
-                        className="bg-[#2f4692] text-white hover:bg-[#243877] text-xs h-8 px-4"
+                        className="bg-[#2855B9] text-white hover:bg-[#1C355B] text-xs h-8 px-4"
                       >
                         {proofActionLoading ? 'Attaching...' : 'Attach Proof(s)'}
                       </Button>
@@ -2028,7 +2028,7 @@ export function PatentsPage({
                 <Button
                   size="sm"
                   onClick={() => setProofViewerPatent(null)}
-                  className="bg-[#2f4692] text-white hover:bg-[#243877] text-xs px-5"
+                  className="bg-[#2855B9] text-white hover:bg-[#1C355B] text-xs px-5"
                 >
                   Done
                 </Button>
@@ -2071,7 +2071,7 @@ export function PatentsPage({
 
               <div className="p-5 space-y-4 text-xs text-gray-700 max-h-[60vh] overflow-y-auto">
                 <div>
-                  <span className="text-[10px] font-bold text-[#2f4692] uppercase tracking-wider block">Inventors / Authors</span>
+                  <span className="text-[10px] font-bold text-[#2855B9] uppercase tracking-wider block">Inventors / Authors</span>
                   <p className="text-sm font-semibold text-gray-900 mt-0.5">{viewingPatent.inventors}</p>
                 </div>
 
@@ -2130,7 +2130,7 @@ export function PatentsPage({
                             href={getProofViewUrl(proof.driveUrl)}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-[#2f4692] hover:underline font-semibold flex items-center gap-1 shrink-0 ml-2"
+                            className="text-[#2855B9] hover:underline font-semibold flex items-center gap-1 shrink-0 ml-2"
                           >
                             <span>{proof.sourceType === 'local_upload' ? 'View Document' : 'Open Drive'}</span>
                             <ExternalLink className="w-3 h-3" />
@@ -2163,7 +2163,7 @@ export function PatentsPage({
                       href={viewingPatent.patentUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[#2f4692] hover:underline font-medium text-[11px] mt-0.5 inline-flex items-center gap-1.5"
+                      className="text-[#2855B9] hover:underline font-medium text-[11px] mt-0.5 inline-flex items-center gap-1.5"
                     >
                       <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">{viewingPatent.patentUrl}</span>
@@ -2198,7 +2198,7 @@ export function PatentsPage({
                 <Button
                   size="sm"
                   onClick={() => setViewingPatent(null)}
-                  className="bg-[#2f4692] text-white hover:bg-[#243877] text-xs px-5"
+                  className="bg-[#2855B9] text-white hover:bg-[#1C355B] text-xs px-5"
                 >
                   Close
                 </Button>

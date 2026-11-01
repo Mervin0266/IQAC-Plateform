@@ -36,51 +36,55 @@ export function StatusBadge({
   const normalized = (variant || status || '').toLowerCase();
 
   let styleConfig = {
-    bg: 'bg-slate-50',
-    text: 'text-slate-700',
-    border: 'border-slate-200',
-    dot: 'bg-slate-400',
+    bg: 'bg-[#F1F5F9]',
+    text: 'text-[#475569]',
+    border: 'border-[#E2E8F0]',
+    dot: 'bg-[#94A3B8]',
   };
 
   if (
-    ['active', 'approved', 'published', 'completed', 'success', 'verified'].some((v) =>
+    ['approved', 'published', 'completed', 'success', 'verified', 'granted', 'proof available'].some((v) =>
       normalized.includes(v)
     )
   ) {
     styleConfig = {
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-800',
-      border: 'border-emerald-200',
-      dot: 'bg-emerald-500',
+      bg: 'bg-[#E8F5ED]',
+      text: 'text-[#167447]',
+      border: 'border-[#C6E7D2]',
+      dot: 'bg-[#167447]',
     };
   } else if (
-    ['pending', 'review', 'warning', 'submitted', 'in progress', 'ongoing'].some((v) =>
+    ['active', 'ongoing', 'on going', 'info', 'registered', 'applied', 'national govt', 'state govt'].some((v) =>
       normalized.includes(v)
     )
   ) {
     styleConfig = {
-      bg: 'bg-amber-50',
-      text: 'text-amber-800',
-      border: 'border-amber-200',
-      dot: 'bg-amber-500',
+      bg: 'bg-[#EAF1FD]',
+      text: 'text-[#2855B9]',
+      border: 'border-[#C8DCFB]',
+      dot: 'bg-[#2855B9]',
     };
   } else if (
-    ['inactive', 'rejected', 'withdrawn', 'error', 'failed', 'dropped'].some((v) =>
+    ['pending', 'review', 'warning', 'submitted', 'in progress', 'under examination', 'examination', 'filed', 'sanctioned'].some((v) =>
       normalized.includes(v)
     )
   ) {
     styleConfig = {
-      bg: 'bg-rose-50',
-      text: 'text-rose-800',
-      border: 'border-rose-200',
-      dot: 'bg-rose-500',
+      bg: 'bg-[#FFF4D8]',
+      text: 'text-[#9A6700]',
+      border: 'border-[#FFE5A3]',
+      dot: 'bg-[#9A6700]',
     };
-  } else if (['info', 'registered', 'applied', 'new'].some((v) => normalized.includes(v))) {
+  } else if (
+    ['inactive', 'rejected', 'withdrawn', 'error', 'failed', 'dropped', 'terminated', 'access issue'].some((v) =>
+      normalized.includes(v)
+    )
+  ) {
     styleConfig = {
-      bg: 'bg-blue-50',
-      text: 'text-blue-800',
-      border: 'border-blue-200',
-      dot: 'bg-[#2f4692]',
+      bg: 'bg-[#FEF2F2]',
+      text: 'text-[#B42318]',
+      border: 'border-[#FECDCA]',
+      dot: 'bg-[#B42318]',
     };
   }
 

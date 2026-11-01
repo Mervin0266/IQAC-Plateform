@@ -36,10 +36,10 @@ const PageSkeleton = React.lazy(() => import('./components/PageSkeleton').then(m
 /** Minimal inline fallback for the Suspense boundary (avoids circular lazy deps) */
 function SuspenseFallback() {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-screen bg-[#F5F7FB] flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-3 border-[#2f4692] border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-gray-500 font-medium">Loading...</p>
+        <div className="w-10 h-10 border-3 border-[#2855B9] border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-slate-500 font-medium">Loading...</p>
       </div>
     </div>
   );
@@ -182,7 +182,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#F5F7FB]">
       <Suspense fallback={<SuspenseFallback />}>
         {renderPage()}
       </Suspense>

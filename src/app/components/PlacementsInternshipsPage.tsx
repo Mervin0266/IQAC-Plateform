@@ -723,8 +723,8 @@ export function PlacementsInternshipsPage({
                     onClick={() => setViewMode('table')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                       viewMode === 'table'
-                        ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
+                        ? 'bg-[#2855B9] text-white shadow-xs font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
                     }`}
                   >
                     <TableIcon className="w-3.5 h-3.5" />
@@ -735,8 +735,8 @@ export function PlacementsInternshipsPage({
                     onClick={() => setViewMode('cards')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                       viewMode === 'cards'
-                        ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
+                        ? 'bg-[#2855B9] text-white shadow-xs font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
                     }`}
                   >
                     <LayoutGrid className="w-3.5 h-3.5" />
@@ -747,8 +747,8 @@ export function PlacementsInternshipsPage({
                     onClick={() => setViewMode('analytics')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors ${
                       viewMode === 'analytics'
-                        ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
+                        ? 'bg-[#2855B9] text-white shadow-xs font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
                     }`}
                   >
                     <BarChart3 className="w-3.5 h-3.5" />
@@ -886,11 +886,11 @@ export function PlacementsInternshipsPage({
             /* ======================================================================= */
             /* VIEW 1: TABLE VIEW                                                      */
             /* ======================================================================= */
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs text-slate-700">
+                <table className="w-full text-left border-collapse text-xs sm:text-[13px] text-slate-700">
                   <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                    <tr className="bg-slate-50 border-b border-[#E2E8F0] text-xs font-semibold text-slate-700 tracking-normal">
                       <th className="py-3 px-4">Student Details</th>
                       <th className="py-3 px-3">Type</th>
                       <th className="py-3 px-3">Department & Course</th>
@@ -901,12 +901,12 @@ export function PlacementsInternshipsPage({
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[#E2E8F0]">
                     {paginatedRecords.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <tr key={item.id} className="hover:bg-[#F1F5F9] transition-colors group">
                         {/* Student Details */}
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                          <div className="font-semibold text-slate-900 group-hover:text-[#2855B9] transition-colors">
                             {item.studentName}
                           </div>
                           <div className="text-[11px] font-mono text-slate-500 mt-0.5">
@@ -917,12 +917,12 @@ export function PlacementsInternshipsPage({
                         {/* Type Badge */}
                         <td className="py-3 px-3">
                           {item.placementType === 'placement' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2]">
                               <UserCheck className="w-3 h-3" />
                               <span>Placement</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/80">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-[#EAF1FD] text-[#2855B9] border border-[#C8DCFB]">
                               <Briefcase className="w-3 h-3" />
                               <span>Internship</span>
                             </span>

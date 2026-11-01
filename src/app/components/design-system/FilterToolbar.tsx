@@ -28,7 +28,7 @@ export function FilterToolbar({
 }: FilterToolbarProps) {
   return (
     <div
-      className={`bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs space-y-3 ${className}`}
+      className={`bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs space-y-3 ${className}`}
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Search input */}
@@ -40,7 +40,7 @@ export function FilterToolbar({
               value={searchValue}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={searchPlaceholder}
-              className="w-full h-9 pl-9 pr-8 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2f4692]/20 focus:border-[#2f4692] transition-colors"
+              className="w-full h-9 pl-9 pr-8 text-xs sm:text-sm bg-slate-50 border border-[#E2E8F0] rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2855B9]/20 focus:border-[#2855B9] transition-colors"
             />
             {searchValue && (
               <button
@@ -63,7 +63,7 @@ export function FilterToolbar({
             <button
               type="button"
               onClick={onReset}
-              className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#2f4692]/20"
+              className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-[#E2E8F0] rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#2855B9]/20"
               title="Reset all active filters"
             >
               <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
@@ -77,12 +77,12 @@ export function FilterToolbar({
 
       {/* Result counter indicator */}
       {typeof totalResults === 'number' && (
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500">
+        <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] text-xs text-slate-500">
           <span>
             Showing <strong className="text-slate-800 font-semibold">{totalResults}</strong> {resultLabel}
           </span>
           {hasActiveFilters && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-[#2f4692] font-medium bg-[#2f4692]/5 px-2 py-0.5 rounded-full border border-[#2f4692]/10">
+            <span className="inline-flex items-center gap-1 text-[11px] text-[#2855B9] font-medium bg-[#2855B9]/10 px-2 py-0.5 rounded-full border border-[#2855B9]/20">
               Filters applied
             </span>
           )}

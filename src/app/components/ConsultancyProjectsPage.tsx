@@ -110,15 +110,15 @@ const EMPTY_FORM = {
 };
 
 const PROJECT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  'Sanctioned': { label: 'Sanctioned', color: 'text-blue-800', bg: 'bg-blue-50', border: 'border-blue-200' },
-  'On Going': { label: 'On Going', color: 'text-amber-800', bg: 'bg-amber-50', border: 'border-amber-200' },
-  'Completed': { label: 'Completed', color: 'text-emerald-800', bg: 'bg-emerald-50', border: 'border-emerald-200' }
+  'Sanctioned': { label: 'Sanctioned', color: 'text-[#9A6700]', bg: 'bg-[#FFF4D8]', border: 'border-[#FFE5A3]' },
+  'On Going': { label: 'On Going', color: 'text-[#2855B9]', bg: 'bg-[#EAF1FD]', border: 'border-[#C8DCFB]' },
+  'Completed': { label: 'Completed', color: 'text-[#167447]', bg: 'bg-[#E8F5ED]', border: 'border-[#C6E7D2]' }
 };
 
 function formatProjectStatusBadge(status?: string | null) {
   if (!status) {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">
         Review Required
       </span>
     );
@@ -712,9 +712,9 @@ export function ConsultancyProjectsPage({
             </Card>
           </div>
 
-          <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="overflow-x-auto bg-white rounded-xl shadow-xs border border-[#E2E8F0]">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-800 text-white font-semibold">
+              <thead className="bg-slate-50 border-b border-[#E2E8F0] text-slate-700 font-semibold text-xs">
                 <tr>
                   <th className="py-3 px-4">S. No.</th>
                   <th className="py-3 px-4">Teacher Consultant</th>
@@ -725,9 +725,9 @@ export function ConsultancyProjectsPage({
                   <th className="py-3 px-4 text-right">Revenue (₹ Lakhs)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[#E2E8F0] text-xs sm:text-[13px]">
                 {filteredProjects.map((p, idx) => (
-                  <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={p.id} className="hover:bg-[#F1F5F9] transition-colors">
                     <td className="py-3 px-4 font-mono text-gray-500">{idx + 1}</td>
                     <td className="py-3 px-4 font-semibold text-gray-900">{p.teacherConsultant}</td>
                     <td className="py-3 px-4 text-gray-800">{p.projectName}</td>
@@ -1031,11 +1031,11 @@ export function ConsultancyProjectsPage({
         </Card>
       ) : viewMode === 'table' ? (
         /* TABLE VIEW */
-        <Card className="border border-gray-200/80 shadow-sm rounded-xl overflow-hidden bg-white">
+        <Card className="border border-[#E2E8F0] shadow-xs rounded-xl overflow-hidden bg-white">
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-50 border-b border-gray-200">
-                <tr className="text-gray-700 font-semibold">
+              <thead className="bg-slate-50 border-b border-[#E2E8F0]">
+                <tr className="text-slate-700 font-semibold text-xs">
                   <th className="py-3 px-3.5 w-12 text-center">#</th>
                   <th className="py-3 px-3.5 min-w-[200px]">Project Name</th>
                   <th className="py-3 px-3.5 min-w-[160px]">Teacher Consultant</th>
@@ -1047,9 +1047,9 @@ export function ConsultancyProjectsPage({
                   <th className="py-3 px-3.5 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[#E2E8F0] text-xs sm:text-[13px]">
                 {filteredProjects.map((project, idx) => (
-                  <tr key={project.id} className="hover:bg-slate-50/70 transition-colors group">
+                  <tr key={project.id} className="hover:bg-[#F1F5F9] transition-colors group">
                     <td className="py-3 px-3.5 text-center font-mono text-gray-400">{idx + 1}</td>
                     <td className="py-3 px-3.5">
                       <button
@@ -1100,13 +1100,13 @@ export function ConsultancyProjectsPage({
                     </td>
                     <td className="py-3 px-3.5 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1 text-[10px]">
-                        <span className={`px-1.5 py-0.5 rounded font-mono ${project.agreementWorkOrderCount ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-50 text-gray-400'}`} title="Agreement / Work Order">
+                        <span className={`px-1.5 py-0.5 rounded font-mono ${project.agreementWorkOrderCount ? 'bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2]' : 'bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]'}`} title="Agreement / Work Order">
                           A:{project.agreementWorkOrderCount || 0}
                         </span>
-                        <span className={`px-1.5 py-0.5 rounded font-mono ${project.invoiceCount ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-gray-50 text-gray-400'}`} title="Invoice">
+                        <span className={`px-1.5 py-0.5 rounded font-mono ${project.invoiceCount ? 'bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2]' : 'bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]'}`} title="Invoice">
                           I:{project.invoiceCount || 0}
                         </span>
-                        <span className={`px-1.5 py-0.5 rounded font-mono ${project.paymentReceiptCount ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-50 text-gray-400'}`} title="Payment Receipt">
+                        <span className={`px-1.5 py-0.5 rounded font-mono ${project.paymentReceiptCount ? 'bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2]' : 'bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]'}`} title="Payment Receipt">
                           R:{project.paymentReceiptCount || 0}
                         </span>
                       </div>

@@ -738,7 +738,7 @@ export function PublicationsPage({
             <Button
               size="sm"
               onClick={handleOpenAddModal}
-              className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+              className="bg-[#2855B9] hover:bg-[#1C355B] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
             >
               <Plus className="w-4 h-4 mr-1.5" />
               <span>Add Publication</span>
@@ -887,7 +887,7 @@ export function PublicationsPage({
       {loading ? (
         <Card className="border-gray-200 p-12 text-center bg-white">
           <div className="flex flex-col items-center justify-center gap-3">
-            <div className="w-8 h-8 border-2 border-[#2f4692] border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-[#2855B9] border-t-transparent rounded-full animate-spin" />
             <p className="text-xs text-gray-500 font-medium">Loading research publications...</p>
           </div>
         </Card>
@@ -915,7 +915,7 @@ export function PublicationsPage({
             <Button
               size="sm"
               onClick={handleOpenAddModal}
-              className="bg-[#2f4692] text-white text-xs font-semibold"
+              className="bg-[#2855B9] text-white text-xs font-semibold"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
               Add First Publication
@@ -924,11 +924,11 @@ export function PublicationsPage({
         </Card>
       ) : viewMode === 'table' ? (
         /* TABLE VIEW */
-        <Card className="shadow-sm border-gray-200 overflow-hidden bg-white">
+        <Card className="shadow-xs border border-[#E2E8F0] overflow-hidden bg-white rounded-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-gray-700 font-semibold">
+                <tr className="bg-slate-50 border-b border-[#E2E8F0] text-slate-700 font-semibold text-xs">
                   <th className="p-3 pl-4 min-w-[180px]">Author Name</th>
                   <th className="p-3 min-w-[260px]">Title</th>
                   <th className="p-3 min-w-[180px]">Journal Name</th>
@@ -940,9 +940,9 @@ export function PublicationsPage({
                   <th className="p-3 text-right pr-4 min-w-[100px]">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[#E2E8F0] text-xs sm:text-[13px]">
                 {publications.map((pub) => (
-                  <tr key={pub.id} className="hover:bg-blue-50/30 transition-colors group">
+                  <tr key={pub.id} className="hover:bg-[#F1F5F9] transition-colors group">
                     {/* Author Name */}
                     <td className="p-3 pl-4 font-medium text-gray-900">
                       <div className="flex items-center gap-1.5">
@@ -955,7 +955,7 @@ export function PublicationsPage({
                     <td className="p-3">
                       <div
                         onClick={() => setViewingPub(pub)}
-                        className="font-semibold text-gray-800 hover:text-[#2f4692] cursor-pointer line-clamp-2 leading-snug"
+                        className="font-semibold text-gray-800 hover:text-[#2855B9] cursor-pointer line-clamp-2 leading-snug"
                         title={pub.title}
                       >
                         {pub.title}
@@ -1007,7 +1007,7 @@ export function PublicationsPage({
                           href={pub.doi.startsWith('http') ? pub.doi : `https://doi.org/${pub.doi.replace(/^doi:\s*/i, '')}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[#2f4692] hover:underline font-mono flex items-center gap-1 truncate max-w-[130px]"
+                          className="text-[#2855B9] hover:underline font-mono flex items-center gap-1 truncate max-w-[130px]"
                           title={pub.doi}
                         >
                           <ExternalLink className="w-3 h-3 shrink-0" />
@@ -1027,7 +1027,7 @@ export function PublicationsPage({
                           variant="ghost"
                           size="sm"
                           onClick={() => setViewingPub(pub)}
-                          className="h-7 w-7 p-0 text-gray-500 hover:text-[#2f4692] hover:bg-blue-50"
+                          className="h-7 w-7 p-0 text-gray-500 hover:text-[#2855B9] hover:bg-blue-50"
                           title="View Details"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -1075,8 +1075,8 @@ export function PublicationsPage({
         /* CARD VIEW */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {publications.map((pub) => (
-            <Card key={pub.id} className="shadow-sm hover:shadow-md transition-shadow border-gray-200 relative overflow-hidden bg-white">
-              <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#2f4692]" />
+            <Card key={pub.id} className="shadow-xs hover:shadow-sm transition-shadow border border-[#E2E8F0] relative overflow-hidden bg-white rounded-xl">
+              <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#2855B9]" />
               <CardHeader className="p-4 pb-2 pl-5">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -1093,7 +1093,7 @@ export function PublicationsPage({
                 </div>
                 <CardTitle
                   onClick={() => setViewingPub(pub)}
-                  className="text-sm font-bold text-gray-900 hover:text-[#2f4692] cursor-pointer leading-snug line-clamp-2"
+                  className="text-sm font-bold text-gray-900 hover:text-[#2855B9] cursor-pointer leading-snug line-clamp-2"
                 >
                   {pub.title}
                 </CardTitle>
@@ -1116,7 +1116,7 @@ export function PublicationsPage({
                   )}
 
                   {pub.doi && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-[#2f4692] pt-0.5">
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#2855B9] pt-0.5">
                       <FileText className="w-3 h-3 shrink-0" />
                       <a
                         href={pub.doi.startsWith('http') ? pub.doi : `https://doi.org/${pub.doi.replace(/^doi:\s*/i, '')}`}
@@ -1139,7 +1139,7 @@ export function PublicationsPage({
                       variant="ghost"
                       size="sm"
                       onClick={() => setViewingPub(pub)}
-                      className="h-7 w-7 p-0 text-gray-500 hover:text-[#2f4692] hover:bg-blue-50"
+                      className="h-7 w-7 p-0 text-gray-500 hover:text-[#2855B9] hover:bg-blue-50"
                     >
                       <Eye className="w-3.5 h-3.5" />
                     </Button>
@@ -1174,7 +1174,7 @@ export function PublicationsPage({
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0">
           <DialogHeader className="p-5 pb-3 border-b border-gray-100 bg-gray-50/50">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-[#2f4692]" />
+              <BookOpen className="w-5 h-5 text-[#2855B9]" />
               {editingPub ? 'Edit Research Publication' : 'Add Research Publication'}
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
@@ -1190,7 +1190,7 @@ export function PublicationsPage({
                 placeholder="e.g. Dr. Rajesh Kumar, Dr. Priya Sharma"
                 value={formData.authorName}
                 onChange={(e) => setFormData({ ...formData, authorName: e.target.value })}
-                className={`h-9 text-xs border-gray-200 focus-visible:ring-[#2f4692] ${
+                className={`h-9 text-xs border-gray-200 focus-visible:ring-[#2855B9] ${
                   formErrors.authorName ? 'border-red-500 bg-red-50/20' : ''
                 }`}
               />
@@ -1206,7 +1206,7 @@ export function PublicationsPage({
                 placeholder="Full title of the research paper / article"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className={`h-9 text-xs border-gray-200 focus-visible:ring-[#2f4692] ${
+                className={`h-9 text-xs border-gray-200 focus-visible:ring-[#2855B9] ${
                   formErrors.title ? 'border-red-500 bg-red-50/20' : ''
                 }`}
               />
@@ -1223,7 +1223,7 @@ export function PublicationsPage({
                   placeholder="e.g. IEEE Access / Springer Nature"
                   value={formData.journalName}
                   onChange={(e) => setFormData({ ...formData, journalName: e.target.value })}
-                  className={`h-9 text-xs border-gray-200 focus-visible:ring-[#2f4692] ${
+                  className={`h-9 text-xs border-gray-200 focus-visible:ring-[#2855B9] ${
                     formErrors.journalName ? 'border-red-500 bg-red-50/20' : ''
                   }`}
                 />
@@ -1398,7 +1398,7 @@ export function PublicationsPage({
                 placeholder="Brief abstract or synopsis of the research work..."
                 value={formData.abstract || ''}
                 onChange={(e) => setFormData({ ...formData, abstract: e.target.value })}
-                className="w-full rounded-md border border-gray-200 p-2.5 text-xs outline-none focus:border-[#2f4692]"
+                className="w-full rounded-md border border-gray-200 p-2.5 text-xs outline-none focus:border-[#2855B9]"
               />
             </div>
 
@@ -1415,7 +1415,7 @@ export function PublicationsPage({
                 type="submit"
                 size="sm"
                 disabled={submitting}
-                className="bg-[#2f4692] text-white hover:bg-[#243877] px-5"
+                className="bg-[#2855B9] text-white hover:bg-[#1C355B] px-5"
               >
                 {submitting ? 'Saving...' : editingPub ? 'Update Publication' : 'Save Publication'}
               </Button>
@@ -1461,7 +1461,7 @@ export function PublicationsPage({
 
               <div className="p-5 space-y-4 text-xs text-gray-700 max-h-[60vh] overflow-y-auto">
                 <div>
-                  <span className="text-[10px] font-bold text-[#2f4692] uppercase tracking-wider block">Authors</span>
+                  <span className="text-[10px] font-bold text-[#2855B9] uppercase tracking-wider block">Authors</span>
                   <p className="text-sm font-semibold text-gray-900 mt-0.5">{viewingPub.authorName}</p>
                 </div>
 
@@ -1501,7 +1501,7 @@ export function PublicationsPage({
                         href={viewingPub.doi.startsWith('http') ? viewingPub.doi : `https://doi.org/${viewingPub.doi.replace(/^doi:\s*/i, '')}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[#2f4692] hover:underline font-mono text-[11px] font-semibold mt-0.5 block truncate"
+                        className="text-[#2855B9] hover:underline font-mono text-[11px] font-semibold mt-0.5 block truncate"
                       >
                         {viewingPub.doi}
                       </a>
@@ -1553,7 +1553,7 @@ export function PublicationsPage({
                 <Button
                   size="sm"
                   onClick={() => setViewingPub(null)}
-                  className="bg-[#2f4692] text-white hover:bg-[#243877] text-xs px-5"
+                  className="bg-[#2855B9] text-white hover:bg-[#1C355B] text-xs px-5"
                 >
                   Close
                 </Button>

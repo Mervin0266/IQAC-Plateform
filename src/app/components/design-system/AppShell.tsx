@@ -20,7 +20,7 @@ export function AppShell({
   const { sidebarWidth, isResizing } = useSidebarWidth();
 
   return (
-    <div className={`min-h-screen bg-[#F8FAFC] text-slate-900 flex ${isResizing ? 'select-none cursor-col-resize' : ''}`}>
+    <div className={`min-h-screen bg-[#F5F7FB] text-[#172B4D] flex ${isResizing ? 'select-none cursor-col-resize' : ''}`}>
       {/* Fixed Institutional Resizable Sidebar */}
       {!hideSidebar && (
         <Sidebar

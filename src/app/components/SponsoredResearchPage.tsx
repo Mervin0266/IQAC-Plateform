@@ -312,38 +312,38 @@ export function SponsoredResearchPage({
   const getStatusBadge = (status: string) => {
     const s = (status || '').toLowerCase().trim();
     if (s.includes('ongoing')) {
-      return <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-semibold">Ongoing Research</Badge>;
+      return <Badge className="bg-[#EAF1FD] text-[#2855B9] border-[#C8DCFB] text-[10px] font-semibold">Ongoing Research</Badge>;
     }
     if (s.includes('complete')) {
-      return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-semibold">Completed</Badge>;
+      return <Badge className="bg-[#E8F5ED] text-[#167447] border-[#C6E7D2] text-[10px] font-semibold">Completed</Badge>;
     }
     if (s.includes('sanction')) {
-      return <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] font-semibold">Sanctioned / Awaiting Funds</Badge>;
+      return <Badge className="bg-[#FFF4D8] text-[#9A6700] border-[#FFE5A3] text-[10px] font-semibold">Sanctioned / Awaiting Funds</Badge>;
     }
     if (s.includes('proposal') || s.includes('submit')) {
-      return <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-semibold">Proposal Submitted / Under Review</Badge>;
+      return <Badge className="bg-[#FFF4D8] text-[#9A6700] border-[#FFE5A3] text-[10px] font-semibold">Proposal Submitted / Under Review</Badge>;
     }
     if (s.includes('terminate')) {
-      return <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] font-semibold">Terminated / Closed</Badge>;
+      return <Badge className="bg-[#FEF2F2] text-[#B42318] border-[#FECDCA] text-[10px] font-semibold">Terminated / Closed</Badge>;
     }
-    return <Badge variant="outline" className="text-[10px]">{status || 'Ongoing'}</Badge>;
+    return <Badge variant="outline" className="text-[10px] bg-[#F1F5F9] text-[#475569] border-[#E2E8F0]">{status || 'Ongoing'}</Badge>;
   };
 
   const getAgencyBadge = (type: string) => {
     const t = (type || '').toLowerCase();
     if (t.includes('government') || t.includes('national')) {
-      return <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]">National Govt</Badge>;
+      return <Badge variant="secondary" className="bg-[#EAF1FD] text-[#2855B9] border-[#C8DCFB] text-[10px]">National Govt</Badge>;
     }
     if (t.includes('state')) {
-      return <Badge variant="secondary" className="bg-cyan-50 text-cyan-700 border-cyan-200 text-[10px]">State Govt</Badge>;
+      return <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-[#E2E8F0] text-[10px]">State Govt</Badge>;
     }
     if (t.includes('international')) {
-      return <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-200 text-[10px]">International</Badge>;
+      return <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-[#E2E8F0] text-[10px]">International</Badge>;
     }
     if (t.includes('industry')) {
-      return <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Industry</Badge>;
+      return <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-[#E2E8F0] text-[10px]">Industry</Badge>;
     }
-    return <Badge variant="outline" className="text-[10px]">Internal/Other</Badge>;
+    return <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-600 border-[#E2E8F0]">Internal/Other</Badge>;
   };
 
   // Open Modal for Add
@@ -804,7 +804,7 @@ export function SponsoredResearchPage({
             <Button
               onClick={handleOpenAdd}
               size="sm"
-              className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+              className="bg-[#2855B9] hover:bg-[#1C355B] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
             >
               <Plus className="w-4 h-4 mr-1.5" />
               <span>Record Grant</span>
@@ -856,7 +856,7 @@ export function SponsoredResearchPage({
               <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
               <Input
                 placeholder="Search by Title, Principal Investigator, Agency, Scheme, Sanction Ref..."
-                className="pl-9 h-9 text-xs border-gray-200 focus-visible:ring-[#2f4692]"
+                className="pl-9 h-9 text-xs border-gray-200 focus-visible:ring-[#2855B9]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -936,7 +936,7 @@ export function SponsoredResearchPage({
       {/* Projects List Content */}
       {loading ? (
         <Card className="p-12 text-center border-gray-200">
-          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#2f4692] mb-2" />
+          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#2855B9] mb-2" />
           <p className="text-xs text-gray-500 font-medium">Loading sponsored research grants...</p>
         </Card>
       ) : projects.length === 0 ? (
@@ -944,7 +944,7 @@ export function SponsoredResearchPage({
           <FileText className="w-10 h-10 mx-auto text-gray-300 mb-2" />
           <h3 className="text-sm font-bold text-gray-700">No sponsored research projects found</h3>
           <p className="text-xs text-gray-500 mt-1">Try adjusting your filters, or record a new grant.</p>
-          <Button onClick={handleOpenAdd} size="sm" className="mt-4 bg-[#2f4692] text-white text-xs">
+          <Button onClick={handleOpenAdd} size="sm" className="mt-4 bg-[#2855B9] text-white text-xs">
             <Plus className="w-3.5 h-3.5 mr-1" /> Record New Grant
           </Button>
         </Card>
@@ -1014,7 +1014,7 @@ export function SponsoredResearchPage({
                           {proj.agreementLetterCount} {proj.agreementLetterCount === 1 ? 'Doc' : 'Docs'}
                         </Badge>
                       ) : (
-                        <span className="text-gray-400 text-[10px] italic">Missing</span>
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">Missing</span>
                       )}
                     </div>
                     <div className="flex-1 flex items-center gap-1.5 text-[11px] text-gray-600">
@@ -1025,7 +1025,7 @@ export function SponsoredResearchPage({
                           {proj.paymentReceiptCount} {proj.paymentReceiptCount === 1 ? 'Doc' : 'Docs'}
                         </Badge>
                       ) : (
-                        <span className="text-gray-400 text-[10px] italic">Missing</span>
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">Missing</span>
                       )}
                     </div>
                   </div>
@@ -1036,7 +1036,7 @@ export function SponsoredResearchPage({
                       variant="ghost"
                       size="sm"
                       onClick={() => setViewingProject(proj)}
-                      className="text-xs text-[#2f4692] font-semibold hover:bg-blue-50 h-8 px-2"
+                      className="text-xs text-[#2855B9] font-semibold hover:bg-blue-50 h-8 px-2"
                     >
                       <Eye className="w-3.5 h-3.5 mr-1" /> View Details
                     </Button>
@@ -1073,11 +1073,11 @@ export function SponsoredResearchPage({
         </div>
       ) : (
         /* TABLE VIEW */
-        <Card className="border-gray-200 shadow-sm bg-white overflow-hidden">
+        <Card className="border border-[#E2E8F0] shadow-xs bg-white rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold text-[11px] uppercase tracking-wider">
+                <tr className="bg-slate-50 border-b border-[#E2E8F0] text-slate-700 font-semibold text-xs">
                   <th className="py-3 px-3 w-10 text-center">#</th>
                   <th className="py-3 px-3 min-w-[220px]">Project Title & PI</th>
                   <th className="py-3 px-3 min-w-[150px]">Agency & Category</th>
@@ -1090,10 +1090,10 @@ export function SponsoredResearchPage({
                   <th className="py-3 px-3 text-center w-24">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-700">
+              <tbody className="divide-y divide-[#E2E8F0] text-xs sm:text-[13px] text-slate-700">
                 {projects.map((proj, idx) => {
                   return (
-                    <tr key={proj.id} className="hover:bg-blue-50/40 transition-colors">
+                    <tr key={proj.id} className="hover:bg-[#F1F5F9] transition-colors">
                       <td className="py-3 px-3 text-center font-mono text-gray-400">{idx + 1}</td>
 
                       <td className="py-3 px-3">
@@ -1144,8 +1144,8 @@ export function SponsoredResearchPage({
                       {/* Agreement Letter Column */}
                       <td className="py-3 px-3 text-center">
                         {proj.agreementLetterCount && proj.agreementLetterCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-semibold">
-                            <FileCheck className="w-3 h-3 text-blue-600" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2] text-[10px] font-semibold">
+                            <FileCheck className="w-3 h-3 text-[#167447]" />
                             {proj.agreementLetterCount} {proj.agreementLetterCount === 1 ? 'Doc' : 'Docs'}
                           </span>
                         ) : (
@@ -1156,8 +1156,8 @@ export function SponsoredResearchPage({
                       {/* Payment Receipt Column */}
                       <td className="py-3 px-3 text-center">
                         {proj.paymentReceiptCount && proj.paymentReceiptCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-semibold">
-                            <Receipt className="w-3 h-3 text-purple-600" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2] text-[10px] font-semibold">
+                            <Receipt className="w-3 h-3 text-[#167447]" />
                             {proj.paymentReceiptCount} {proj.paymentReceiptCount === 1 ? 'Doc' : 'Docs'}
                           </span>
                         ) : (
@@ -1230,7 +1230,7 @@ export function SponsoredResearchPage({
         <DialogContent className="sm:max-w-[760px] max-h-[92vh] overflow-y-auto bg-white p-6 rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-[#2f4692]" />
+              <TrendingUp className="w-5 h-5 text-[#2855B9]" />
               <span>{editingProject ? 'Edit Sponsored Research Project' : 'Record New Sponsored Research Grant'}</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
@@ -1249,7 +1249,7 @@ export function SponsoredResearchPage({
             {/* SECTION A — PROJECT INFORMATION */}
             <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-[#2F4692]" />
+                <FileText className="w-3.5 h-3.5 text-[#2855B9]" />
                 <span>Section A — Project Information</span>
               </h4>
 
@@ -1536,7 +1536,7 @@ export function SponsoredResearchPage({
             {/* SECTION D — PROJECT CLASSIFICATION */}
             <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-[#2F4692]" />
+                <Layers className="w-3.5 h-3.5 text-[#2855B9]" />
                 <span>Section D — Project Classification & Progress</span>
               </h4>
 
@@ -1599,7 +1599,7 @@ export function SponsoredResearchPage({
             {/* SECTION E — SUPPORTING DOCUMENTS (TWO SEPARATE CATEGORIES) */}
             <div className="space-y-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Paperclip className="w-3.5 h-3.5 text-[#2F4692]" />
+                <Paperclip className="w-3.5 h-3.5 text-[#2855B9]" />
                 <span>Section E — Supporting Documents (Google Drive Integration)</span>
               </h4>
 
@@ -1727,7 +1727,7 @@ export function SponsoredResearchPage({
             {/* SECTION F — ADDITIONAL INFORMATION */}
             <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <ExternalLink className="w-3.5 h-3.5 text-[#2F4692]" />
+                <ExternalLink className="w-3.5 h-3.5 text-[#2855B9]" />
                 <span>Section F — Additional Information</span>
               </h4>
 
@@ -1748,7 +1748,7 @@ export function SponsoredResearchPage({
                   placeholder="Brief summary of research scope, objectives, and deliverables..."
                   value={formData.description || ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full mt-1 p-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#2f4692] bg-white"
+                  className="w-full mt-1 p-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#2855B9] bg-white"
                 />
               </div>
             </div>
@@ -1766,7 +1766,7 @@ export function SponsoredResearchPage({
               <Button
                 type="submit"
                 disabled={submitting}
-                className="bg-[#2f4692] text-white hover:bg-[#243a7a] text-xs font-semibold"
+                className="bg-[#2855B9] text-white hover:bg-[#1C355B] text-xs font-semibold"
               >
                 {submitting ? 'Saving...' : editingProject ? 'Update Grant' : 'Record Project'}
               </Button>
@@ -1790,7 +1790,7 @@ export function SponsoredResearchPage({
                     {viewingProject.sanctionYear ? `SY ${viewingProject.sanctionYear}` : `AY ${viewingProject.academicYear}`}
                   </Badge>
                   {(viewingProject.durationFormatted || (viewingProject.startDate && viewingProject.endDate)) && (
-                    <Badge variant="outline" className="text-[10px] font-mono bg-blue-50 text-blue-800 border-blue-200">
+                    <Badge variant="outline" className="text-[10px] font-mono bg-[#EAF1FD] text-[#2855B9] border-[#C8DCFB]">
                       Duration: {viewingProject.durationFormatted || calculateProjectDuration(viewingProject.startDate, viewingProject.endDate).formatted}
                     </Badge>
                   )}
@@ -1804,8 +1804,8 @@ export function SponsoredResearchPage({
               </DialogHeader>
 
               {/* Research Team Banner */}
-              <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-200 text-xs">
-                <div className="font-semibold text-[#2f4692]">Principal Investigator (PI):</div>
+              <div className="p-3 bg-[#EAF1FD]/40 rounded-lg border border-[#C8DCFB] text-xs">
+                <div className="font-semibold text-[#2855B9]">Principal Investigator (PI):</div>
                 <div className="text-gray-900 font-bold text-sm mt-0.5">{viewingProject.principalInvestigator}</div>
                 {viewingProject.coInvestigators && (
                   <div className="text-gray-600 mt-1">
@@ -1851,8 +1851,8 @@ export function SponsoredResearchPage({
                     </div>
                     <div>
                       <span className="text-gray-500 block text-[11px]">Project Duration</span>
-                      <span className="font-semibold text-[#2f4692] flex items-center gap-1.5 mt-0.5">
-                        <Clock className="w-3.5 h-3.5 text-[#2f4692] shrink-0" />
+                      <span className="font-semibold text-[#2855B9] flex items-center gap-1.5 mt-0.5">
+                        <Clock className="w-3.5 h-3.5 text-[#2855B9] shrink-0" />
                         {viewingProject.durationFormatted || (viewingProject.startDate && viewingProject.endDate ? calculateProjectDuration(viewingProject.startDate, viewingProject.endDate).formatted : 'Not Available')}
                       </span>
                     </div>
@@ -1872,13 +1872,13 @@ export function SponsoredResearchPage({
                   )}
 
                   {viewingProject.projectUrl && (
-                    <div className="flex items-center justify-between p-2.5 bg-blue-50/50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center justify-between p-2.5 bg-[#EAF1FD]/40 border border-[#C8DCFB] rounded-lg">
                       <span className="text-gray-600">External Research Portal:</span>
                       <a
                         href={viewingProject.projectUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#2f4692] font-semibold hover:underline flex items-center gap-1"
+                        className="text-[#2855B9] font-semibold hover:underline flex items-center gap-1"
                       >
                         Visit Portal <ExternalLink className="w-3 h-3" />
                       </a>
@@ -2037,7 +2037,7 @@ export function SponsoredResearchPage({
                       setViewingProject(null);
                       handleOpenEdit(proj);
                     }}
-                    className="bg-[#2f4692] text-white hover:bg-[#243a7a] text-xs font-semibold"
+                    className="bg-[#2855B9] text-white hover:bg-[#1C355B] text-xs font-semibold"
                   >
                     <Edit className="w-3.5 h-3.5 mr-1" /> Edit Grant
                   </Button>

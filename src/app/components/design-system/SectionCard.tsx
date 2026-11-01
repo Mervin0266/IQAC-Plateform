@@ -24,10 +24,10 @@ export function SectionCard({
   footer,
 }: SectionCardProps) {
   return (
-    <div className={`bg-white border border-slate-200/80 rounded-xl shadow-xs overflow-hidden ${className}`}>
+    <div className={`bg-white border border-[#E2E8F0] rounded-xl shadow-xs overflow-hidden ${className}`}>
       {(title || actions) && (
         <div
-          className={`px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${headerClassName}`}
+          className={`px-5 py-4 border-b border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${headerClassName}`}
         >
           <div className="space-y-0.5 min-w-0">
             <div className="flex items-center gap-2">
@@ -44,7 +44,7 @@ export function SectionCard({
       <div className={`p-5 ${bodyClassName}`}>{children}</div>
 
       {footer && (
-        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
+        <div className="px-5 py-3 border-t border-[#E2E8F0] bg-slate-50 flex items-center justify-between text-xs text-slate-500">
           {footer}
         </div>
       )}

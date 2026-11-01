@@ -40,8 +40,8 @@ export function StatCard({
 }: StatCardProps) {
   const content = (
     <div
-      className={`h-full flex flex-col justify-between bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs relative transition-colors duration-150 ${
-        onClick ? 'cursor-pointer hover:border-slate-300 hover:bg-slate-50/30' : ''
+      className={`h-full flex flex-col justify-between bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs relative transition-colors duration-150 ${
+        onClick ? 'cursor-pointer hover:border-slate-300 hover:bg-slate-50/50' : ''
       } ${className}`}
     >
       {/* Top Header Row: Title, Badge, and Restrained Icon */}
@@ -52,7 +52,7 @@ export function StatCard({
               {title}
             </span>
             {badge && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200/60 shrink-0">
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-[#E2E8F0] shrink-0">
                 {badge}
               </span>
             )}
@@ -60,7 +60,7 @@ export function StatCard({
         </div>
 
         {Icon && (
-          <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 text-slate-600">
+          <div className="w-8 h-8 rounded-lg bg-slate-50 border border-[#E2E8F0] flex items-center justify-center shrink-0 text-slate-600">
             <Icon className="w-4 h-4 text-slate-600" />
           </div>
         )}
@@ -79,7 +79,7 @@ export function StatCard({
 
       {/* Bottom Row: Subtitle & Restrained Trend Indicator */}
       {(subtitle || change) && (
-        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center gap-1.5 text-xs">
+        <div className="mt-auto pt-3 border-t border-[#E2E8F0] flex items-center gap-1.5 text-xs">
           {change && (
             <span
               className={`inline-flex items-center font-medium shrink-0 ${

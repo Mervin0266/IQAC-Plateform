@@ -162,16 +162,16 @@ export function Sidebar({
               onClick={() => toggleSubmenu(sub.key)}
               className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left ${
                 isSubChildActive || isSubOpen
-                  ? 'bg-white/[0.08] text-white font-medium'
-                  : 'text-slate-300 hover:bg-white/[0.05] hover:text-white'
+                  ? 'bg-[#294768] text-white font-medium'
+                  : 'text-slate-200 hover:bg-[#294768] hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2 truncate">
-                {SubIcon && <SubIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                {SubIcon && <SubIcon className="w-3.5 h-3.5 text-slate-300 shrink-0" />}
                 <span className="truncate">{sub.label}</span>
               </div>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
+                className={`w-3.5 h-3.5 text-slate-300 transition-transform duration-200 shrink-0 ${
                   isSubOpen ? 'rotate-180 text-white' : ''
                 }`}
               />
@@ -183,7 +183,7 @@ export function Sidebar({
                 isSubOpen ? 'max-h-96 opacity-100 mt-1' : 'max-h-0 opacity-0'
               }`}
             >
-              <div className="pl-2 pr-1 py-0.5 space-y-0.5 border-l border-slate-700/60 ml-2">
+              <div className="pl-2 pr-1 py-0.5 space-y-0.5 border-l border-white/15 ml-2">
                 {renderSubItems(sub.children, depth + 1)}
               </div>
             </div>
@@ -201,16 +201,16 @@ export function Sidebar({
           onClick={() => onNavigate?.(sub.key)}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors relative ${
             isSubActive
-              ? 'bg-blue-600 text-white font-medium shadow-xs'
-              : 'text-slate-300 hover:bg-white/[0.05] hover:text-white'
+              ? 'bg-[#2855B9] text-white font-medium shadow-xs'
+              : 'text-slate-200 hover:bg-[#294768] hover:text-white'
           }`}
         >
           {SubIcon ? (
-            <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-slate-400'}`} />
+            <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-slate-300'}`} />
           ) : (
             <span
               className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${
-                isSubActive ? 'bg-white' : 'bg-slate-500'
+                isSubActive ? 'bg-white' : 'bg-slate-400'
               }`}
             />
           )}
@@ -226,7 +226,7 @@ export function Sidebar({
         width: `${sidebarWidth}px`,
         transition: isResizing ? 'none' : 'width 0.15s ease-out',
       }}
-      className="fixed left-0 top-0 h-screen bg-[#0B132B] text-slate-100 z-40 flex flex-col border-r border-slate-800/80 select-none group/sidebar shadow-sm"
+      className="fixed left-0 top-0 h-screen bg-[#1C355B] text-slate-100 z-40 flex flex-col border-r border-white/10 select-none group/sidebar shadow-sm"
     >
       {/* Interactive Desktop Drag Resize Handle */}
       <div
@@ -241,15 +241,15 @@ export function Sidebar({
         onDoubleClick={resetSidebarWidth}
         onKeyDown={handleKeyDown}
         title="Drag to resize sidebar (Double click to reset to 256px)"
-        className={`hidden lg:block absolute top-0 right-0 w-2 h-full cursor-col-resize z-50 hover:bg-blue-600/60 focus:bg-blue-600 focus:outline-none transition-all ${
-          isResizing ? 'bg-blue-600 w-2' : ''
+        className={`hidden lg:block absolute top-0 right-0 w-2 h-full cursor-col-resize z-50 hover:bg-[#2855B9]/60 focus:bg-[#2855B9] focus:outline-none transition-all ${
+          isResizing ? 'bg-[#2855B9] w-2' : ''
         }`}
       >
-        <div className="absolute top-1/2 -translate-y-1/2 right-0.5 w-1 h-8 rounded-full bg-slate-700/60 group-hover/sidebar:bg-slate-400 transition-colors" />
+        <div className="absolute top-1/2 -translate-y-1/2 right-0.5 w-1 h-8 rounded-full bg-slate-600 group-hover/sidebar:bg-slate-300 transition-colors" />
       </div>
 
       {/* 1. Official Institutional Brand Header */}
-      <div className="p-3.5 border-b border-slate-800/80 bg-[#0B132B]">
+      <div className="p-3.5 border-b border-white/10 bg-[#1C355B]">
         <div className="bg-white rounded-lg p-2 flex items-center justify-center border border-slate-200/20 shadow-xs">
           <img
             src={christLogo}
@@ -259,7 +259,7 @@ export function Sidebar({
           />
         </div>
         <div className="mt-2 text-center">
-          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-tight">
+          <p className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider leading-tight">
             Internal Quality Assurance Cell
           </p>
         </div>
@@ -268,8 +268,8 @@ export function Sidebar({
       {/* 2. User Profile Card */}
       {user && (
         <div className="px-3.5 pt-3 pb-1">
-          <div className="bg-white/[0.04] hover:bg-white/[0.07] transition-colors border border-slate-800 rounded-lg p-2.5 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+          <div className="bg-[#294768]/80 hover:bg-[#294768] transition-colors border border-white/10 rounded-lg p-2.5 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#2855B9] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
               {(user.name || user.username || 'U').charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -279,14 +279,14 @@ export function Sidebar({
               >
                 {user.name || user.username || 'System Administrator'}
               </p>
-              <p className="text-[11px] text-slate-400 font-normal truncate flex items-center gap-1.5 mt-0.5">
+              <p className="text-[11px] text-slate-300 font-normal truncate flex items-center gap-1.5 mt-0.5">
                 <span>{getRoleDisplayName(user.role)}</span>
                 {user.department ? (
-                  <span className="text-slate-400 truncate" title={user.department}>
+                  <span className="text-slate-300 truncate" title={user.department}>
                     • {user.department}
                   </span>
                 ) : (
-                  <span className="text-slate-400">• University-wide</span>
+                  <span className="text-slate-300">• University-wide</span>
                 )}
               </p>
             </div>
@@ -300,10 +300,10 @@ export function Sidebar({
       </div>
 
       {/* 4. Scrollable Navigation Menu */}
-      <nav className="flex-1 px-3 space-y-3.5 overflow-y-auto overflow-x-hidden py-1 scrollbar-thin scrollbar-thumb-slate-800">
+      <nav className="flex-1 px-3 space-y-3.5 overflow-y-auto overflow-x-hidden py-1 scrollbar-thin scrollbar-thumb-slate-700">
         {coreNavSections.map((section, idx) => (
           <div key={idx} className="space-y-1">
-            <p className="px-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+            <p className="px-2.5 text-[10px] font-semibold text-slate-300/80 uppercase tracking-wider">
               {section.groupTitle}
             </p>
             <div className="space-y-0.5">
@@ -322,16 +322,16 @@ export function Sidebar({
                         onClick={() => toggleSubmenu(item.key)}
                         className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${
                           isChildActive || isOpen
-                            ? 'bg-white/[0.08] text-white font-medium'
-                            : 'text-slate-300 hover:bg-white/[0.05] hover:text-white'
+                            ? 'bg-[#294768] text-white font-medium'
+                            : 'text-slate-200 hover:bg-[#294768] hover:text-white'
                         }`}
                       >
                         <div className="flex items-center gap-2.5 truncate">
-                          <Icon className="w-4 h-4 text-slate-400 shrink-0" />
+                          <Icon className="w-4 h-4 text-slate-300 shrink-0" />
                           <span className="text-xs font-medium truncate">{item.label}</span>
                         </div>
                         <ChevronDown
-                          className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
+                          className={`w-3.5 h-3.5 text-slate-300 transition-transform duration-200 shrink-0 ${
                             isOpen ? 'rotate-180 text-white' : ''
                           }`}
                         />
@@ -343,7 +343,7 @@ export function Sidebar({
                           isOpen ? 'max-h-[600px] opacity-100 mt-1' : 'max-h-0 opacity-0'
                         }`}
                       >
-                        <div className="pl-2.5 pr-1 py-1 space-y-0.5 border-l border-slate-700/60 ml-4 my-0.5">
+                        <div className="pl-2.5 pr-1 py-1 space-y-0.5 border-l border-white/15 ml-4 my-0.5">
                           {renderSubItems(item.children)}
                         </div>
                       </div>
@@ -359,11 +359,11 @@ export function Sidebar({
                     onClick={() => onNavigate?.(item.key)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-left relative ${
                       isActive
-                        ? 'bg-blue-600 text-white font-medium shadow-xs'
-                        : 'text-slate-300 hover:bg-white/[0.05] hover:text-white'
+                        ? 'bg-[#2855B9] text-white font-medium shadow-xs'
+                        : 'text-slate-200 hover:bg-[#294768] hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-300'}`} />
                     <span className="text-xs font-medium truncate">{item.label}</span>
                   </button>
                 );
@@ -374,8 +374,8 @@ export function Sidebar({
 
         {/* 5. System Controls (Admins only) */}
         {user?.role === 'admin' && (
-          <div className="space-y-1 pt-1.5 border-t border-slate-800">
-            <p className="px-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+          <div className="space-y-1 pt-1.5 border-t border-white/10">
+            <p className="px-2.5 text-[10px] font-semibold text-slate-300/80 uppercase tracking-wider">
               ADMINISTRATION
             </p>
             <div className="space-y-0.5">
@@ -389,11 +389,11 @@ export function Sidebar({
                     onClick={() => onNavigate?.(item.key)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-left relative ${
                       isActive
-                        ? 'bg-blue-600 text-white font-medium shadow-xs'
-                        : 'text-slate-300 hover:bg-white/[0.05] hover:text-white'
+                        ? 'bg-[#2855B9] text-white font-medium shadow-xs'
+                        : 'text-slate-200 hover:bg-[#294768] hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-300'}`} />
                     <span className="text-xs font-medium truncate">{item.label}</span>
                   </button>
                 );
@@ -404,14 +404,14 @@ export function Sidebar({
       </nav>
 
       {/* 6. Refined Institutional Bottom Bar */}
-      <div className="p-3 border-t border-slate-800/80 bg-[#0B132B]">
-        <div className="flex items-center justify-between bg-white/[0.04] rounded-lg p-1 border border-slate-800">
+      <div className="p-3 border-t border-white/10 bg-[#1C355B]">
+        <div className="flex items-center justify-between bg-[#294768]/60 rounded-lg p-1 border border-white/10">
           <NotificationDropdown />
 
           <button
             type="button"
             onClick={() => onNavigate?.('dashboard')}
-            className="p-1.5 hover:bg-white/10 rounded-md transition-colors text-slate-400 hover:text-white"
+            className="p-1.5 hover:bg-[#294768] rounded-md transition-colors text-slate-300 hover:text-white"
             title="Dashboard Overview"
           >
             <Home className="w-4 h-4" />
@@ -421,7 +421,7 @@ export function Sidebar({
             <button
               type="button"
               onClick={() => onNavigate?.('user-management')}
-              className="p-1.5 hover:bg-white/10 rounded-md transition-colors text-slate-400 hover:text-white"
+              className="p-1.5 hover:bg-[#294768] rounded-md transition-colors text-slate-300 hover:text-white"
               title="User Management"
             >
               <Settings className="w-4 h-4" />
@@ -431,14 +431,14 @@ export function Sidebar({
           <button
             type="button"
             onClick={logout}
-            className="p-1.5 hover:bg-rose-500/20 rounded-md transition-colors text-slate-400 hover:text-rose-400"
+            className="p-1.5 hover:bg-rose-500/20 rounded-md transition-colors text-slate-300 hover:text-rose-300"
             title="Sign Out"
           >
             <LogOut className="w-4 h-4" />
           </button>
         </div>
         <div className="mt-2 text-center">
-          <p className="text-[10px] text-slate-400/80 font-normal">
+          <p className="text-[10px] text-slate-400 font-normal">
             CHRIST (Deemed to be University)
           </p>
         </div>

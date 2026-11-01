@@ -111,7 +111,7 @@ export function SearchBar({ onNavigate, className = '', placeholder = 'Search' }
             }
           }}
           placeholder={placeholder}
-          className="w-full pl-9 pr-9 py-2 text-xs bg-white/[0.05] hover:bg-white/[0.08] text-white placeholder-slate-400 border border-slate-700/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2f4692] focus:border-transparent transition-all"
+          className="w-full pl-9 pr-9 py-2 text-xs bg-[#294768]/60 hover:bg-[#294768] text-white placeholder-slate-300 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2855B9] focus:border-transparent transition-all"
         />
         {query && (
           <button

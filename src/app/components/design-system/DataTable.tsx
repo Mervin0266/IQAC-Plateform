@@ -46,17 +46,17 @@ export function DataTable<T>({
   onRowClick,
 }: DataTableProps<T>) {
   return (
-    <div className={`bg-white border border-slate-200/80 rounded-xl overflow-hidden shadow-xs ${className}`}>
+    <div className={`bg-white border border-[#E2E8F0] rounded-xl overflow-hidden shadow-xs ${className}`}>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50/80 border-b border-slate-200">
+            <tr className="bg-slate-50 border-b border-[#E2E8F0]">
               {columns.map((col) => (
                 <th
                   key={col.key}
                   scope="col"
                   style={{ width: col.width }}
-                  className={`py-3 px-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider ${
+                  className={`py-3 px-4 text-xs font-semibold text-slate-700 tracking-normal ${
                     col.align === 'right'
                       ? 'text-right'
                       : col.align === 'center'
@@ -69,13 +69,13 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-xs sm:text-sm text-slate-700">
+          <tbody className="divide-y divide-[#E2E8F0] text-xs sm:text-[13px] text-slate-700">
             {loading ? (
               // Loading skeletons
               Array.from({ length: 5 }).map((_, rIdx) => (
                 <tr key={rIdx} className="animate-pulse">
                   {columns.map((col, cIdx) => (
-                    <td key={cIdx} className="py-3.5 px-4">
+                    <td key={cIdx} className="py-3 px-4">
                       <div className="h-4 bg-slate-100 rounded w-4/5" />
                     </td>
                   ))}
@@ -106,13 +106,13 @@ export function DataTable<T>({
                   key={keyExtractor(item, index)}
                   onClick={() => onRowClick && onRowClick(item)}
                   className={`transition-colors ${
-                    onRowClick ? 'cursor-pointer hover:bg-slate-50/80' : 'hover:bg-slate-50/50'
+                    onRowClick ? 'cursor-pointer hover:bg-[#F1F5F9]' : 'hover:bg-[#F1F5F9]/70'
                   }`}
                 >
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className={`py-3.5 px-4 align-middle ${
+                      className={`py-3 px-4 align-middle ${
                         col.align === 'right'
                           ? 'text-right tabular-nums'
                           : col.align === 'center'
@@ -134,7 +134,7 @@ export function DataTable<T>({
 
       {/* Pagination Footer */}
       {pagination && (
-        <div className="bg-slate-50/60 border-t border-slate-200 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+        <div className="bg-slate-50 border-t border-[#E2E8F0] px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
           <div className="flex items-center gap-4">
             <span>
               Page <strong className="font-semibold text-slate-900">{pagination.currentPage}</strong> of{' '}
@@ -150,7 +150,7 @@ export function DataTable<T>({
                 <select
                   value={pagination.pageSize || 10}
                   onChange={(e) => pagination.onPageSizeChange!(Number(e.target.value))}
-                  className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#2f4692]"
+                  className="bg-white border border-[#E2E8F0] rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#2855B9] focus:border-[#2855B9]"
                 >
                   {pagination.pageSizeOptions.map((opt) => (
                     <option key={opt} value={opt}>
