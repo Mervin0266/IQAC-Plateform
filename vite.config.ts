@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     allowedHosts: [
-      'implicate-babble-suds.ngrok-free.dev'
+      '.ngrok-free.app',
+      '.ngrok-free.dev'
     ],
   },
 })
