@@ -4,14 +4,20 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>IQAC Platform | Christ University</title>
-    <!-- Inter Font — Minimal Enterprise SaaS Typography -->
+    <meta name="description" content="Internal Quality Assurance Cell (IQAC) — CHRIST (Deemed to be University), Bangalore. NAAC A++ Accredited. Excellence and Service." />
+    <meta name="theme-color" content="#0B132B" />
+    <title>IQAC Portal | CHRIST (Deemed to be University)</title>
+
+    <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Inter (body) + Playfair Display (headings) — Premium Typography Stack -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+
     <style>
       html, body {
         height: 100%;
@@ -20,9 +26,31 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         background-color: #f8fafc;
+        scroll-behavior: smooth;
       }
       #root {
         height: 100%;
+      }
+
+      /* Smooth scrollbar styling */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+
+      /* Selection color - Christ University Gold */
+      ::selection {
+        background: rgba(232, 200, 74, 0.3);
+        color: #0B132B;
       }
     </style>
   </head>
