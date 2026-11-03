@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Menu, X, ChevronDown, ExternalLink } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import christLogo from "figma:asset/e4f652b12ffea64be11193ae1ce02c65502fc8ea.png";
+import christLogo from "../../assets/logo.png";
 
 interface PublicNavBarProps {
   currentSection: string;
