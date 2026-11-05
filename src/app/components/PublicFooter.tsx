@@ -3,9 +3,10 @@ import { Mail, Phone, MapPin, ExternalLink, ArrowUp, Globe, Clock, ChevronRight 
 
 interface PublicFooterProps {
   onLoginClick: () => void;
+  onNavigate: (section: string) => void;
 }
 
-export function PublicFooter({ onLoginClick }: PublicFooterProps) {
+export function PublicFooter({ onLoginClick, onNavigate }: PublicFooterProps) {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -46,7 +47,7 @@ export function PublicFooter({ onLoginClick }: PublicFooterProps) {
             </p>
             <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2 w-fit">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[11px] text-emerald-300 font-medium">NAAC A++ Accredited</span>
+              <span className="text-[11px] text-emerald-300 font-medium">NAAC A+ - CGPA 3.42</span>
             </div>
           </div>
 
@@ -148,13 +149,13 @@ export function PublicFooter({ onLoginClick }: PublicFooterProps) {
                 <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0 group-hover:bg-[#e8c84a]/10 transition-colors">
                   <Phone className="w-3.5 h-3.5 text-[#E8C84A]" />
                 </div>
-                <span className="text-xs text-white/50">+91 80 4012 9000</span>
+                <span className="text-xs text-white/50">080 4012 9188</span>
               </div>
               <div className="flex items-center gap-3 group">
                 <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0 group-hover:bg-[#e8c84a]/10 transition-colors">
                   <Mail className="w-3.5 h-3.5 text-[#E8C84A]" />
                 </div>
-                <span className="text-xs text-white/50">iqac@christuniversity.in</span>
+                <span className="text-xs text-white/50">office.iqac@christuniversity.in</span>
               </div>
               <div className="flex items-center gap-3 group">
                 <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0 group-hover:bg-[#e8c84a]/10 transition-colors">

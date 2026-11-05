@@ -77,7 +77,7 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
           {renderContent()}
         </Suspense>
       </main>
-      <PublicFooter onLoginClick={onLoginClick} />
+      <PublicFooter onLoginClick={onLoginClick} onNavigate={setCurrentSection} />
     </div>
   );
 }

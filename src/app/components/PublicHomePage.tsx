@@ -20,7 +20,7 @@ const HERO_IMAGES = [
 
 const HERO_CAPTIONS = [
   { title: 'Internal Quality Assurance Cell', subtitle: 'CHRIST (Deemed to be University), Bangalore' },
-  { title: 'Excellence in Education & Research', subtitle: 'NAAC A++ Accredited | CGPA 3.69/4.00' },
+  { title: 'Excellence in Education & Research', subtitle: 'NAAC A+ Accredited | CGPA 3.42/4.00' },
   { title: 'Fostering Innovation & Global Impact', subtitle: 'World-Class Infrastructure & Global Partnerships' },
   { title: 'Shaping Future Leaders', subtitle: 'Holistic Development Through Quality Education' },
   { title: 'Committed to Continuous Improvement', subtitle: 'Quality Assurance Through Systematic Planning' },
@@ -48,8 +48,8 @@ const QUICK_LINKS = [
 
 const LATEST_NEWS = [
   {
-    title: 'NAAC A++ Accreditation Renewed',
-    description: 'Christ University maintains its NAAC A++ accreditation with highest CGPA score of 3.69, a testament to our commitment to educational excellence.',
+    title: 'IQAC Annual Academic Audit',
+    description: 'A structured quality assurance initiative that reviews academic and administrative performance across the University.',
     date: '2024-03-15',
     category: 'Accreditation',
     icon: Medal,
@@ -57,7 +57,7 @@ const LATEST_NEWS = [
     bg: 'bg-amber-50',
   },
   {
-    title: 'Research Excellence Award 2024',
+    title: 'IQAC Report 2024-25',
     description: 'Faculty members receive prestigious research grants totaling ₹5 Crore for cutting-edge research across multiple disciplines.',
     date: '2024-03-10',
     category: 'Research',
@@ -66,8 +66,8 @@ const LATEST_NEWS = [
     bg: 'bg-purple-50',
   },
   {
-    title: 'International Partnership — Oxford',
-    description: 'New MoU with Oxford University for collaborative research programs, student exchange, and dual-degree opportunities.',
+    title: 'Annual Academic Audit 2024-25',
+    description: 'The annual audit reviews quality practices across campuses, Schools, and Departments.',
     date: '2024-03-05',
     category: 'International',
     icon: Globe,
@@ -75,8 +75,8 @@ const LATEST_NEWS = [
     bg: 'bg-cyan-50',
   },
   {
-    title: '100% Placement Achievement',
-    description: 'Engineering batch 2024 achieves 100% placement with top-tier companies like Google, Microsoft, and Amazon.',
+    title: 'IQAC Annual Academic Audit',
+    description: 'A systematic mechanism for reviewing performance against quality benchmarks and strategic goals.',
     date: '2024-02-28',
     category: 'Placements',
     icon: Trophy,
@@ -93,8 +93,8 @@ const LATEST_NEWS = [
     bg: 'bg-indigo-50',
   },
   {
-    title: 'NIRF Ranking — Top 50',
-    description: 'Christ University ranked among the Top 50 Universities in India by the National Institutional Ranking Framework (NIRF 2024).',
+    title: 'Strategic Initiatives',
+    description: 'Evidence-based initiatives that align quality enhancement with the University long-term vision.',
     date: '2024-02-10',
     category: 'Rankings',
     icon: BarChart3,
@@ -284,7 +284,7 @@ export function PublicHomePage({ onNavigate }: PublicHomePageProps) {
               style={{ animation: 'fadeSlideIn 0.8s ease-out 0s both' }}>
               <Shield className="w-4 h-4 text-[#e8c84a]" />
               <span className="text-sm font-medium text-blue-100 tracking-wide">
-                NAAC A++ Accredited — CGPA 3.69/4.00
+                NAAC A+ Accredited - CGPA 3.42/4.00
               </span>
             </div>
 
@@ -528,7 +528,7 @@ export function PublicHomePage({ onNavigate }: PublicHomePageProps) {
                       </CardDescription>
                     </div>
                     <div className="w-14 h-14 rounded-xl bg-white/10 flex items-center justify-center border border-white/10">
-                      <span className="text-2xl font-black text-[#e8c84a]">A++</span>
+                      <span className="text-2xl font-black text-[#e8c84a]">A+</span>
                     </div>
                   </div>
                 </CardHeader>
@@ -536,7 +536,7 @@ export function PublicHomePage({ onNavigate }: PublicHomePageProps) {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between py-2 border-b border-gray-100">
                       <span className="text-gray-500 text-sm">CGPA Score</span>
-                      <span className="text-xl font-bold text-[#2f4692]">3.69 / 4.00</span>
+                      <span className="text-xl font-bold text-[#2f4692]">3.42 / 4.00</span>
                     </div>
                     <div className="flex items-center justify-between py-2 border-b border-gray-100">
                       <span className="text-gray-500 text-sm">Cycle</span>
@@ -544,7 +544,7 @@ export function PublicHomePage({ onNavigate }: PublicHomePageProps) {
                     </div>
                     <div className="flex items-center justify-between py-2">
                       <span className="text-gray-500 text-sm">Valid Until</span>
-                      <span className="text-sm font-semibold text-emerald-600">2028</span>
+                      <span className="text-sm font-semibold text-emerald-600">25 October 2027</span>
                     </div>
                     <div className="pt-3 border-t border-gray-100">
                       <div className="flex items-start gap-2 bg-emerald-50 p-3 rounded-lg">
@@ -839,15 +839,15 @@ export function PublicHomePage({ onNavigate }: PublicHomePageProps) {
           {[...Array(2)].map((_, setIdx) => (
             <React.Fragment key={setIdx}>
               {[
-                '🏅 NAAC A++ Accredited',
-                '📊 NIRF Top 50 University',
-                '🌐 70+ International MoUs',
-                '🔬 312+ Research Publications',
-                '🎓 92% Placement Rate',
+                '🏅 NAAC A+ Accredited',
+                '📊 Quality benchmarks and rankings',
+                '🌐 Global partnerships and engagement',
+                '🔬 Research and knowledge creation',
+                '🎓 Student progression and support',
                 '🏗️ State-of-the-Art Infrastructure',
-                '📈 8 NBA Accredited Programs',
-                '🤝 186+ Industry Partners',
-                '📝 AQAR Reports Submitted Annually',
+                '📈 Accreditation readiness',
+                '🤝 Industry and stakeholder participation',
+                '📝 AQAR reports and documentation',
                 '⭐ ISO 9001:2015 Certified',
               ].map((item, i) => (
                 <span key={`${setIdx}-${i}`} className="mx-8 text-sm font-medium text-[#2f4692]/80 inline-block">
