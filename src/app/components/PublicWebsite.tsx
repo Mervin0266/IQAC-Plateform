@@ -2,6 +2,7 @@ import React, { useState, Suspense } from 'react';
 import { PublicNavBar } from './PublicNavBar';
 import { PublicFooter } from './PublicFooter';
 import { PublicHomePage } from './PublicHomePage';
+import '../../styles/public-website.css';
 
 // ── Lazy-loaded public pages ─────────────────────────────────────
 // These were previously statically imported, preventing code-splitting
@@ -35,11 +36,16 @@ interface PublicWebsiteProps {
 
 export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
   const [currentSection, setCurrentSection] = useState('home');
+  const navigate = (section: string) => {
+    setCurrentSection(section);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    requestAnimationFrame(() => document.getElementById('public-content')?.focus());
+  };
 
   const renderContent = () => {
     switch (currentSection) {
       case 'home':
-        return <PublicHomePage onNavigate={setCurrentSection} />;
+        return <PublicHomePage onNavigate={navigate} onLoginClick={onLoginClick} />;
       case 'achievements':
         return <AchievementsPage onNavigate={setCurrentSection} isPublicView={true} />;
       case 'research-innovation':
@@ -61,23 +67,23 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
       case 'consultancy-projects':
         return <ConsultancyProjectsPage onNavigate={setCurrentSection} isPublicView={true} />;
       default:
-        return <PublicHomePage onNavigate={setCurrentSection} />;
+        return <PublicHomePage onNavigate={navigate} onLoginClick={onLoginClick} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="iq-site min-h-screen bg-gray-50 flex flex-col">
       <PublicNavBar 
         currentSection={currentSection} 
-        onNavigate={setCurrentSection} 
+        onNavigate={navigate}
         onLoginClick={onLoginClick}
       />
-      <main className="flex-1">
+      <main id="public-content" tabIndex={-1} className="flex-1">
         <Suspense fallback={<PublicPageLoading />}>
           {renderContent()}
         </Suspense>
       </main>
-      <PublicFooter onLoginClick={onLoginClick} onNavigate={setCurrentSection} />
+      <PublicFooter onLoginClick={onLoginClick} onNavigate={navigate} />
     </div>
   );
 }
