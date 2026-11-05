@@ -1,4 +1,6 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -225,24 +227,37 @@ const startServer = async () => {
       console.error(`✗ Unrecognized NODE_ENV="${nodeEnv}". Refusing to run auto-seeding or runtime DDL (fail-closed).`);
     }
 
-    // Ensure additive patent schema migrations are applied on all environments
+    // Ensure all versioned schema migrations are applied across all environments
     try {
-      const patentMigration = require('./migrations/20261030_add_patent_grant_year_and_proofs');
-      await patentMigration.up(sequelize.getQueryInterface(), sequelize.Sequelize);
-      console.log('✓ Patent schema migrations verified.');
+      try {
+        await sequelize.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
+      } catch (extErr) {
+        // Non-fatal if extension exists or user lacks superuser permissions
+      }
+
+      const migrationsDir = path.resolve(__dirname, 'migrations');
+      if (fs.existsSync(migrationsDir)) {
+        const migrationFiles = fs.readdirSync(migrationsDir)
+          .filter(f => f.endsWith('.js'))
+          .sort();
+        
+        console.log(`✓ Verifying ${migrationFiles.length} versioned schema migrations...`);
+        for (const file of migrationFiles) {
+          try {
+            const migration = require(path.resolve(migrationsDir, file));
+            if (typeof migration.up === 'function') {
+              await migration.up(sequelize.getQueryInterface(), sequelize.Sequelize);
+              console.log(`✓ Migration verified: ${file}`);
+            }
+          } catch (mErr) {
+            console.warn(`⚠️ Migration notice for ${file} (non-fatal):`, mErr.message);
+          }
+        }
+      }
     } catch (migErr) {
-      console.warn('⚠️ Patent migration notice (non-fatal):', migErr.message);
+      console.warn('⚠️ Schema migration runner notice (non-fatal):', migErr.message);
     }
-    
-    // Ensure additive sponsored research schema migrations are applied on all environments
-    try {
-      const sponsoredMigration = require('./migrations/20261031_add_sponsored_research_sanction_year_documents_installments');
-      await sponsoredMigration.up(sequelize.getQueryInterface(), sequelize.Sequelize);
-      console.log('✓ Sponsored Research schema migrations verified.');
-    } catch (migErr) {
-      console.warn('⚠️ Sponsored Research migration notice (non-fatal):', migErr.message);
-    }
-    
+
     // Start server
     app.listen(PORT, () => {
       console.log(`✓ Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);

@@ -10,6 +10,12 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
+    try {
+      await queryInterface.sequelize.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
+    } catch (e) {
+      // Non-fatal if extension already exists or insufficient privileges
+    }
+
     await queryInterface.sequelize.query(`
       CREATE TABLE IF NOT EXISTS "publication_faculties" (
         "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
