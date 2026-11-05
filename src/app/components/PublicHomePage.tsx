@@ -1,73 +1,217 @@
-import React from 'react';
-import { ArrowUpRight, ArrowRight, ClipboardCheck, Award, GraduationCap, BookOpen, Target, FileText, Check, ChevronRight } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  ArrowUpRight, ArrowRight, ClipboardCheck, Award, GraduationCap, BookOpen,
+  Target, FileText, Check, Search, X, Users, FlaskConical, Building2, Globe2,
+  Lightbulb, BriefcaseBusiness, Network, ChartNoAxesCombined, ShieldCheck,
+  Layers3, Compass,
+} from 'lucide-react';
+import communityImage from '../../assets/iqac-community.webp';
+import libraryImage from '../../assets/iqac-library.webp';
 
 const IQAC = 'https://christuniversity.in/center/C/IQAC2026';
+const external = { target: '_blank', rel: 'noopener noreferrer' } as const;
+
 const verticals = [
-  { title: 'Documentation & audits', detail: 'Turning institutional evidence into meaningful review and improvement.', icon: ClipboardCheck, href: IQAC + '/annual-academic-audit' },
-  { title: 'Rankings & accreditation', detail: 'Benchmarking our progress against national and international standards.', icon: Award, href: IQAC + '/naac' },
-  { title: 'Training & development', detail: 'Equipping our community to embed quality in everyday practice.', icon: GraduationCap, href: 'https://christuniversity.in/center/C/iqac2026' },
-  { title: 'IQAC publications', detail: 'Sharing reports, insights, and the learning behind institutional progress.', icon: BookOpen, href: IQAC + '/iqac-report' },
-  { title: 'Strategic initiatives', detail: 'Connecting long-term priorities with purposeful, measurable action.', icon: Target, href: IQAC + '/strategic-initiatives' },
+  { title: 'Documentation & audits', detail: 'Academic reviews, institutional evidence, and quality audits.', icon: ClipboardCheck, href: IQAC + '/annual-academic-audit' },
+  { title: 'Rankings & accreditation', detail: 'National and international benchmarks for institutional quality.', icon: Award, href: IQAC + '/naac' },
+  { title: 'Training & development', detail: 'Building the capabilities of our academic and administrative community.', icon: GraduationCap, href: 'https://christuniversity.in/center/C/iqac2026' },
+  { title: 'IQAC publications', detail: 'Reports and insights that document our progress and shared learning.', icon: BookOpen, href: IQAC + '/iqac-report' },
+  { title: 'Strategic initiatives', detail: 'Connecting institutional priorities with meaningful action.', icon: Target, href: IQAC + '/strategic-initiatives' },
 ];
+
+const services = [
+  { title: 'Achievements', detail: 'Awards, recognitions, and institutional milestones.', key: 'achievements', category: 'Academic life', icon: Award },
+  { title: 'Research & innovation', detail: 'Explore publications, patents, and research activity.', key: 'research-innovation', category: 'Research & enterprise', icon: FlaskConical },
+  { title: 'Rankings', detail: 'National and international institutional benchmarks.', key: 'rankings', category: 'Academic life', icon: ChartNoAxesCombined },
+  { title: 'Placements & internships', detail: 'Career pathways, opportunities, and student outcomes.', key: 'placements-internships', category: 'Academic life', icon: BriefcaseBusiness },
+  { title: 'Infrastructure', detail: 'The spaces and facilities that support learning.', key: 'infrastructure', category: 'Academic life', icon: Building2 },
+  { title: 'International engagement', detail: 'Academic partnerships and connections across borders.', key: 'international-interactions', category: 'Partnerships', icon: Globe2 },
+  { title: 'Centres of excellence', detail: 'Focused expertise and interdisciplinary exploration.', key: 'centre-excellence', category: 'Research & enterprise', icon: Target },
+  { title: 'Incubations', detail: 'Entrepreneurship, emerging ideas, and startup initiatives.', key: 'incubations', category: 'Research & enterprise', icon: Lightbulb },
+  { title: 'Industry connects', detail: 'Collaboration between the University and industry.', key: 'industry-connects', category: 'Partnerships', icon: Network },
+  { title: 'Consultancy projects', detail: 'Applying institutional expertise to real-world challenges.', key: 'consultancy-projects', category: 'Research & enterprise', icon: Users },
+];
+const categories = ['All areas', 'Academic life', 'Research & enterprise', 'Partnerships'];
 const resources = [
-  { type: 'QUALITY REVIEW', title: 'Annual Academic Audit', description: 'Explore the review process, audit timelines, and institutional quality practices.', href: IQAC + '/annual-academic-audit' },
-  { type: 'INSTITUTIONAL REPORT', title: 'The IQAC Report', description: 'A consolidated view of quality initiatives, documentation, and continuous improvement.', href: IQAC + '/iqac-report' },
-  { type: 'PLANNING & PROGRESS', title: 'Strategic Initiatives', description: 'Discover how institutional priorities guide planning, policy, and evidence-based interventions.', href: IQAC + '/strategic-initiatives' },
+  { type: 'REVIEW & REFLECTION', title: 'Annual Academic Audit', description: 'Understand the review process and the practices that support academic quality.', href: IQAC + '/annual-academic-audit', cover: 'Academic', sub: 'Audit', icon: ClipboardCheck },
+  { type: 'DOCUMENTATION & INSIGHTS', title: 'The IQAC Report', description: 'Explore the initiatives and institutional learning behind continuous improvement.', href: IQAC + '/iqac-report', cover: 'Quality', sub: 'Report', icon: FileText },
+  { type: 'PLANNING & DIRECTION', title: 'Strategic Initiatives', description: 'Discover the priorities connecting our quality agenda with institutional development.', href: IQAC + '/strategic-initiatives', cover: 'Strategic', sub: 'Initiatives', icon: Compass },
+];
+const stages = [
+  { name: 'Plan', title: 'Set a shared direction.', detail: 'Identify priorities, define quality benchmarks, and bring academic and administrative teams together around clear objectives.', evidence: 'Priorities & quality benchmarks', icon: Target },
+  { name: 'Implement', title: 'Turn priorities into practice.', detail: 'Support departments and centres as they put quality initiatives into action, document their work, and build institutional capability.', evidence: 'Initiatives & documented practice', icon: Layers3 },
+  { name: 'Review', title: 'Learn from the evidence.', detail: 'Bring together institutional data, academic audits, and stakeholder feedback to understand progress and identify areas for improvement.', evidence: 'Audits, evidence & feedback', icon: ClipboardCheck },
+  { name: 'Improve', title: 'Make the next cycle stronger.', detail: 'Use the findings of review to refine processes, share effective practices, and inform the next round of institutional planning.', evidence: 'Action plans & shared learning', icon: ChartNoAxesCombined },
 ];
 
-export function PublicHomePage({ onNavigate, onLoginClick }: { onNavigate: (section: string) => void; onLoginClick: () => void }) {
-  return <div className="iq-home">
-    <section className="iq-hero">
-      <div className="iq-container iq-hero-grid">
-        <div className="iq-hero-copy">
-          <p className="iq-eyebrow"><span /> INTERNAL QUALITY ASSURANCE CELL</p>
-          <h1>A culture of quality.<br /><em>A future of possibilities.</em></h1>
-          <p className="iq-hero-description">Advancing academic excellence through evidence, collaboration, and continuous improvement at CHRIST (Deemed to be University).</p>
-          <div className="iq-actions">
-            <a className="iq-button iq-gold" href="#quality">Discover our approach <ArrowRight size={17} /></a>
-            <a className="iq-text-link" href="#resources">Explore reports <ArrowUpRight size={17} /></a>
+export function PublicHomePage({ onNavigate, onLoginClick }: {
+  onNavigate: (section: string) => void;
+  onLoginClick: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('All areas');
+  const [stage, setStage] = useState(0);
+  const matchingServices = services.filter(service =>
+    (category === 'All areas' || service.category === category) &&
+    (service.title + ' ' + service.detail + ' ' + service.category).toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  const activeStage = stages[stage];
+  const StageIcon = activeStage.icon;
+
+  return (
+    <div className="iq-home">
+      <section className="iq-hero" aria-labelledby="iq-hero-title">
+        <img className="iq-hero-photo" src={communityImage} alt="Students collaborating on the CHRIST University campus" width="1600" height="773" fetchPriority="high" />
+        <div className="iq-hero-shade" />
+        <div className="iq-container iq-hero-inner">
+          <div className="iq-hero-copy">
+            <p className="iq-eyebrow"><span /> INTERNAL QUALITY ASSURANCE CELL</p>
+            <h1 id="iq-hero-title">Quality in<br /><em>every endeavour.</em></h1>
+            <p className="iq-hero-description">A shared commitment to better learning, meaningful research, and continuous improvement at CHRIST.</p>
+            <div className="iq-actions">
+              <a className="iq-button iq-gold" href="#quality">Discover IQAC <ArrowRight size={18} /></a>
+              <a className="iq-text-link" href="#institution">Explore the institution <ArrowUpRight size={17} /></a>
+            </div>
+            <p className="iq-hero-note"><span className="iq-note-line" /> EXCELLENCE AND SERVICE</p>
           </div>
-          <div className="iq-hero-note"><span className="iq-note-line" /> Excellence and Service. In every initiative.</div>
+          <a className="iq-hero-seal" href={IQAC + '/naac'} {...external}>
+            <Award size={24} strokeWidth={1.4} />
+            <span><strong>A+ <small>NAAC ACCREDITED</small></strong><span>A commitment to quality, recognised.</span></span>
+            <ArrowUpRight size={17} />
+          </a>
         </div>
-        <div className="iq-visual" role="img" aria-label="Quality improvement cycle: plan, implement, review, and improve">
-          <div className="iq-orbit iq-orbit-outer" /><div className="iq-orbit iq-orbit-inner" />
-          <div className="iq-orbit-dot dot-one" /><div className="iq-orbit-dot dot-two" />
-          <div className="iq-cycle-core"><span>CHRIST</span><strong>Quality<br />in motion.</strong><small>CONTINUOUS IMPROVEMENT</small></div>
-          <div className="iq-cycle-label cycle-plan"><span>01</span> Plan</div>
-          <div className="iq-cycle-label cycle-act"><span>02</span> Implement</div>
-          <div className="iq-cycle-label cycle-review"><span>03</span> Review</div>
-          <div className="iq-cycle-label cycle-improve"><span>04</span> Improve</div>
-          <div className="iq-visual-caption"><span className="iq-live-dot" /> A shared commitment. An ongoing process.</div>
+      </section>
+
+      <div className="iq-container iq-access" aria-label="Quick access">
+        <button onClick={onLoginClick}>
+          <span className="iq-access-icon"><Users size={23} /></span>
+          <span><small>FOR FACULTY & ADMINISTRATION</small><strong>Institutional workspace</strong><span>Document, review, and collaborate</span></span>
+          <ArrowUpRight size={19} />
+        </button>
+        <a href="#resources">
+          <span className="iq-access-icon"><BookOpen size={23} /></span>
+          <span><small>REPORTS & DOCUMENTATION</small><strong>Quality resources</strong><span>Find audits, reports, and initiatives</span></span>
+          <ArrowUpRight size={19} />
+        </a>
+        <a href="#institution">
+          <span className="iq-access-icon"><Compass size={23} /></span>
+          <span><small>EXPLORE CHRIST</small><strong>Institutional profile</strong><span>Research, achievements, and more</span></span>
+          <ArrowUpRight size={19} />
+        </a>
+      </div>
+
+      <section className="iq-facts" aria-label="Institutional overview">
+        <div className="iq-container iq-facts-grid">
+          <div><strong>2003</strong><span>IQAC constituted</span></div>
+          <div><strong>5</strong><span>Quality verticals</span></div>
+          <a href={IQAC + '/naac'} {...external}><strong>A+</strong><span>NAAC accreditation <ArrowUpRight size={14} /></span></a>
+          <a href={IQAC + '/naac'} {...external}><strong>3.42<span>/4</span></strong><span>NAAC CGPA</span></a>
         </div>
-      </div>
-      <div className="iq-container iq-hero-bottom"><span>01 / THE PURSUIT OF EXCELLENCE</span><a href="#quality">Explore IQAC <span aria-hidden="true">&#8595;</span></a></div>
-    </section>
+      </section>
 
-    <section className="iq-facts" aria-label="Institutional overview">
-      <div className="iq-container iq-facts-grid">
-        <div><strong>2003</strong><span>IQAC constituted</span></div>
-        <div><strong>5</strong><span>Quality verticals</span></div>
-        <a href={IQAC + '/naac'} target="_blank" rel="noopener noreferrer"><strong>A+</strong><span>NAAC accreditation <ArrowUpRight size={14} /></span></a>
-        <a href={IQAC + '/naac'} target="_blank" rel="noopener noreferrer"><strong>3.42<span>/4</span></strong><span>NAAC CGPA</span></a>
-      </div>
-    </section>
+      <section id="quality" tabIndex={-1} className="iq-section iq-container">
+        <div className="iq-about-grid">
+          <div className="iq-about-copy">
+            <p className="iq-eyebrow">ABOUT THE IQAC</p>
+            <h2>Excellence is a culture.<br /><em>We help it grow.</em></h2>
+            <p>Established in 2003, the Internal Quality Assurance Cell brings together the people, processes, and evidence that strengthen academic and administrative quality at CHRIST.</p>
+            <p>Through audits, collaboration, and review, we support a shared approach to improvement across departments, centres, and administrative teams.</p>
+            <a className="iq-inline-link" href="https://christuniversity.in/center/C/iqac2026" {...external}>Meet the IQAC <ArrowUpRight size={17} /></a>
+          </div>
+          <figure className="iq-about-photo">
+            <img src={libraryImage} alt="A CHRIST student reading in the University library" width="900" height="435" loading="lazy" decoding="async" />
+            <figcaption><span>OUR PURPOSE</span><strong>Better processes.<br />Greater possibilities.</strong><BookOpen size={30} strokeWidth={1.2} /></figcaption>
+          </figure>
+        </div>
+        <div className="iq-subheading"><h3>Five verticals. One shared purpose.</h3><span>OUR AREAS OF FOCUS</span></div>
+        <div className="iq-vertical-grid">
+          {verticals.map(({ title, detail, icon: Icon, href }, index) => (
+            <a className="iq-vertical" href={href} {...external} key={title}>
+              <div className="iq-card-top"><Icon size={25} strokeWidth={1.5} /><span>0{index + 1}</span></div>
+              <h3>{title}</h3><p>{detail}</p><ArrowUpRight className="iq-card-arrow" size={20} />
+            </a>
+          ))}
+        </div>
+      </section>
 
-    <section id="quality" className="iq-section iq-container">
-      <div className="iq-section-intro"><div><p className="iq-eyebrow">PURPOSE INTO PRACTICE</p><h2>Excellence is a journey.<br /><em>Quality is how we move.</em></h2></div><div className="iq-intro-body"><p>Since 2003, IQAC has supported a culture of quality across CHRIST. We connect institutional priorities with the people, processes, and evidence that turn ambition into improvement.</p><a className="iq-inline-link" href="https://christuniversity.in/center/C/iqac2026" target="_blank" rel="noopener noreferrer">About the IQAC <ArrowUpRight size={17} /></a></div></div>
-      <div className="iq-vertical-grid">{verticals.map(({ title, detail, icon: Icon, href }, index) => <a className="iq-vertical" href={href} target="_blank" rel="noopener noreferrer" key={title}><div className="iq-card-top"><Icon size={25} strokeWidth={1.5} /><span>0{index + 1}</span></div><h3>{title}</h3><p>{detail}</p><ArrowUpRight className="iq-card-arrow" size={20} /></a>)}</div>
-    </section>
+      <section className="iq-accreditation" aria-labelledby="accreditation-title">
+        <div className="iq-container iq-accreditation-grid">
+          <div className="iq-grade-art"><div className="iq-grade-ring"><Award size={30} strokeWidth={1.3} /><strong>A+</strong><span>NAAC ACCREDITED</span></div></div>
+          <div>
+            <p className="iq-eyebrow">INSTITUTIONAL RECOGNITION</p>
+            <h2 id="accreditation-title">Recognised for quality.<br /><em>Committed to what comes next.</em></h2>
+            <p className="iq-accreditation-copy">Our NAAC accreditation reflects a commitment to academic excellence, governance, and institutional quality. Every review is an opportunity to build on that foundation.</p>
+            <div className="iq-accreditation-meta"><span><Check size={16} /> CGPA 3.42 out of 4</span><span><Check size={16} /> Valid until 25 October 2027</span></div>
+            <a className="iq-inline-link" href={IQAC + '/naac'} {...external}>View accreditation details <ArrowUpRight size={17} /></a>
+          </div>
+        </div>
+      </section>
 
-    <section className="iq-accreditation"><div className="iq-container iq-accreditation-grid">
-      <div className="iq-grade-art"><div className="iq-grade-ring"><Award size={36} strokeWidth={1.3} /><strong>A+</strong><span>NAAC ACCREDITED</span></div><p>CHRIST (Deemed to be University)</p></div>
-      <div><p className="iq-eyebrow">RECOGNITION WITH RESPONSIBILITY</p><h2>A standard to uphold.<br /><em>A commitment to strengthen.</em></h2><p className="iq-accreditation-copy">Accreditation reflects our commitment to academic excellence, governance, and institutional quality. IQAC supports this work through structured documentation, data validation, and ongoing review.</p><div className="iq-accreditation-meta"><span><Check size={16} /> CGPA 3.42 out of 4</span><span><Check size={16} /> Valid until 25 October 2027</span></div><a className="iq-button iq-navy" href={IQAC + '/naac'} target="_blank" rel="noopener noreferrer">View accreditation details <ArrowUpRight size={17} /></a></div>
-    </div></section>
+      <section id="institution" tabIndex={-1} className="iq-directory">
+        <div className="iq-container">
+          <div className="iq-section-intro">
+            <div><p className="iq-eyebrow">THE INSTITUTION, CONNECTED</p><h2>Discover the work.<br /><em>Explore the impact.</em></h2></div>
+            <p className="iq-intro-body">Your gateway to the University&apos;s achievements, academic activity, research, and partnerships. Find the area you want to explore.</p>
+          </div>
+          <div className="iq-directory-toolbar">
+            <div className="iq-filters" role="group" aria-label="Filter institutional areas">
+              {categories.map(item => <button key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}
+            </div>
+            <div className="iq-search"><Search size={17} aria-hidden="true" /><input aria-label="Search institutional areas" placeholder="Search areas..." type="search" value={query} onChange={event => setQuery(event.target.value)} />{query && <button aria-label="Clear search" onClick={() => setQuery('')}><X size={16} /></button>}</div>
+          </div>
+          <p className="iq-directory-count" role="status">{matchingServices.length} {matchingServices.length === 1 ? 'area' : 'areas'} to explore{query.trim() && <> for &ldquo;{query.trim()}&rdquo;</>}</p>
+          <div className="iq-services">
+            {matchingServices.map(({ title, detail, key, category: group, icon: Icon }) => (
+              <button className="iq-service" key={key} onClick={() => onNavigate(key)}>
+                <div className="iq-service-top"><span className="iq-service-icon"><Icon size={23} strokeWidth={1.5} /></span><ArrowUpRight size={18} /></div>
+                <small>{group}</small><h3>{title}</h3><p>{detail}</p>
+                <span className="iq-service-open">Explore area <ArrowRight size={15} /></span>
+              </button>
+            ))}
+          </div>
+          {matchingServices.length === 0 && <div className="iq-empty"><Search size={30} /><h3>No matching areas</h3><p>Try a different search or explore all institutional areas.</p><button className="iq-button iq-navy" onClick={() => { setQuery(''); setCategory('All areas'); }}>Reset filters <ArrowRight size={16} /></button></div>}
+        </div>
+      </section>
 
-    <section id="resources" className="iq-section iq-container">
-      <div className="iq-section-intro"><div><p className="iq-eyebrow">KNOWLEDGE, EVIDENCE & PROGRESS</p><h2>Resources that bring<br /><em>the work into focus.</em></h2></div><p className="iq-intro-body">Find the reports, review processes, and strategic priorities behind our quality journey.</p></div>
-      <div className="iq-resource-grid">{resources.map((item, index) => <a key={item.title} href={item.href} target="_blank" rel="noopener noreferrer" className="iq-resource"><div className={'iq-resource-art resource-art-' + index}><FileText size={64} strokeWidth={.7} /><span>IQAC / 0{index + 1}</span><div className="iq-paper-lines"><i /><i /><i /></div></div><div className="iq-resource-body"><small>{item.type}</small><h3>{item.title} <ArrowUpRight size={20} /></h3><p>{item.description}</p><span className="iq-resource-link">Explore resource <ArrowRight size={16} /></span></div></a>)}</div>
-    </section>
+      <section id="resources" tabIndex={-1} className="iq-section iq-container">
+        <div className="iq-section-intro">
+          <div><p className="iq-eyebrow">THE RESOURCE DESK</p><h2>Evidence. Insight.<br /><em>A clearer way forward.</em></h2></div>
+          <div className="iq-intro-body"><p>Go straight to the official IQAC resources that inform review, reporting, and institutional planning.</p><a className="iq-inline-link" href={IQAC} {...external}>Visit the official IQAC website <ArrowUpRight size={17} /></a></div>
+        </div>
+        <div className="iq-resource-grid">
+          {resources.map(({ icon: Icon, ...item }, index) => (
+            <a key={item.title} href={item.href} {...external} className="iq-resource">
+              <div className={'iq-resource-art resource-art-' + index} aria-hidden="true">
+                <span className="iq-cover-brand">CHRIST <span>/ IQAC</span></span>
+                <div className="iq-cover-title">{item.cover}<br /><em>{item.sub}</em></div>
+                <Icon className="iq-cover-icon" size={90} strokeWidth={.7} />
+                <span className="iq-cover-footer">QUALITY RESOURCE <ArrowUpRight size={15} /></span>
+              </div>
+              <div className="iq-resource-body"><small>{item.type}</small><h3>{item.title}</h3><p>{item.description}</p><span className="iq-resource-link">Open resource <ArrowUpRight size={16} /></span></div>
+            </a>
+          ))}
+        </div>
+      </section>
 
-    <section className="iq-portfolio"><div className="iq-container"><p className="iq-eyebrow">EXPLORE THE INSTITUTION</p><div className="iq-portfolio-layout"><h2>Many perspectives.<br /><em>One pursuit of excellence.</em></h2><div className="iq-portfolio-links">{[['Research & innovation','research-innovation'],['Achievements & recognition','achievements'],['Rankings & benchmarks','rankings'],['Industry & international engagement','international-interactions']].map(([label,key]) => <button key={key} onClick={() => onNavigate(key)}>{label}<ChevronRight size={18} /></button>)}</div></div></div></section>
-    <section className="iq-cta iq-container"><div><p className="iq-eyebrow">FOR THE CHRIST COMMUNITY</p><h2>Contribute to our next chapter.</h2><p>Access the institutional workspace to document, review, and advance quality initiatives.</p></div><button className="iq-button iq-navy" onClick={onLoginClick}>Institutional login <ArrowRight size={17} /></button></section>
-  </div>;
+      <section className="iq-process" aria-labelledby="process-title">
+        <div className="iq-container iq-process-layout">
+          <div className="iq-process-heading"><p className="iq-eyebrow">CONTINUOUS IMPROVEMENT</p><h2 id="process-title">Quality is a process.<br /><em>Not a destination.</em></h2><p>From intention to evidence, every stage informs the next. Explore the cycle behind our approach.</p><div className="iq-process-symbol" aria-hidden="true"><span /><span /><span /><ShieldCheck size={48} strokeWidth={1} /></div></div>
+          <div className="iq-process-interactive">
+            <div className="iq-process-steps" role="group" aria-label="Quality improvement stages">
+              {stages.map((item, index) => <button key={item.name} aria-pressed={stage === index} aria-controls="iq-stage-detail" onClick={() => setStage(index)}><span>0{index + 1}</span>{item.name}</button>)}
+            </div>
+            <div id="iq-stage-detail" className="iq-process-detail" aria-live="polite" aria-atomic="true">
+              <StageIcon size={30} strokeWidth={1.3} /><small>0{stage + 1} / {activeStage.name.toUpperCase()}</small><h3>{activeStage.title}</h3><p>{activeStage.detail}</p><div><Check size={15} />{activeStage.evidence}</div>
+            </div>
+            <button className="iq-process-next" onClick={() => setStage((stage + 1) % stages.length)}>Next: {stages[(stage + 1) % stages.length].name}<ArrowRight size={16} /></button>
+          </div>
+        </div>
+      </section>
+
+      <section className="iq-cta iq-container">
+        <div><p className="iq-eyebrow">FOR THE CHRIST COMMUNITY</p><h2>Your contribution.<br /><em>Our collective progress.</em></h2><p>Access your institutional workspace to document and advance quality initiatives.</p></div>
+        <button className="iq-button iq-navy" onClick={onLoginClick}>Institutional login <ArrowRight size={17} /></button>
+      </section>
+    </div>
+  );
 }

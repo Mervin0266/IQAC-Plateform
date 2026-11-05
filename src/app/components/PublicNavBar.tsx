@@ -2,18 +2,25 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Menu, X, ChevronDown } from 'lucide-react';
 import christLogo from '../../assets/logo.png';
 const links = [
-  ['Home', 'home'], ['Achievements', 'achievements'], ['Research', 'research-innovation'], ['Rankings', 'rankings'],
+  ['Home', 'home'], ['About IQAC', '#quality'], ['Resources', '#resources'], ['Institutional profile', '#institution'],
 ];
-const more = [['Placements', 'placements-internships'], ['Infrastructure', 'infrastructure'], ['International', 'international-interactions'], ['Centres of excellence', 'centre-excellence'], ['Incubations', 'incubations'], ['Industry connects', 'industry-connects'], ['Consultancy', 'consultancy-projects']];
+const more = [['Achievements', 'achievements'], ['Research', 'research-innovation'], ['Rankings', 'rankings'], ['Placements', 'placements-internships'], ['Infrastructure', 'infrastructure'], ['International', 'international-interactions'], ['Centres of excellence', 'centre-excellence'], ['Incubations', 'incubations'], ['Industry connects', 'industry-connects'], ['Consultancy', 'consultancy-projects']];
 export function PublicNavBar({ currentSection, onNavigate, onLoginClick }: { currentSection: string; onNavigate: (section: string) => void; onLoginClick?: () => void }) {
   const [open, setOpen] = useState(false);
   const details = useRef<HTMLDetailsElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpen(false); if (details.current) details.current.open = false; toggle.current?.focus(); } };
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (details.current?.open) {
+        details.current.open = false;
+        details.current.querySelector('summary')?.focus();
+      }
+      if (open) { setOpen(false); toggle.current?.focus(); }
+    };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, []);
+  }, [open]);
   const navigate = (key: string) => { setOpen(false); if (details.current) details.current.open = false; onNavigate(key); };
   return <>
     <a className="iq-skip" href="#public-content">Skip to content</a>

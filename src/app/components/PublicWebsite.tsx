@@ -37,6 +37,15 @@ interface PublicWebsiteProps {
 export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
   const [currentSection, setCurrentSection] = useState('home');
   const navigate = (section: string) => {
+    if (section.startsWith('#')) {
+      setCurrentSection('home');
+      requestAnimationFrame(() => {
+        const destination = document.getElementById(section.slice(1));
+        destination?.focus({ preventScroll: true });
+        destination?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+      });
+      return;
+    }
     setCurrentSection(section);
     window.scrollTo({ top: 0, behavior: 'instant' });
     requestAnimationFrame(() => document.getElementById('public-content')?.focus());
