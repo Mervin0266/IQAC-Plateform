@@ -1,12 +1,14 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info, Download, RefreshCw } from 'lucide-react';
+import { Badge } from './ui/badge';
+import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info, Download, RefreshCw, Edit2, X, AlertCircle, ExternalLink, FolderOpen, FolderPlus, FolderUp, FilePlus, Eye, Award } from 'lucide-react';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName, normalizeDesignationName } from './FacultyDetailsPage';
+import { CitationsBulkUploadFlow } from './CitationsBulkUploadFlow';
 
 const formatDateToISO = (dateStr: string): string | null => {
   if (!dateStr) return null;
@@ -51,6 +53,38 @@ const formatDateToISO = (dateStr: string): string | null => {
   return trimmed;
 };
 
+/**
+ * Extracts Employee ID from the beginning of a filename (e.g. 2043_Adarsh_S_V.xlsx -> '2043')
+ * Preserves leading zeros and string format.
+ */
+const extractEmployeeIdFromFilename = (filename: string): string | null => {
+  if (!filename) return null;
+  const base = filename.replace(/\.[^/.]+$/, '').trim();
+  // Standard format: EmpID_Faculty_Name
+  // 1. Prefixed format e.g. CU-991_Dr_Smith, F_5432_Paper
+  const matchPrefixed = base.match(/^([A-Za-z]{1,4}[-_]\d+)(?:[_\-\s]|$)/);
+  if (matchPrefixed) {
+    return matchPrefixed[1];
+  }
+  // 2. Alphanumeric or numeric e.g. EMP001_Rajesh, 2043_Adarsh, 00123_Name, 2043-Adarsh
+  const matchAlphaNum = base.match(/^([A-Za-z]*\d+)(?:[_\-\s]|$)/);
+  if (matchAlphaNum) {
+    const token = matchAlphaNum[1].trim();
+    if (!['publications', 'publication', 'scopus', 'wos', 'template', 'data', 'export', 'file', 'iqac'].includes(token.toLowerCase())) {
+      return token;
+    }
+  }
+  // 3. Fallback: first token delimited by _ or space or -
+  const matchFirst = base.match(/^([A-Za-z0-9]+)(?:[_\-\s]|$)/);
+  if (matchFirst) {
+    const token = matchFirst[1].trim();
+    if (!['publications', 'publication', 'scopus', 'wos', 'template', 'data', 'export', 'file', 'iqac'].includes(token.toLowerCase())) {
+      return token;
+    }
+  }
+  return null;
+};
+
 const normalizeGender = (val: string): 'Male' | 'Female' | 'Other' | null => {
   if (!val) return null;
   const cleaned = val.trim().toLowerCase();
@@ -59,6 +93,89 @@ const normalizeGender = (val: string): 'Male' | 'Female' | 'Other' | null => {
   if (cleaned === 'other' || cleaned === 'o') return 'Other';
   return null;
 };
+
+// RFC 4180-compliant CSV Tokenizer
+const tokenizeCsv = (input: string): string[][] => {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  let i = 0;
+
+  while (i < input.length) {
+    const ch = input[i];
+
+    if (inQuotes) {
+      if (ch === '"') {
+        if (input[i + 1] === '"') {
+          field += '"';
+          i += 2;
+        } else {
+          inQuotes = false;
+          i++;
+        }
+      } else {
+        field += ch;
+        i++;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+        i++;
+      } else if (ch === ',') {
+        row.push(field.trim());
+        field = '';
+        i++;
+      } else if (ch === '\r' && input[i + 1] === '\n') {
+        row.push(field.trim());
+        rows.push(row);
+        row = [];
+        field = '';
+        i += 2;
+      } else if (ch === '\n' || ch === '\r') {
+        row.push(field.trim());
+        rows.push(row);
+        row = [];
+        field = '';
+        i++;
+      } else {
+        field += ch;
+        i++;
+      }
+    }
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field.trim());
+    rows.push(row);
+  }
+
+  return rows;
+};
+
+export interface PublicationFileItem {
+  id: string;
+  file: File;
+  name: string;
+  size: number;
+  employeeId: string | null;
+  facultyName: string | null;
+  department: string | null;
+  indexing: string;
+  status: 'ready' | 'needs_review' | 'error';
+  errorMessage?: string;
+  records: any[];
+}
+
+export interface FacultyDirectoryMember {
+  id: string;
+  employeeId: string;
+  name: string;
+  department: string;
+  designation?: string;
+  academicYear?: string;
+  hasConflict?: boolean;
+}
 
 interface BulkUploadDialogProps {
   isOpen: boolean;
@@ -86,8 +203,8 @@ const SPONSORED_RESEARCH_HEADERS = [
   'Status',
   'Progress (%)',
   'Department',
-  'Agreement Letter',
-  'Payment Receipt',
+  'Sanction Letter',
+  'Fund Receipt / Utilization Certificate (UC)',
   'Project URL',
   'Description'
 ];
@@ -124,28 +241,24 @@ const PATENTS_REQUIRED = [
 ];
 
 const PUBLICATIONS_HEADERS = [
-  'Author Name',
+  'Authors',
+  'Author full names',
   'Title',
-  'Journal Name',
-  'Journal Type',
-  'Department',
-  'Academic Year',
-  'Publication Date',
+  'Year',
+  'Source title',
+  'Cited by',
   'DOI',
+  'Link',
+  'Publisher',
   'ISSN',
-  'Volume',
-  'Issue',
-  'Page Number',
-  'Impact Factor',
-  'Citations',
-  'URL',
-  'Abstract'
+  'ISBN',
+  'CODEN'
 ];
 
 const PUBLICATIONS_REQUIRED = [
-  'Author Name',
   'Title',
-  'Journal Name'
+  'Authors',
+  'Source title'
 ];
 
 const CONSULTANCY_HEADERS = [
@@ -333,7 +446,18 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [currentStage, setCurrentStage] = useState<UploadStage>('upload');
-  const [importResult, setImportResult] = useState<{ count?: number; message?: string; success?: boolean } | null>(null);
+  const [importResult, setImportResult] = useState<{
+    count?: number;
+    createdCount?: number;
+    linkedCount?: number;
+    duplicatesCount?: number;
+    errorsCount?: number;
+    message?: string;
+    success?: boolean;
+    data?: any[];
+    duplicates?: any[];
+    errors?: any[];
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { campusList, schoolList, departmentList } = useAcademicHierarchy();
@@ -361,6 +485,18 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>('2024-2025');
   const [selectedCampus, setSelectedCampus] = useState<string>('Kengeri Campus');
   const [selectedSchool, setSelectedSchool] = useState<string>('School of Engineering and Technology');
+  const [selectedPublicationIndexing, setSelectedPublicationIndexing] = useState<string>('Scopus');
+  const [selectedPublicationYear, setSelectedPublicationYear] = useState<string>('2024');
+  const [previewFilter, setPreviewFilter] = useState<'all' | 'ready' | 'needs_review' | 'duplicate'>('all');
+  const [editingPublicationRow, setEditingPublicationRow] = useState<{ index: number; data: any } | null>(null);
+  const [viewingPublicationRow, setViewingPublicationRow] = useState<{ index: number; data: any } | null>(null);
+  const [publicationUploadMode, setPublicationUploadMode] = useState<'publications' | 'citations'>('publications');
+
+  // Publications Multi-File & Folder upload state
+  const [publicationFiles, setPublicationFiles] = useState<PublicationFileItem[]>([]);
+  const [facultyLookup, setFacultyLookup] = useState<Record<string, FacultyDirectoryMember>>({});
+  const multiFileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const isPlacement = uploadType === 'placements';
   const isFaculty = uploadType === 'faculty';
@@ -372,8 +508,32 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const isPatent = uploadType === 'patents';
   const isSponsored = uploadType === 'sponsored-projects' || uploadType === 'sponsored-research';
 
+  // Load verified faculty lookup directory on open for publications upload
+  useEffect(() => {
+    if (isOpen && isPublication && token) {
+      const fetchFacultyDirectory = async () => {
+        try {
+          const rawApi = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+          const baseUrl = rawApi.replace(/\/+$/, '');
+          const res = await fetch(`${baseUrl}/api/publications/faculty-directory`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const data = await res.json();
+          if (data.success && data.data) {
+            setFacultyLookup(data.data);
+          }
+        } catch (err) {
+          console.error('Failed to load faculty directory for publications upload:', err);
+        }
+      };
+      fetchFacultyDirectory();
+    }
+  }, [isOpen, isPublication, token]);
+
   const resetState = () => {
     setFile(null);
+    setPublicationFiles([]);
+    setPublicationUploadMode('publications');
     setPreviewData([]);
     setParseError('');
     setUploadError('');
@@ -387,6 +547,12 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     setSelectedSchool('School of Engineering and Technology');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    if (multiFileInputRef.current) {
+      multiFileInputRef.current.value = '';
+    }
+    if (folderInputRef.current) {
+      folderInputRef.current.value = '';
     }
   };
 
@@ -455,9 +621,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       fileName = 'departmental_activities_matrix_template.csv';
     } else if (isPublication) {
       csvContent =
-        PUBLICATIONS_HEADERS.join(',') + '\n' +
-        `"Dr. Rajesh Kumar, Dr. Priya Sharma","Deep Learning Framework for Edge IoT Healthcare Sensors","IEEE Transactions on Industrial Informatics","Scopus","Computer Science and Engineering","2024-2025","2024-04-10","10.1109/TII.2024.1234567","1551-3203","20","4","2890-2902",11.7,18,"https://ieeexplore.ieee.org","A comprehensive study on lightweight neural networks for wearable heart monitoring."\n` +
-        `"Dr. Deepa Singh, Dr. Suresh Menon","Sustainable High-Volume Fly Ash Concrete Under High Temperatures","Journal of Cleaner Production (Elsevier)","WoS (Web of Science)","Civil Engineering","2024-2025","2024-02-18","10.1016/j.jclepro.2024.140890","0959-6526","435","1","140-155",11.1,12,"https://sciencedirect.com","Investigation into structural fire resistance and carbonation depth of alkali-activated slag binders."`;
+        PUBLICATIONS_HEADERS.map(h => `"${h}"`).join(',') + '\n' +
+        `"Kumar R., Sharma P.","Rajesh Kumar, Priya Sharma","Deep Learning Framework for Edge IoT Healthcare Sensors","2024","IEEE Transactions on Industrial Informatics","18","10.1109/TII.2024.1234567","https://ieeexplore.ieee.org","IEEE","1551-3203","",""\n` +
+        `"Singh D., Menon S.","Deepa Singh, Suresh Menon","Sustainable High-Volume Fly Ash Concrete Under High Temperatures","2024","Journal of Cleaner Production","12","10.1016/j.jclepro.2024.140890","https://sciencedirect.com","Elsevier","0959-6526","",""`;
       fileName = 'publications_bulk_template.csv';
     } else {
       csvContent =
@@ -547,8 +713,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isPublication) {
       headers = PUBLICATIONS_HEADERS;
       sampleRows = [
-        ['Dr. Rajesh Kumar, Dr. Priya Sharma', 'Deep Learning Framework for Edge IoT Healthcare Sensors', 'IEEE Transactions on Industrial Informatics', 'Scopus', 'Computer Science and Engineering', '2024-2025', '2024-04-10', '10.1109/TII.2024.1234567', '1551-3203', '20', '4', '2890-2902', 11.7, 18, 'https://ieeexplore.ieee.org', 'A comprehensive study on lightweight neural networks for wearable heart monitoring.'],
-        ['Dr. Deepa Singh, Dr. Suresh Menon', 'Sustainable High-Volume Fly Ash Concrete Under High Temperatures', 'Journal of Cleaner Production (Elsevier)', 'WoS (Web of Science)', 'Civil Engineering', '2024-2025', '2024-02-18', '10.1016/j.jclepro.2024.140890', '0959-6526', '435', '1', '140-155', 11.1, 12, 'https://sciencedirect.com', 'Investigation into structural fire resistance and carbonation depth of alkali-activated slag binders.']
+        ['Kumar R., Sharma P.', 'Rajesh Kumar, Priya Sharma', 'Deep Learning Framework for Edge IoT Healthcare Sensors', 2024, 'IEEE Transactions on Industrial Informatics', 18, '10.1109/TII.2024.1234567', 'https://ieeexplore.ieee.org', 'IEEE', '1551-3203', '', ''],
+        ['Singh D., Menon S.', 'Deepa Singh, Suresh Menon', 'Sustainable High-Volume Fly Ash Concrete Under High Temperatures', 2024, 'Journal of Cleaner Production', 12, '10.1016/j.jclepro.2024.140890', 'https://sciencedirect.com', 'Elsevier', '0959-6526', '', '']
       ];
       fileName = 'publications_bulk_template.xlsx';
     } else {
@@ -565,6 +731,382 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
     XLSX.writeFile(wb, fileName);
+  };
+
+  const handleDownloadPreviewReport = () => {
+    if (previewData.length === 0) return;
+    const headers = ['Row Number', 'Source File', 'Faculty Name', 'Employee ID', 'Department', 'Status', 'Title', 'Authors', 'Journal Name', 'Year', 'DOI', 'Citations', 'Issues / Duplicate Reason'];
+    const rows = previewData.map((r, idx) => [
+      idx + 1,
+      r.sourceFile || '',
+      r.facultyName || '',
+      r.employeeId || '',
+      r.department || '',
+      r._rowStatus || 'ready',
+      r.title || '',
+      r.authorFullNames || r.authorName || '',
+      r.journalName || '',
+      r.publicationYear || r.year || '',
+      r.doi || '',
+      r.citationCount !== null && r.citationCount !== undefined ? r.citationCount : 'N/A',
+      (r._issues ? r._issues.join('; ') : '') || r._duplicateReason || ''
+    ]);
+    const csv = [headers.map(h => `"${h}"`).join(','), ...rows.map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `publications_preview_validation_report_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+
+  const handleDownloadSummaryReport = () => {
+    if (!importResult) return;
+    const headers = ['Row Number', 'Source File', 'Faculty Name', 'Employee ID', 'Title', 'Status', 'Message'];
+    const rows: any[] = [];
+    const resAny = importResult as any;
+    if (resAny.data && Array.isArray(resAny.data)) {
+      resAny.data.forEach((r: any, idx: number) => {
+        rows.push([
+          idx + 1,
+          r.sourceFile || '-',
+          r.facultyName || '-',
+          r.employeeId || '-',
+          r.title || '-',
+          'Created / Imported',
+          'Successfully created in database'
+        ]);
+      });
+    }
+    if (resAny.duplicates && Array.isArray(resAny.duplicates)) {
+      resAny.duplicates.forEach((d: any, idx: number) => {
+        rows.push([
+          d.row || idx + 1,
+          d.sourceFile || '-',
+          d.facultyName || '-',
+          d.employeeId || '-',
+          d.title || '-',
+          'Duplicate Skipped',
+          d.reason || 'Duplicate publication or association'
+        ]);
+      });
+    }
+    if (resAny.errors && Array.isArray(resAny.errors)) {
+      resAny.errors.forEach((e: any, idx: number) => {
+        rows.push([
+          e.row || idx + 1,
+          e.sourceFile || '-',
+          e.facultyName || '-',
+          e.employeeId || '-',
+          e.title || '-',
+          'Needs Review / Excluded',
+          e.issues ? (Array.isArray(e.issues) ? e.issues.join('; ') : e.issues) : 'Incomplete mandatory fields'
+        ]);
+      });
+    }
+    const csv = [headers.map(h => `"${h}"`).join(','), ...rows.map(row => row.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `publications_bulk_import_summary_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+
+  const handleSaveRowCorrection = (updatedRow: any) => {
+    if (!editingPublicationRow) return;
+    const idx = editingPublicationRow.index;
+    const updated = [...previewData];
+
+    const auth = (updatedRow.authorName || updatedRow.authorFullNames || '').trim();
+    const tit = (updatedRow.title || '').trim();
+    const jrn = (updatedRow.journalName || '').trim();
+    const yr = updatedRow.publicationYear || updatedRow.year || '';
+    const matchYear = String(yr).match(/\b(19\d\d|20\d\d)\b/);
+    const validYear = matchYear ? matchYear[1] : null;
+
+    let targetEmpId = updatedRow.employeeId ? String(updatedRow.employeeId).trim() : null;
+    let targetFacultyName = updatedRow.facultyName;
+    let targetDept = updatedRow.department;
+
+    if (targetEmpId && facultyLookup[targetEmpId]) {
+      targetFacultyName = facultyLookup[targetEmpId].name;
+      targetDept = facultyLookup[targetEmpId].department;
+    }
+
+    const issues: string[] = [];
+    if (!auth) issues.push('Authors or Author full names required');
+    if (!tit) issues.push('Publication Title required');
+    if (!jrn) issues.push('Source title (Journal Name) required');
+    if (!validYear) issues.push('Valid 4-digit Publication Year required');
+    if (!targetEmpId) issues.push('Faculty Employee ID required');
+    else if (!facultyLookup[targetEmpId]) issues.push(`Employee ID "${targetEmpId}" not found in Faculty Directory`);
+
+    updated[idx] = {
+      ...updated[idx],
+      ...updatedRow,
+      employeeId: targetEmpId,
+      facultyName: targetFacultyName,
+      department: targetDept,
+      authorName: auth,
+      title: tit,
+      journalName: jrn,
+      publicationYear: validYear || yr,
+      year: validYear || yr,
+      _issues: issues,
+      _rowStatus: issues.length > 0 ? 'needs_review' : 'ready'
+    };
+
+    setPreviewData(updated);
+    setEditingPublicationRow(null);
+  };
+
+  const parseSingleSpreadsheetForPublication = async (
+    file: File,
+    targetEmployeeId: string | null,
+    targetFacultyName: string | null,
+    targetDepartment: string | null,
+    targetIndexing: string
+  ): Promise<any[]> => {
+    return new Promise((resolve) => {
+      const fileName = file.name.toLowerCase();
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        try {
+          let csvText = '';
+          if (fileName.endsWith('.csv')) {
+            csvText = e.target?.result as string;
+          } else {
+            const data = new Uint8Array(e.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            if (!sheetName) {
+              resolve([]);
+              return;
+            }
+            csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
+          }
+
+          if (!csvText || !csvText.trim()) {
+            resolve([]);
+            return;
+          }
+
+          const allRows = tokenizeCsv(csvText);
+          if (allRows.length < 2) {
+            resolve([]);
+            return;
+          }
+
+          const headers = allRows[0].map(h => h.trim());
+          const records: any[] = [];
+
+          for (let i = 1; i < allRows.length; i++) {
+            const rowValues = allRows[i];
+            if (rowValues.every(v => v === '')) continue;
+
+            const rowObj: Record<string, string> = {};
+            headers.forEach((h, colIdx) => {
+              if (rowValues[colIdx] !== undefined) {
+                rowObj[h] = rowValues[colIdx].trim();
+              }
+            });
+
+            // Scopus + WoS + IQAC Synonyms
+            const rawAuthors = rowObj['Authors'] ?? rowObj['AU'] ?? rowObj['Author Name'] ?? rowObj['Author'] ?? rowObj['authorName'] ?? '';
+            const rawFullNames = rowObj['Author full names'] ?? rowObj['AF'] ?? rowObj['Author Full Names'] ?? rowObj['authorFullNames'] ?? '';
+            const rawTitle = rowObj['Title'] ?? rowObj['Article Title'] ?? rowObj['TI'] ?? rowObj['Publication Title'] ?? rowObj['Paper Title'] ?? rowObj['title'] ?? '';
+            const rawYear = rowObj['Year'] ?? rowObj['Publication Year'] ?? rowObj['PY'] ?? rowObj['publicationYear'] ?? rowObj['academicYear'] ?? '';
+            const rawJournal = rowObj['Source title'] ?? rowObj['Source Title'] ?? rowObj['SO'] ?? rowObj['Journal Name'] ?? rowObj['Journal'] ?? rowObj['journalName'] ?? '';
+            const rawCitations = rowObj['Cited by'] ?? rowObj['Times Cited, WoS Core'] ?? rowObj['Times Cited, All Databases'] ?? rowObj['TC'] ?? rowObj['citationCount'] ?? rowObj['Citations'] ?? null;
+            const rawDoi = rowObj['DOI'] ?? rowObj['DI'] ?? rowObj['doi'] ?? rowObj['DOI Number'] ?? '';
+            const rawLink = rowObj['Link'] ?? rowObj['URL'] ?? rowObj['paperUrl'] ?? rowObj['Publication Link'] ?? '';
+            const rawPublisher = rowObj['Publisher'] ?? rowObj['PU'] ?? rowObj['publisher'] ?? '';
+            const rawIssn = rowObj['ISSN'] ?? rowObj['SN'] ?? rowObj['issn'] ?? '';
+            const rawIsbn = rowObj['ISBN'] ?? rowObj['BN'] ?? rowObj['isbn'] ?? '';
+            const rawCoden = rowObj['CODEN'] ?? rowObj['CA'] ?? rowObj['coden'] ?? '';
+
+            const cleanAuthors = String(rawAuthors || '').trim();
+            const cleanFullNames = rawFullNames ? String(rawFullNames).trim() : '';
+            const cleanTitle = String(rawTitle || '').trim();
+            const cleanJournal = String(rawJournal || '').trim();
+
+            const yearMatch = String(rawYear || '').match(/\b(19\d\d|20\d\d)\b/);
+            const cleanYear = yearMatch ? yearMatch[1] : null;
+
+            let cleanCitations: number | null = null;
+            if (rawCitations !== null && rawCitations !== undefined && String(rawCitations).trim() !== '') {
+              const s = String(rawCitations).trim();
+              if (!['n/a', 'na', 'nil', 'null', '-', '--', 'none', 'undefined'].includes(s.toLowerCase())) {
+                const num = parseInt(s.replace(/[^0-9]/g, ''), 10);
+                cleanCitations = isNaN(num) ? null : num;
+              }
+            }
+
+            const issues: string[] = [];
+            if (!cleanAuthors && !cleanFullNames) issues.push('Authors or Full Names required');
+            if (!cleanTitle) issues.push('Publication Title required');
+            if (!cleanJournal) issues.push('Source title (Journal Name) required');
+            if (!cleanYear) issues.push('Valid 4-digit Publication Year required');
+            if (!targetEmployeeId) issues.push('Employee ID missing from filename');
+
+            const cleanDoi = rawDoi ? String(rawDoi).replace(/^(https?:\/\/(dx\.)?doi\.org\/|doi:\s*)/i, '').trim() : '';
+
+            records.push({
+              sourceFile: file.name,
+              employeeId: targetEmployeeId,
+              facultyName: targetFacultyName,
+              department: targetDepartment,
+              indexing: targetIndexing,
+              journalType: targetIndexing,
+              authorName: cleanAuthors || cleanFullNames,
+              authorFullNames: cleanFullNames,
+              title: cleanTitle,
+              journalName: cleanJournal,
+              publicationYear: cleanYear || rawYear,
+              year: cleanYear || rawYear,
+              citationCount: cleanCitations,
+              doi: cleanDoi,
+              paperUrl: rawLink ? String(rawLink).trim() : '',
+              publisher: rawPublisher ? String(rawPublisher).trim() : '',
+              issn: rawIssn ? String(rawIssn).trim() : '',
+              isbn: rawIsbn ? String(rawIsbn).trim() : '',
+              coden: rawCoden ? String(rawCoden).trim() : '',
+              _issues: issues,
+              _rowStatus: issues.length > 0 ? 'needs_review' : 'ready'
+            });
+          }
+
+          resolve(records);
+        } catch (err) {
+          console.error(`Error parsing publication spreadsheet ${file.name}:`, err);
+          resolve([]);
+        }
+      };
+
+      if (fileName.endsWith('.csv')) {
+        reader.readAsText(file);
+      } else {
+        reader.readAsArrayBuffer(file);
+      }
+    });
+  };
+
+  const handleProcessPublicationFiles = async (fileList: FileList | File[]) => {
+    const rawFiles = Array.from(fileList);
+    const validSpreadsheetFiles = rawFiles.filter(f => {
+      const n = f.name.toLowerCase();
+      return (n.endsWith('.csv') || n.endsWith('.xlsx') || n.endsWith('.xls')) && !n.startsWith('~$') && !n.startsWith('.');
+    });
+
+    if (validSpreadsheetFiles.length === 0) {
+      setParseError('No supported CSV or Excel spreadsheets (.csv, .xlsx, .xls) found in the selection.');
+      return;
+    }
+
+    setLoading(true);
+    setParseError('');
+    setUploadError('');
+
+    const newPublicationFiles: PublicationFileItem[] = [];
+    const newRecordsBatch: any[] = [];
+
+    for (const file of validSpreadsheetFiles) {
+      const empId = extractEmployeeIdFromFilename(file.name);
+      let matchedFaculty = empId && facultyLookup[empId] ? facultyLookup[empId] : null;
+      let facultyName = matchedFaculty ? matchedFaculty.name : null;
+      let department = matchedFaculty ? matchedFaculty.department : null;
+      let status: 'ready' | 'needs_review' | 'error' = 'ready';
+      let errorMessage: string | undefined = undefined;
+
+      if (!empId) {
+        status = 'needs_review';
+        errorMessage = 'Filename missing Employee ID prefix (e.g. 2043_Name.xlsx)';
+      } else if (!matchedFaculty) {
+        status = 'needs_review';
+        errorMessage = `Employee ID "${empId}" not found in Faculty Directory`;
+      } else if (matchedFaculty.hasConflict) {
+        status = 'needs_review';
+        errorMessage = `Employee ID "${empId}" has conflicting identities in Faculty Directory`;
+      }
+
+      const defaultIndexing = 'Scopus';
+      const parsedRows = await parseSingleSpreadsheetForPublication(
+        file,
+        empId,
+        facultyName,
+        department,
+        defaultIndexing
+      );
+
+      newRecordsBatch.push(...parsedRows);
+
+      newPublicationFiles.push({
+        id: `${file.name}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        file,
+        name: file.name,
+        size: file.size,
+        employeeId: empId,
+        facultyName,
+        department,
+        indexing: defaultIndexing,
+        status,
+        errorMessage,
+        records: parsedRows
+      });
+    }
+
+    setFile(validSpreadsheetFiles[0]);
+
+    setPublicationFiles(prev => {
+      const map = new Map<string, PublicationFileItem>();
+      prev.forEach(f => map.set(f.name, f));
+      newPublicationFiles.forEach(f => map.set(f.name, f));
+      return Array.from(map.values());
+    });
+
+    setPreviewData(prev => {
+      const fileNamesToRemove = new Set(newPublicationFiles.map(f => f.name));
+      const kept = prev.filter(r => !fileNamesToRemove.has(r.sourceFile));
+      return [...kept, ...newRecordsBatch];
+    });
+
+    setLoading(false);
+  };
+
+  const handleFileIndexingChange = (fileName: string, newIndexing: string) => {
+    setPublicationFiles(prev => prev.map(f => {
+      if (f.name === fileName) {
+        return { ...f, indexing: newIndexing };
+      }
+      return f;
+    }));
+
+    setPreviewData(prev => prev.map(r => {
+      if (r.sourceFile === fileName) {
+        return {
+          ...r,
+          indexing: newIndexing,
+          journalType: newIndexing
+        };
+      }
+      return r;
+    }));
+  };
+
+  const handleRemovePublicationFile = (fileName: string) => {
+    setPublicationFiles(prev => {
+      const remaining = prev.filter(f => f.name !== fileName);
+      if (remaining.length === 0) {
+        setFile(null);
+      } else {
+        setFile(remaining[0].file);
+      }
+      return remaining;
+    });
+
+    setPreviewData(prev => prev.filter(r => r.sourceFile !== fileName));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -826,7 +1368,22 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         return cleanH === field.toLowerCase().replace(/[^a-z0-9]/g, '');
       }));
     } else if (isPublication) {
-      missing = PUBLICATIONS_REQUIRED.filter(field => !headers.some(h => h.toLowerCase().trim() === field.toLowerCase().trim() || (field === 'Title' && h.toLowerCase().includes('title')) || (field === 'Author Name' && (h.toLowerCase().includes('author') || h.toLowerCase().includes('participants'))) || (field === 'Journal Name' && (h.toLowerCase().includes('journal') || h.toLowerCase().includes('organization') || h.toLowerCase().includes('publisher')))));
+      const hasTitle = headers.some(h => {
+        const lh = h.toLowerCase().trim();
+        return lh === 'title' || lh === 'publication title' || lh === 'paper title' || lh === 'article title';
+      });
+      const hasAuthor = headers.some(h => {
+        const lh = h.toLowerCase().trim();
+        return lh === 'authors' || lh === 'author full names' || lh === 'author name' || lh === 'author' || lh.includes('author');
+      });
+      const hasJournal = headers.some(h => {
+        const lh = h.toLowerCase().trim();
+        return lh === 'source title' || lh === 'journal name' || lh === 'journal';
+      });
+      missing = [];
+      if (!hasTitle) missing.push('Title');
+      if (!hasAuthor) missing.push('Authors / Author full names');
+      if (!hasJournal) missing.push('Source title (Journal Name)');
     } else {
       const required = ['title', 'category', 'date', 'year'];
       missing = required.filter(field => !headers.includes(field));
@@ -999,71 +1556,59 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               default: record[header] = val;
             }
           } else if (isPublication) {
-            switch (header) {
-              case 'Author Name':
-              case 'Author':
-              case 'Authors':
-              case 'authorName':
-                record['authorName'] = val; break;
-              case 'Title':
-              case 'Publication Title':
-              case 'Paper Title':
-              case 'title':
-                record['title'] = val; break;
-              case 'Journal Name':
-              case 'Journal':
-              case 'Publisher':
-              case 'journalName':
-                record['journalName'] = val; break;
-              case 'Journal Type':
-              case 'Indexing':
-              case 'Type':
-              case 'journalType':
-                record['journalType'] = val; break;
-              case 'Department':
-              case 'department':
-                record['department'] = val; break;
-              case 'Academic Year':
-              case 'Year':
-              case 'academicYear':
-                record['academicYear'] = val; break;
-              case 'Publication Date':
-              case 'Date':
-              case 'publicationDate':
-                record['publicationDate'] = val; break;
-              case 'DOI':
-              case 'DOI Number':
-              case 'doi':
-                record['doi'] = val; break;
-              case 'ISSN':
-              case 'ISBN':
-              case 'issn':
-                record['issn'] = val; break;
-              case 'Volume':
-              case 'volume':
-                record['volume'] = val; break;
-              case 'Issue':
-              case 'issue':
-                record['issue'] = val; break;
-              case 'Page Number':
-              case 'Pages':
-              case 'pageNumber':
-                record['pageNumber'] = val; break;
-              case 'Impact Factor':
-              case 'impactFactor':
-                record['impactFactor'] = parseFloat(val) || null; break;
-              case 'Citations':
-              case 'citationCount':
-                record['citationCount'] = parseInt(val) || 0; break;
-              case 'URL':
-              case 'Paper Link':
-              case 'paperUrl':
-                record['paperUrl'] = val; break;
-              case 'Abstract':
-              case 'abstract':
-                record['abstract'] = val; break;
-              default: record[header] = val;
+            const cleanH = header.trim();
+            const lh = cleanH.toLowerCase();
+            const cleanVal = val !== undefined && val !== null ? String(val).trim() : '';
+
+            if (lh === 'authors' || lh === 'author name' || lh === 'author' || lh === 'authorname') {
+              record['authorName'] = cleanVal;
+            } else if (lh === 'author full names' || lh === 'author full name' || lh === 'author_full_names' || lh === 'full names') {
+              record['authorFullNames'] = cleanVal;
+            } else if (lh === 'title' || lh === 'publication title' || lh === 'paper title' || lh === 'article title') {
+              record['title'] = cleanVal;
+            } else if (lh === 'year' || lh === 'publication year' || lh === 'academic year' || lh === 'academicyear') {
+              record['publicationYear'] = cleanVal;
+              record['year'] = cleanVal;
+              record['academicYear'] = cleanVal;
+            } else if (lh === 'source title' || lh === 'journal name' || lh === 'journal' || lh === 'journalname') {
+              record['journalName'] = cleanVal;
+            } else if (lh === 'cited by' || lh === 'citations' || lh === 'citation count' || lh === 'citationcount') {
+              if (['', 'n/a', 'na', 'nil', 'null', '-', '--', 'undefined'].includes(cleanVal.toLowerCase())) {
+                record['citationCount'] = null;
+              } else {
+                const num = parseInt(cleanVal.replace(/[^0-9]/g, ''), 10);
+                record['citationCount'] = isNaN(num) ? null : num;
+              }
+            } else if (lh === 'doi' || lh === 'doi number') {
+              record['doi'] = cleanVal;
+            } else if (lh === 'link' || lh === 'publication link' || lh === 'paper link' || lh === 'url' || lh === 'paperurl') {
+              record['paperUrl'] = cleanVal;
+            } else if (lh === 'publisher') {
+              record['publisher'] = cleanVal;
+            } else if (lh === 'issn') {
+              record['issn'] = cleanVal;
+            } else if (lh === 'isbn') {
+              record['isbn'] = cleanVal;
+            } else if (lh === 'coden') {
+              record['coden'] = cleanVal;
+            } else if (lh === 'journal type' || lh === 'indexing' || lh === 'type' || lh === 'journaltype') {
+              record['journalType'] = cleanVal;
+            } else if (lh === 'department') {
+              record['department'] = cleanVal;
+            } else if (lh === 'publication date' || lh === 'date' || lh === 'publicationdate') {
+              record['publicationDate'] = formatDateToISO(cleanVal);
+            } else if (lh === 'volume') {
+              record['volume'] = cleanVal;
+            } else if (lh === 'issue') {
+              record['issue'] = cleanVal;
+            } else if (lh === 'page number' || lh === 'pages' || lh === 'pagenumber') {
+              record['pageNumber'] = cleanVal;
+            } else if (lh === 'impact factor' || lh === 'impactfactor') {
+              record['impactFactor'] = parseFloat(cleanVal) || null;
+            } else if (lh === 'abstract') {
+              record['abstract'] = cleanVal;
             }
+            // Explicitly ignore any unapproved Scopus columns (Art No, EID, Affiliations, etc.)
           } else if (isPatent) {
             const lh = header.toLowerCase().trim();
             const clh = lh.replace(/[^a-z0-9]/g, '');
@@ -1155,9 +1700,17 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               record['sanctionYear'] = val;
               record['academicYear'] = val;
             } else if (lh.includes('agreement') || lh.includes('sanction letter') || lh.includes('award letter')) {
-              record['agreementLetter'] = val;
-            } else if (lh.includes('receipt') || lh.includes('payment') || lh.includes('installment doc')) {
-              record['paymentReceipt'] = val;
+              if (val && !record['agreementLetter']) {
+                record['agreementLetter'] = val;
+              } else if (val && record['agreementLetter'] && record['agreementLetter'] !== val) {
+                record['agreementLetter'] = `${record['agreementLetter']}, ${val}`;
+              }
+            } else if (lh.includes('receipt') || lh.includes('payment') || lh.includes('fund receipt') || lh.includes('utilization certificate') || lh.includes('uc') || lh.includes('installment doc')) {
+              if (val && !record['paymentReceipt']) {
+                record['paymentReceipt'] = val;
+              } else if (val && record['paymentReceipt'] && record['paymentReceipt'] !== val) {
+                record['paymentReceipt'] = `${record['paymentReceipt']}, ${val}`;
+              }
             } else if (lh.includes('duration')) {
               record['projectDuration'] = val;
             } else if (lh.includes('url') || lh.includes('link') || lh.includes('portal')) {
@@ -1189,6 +1742,70 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       }
 
       records.push(record);
+    }
+
+    if (isPublication) {
+      const seenDoi = new Map<string, number>();
+      const seenTitleYear = new Map<string, number>();
+
+      records.forEach((rec, idx) => {
+        const auth = (rec.authorName || rec.authorFullNames || '').trim();
+        const tit = (rec.title || '').trim();
+        const jrn = (rec.journalName || '').trim();
+        const yr = rec.publicationYear || rec.year || rec.academicYear || selectedPublicationYear || '';
+        const matchYear = String(yr).match(/\b(19\d\d|20\d\d)\b/);
+        const validYear = matchYear ? matchYear[1] : null;
+
+        const issues: string[] = [];
+        if (!auth) issues.push('Authors or Author full names required');
+        if (!tit) issues.push('Publication Title required');
+        if (!jrn) issues.push('Source title (Journal Name) required');
+        if (!validYear) issues.push('Valid 4-digit Year required');
+
+        rec.publicationYear = validYear || yr;
+        rec.year = validYear || yr;
+        rec.authorName = rec.authorName || rec.authorFullNames || '';
+        rec.journalType = rec.journalType || selectedPublicationIndexing || 'Scopus';
+        rec.department = rec.department || selectedDepartment || '';
+
+        const cleanDoi = rec.doi ? rec.doi.replace(/^(https?:\/\/(dx\.)?doi\.org\/|doi:\s*)/i, '').trim().toLowerCase() : '';
+        const normTitle = tit.toLowerCase().replace(/[\r\n\t]+/g, ' ').replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+        const titleYearKey = validYear ? `${normTitle}::${validYear}` : '';
+
+        let isDup = false;
+        let dupReason = '';
+
+        if (cleanDoi) {
+          if (seenDoi.has(cleanDoi)) {
+            isDup = true;
+            dupReason = `Duplicate DOI: matches row #${seenDoi.get(cleanDoi)! + 1} in this file`;
+          } else {
+            seenDoi.set(cleanDoi, idx);
+          }
+        }
+
+        if (!isDup && titleYearKey) {
+          if (seenTitleYear.has(titleYearKey)) {
+            isDup = true;
+            dupReason = `Duplicate Title + Year: matches row #${seenTitleYear.get(titleYearKey)! + 1} in this file`;
+          } else {
+            seenTitleYear.set(titleYearKey, idx);
+          }
+        }
+
+        rec._cleanDoi = cleanDoi;
+        rec._normTitleYear = titleYearKey;
+
+        if (isDup) {
+          rec._rowStatus = 'duplicate';
+          rec._duplicateReason = dupReason;
+        } else if (issues.length > 0) {
+          rec._rowStatus = 'needs_review';
+          rec._issues = issues;
+        } else {
+          rec._rowStatus = 'ready';
+        }
+      });
     }
 
     if (records.length === 0) {
@@ -1290,10 +1907,25 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       return item;
     });
 
+    const readyRecords = isPublication
+      ? dataWithCommonFields.filter(r => r._rowStatus === 'ready')
+      : dataWithCommonFields;
+
+    if (isPublication && readyRecords.length === 0) {
+      setLoading(false);
+      setUploadError('No valid "Ready" publication records found to import. Please review and resolve flagged rows before importing.');
+      return;
+    }
+
     const bodyPayload = isDepartmentalActivity
       ? { activities: dataWithCommonFields }
       : isPublication
-        ? { items: dataWithCommonFields, defaultDepartment: selectedDepartment, defaultYear: selectedAcademicYear }
+        ? {
+            items: readyRecords,
+            isFacultyWiseBatch: publicationFiles.length > 0,
+            defaultDepartment: selectedDepartment || undefined,
+            defaultIndexing: selectedPublicationIndexing
+          }
         : isPatent
           ? { items: dataWithCommonFields, defaultDepartment: selectedDepartment, defaultYear: selectedAcademicYear }
           : isSponsored
@@ -1323,10 +1955,21 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       const data = await response.json();
 
       if (data.success) {
-        setImportResult({ count: data.count, message: data.message || 'Bulk upload completed successfully.', success: true });
+        setImportResult({
+          count: data.count,
+          createdCount: data.createdCount,
+          linkedCount: data.linkedCount,
+          duplicatesCount: data.duplicatesCount,
+          errorsCount: data.errorsCount,
+          message: data.message || 'Bulk upload completed successfully.',
+          success: true,
+          data: data.data,
+          duplicates: data.duplicates,
+          errors: data.errors
+        });
         if (data.errors && data.errors.length > 0) {
           setUploadError(`${data.count} record(s) loaded successfully, but ${data.errors.length} failed.`);
-          setUploadErrorsList(data.errors);
+          setUploadErrorsList(data.errors.map((e: any) => typeof e === 'string' ? e : `${e.title || 'Row'}: ${Array.isArray(e.issues) ? e.issues.join(', ') : (e.issues || 'Review required')}`));
         } else {
           setSuccessMsg(data.message || 'Records imported successfully.');
         }
@@ -1334,9 +1977,13 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         setCurrentStage('summary');
       } else {
         setUploadError(data.message || 'Bulk upload failed.');
-        setImportResult({ message: data.message || 'Bulk upload failed.', success: false });
+        setImportResult({
+          message: data.message || 'Bulk upload failed.',
+          success: false,
+          errors: data.errors
+        });
         if (data.errors) {
-          setUploadErrorsList(data.errors);
+          setUploadErrorsList(data.errors.map((e: any) => typeof e === 'string' ? e : `${e.title || 'Row'}: ${Array.isArray(e.issues) ? e.issues.join(', ') : (e.issues || 'Error')}`));
         }
         setCurrentStage('summary');
       }
@@ -1367,51 +2014,132 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-[750px] max-h-[85vh] overflow-y-auto bg-white p-6 rounded-xl">
-        <DialogHeader>
-          <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-[#2F4692]" />
-            <span>Bulk Upload {uploadTypeLabel} (CSV / Excel)</span>
-          </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500">
-            Upload and batch-validate {uploadTypeLabel} records in bulk via standard spreadsheet templates.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className={isPublication ? "w-full sm:max-w-[750px] md:max-w-[800px] lg:max-w-[850px] max-h-[88vh] h-[88vh] flex flex-col p-0 overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-2xl" : "sm:max-w-[750px] max-h-[85vh] overflow-y-auto bg-white p-6 rounded-xl"}>
+        {isPublication && publicationUploadMode === 'citations' ? (
+          <div className="flex flex-col h-full min-h-0">
+            <div className="px-6 pt-5 pb-0 shrink-0">
+              <DialogHeader className="pr-10">
+                <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-[#2855B9]" />
+                  <span>Bulk Upload Citations (CSV / Excel)</span>
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Import official Scopus citation overview reports (.csv / .xlsx) to link verified annual citation history to existing IQAC publications.
+                </DialogDescription>
+              </DialogHeader>
 
-        {/* 5-Stage Stepper Progress Bar */}
-        <div className="bg-slate-50 border-y border-slate-200/80 -mx-6 px-6 py-2.5 flex items-center justify-between gap-1 overflow-x-auto">
-          {UPLOAD_STAGES.map((s, idx) => {
-            const isCurrent = currentStage === s.id;
-            const isPassed = UPLOAD_STAGES.findIndex(item => item.id === currentStage) > idx;
-            return (
-              <div key={s.id} className="flex items-center gap-1.5 shrink-0">
-                <span
-                  className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
-                    isCurrent
-                      ? 'bg-[#2F4692] text-white shadow-xs ring-2 ring-[#2F4692]/20'
-                      : isPassed
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-200 text-slate-500'
-                  }`}
+              {/* Mode Toggle Pills */}
+              <div className="flex items-center gap-2 mt-3 pb-1 border-b border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPublicationUploadMode('publications');
+                    setCurrentStage('upload');
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200"
                 >
-                  {isPassed ? '✓' : s.number}
-                </span>
-                <span
-                  className={`text-xs font-semibold ${
-                    isCurrent ? 'text-slate-900 font-bold' : isPassed ? 'text-emerald-700' : 'text-slate-400'
-                  }`}
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Publications</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPublicationUploadMode('citations');
+                    setCurrentStage('upload');
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 bg-[#2855B9] text-white shadow-xs"
                 >
-                  {s.label.replace(/^\d+\.\s*/, '')}
-                </span>
-                {idx < UPLOAD_STAGES.length - 1 && (
-                  <div className="w-4 sm:w-8 h-0.5 bg-slate-200 mx-1 hidden sm:block" />
-                )}
+                  <Award className="w-3.5 h-3.5" />
+                  <span>Citations</span>
+                </button>
               </div>
-            );
-          })}
+            </div>
+
+            <div className="flex-1 min-h-0 flex flex-col">
+              <CitationsBulkUploadFlow
+                token={token}
+                onSuccess={onSuccess}
+                onClose={handleClose}
+              />
+            </div>
+          </div>
+        ) : (
+          <>
+        {/* Region 1: Fixed Header */}
+        <div className={isPublication ? "px-6 pt-5 pb-0 shrink-0" : ""}>
+          <DialogHeader className={isPublication ? "pr-10" : ""}>
+            <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-[#2F4692]" />
+              <span>Bulk Upload {uploadTypeLabel} (CSV / Excel)</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Upload and batch-validate {uploadTypeLabel} records in bulk via standard spreadsheet templates.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isPublication && (
+            <div className="flex items-center gap-2 mt-3 pb-1 border-b border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setPublicationUploadMode('publications');
+                  setCurrentStage('upload');
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 bg-[#2855B9] text-white shadow-xs"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Publications</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPublicationUploadMode('citations');
+                  setCurrentStage('upload');
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200"
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>Citations</span>
+              </button>
+            </div>
+          )}
+
+          {/* 5-Stage Stepper Progress Bar */}
+          <div className={isPublication ? "bg-slate-50 border-y border-slate-200/80 -mx-6 px-6 py-2.5 mt-3 flex items-center justify-between gap-1 overflow-x-auto shrink-0" : "bg-slate-50 border-y border-slate-200/80 -mx-6 px-6 py-2.5 flex items-center justify-between gap-1 overflow-x-auto"}>
+            {UPLOAD_STAGES.map((s, idx) => {
+              const isCurrent = currentStage === s.id;
+              const isPassed = UPLOAD_STAGES.findIndex(item => item.id === currentStage) > idx;
+              return (
+                <div key={s.id} className="flex items-center gap-1.5 shrink-0">
+                  <span
+                    className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
+                      isCurrent
+                        ? 'bg-[#2F4692] text-white shadow-xs ring-2 ring-[#2F4692]/20'
+                        : isPassed
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-200 text-slate-500'
+                    }`}
+                  >
+                    {isPassed ? '✓' : s.number}
+                  </span>
+                  <span
+                    className={`text-xs font-semibold ${
+                      isCurrent ? 'text-slate-900 font-bold' : isPassed ? 'text-emerald-700' : 'text-slate-400'
+                    }`}
+                  >
+                    {s.label.replace(/^\d+\.\s*/, '')}
+                  </span>
+                  {idx < UPLOAD_STAGES.length - 1 && (
+                    <div className="w-4 sm:w-8 h-0.5 bg-slate-200 mx-1 hidden sm:block" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="space-y-4 py-3 text-xs">
+        {/* Region 2: Scrollable Content Body */}
+        <div className={isPublication ? "flex-1 overflow-y-auto min-h-0 px-6 py-4 space-y-4 text-xs" : "space-y-4 py-3 text-xs"}>
           {/* STAGE 1: UPLOAD */}
           {currentStage === 'upload' && (
             <div className="space-y-4">
@@ -1428,7 +2156,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
 
               {isSponsored ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
-                  Project Title**, Principal Investigator**, Co-Investigators, Funding Agency**, Scheme / Program, Agency Type, Sanction Order No, Sanction Date, Sanction Year, Start Date, End Date, Project Duration, Sanctioned Amount (INR), Amount Received (INR), Status, Progress (%), Department, Agreement Letter, Payment Receipt, Project URL, Description
+                  Project Title**, Principal Investigator**, Co-Investigators, Funding Agency**, Scheme / Program, Agency Type, Sanction Order No, Sanction Date, Sanction Year, Start Date, End Date, Project Duration, Sanctioned Amount (INR), Amount Received (INR), Status, Progress (%), Department, Sanction Letter, Fund Receipt / Utilization Certificate (UC), Project URL, Description
                 </p>
               ) : isPatent ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
@@ -1486,109 +2214,312 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             </div>
           </div>
 
-          {/* Common Upload Metadata (Academic Year, Campus, School) */}
-          <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-            <h4 className="font-semibold text-xs text-[#2f4692] uppercase tracking-wider flex items-center gap-1.5">
-              <FileSpreadsheet className="w-4 h-4 text-[#2f4692]" />
-              Common Upload Metadata (Applied to all records in this file)
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year <span className="text-red-500">*</span></label>
-                <select
-                  value={selectedAcademicYear}
-                  onChange={(e) => setSelectedAcademicYear(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 font-medium focus:ring-2 focus:ring-blue-500"
+          {/* STAGE 1: UPLOAD SETTINGS & DROPZONE */}
+          {isPublication ? (
+            <div className="space-y-4">
+              {/* Publications Faculty-Wise Multi-File / Folder Upload Toolbar */}
+              <div className="bg-gradient-to-r from-blue-50/70 to-indigo-50/40 border border-blue-200/80 p-4 rounded-xl space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-bold text-xs text-[#2855B9] uppercase tracking-wider flex items-center gap-1.5">
+                      <FolderUp className="w-4 h-4 text-[#2855B9]" />
+                      Faculty-Wise Multi-File & Folder Bulk Upload
+                    </h4>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Select multiple publication files or an entire folder. Filename must start with Employee ID (e.g., <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-900">2043_Adarsh_S_V.xlsx</code>).
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="file"
+                      ref={multiFileInputRef}
+                      multiple
+                      accept=".csv,.xls,.xlsx"
+                      onChange={(e) => e.target.files && handleProcessPublicationFiles(e.target.files)}
+                      className="hidden"
+                    />
+                    <input
+                      type="file"
+                      ref={folderInputRef}
+                      multiple
+                      accept=".csv,.xls,.xlsx"
+                      {...({ webkitdirectory: '', directory: '' } as any)}
+                      onChange={(e) => e.target.files && handleProcessPublicationFiles(e.target.files)}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => multiFileInputRef.current?.click()}
+                      disabled={loading}
+                      className="bg-white border-blue-300 text-[#2855B9] hover:bg-blue-50 text-xs font-semibold h-8 px-3 shadow-2xs"
+                    >
+                      <FilePlus className="w-3.5 h-3.5 mr-1.5" />
+                      Select File
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => folderInputRef.current?.click()}
+                      disabled={loading}
+                      className="bg-[#2855B9] hover:bg-[#1C355B] text-white text-xs font-semibold h-8 px-3 shadow-2xs"
+                    >
+                      <FolderUp className="w-3.5 h-3.5 mr-1.5" />
+                      Select Folder
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Drag and Drop Zone for publications */}
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      await handleProcessPublicationFiles(e.dataTransfer.files);
+                    }
+                  }}
+                  className="border-2 border-dashed border-blue-200 hover:border-[#2855B9] rounded-xl p-5 bg-white/70 hover:bg-blue-50/50 transition-all text-center cursor-pointer"
+                  onClick={() => multiFileInputRef.current?.click()}
                 >
-                  <option value="2020-2021">2020-2021</option>
-                  <option value="2021-2022">2021-2022</option>
-                  <option value="2022-2023">2022-2023</option>
-                  <option value="2023-2024">2023-2024</option>
-                  <option value="2024-2025">2024-2025</option>
-                  <option value="2025-2026">2025-2026</option>
-                  <option value="2026-2027">2026-2027</option>
-                  <option value="2027-2028">2027-2028</option>
-                </select>
+                  <UploadCloud className="w-8 h-8 text-[#2855B9] mx-auto mb-2 opacity-80" />
+                  <p className="text-xs font-semibold text-slate-800">
+                    Drag and drop faculty publication files or folder here, or click to browse
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Supports Scopus and Web of Science exports (.csv, .xlsx, .xls)
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Campus <span className="text-red-500">*</span></label>
-                <select
-                  value={selectedCampus}
-                  onChange={(e) => setSelectedCampus(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
-                >
-                  {campusList.map((c, i) => (
-                    <option key={i} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Selected Files Card List */}
+              {publicationFiles.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700 px-1">
+                    <span>Selected Faculty Files ({publicationFiles.length} file{publicationFiles.length > 1 ? 's' : ''}, {previewData.length} records parsed)</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPublicationFiles([]);
+                        setPreviewData([]);
+                        setFile(null);
+                      }}
+                      className="text-red-600 hover:text-red-800 text-[11px] font-medium"
+                    >
+                      Clear All Files
+                    </button>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">School <span className="text-red-500">*</span></label>
-                <select
-                  value={selectedSchool}
-                  onChange={(e) => setSelectedSchool(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
-                >
-                  {schoolList.map((s, i) => (
-                    <option key={i} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
+                  <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                    {publicationFiles.map((item) => {
+                      const isReady = item.status === 'ready';
+                      return (
+                        <div
+                          key={item.id}
+                          className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs transition-colors ${
+                            isReady
+                              ? 'bg-white border-slate-200 hover:border-blue-300'
+                              : 'bg-amber-50/60 border-amber-200'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <FileSpreadsheet className={`w-4 h-4 mt-0.5 shrink-0 ${isReady ? 'text-[#2855B9]' : 'text-amber-600'}`} />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-slate-900 truncate max-w-[200px]" title={item.name}>
+                                  {item.name}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  ({(item.size / 1024).toFixed(1)} KB)
+                                </span>
+                                {item.records && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-50 text-[#2855B9] border border-blue-200">
+                                    {item.records.length} records
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Faculty verification badge */}
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                {isReady && item.facultyName ? (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                      <CheckCircle className="w-3 h-3 text-emerald-600" />
+                                      {item.facultyName} <span className="text-emerald-600 font-mono text-[10px]">(Emp ID: {item.employeeId})</span>
+                                    </span>
+                                    {item.department && (
+                                      <span className="text-[11px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                        {item.department}
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-md border border-amber-300">
+                                    <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                    {item.errorMessage || 'Needs Review: Unknown Faculty'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                            {/* Per-File Indexing classification dropdown */}
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-slate-500 font-medium hidden sm:inline">Indexing:</span>
+                              <select
+                                value={item.indexing}
+                                onChange={(e) => handleFileIndexingChange(item.name, e.target.value)}
+                                className="h-7 px-2 border border-slate-300 rounded-md bg-white text-[11px] font-medium text-slate-800 focus:ring-1 focus:ring-blue-500"
+                              >
+                                <option value="Scopus">Scopus</option>
+                                <option value="WoS (Web of Science)">WoS (Web of Science)</option>
+                                <option value="Scopus & WoS">Scopus & WoS</option>
+                                <option value="UGC-CARE">UGC-CARE</option>
+                                <option value="Peer-Reviewed / Other">Peer-Reviewed / Other</option>
+                              </select>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePublicationFile(item.name)}
+                              className="text-slate-400 hover:text-red-600 p-1 rounded-md hover:bg-slate-100 transition-colors"
+                              title="Remove file"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-xs space-y-2">
+                  <div className="flex items-center gap-2 text-slate-800 font-semibold">
+                    <Info className="w-4 h-4 text-[#2855B9]" />
+                    <span>Faculty-Wise Publication File Naming Protocol</span>
+                  </div>
+                  <ul className="list-disc pl-5 space-y-1 text-[11px] text-slate-600">
+                    <li>Each file represents publications belonging to one faculty member (e.g. <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">2043_Adarsh_S_V.xlsx</code> or <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">00123_Faculty_Name.csv</code>).</li>
+                    <li>The Employee ID at the start of the filename is verified against the Faculty Directory, and the department is automatically assigned from their profile.</li>
+                    <li>If a paper is co-authored by multiple faculty across files, exactly one unique publication record is created and all co-authors are linked.</li>
+                  </ul>
+                </div>
+              )}
+
+              {parseError && (
+                <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded-lg flex gap-2 font-semibold text-xs">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{parseError}</span>
+                </div>
+              )}
             </div>
-            <p className="text-[11px] text-slate-500 italic">
-              All records in this bulk file will automatically inherit these Academic Year, Campus, and School selections.
-            </p>
-          </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                <h4 className="font-semibold text-xs text-[#2f4692] uppercase tracking-wider flex items-center gap-1.5">
+                  <FileSpreadsheet className="w-4 h-4 text-[#2f4692]" />
+                  Common Upload Metadata (Applied to all records in this file)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year <span className="text-red-500">*</span></label>
+                    <select
+                      value={selectedAcademicYear}
+                      onChange={(e) => setSelectedAcademicYear(e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 font-medium focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="2020-2021">2020-2021</option>
+                      <option value="2021-2022">2021-2022</option>
+                      <option value="2022-2023">2022-2023</option>
+                      <option value="2023-2024">2023-2024</option>
+                      <option value="2024-2025">2024-2025</option>
+                      <option value="2025-2026">2025-2026</option>
+                      <option value="2026-2027">2026-2027</option>
+                      <option value="2027-2028">2027-2028</option>
+                    </select>
+                  </div>
 
-          {/* Department Selection for Consultancy */}
-          {isConsultancy && (
-            <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
-              <Label className="text-sm font-semibold text-amber-900 mb-2 block">
-                Select Department <span className="text-red-500">*</span>
-              </Label>
-              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                <SelectTrigger className="w-full bg-white">
-                  <SelectValue placeholder="Choose a department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {FIXED_DEPARTMENTS.map(dept => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-amber-700 mt-1.5">
-                All uploaded consultancy records will be assigned to the selected department.
-              </p>
-            </div>
-          )}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Campus <span className="text-red-500">*</span></label>
+                    <select
+                      value={selectedCampus}
+                      onChange={(e) => setSelectedCampus(e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      {campusList.map((c, i) => (
+                        <option key={i} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
 
-          {/* Upload Drop Zone */}
-          <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-[#2F4692] hover:bg-slate-50/70 transition-all text-center relative cursor-pointer group">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".csv,.xls,.xlsx"
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-              disabled={loading}
-            />
-            <div className="w-12 h-12 rounded-full bg-slate-100 group-hover:bg-blue-50 text-slate-500 group-hover:text-[#2F4692] flex items-center justify-center mx-auto mb-3 transition-colors">
-              <UploadCloud className="w-6 h-6" />
-            </div>
-            {file ? (
-              <div>
-                <p className="font-semibold text-slate-900 text-sm">{file.name}</p>
-                <p className="text-xs text-slate-500 mt-1">{(file.size / 1024).toFixed(1)} KB — Click to replace file</p>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">School <span className="text-red-500">*</span></label>
+                    <select
+                      value={selectedSchool}
+                      onChange={(e) => setSelectedSchool(e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      {schoolList.map((s, i) => (
+                        <option key={i} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 italic">
+                  All records in this bulk file will automatically inherit these Academic Year, Campus, and School selections.
+                </p>
               </div>
-            ) : (
-              <div>
-                <p className="font-medium text-slate-800 text-sm">Drag & drop your CSV or Excel file here, or <span className="text-[#2F4692] font-semibold underline underline-offset-2">browse files</span></p>
-                <p className="text-xs text-slate-500 mt-1">Supports standardized .csv, .xls, and .xlsx formats up to 10MB</p>
+
+              {/* Department Selection for Consultancy */}
+              {isConsultancy && (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+                  <Label className="text-sm font-semibold text-amber-900 mb-2 block">
+                    Select Department <span className="text-red-500">*</span>
+                  </Label>
+                  <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                    <SelectTrigger className="w-full bg-white">
+                      <SelectValue placeholder="Choose a department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FIXED_DEPARTMENTS.map(dept => (
+                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-amber-700 mt-1.5">
+                    All uploaded consultancy records will be assigned to the selected department.
+                  </p>
+                </div>
+              )}
+
+              {/* Upload Drop Zone */}
+              <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-[#2F4692] hover:bg-slate-50/70 transition-all text-center relative cursor-pointer group">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept=".csv,.xls,.xlsx"
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  disabled={loading}
+                />
+                <div className="w-12 h-12 rounded-full bg-slate-100 group-hover:bg-blue-50 text-slate-500 group-hover:text-[#2F4692] flex items-center justify-center mx-auto mb-3 transition-colors">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                {file ? (
+                  <div>
+                    <p className="font-semibold text-slate-900 text-sm">{file.name}</p>
+                    <p className="text-xs text-slate-500 mt-1">{(file.size / 1024).toFixed(1)} KB — Click to replace file</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="font-medium text-slate-800 text-sm">Drag & drop your CSV or Excel file here, or <span className="text-[#2F4692] font-semibold underline underline-offset-2">browse files</span></p>
+                    <p className="text-xs text-slate-500 mt-1">Supports standardized .csv, .xls, and .xlsx formats up to 10MB</p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
               {file && (
                 <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center justify-between">
@@ -1611,76 +2542,189 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               )}
             </div>
           )}
+        </div>
+      )}
 
-          {/* STAGE 2: VALIDATION */}
-          {currentStage === 'validation' && (
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                    <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    <span>Spreadsheet Schema & Column Structure Validation</span>
-                  </h3>
-                  <span className="text-[10px] font-mono text-slate-500">{file?.name}</span>
+      {/* STAGE 2: VALIDATION */}
+      {currentStage === 'validation' && (
+        <div className="space-y-4">
+          {isPublication ? (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>Publications Multi-File & Faculty Mapping Summary</span>
+                </h3>
+                <span className="text-[10px] font-mono text-slate-500">
+                  {publicationFiles.length} file{publicationFiles.length > 1 ? 's' : ''} loaded
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Files</span>
+                  <span className="text-base font-bold text-slate-900 font-mono">{publicationFiles.length}</span>
                 </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Records</span>
-                    <span className="text-base font-bold text-slate-900 font-mono">{previewData.length}</span>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Academic Year</span>
-                    <span className="text-xs font-bold text-[#2F4692]">{selectedAcademicYear}</span>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Campus Scope</span>
-                    <span className="text-xs font-semibold text-slate-800 truncate block">{selectedCampus}</span>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Department Scope</span>
-                    <span className="text-xs font-semibold text-slate-800 truncate block">{selectedDepartment || 'Row-Assigned'}</span>
-                  </div>
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block">Matched Faculty</span>
+                  <span className="text-base font-bold text-emerald-700 font-mono">
+                    {publicationFiles.filter(f => f.status === 'ready').length}
+                  </span>
                 </div>
-
-                <div>
-                  <span className="text-xs font-semibold text-slate-700 block mb-1.5">Required Headers Validated:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {requiredHeaders.map((hdr, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <span>✓</span> {hdr}
-                      </span>
-                    ))}
-                  </div>
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Records</span>
+                  <span className="text-base font-bold text-[#2855B9] font-mono">{previewData.length}</span>
+                </div>
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block">Department Scope</span>
+                  <span className="text-xs font-semibold text-slate-800 truncate block">Auto-Derived</span>
                 </div>
               </div>
 
-              {parseError ? (
-                <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded-lg flex gap-2 font-semibold">
-                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>{parseError}</span>
+              <div>
+                <span className="text-xs font-semibold text-slate-700 block mb-1.5">Approved Scopus / WoS Fields Extracted:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Authors', 'Author full names', 'Title', 'Year', 'Source title (Journal)', 'Cited by', 'DOI', 'Link', 'Publisher', 'ISSN', 'ISBN', 'CODEN'].map((hdr, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span>✓</span> {hdr}
+                    </span>
+                  ))}
                 </div>
-              ) : (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="font-semibold text-xs">
-                    All mandatory columns matched successfully. No fatal syntax or structure anomalies found.
+              </div>
+
+              {publicationFiles.some(f => f.status !== 'ready') && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-1">
+                  <span className="font-bold flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    Files Requiring Attention:
                   </span>
+                  <ul className="list-disc pl-5 text-[11px] space-y-0.5">
+                    {publicationFiles.filter(f => f.status !== 'ready').map((f, i) => (
+                      <li key={i}>
+                        <strong>{f.name}:</strong> {f.errorMessage}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
+
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-semibold text-xs">
+                  Spreadsheet parsing completed. Proceed to preview to inspect records and co-authorship.
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>Spreadsheet Schema & Column Structure Validation</span>
+                </h3>
+                <span className="text-[10px] font-mono text-slate-500">{file?.name}</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Records</span>
+                  <span className="text-base font-bold text-slate-900 font-mono">{previewData.length}</span>
+                </div>
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block">Academic Year</span>
+                  <span className="text-xs font-bold text-[#2F4692]">{selectedAcademicYear}</span>
+                </div>
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block">Campus Scope</span>
+                  <span className="text-xs font-semibold text-slate-800 truncate block">{selectedCampus}</span>
+                </div>
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block">Department Scope</span>
+                  <span className="text-xs font-semibold text-slate-800 truncate block">{selectedDepartment || 'Row-Assigned'}</span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-xs font-semibold text-slate-700 block mb-1.5">Required Headers Validated:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {requiredHeaders.map((hdr, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span>✓</span> {hdr}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
+          {parseError ? (
+            <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded-lg flex gap-2 font-semibold">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{parseError}</span>
+            </div>
+          ) : !isPublication ? (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-semibold text-xs">
+                All mandatory columns matched successfully. No fatal syntax or structure anomalies found.
+              </span>
+            </div>
+          ) : null}
+        </div>
+      )}
+
           {/* STAGE 3: PREVIEW */}
           {currentStage === 'preview' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-gray-700 flex items-center justify-between w-full">
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <p className="font-semibold text-gray-700 text-xs">
                   <span>Records Preview ({previewData.length} records detected)</span>
-                  <span className="text-[10px] text-gray-400 font-normal">Previewing up to 5 records</span>
                 </p>
+                {isPublication && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px] font-medium">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewFilter('all')}
+                        className={`px-2.5 py-1 rounded-md transition-all ${previewFilter === 'all' ? 'bg-white shadow-xs font-bold text-slate-900' : 'text-slate-600 hover:text-slate-900'}`}
+                      >
+                        All ({previewData.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewFilter('ready')}
+                        className={`px-2.5 py-1 rounded-md transition-all ${previewFilter === 'ready' ? 'bg-white shadow-xs font-bold text-emerald-700' : 'text-emerald-700 hover:bg-emerald-50/50'}`}
+                      >
+                        Ready ({previewData.filter(r => r._rowStatus === 'ready').length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewFilter('needs_review')}
+                        className={`px-2.5 py-1 rounded-md transition-all ${previewFilter === 'needs_review' ? 'bg-white shadow-xs font-bold text-amber-700' : 'text-amber-700 hover:bg-amber-50/50'}`}
+                      >
+                        Needs Review ({previewData.filter(r => r._rowStatus === 'needs_review').length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewFilter('duplicate')}
+                        className={`px-2.5 py-1 rounded-md transition-all ${previewFilter === 'duplicate' ? 'bg-white shadow-xs font-bold text-slate-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                      >
+                        Duplicates ({previewData.filter(r => r._rowStatus === 'duplicate').length})
+                      </button>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDownloadPreviewReport}
+                      className="h-7 text-[11px] px-2.5 border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold"
+                    >
+                      <Download className="w-3 h-3 mr-1" /> Export Preview CSV
+                    </Button>
+                  </div>
+                )}
               </div>
-              <div className="overflow-x-auto border border-gray-200 rounded">
+              <div className="overflow-x-auto border border-gray-200 rounded max-h-[50vh] overflow-y-auto">
                 <table className="w-full text-left border-collapse text-[11px] text-gray-700">
                   {isFaculty ? (
                     <>
@@ -1829,8 +2873,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                           <th className="py-2 px-3 whitespace-nowrap">Department</th>
                           <th className="py-2 px-3 whitespace-nowrap">Sanction Year</th>
                           <th className="py-2 px-3 whitespace-nowrap">Duration</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Agreement Letter</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Payment Receipt</th>
+                          <th className="py-2 px-3 whitespace-nowrap" title="Sanction Letter">Sanction Letter</th>
+                          <th className="py-2 px-3 whitespace-nowrap" title="Fund Receipt / Utilization Certificate (UC)">Fund Receipt / UC</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 bg-white">
@@ -1907,32 +2951,110 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   ) : isPublication ? (
                     <>
                       <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200 font-semibold">
-                          <th className="py-2 px-3 whitespace-nowrap">Preview No</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Title</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Author(s)</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Journal Name</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Indexing</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Department</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Year</th>
+                        <tr className="bg-slate-100/80 border-b border-slate-200 font-semibold text-slate-700 text-xs">
+                          <th className="py-2.5 px-3 whitespace-nowrap text-center w-12">#</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[130px]">Validation Status</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[170px]">Faculty / Emp ID</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[130px]">Source File</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[260px]">Publication Title / Year</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap text-center min-w-[90px]">Indexing</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap text-right pr-4 min-w-[140px]">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100 bg-white">
-                        {previewData.slice(0, 5).map((row, idx) => (
-                          <tr key={idx} className="hover:bg-gray-50">
-                            <td className="py-2 px-3 font-mono">{idx + 1}</td>
-                            <td className="py-2 px-3 font-semibold text-gray-900 truncate max-w-[180px]" title={row.title}>{row.title}</td>
-                            <td className="py-2 px-3 truncate max-w-[140px]" title={row.authorName}>{row.authorName}</td>
-                            <td className="py-2 px-3 truncate max-w-[140px]" title={row.journalName}>{row.journalName}</td>
-                            <td className="py-2 px-3">
-                              <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-medium border border-blue-200">
-                                {row.journalType || 'Scopus'}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 truncate max-w-[120px]" title={row.department}>{row.department || '-'}</td>
-                            <td className="py-2 px-3 font-mono">{row.academicYear || '-'}</td>
-                          </tr>
-                        ))}
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {previewData
+                          .filter(r => {
+                            if (previewFilter === 'ready') return r._rowStatus === 'ready';
+                            if (previewFilter === 'needs_review') return r._rowStatus === 'needs_review';
+                            if (previewFilter === 'duplicate') return r._rowStatus === 'duplicate';
+                            return true;
+                          })
+                          .slice(0, 100)
+                          .map((row, idx) => {
+                            const originalIdx = previewData.indexOf(row);
+                            const isReady = row._rowStatus === 'ready';
+                            const isReview = row._rowStatus === 'needs_review';
+                            const isDup = row._rowStatus === 'duplicate';
+
+                            return (
+                              <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isReview ? 'bg-amber-50/20' : isDup ? 'bg-slate-50/60' : ''}`}>
+                                <td className="py-2.5 px-3 font-mono text-[11px] text-slate-400 text-center">{originalIdx + 1}</td>
+                                <td className="py-2.5 px-3 whitespace-nowrap">
+                                  {isReady && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                      <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
+                                    </span>
+                                  )}
+                                  {isReview && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
+                                      <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
+                                    </span>
+                                  )}
+                                  {isDup && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300" title={row._duplicateReason || 'Existing publication'}>
+                                      <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-800">
+                                  {row.facultyName ? (
+                                    <div>
+                                      <span className="font-semibold text-slate-900 block truncate max-w-[170px]" title={row.facultyName}>{row.facultyName}</span>
+                                      <span className="text-[10px] text-slate-500 font-mono block">Emp ID: {row.employeeId || 'N/A'}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-amber-600 font-mono text-[10px] font-semibold">
+                                      {row.employeeId ? `Emp ID: ${row.employeeId}` : 'Unassigned'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 font-mono text-[10px] text-slate-600">
+                                  <span className="truncate max-w-[130px] block" title={row.sourceFile}>{row.sourceFile || '—'}</span>
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-900">
+                                  <div className="font-semibold text-slate-900 line-clamp-2 max-w-[280px] leading-snug" title={row.title}>
+                                    {row.title || <span className="text-red-500 italic">Missing Title</span>}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
+                                    <span>Year: <strong className="font-mono text-slate-700">{row.publicationYear || row.year || '—'}</strong></span>
+                                    {row.journalName && (
+                                      <span className="truncate max-w-[160px] text-slate-400" title={row.journalName}>• {row.journalName}</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-medium">
+                                    {row.indexing || row.journalType || 'Scopus'}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 text-right pr-4 whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setViewingPublicationRow({ index: originalIdx, data: row })}
+                                      className="h-7 text-[10px] px-2 py-0 border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold"
+                                      title="View full row bibliographic metadata"
+                                    >
+                                      <Eye className="w-3 h-3 mr-1 text-slate-500" /> Details
+                                    </Button>
+                                    {isReview && (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setEditingPublicationRow({ index: originalIdx, data: { ...row } })}
+                                        className="h-7 text-[10px] px-2 py-0 border-amber-300 text-amber-800 bg-amber-50/60 hover:bg-amber-100 font-semibold"
+                                      >
+                                        <Edit2 className="w-2.5 h-2.5 mr-1" /> Fix Row
+                                      </Button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                       </tbody>
                     </>
                   ) : isPlacement ? (
@@ -2016,23 +3138,53 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   </div>
                   <div className="p-3 bg-white rounded-xl border border-slate-200">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Records to Commit</span>
-                    <span className="font-bold text-emerald-700 text-base font-mono mt-0.5 block">{previewData.length} records</span>
+                    {isPublication ? (
+                      <div>
+                        <span className="font-bold text-emerald-700 text-base font-mono mt-0.5 block">
+                          {previewData.filter(r => r._rowStatus === 'ready').length} Ready Records
+                        </span>
+                        <span className="text-[10px] text-slate-500 block mt-0.5">
+                          ({publicationFiles.length} file{publicationFiles.length > 1 ? 's' : ''}, {publicationFiles.filter(f => f.status === 'ready').length} faculty matched)
+                        </span>
+                        <span className="text-[10px] text-slate-500 block mt-0.5">
+                          ({previewData.filter(r => r._rowStatus === 'needs_review').length} incomplete, {previewData.filter(r => r._rowStatus === 'duplicate').length} duplicates will be excluded)
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="font-bold text-emerald-700 text-base font-mono mt-0.5 block">{previewData.length} records</span>
+                    )}
                   </div>
                   <div className="p-3 bg-white rounded-xl border border-slate-200">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Academic Year</span>
-                    <span className="font-bold text-[#2F4692] mt-0.5 block">{selectedAcademicYear}</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
+                      {isPublication ? 'Department & Scope' : 'Academic Year'}
+                    </span>
+                    <span className="font-bold text-[#2F4692] mt-0.5 block">
+                      {isPublication ? 'Derived from Verified Faculty Profiles' : selectedAcademicYear}
+                    </span>
                   </div>
                 </div>
 
-                <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl text-amber-900 text-xs space-y-1">
-                  <p className="font-bold flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Statutory Data & Department Isolation Rules</span>
-                  </p>
-                  <p className="text-[11px] text-amber-800 leading-relaxed">
-                    By clicking Confirm, these records will be committed to the CHRIST University IQAC database. Existing records with identical primary identifiers will be updated or deduplicated per schema rules.
-                  </p>
-                </div>
+                {isPublication ? (
+                  <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl text-blue-900 text-xs space-y-1">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <Info className="w-4 h-4 text-[#2855B9] shrink-0" />
+                      <span>Scholarly Deduplication & Additive Co-Author Associations</span>
+                    </p>
+                    <p className="text-[11px] text-blue-800 leading-relaxed">
+                      Cross-file deduplication is active: If multiple faculty files contain the same scholarly paper (matched by DOI or Title + Year), exactly 1 unique publication record is created, and all verified co-authoring faculty are linked. Repeated uploads skip existing associations without creating duplicate records.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl text-amber-900 text-xs space-y-1">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Statutory Data & Department Isolation Rules</span>
+                    </p>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      By clicking Confirm, these records will be committed to the CHRIST University IQAC database. Existing records with identical primary identifiers will be updated or deduplicated per schema rules.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2041,14 +3193,58 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           {currentStage === 'summary' && (
             <div className="space-y-4">
               {importResult?.success ? (
-                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3">
                   <div className="flex items-center gap-2 text-emerald-800">
                     <CheckCircle className="w-6 h-6 text-emerald-600 shrink-0" />
                     <h3 className="font-bold text-sm">Bulk Import Succeeded</h3>
                   </div>
-                  <p className="text-xs text-emerald-700">
-                    {importResult.message || `Successfully processed ${importResult.count || previewData.length} records into the IQAC platform.`}
+                  <p className="text-xs text-emerald-700 leading-relaxed">
+                    {importResult.message || `Successfully processed records into the IQAC platform.`}
                   </p>
+
+                  {isPublication && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                      <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">New Publications</span>
+                        <span className="text-base font-bold text-emerald-700 font-mono">
+                          {importResult.createdCount ?? importResult.count ?? 0}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Faculty Linked</span>
+                        <span className="text-base font-bold text-[#2855B9] font-mono">
+                          {importResult.linkedCount ?? 0}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Duplicates Skipped</span>
+                        <span className="text-base font-bold text-slate-700 font-mono">
+                          {importResult.duplicatesCount ?? 0}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Needs Review</span>
+                        <span className="text-base font-bold text-amber-700 font-mono">
+                          {importResult.errorsCount ?? 0}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {isPublication && (
+                    <div className="pt-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleDownloadSummaryReport}
+                        className="bg-white border-emerald-300 text-emerald-800 hover:bg-emerald-100 text-xs font-semibold h-8"
+                      >
+                        <Download className="w-3.5 h-3.5 mr-1.5" />
+                        Download Final Import Report (CSV)
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="p-5 bg-red-50 border border-red-200 rounded-2xl space-y-2">
@@ -2078,7 +3274,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           )}
         </div>
 
-        <DialogFooter className="pt-4 border-t border-slate-200 flex justify-between items-center sm:justify-between">
+        {/* Region 3: Fixed Footer */}
+        <DialogFooter className={isPublication ? "px-6 py-3.5 border-t border-slate-200 bg-white shrink-0 flex justify-between items-center sm:justify-between m-0" : "pt-4 border-t border-slate-200 flex justify-between items-center sm:justify-between"}>
           {currentStage === 'upload' && (
             <>
               <Button
@@ -2093,9 +3290,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                 type="button"
                 onClick={() => setCurrentStage('validation')}
                 className="bg-[#2F4692] hover:bg-[#243A7A] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs transition-colors"
-                disabled={!file || previewData.length === 0 || !!parseError}
+                disabled={isPublication ? (publicationFiles.length === 0 || previewData.length === 0) : (!file || previewData.length === 0 || !!parseError)}
               >
-                Analyze & Validate File →
+                Analyze & Validate File{isPublication && publicationFiles.length > 1 ? 's' : ''} →
               </Button>
             </>
           )}
@@ -2187,6 +3384,299 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             </>
           )}
         </DialogFooter>
+
+        {/* Publications Row Correction Sub-Modal */}
+        {editingPublicationRow && (
+          <Dialog open={!!editingPublicationRow} onOpenChange={(open) => !open && setEditingPublicationRow(null)}>
+            <DialogContent className="max-w-md bg-white p-5 rounded-2xl">
+              <DialogHeader className="border-b border-gray-100 pb-2">
+                <DialogTitle className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <Edit2 className="w-4 h-4 text-[#2855B9]" />
+                  <span>Correct Row #{editingPublicationRow.index + 1} Metadata</span>
+                </DialogTitle>
+                <DialogDescription className="text-xs text-gray-500">
+                  Fill in missing mandatory fields to mark this row Ready for import.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3 py-2 text-xs">
+                <div>
+                  <Label className="font-semibold text-gray-700">Faculty Employee ID *</Label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 2043 or 00123"
+                    value={editingPublicationRow.data.employeeId || ''}
+                    onChange={(e) => setEditingPublicationRow({
+                      ...editingPublicationRow,
+                      data: { ...editingPublicationRow.data, employeeId: e.target.value }
+                    })}
+                    className="w-full h-8 px-2.5 border border-gray-300 rounded-md text-xs mt-1 font-mono"
+                  />
+                  {editingPublicationRow.data.employeeId && facultyLookup[editingPublicationRow.data.employeeId] ? (
+                    <span className="text-[11px] text-emerald-700 mt-0.5 block font-medium">
+                      ✓ Matched: {facultyLookup[editingPublicationRow.data.employeeId].name} ({facultyLookup[editingPublicationRow.data.employeeId].department})
+                    </span>
+                  ) : editingPublicationRow.data.employeeId ? (
+                    <span className="text-[11px] text-amber-600 mt-0.5 block font-medium">
+                      ⚠ Employee ID not found in Faculty Directory
+                    </span>
+                  ) : null}
+                </div>
+
+                <div>
+                  <Label className="font-semibold text-gray-700">Publication Title *</Label>
+                  <input
+                    type="text"
+                    value={editingPublicationRow.data.title || ''}
+                    onChange={(e) => setEditingPublicationRow({
+                      ...editingPublicationRow,
+                      data: { ...editingPublicationRow.data, title: e.target.value }
+                    })}
+                    className="w-full h-8 px-2.5 border border-gray-300 rounded-md text-xs mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label className="font-semibold text-gray-700">Authors *</Label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Kumar R., Sharma P."
+                    value={editingPublicationRow.data.authorName || ''}
+                    onChange={(e) => setEditingPublicationRow({
+                      ...editingPublicationRow,
+                      data: { ...editingPublicationRow.data, authorName: e.target.value }
+                    })}
+                    className="w-full h-8 px-2.5 border border-gray-300 rounded-md text-xs mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label className="font-semibold text-gray-700">Author Full Names (Optional)</Label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Rajesh Kumar, Priya Sharma"
+                    value={editingPublicationRow.data.authorFullNames || ''}
+                    onChange={(e) => setEditingPublicationRow({
+                      ...editingPublicationRow,
+                      data: { ...editingPublicationRow.data, authorFullNames: e.target.value }
+                    })}
+                    className="w-full h-8 px-2.5 border border-gray-300 rounded-md text-xs mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label className="font-semibold text-gray-700">Source Title (Journal Name) *</Label>
+                  <input
+                    type="text"
+                    value={editingPublicationRow.data.journalName || ''}
+                    onChange={(e) => setEditingPublicationRow({
+                      ...editingPublicationRow,
+                      data: { ...editingPublicationRow.data, journalName: e.target.value }
+                    })}
+                    className="w-full h-8 px-2.5 border border-gray-300 rounded-md text-xs mt-1"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="font-semibold text-gray-700">Year (4-digit) *</Label>
+                    <input
+                      type="text"
+                      value={editingPublicationRow.data.publicationYear || editingPublicationRow.data.year || ''}
+                      onChange={(e) => setEditingPublicationRow({
+                        ...editingPublicationRow,
+                        data: { ...editingPublicationRow.data, publicationYear: e.target.value, year: e.target.value }
+                      })}
+                      className="w-full h-8 px-2.5 border border-gray-300 rounded-md text-xs mt-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-semibold text-gray-700">Citation Count</Label>
+                    <input
+                      type="number"
+                      value={editingPublicationRow.data.citationCount ?? ''}
+                      onChange={(e) => setEditingPublicationRow({
+                        ...editingPublicationRow,
+                        data: { ...editingPublicationRow.data, citationCount: e.target.value === '' ? null : parseInt(e.target.value) }
+                      })}
+                      className="w-full h-8 px-2.5 border border-gray-300 rounded-md text-xs mt-1 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="font-semibold text-gray-700">DOI</Label>
+                  <input
+                    type="text"
+                    value={editingPublicationRow.data.doi || ''}
+                    onChange={(e) => setEditingPublicationRow({
+                      ...editingPublicationRow,
+                      data: { ...editingPublicationRow.data, doi: e.target.value }
+                    })}
+                    className="w-full h-8 px-2.5 border border-gray-300 rounded-md text-xs mt-1 font-mono"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter className="pt-2 border-t border-gray-100 flex justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={() => setEditingPublicationRow(null)} className="text-xs">
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={() => handleSaveRowCorrection(editingPublicationRow.data)} className="bg-[#2855B9] text-white hover:bg-[#1C355B] text-xs font-semibold px-4">
+                  Save & Revalidate
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Publications View Row Details Dialog */}
+        {viewingPublicationRow && (
+          <Dialog open={!!viewingPublicationRow} onOpenChange={(open) => !open && setViewingPublicationRow(null)}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-white p-6 rounded-2xl border border-slate-200 shadow-2xl">
+              <DialogHeader className="pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px]">
+                    Row #{viewingPublicationRow.index + 1}
+                  </Badge>
+                  {viewingPublicationRow.data.sourceFile && (
+                    <Badge variant="outline" className="text-[10px] font-mono text-slate-600">
+                      {viewingPublicationRow.data.sourceFile}
+                    </Badge>
+                  )}
+                  {viewingPublicationRow.data._rowStatus === 'ready' && (
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Ready</Badge>
+                  )}
+                  {viewingPublicationRow.data._rowStatus === 'needs_review' && (
+                    <Badge className="bg-amber-50 text-amber-800 border-amber-200 text-[10px]">Needs Review</Badge>
+                  )}
+                  {viewingPublicationRow.data._rowStatus === 'duplicate' && (
+                    <Badge className="bg-slate-100 text-slate-700 border-slate-300 text-[10px]">Duplicate</Badge>
+                  )}
+                </div>
+                <DialogTitle className="text-base font-bold text-slate-900 leading-snug">
+                  {viewingPublicationRow.data.title || 'Untitled Publication'}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Full bibliographic metadata extracted from uploaded spreadsheet.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-3 text-xs text-slate-700">
+                {/* Faculty & Department */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                  <span className="text-[10px] font-bold text-[#2855B9] uppercase tracking-wider block">Faculty Association</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Faculty Name:</span>
+                      <strong className="text-slate-900">{viewingPublicationRow.data.facultyName || 'Unassigned / Needs Review'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Employee ID:</span>
+                      <strong className="font-mono text-slate-900">{viewingPublicationRow.data.employeeId || '—'}</strong>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <span className="text-slate-400 text-[10px] block">Department:</span>
+                      <span className="text-slate-800 font-medium">{viewingPublicationRow.data.department || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Authors */}
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                  <span className="text-[10px] font-bold text-[#2855B9] uppercase tracking-wider block">Authors</span>
+                  <div>
+                    <span className="text-slate-400 text-[10px] block">Author Full Names:</span>
+                    <p className="text-xs font-semibold text-slate-900 mt-0.5 leading-relaxed">
+                      {viewingPublicationRow.data.authorFullNames || viewingPublicationRow.data.authorName || '—'}
+                    </p>
+                  </div>
+                  {viewingPublicationRow.data.authorFullNames && viewingPublicationRow.data.authorName && viewingPublicationRow.data.authorFullNames !== viewingPublicationRow.data.authorName && (
+                    <div className="pt-2 border-t border-slate-100">
+                      <span className="text-slate-400 text-[10px] block">Abbreviated Authors:</span>
+                      <p className="text-xs text-slate-700 mt-0.5 font-mono">{viewingPublicationRow.data.authorName}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Source & Publication Details */}
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                  <span className="text-[10px] font-bold text-slate-800 uppercase tracking-wider block">Publication Details</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Journal / Source Title:</span>
+                      <strong className="text-slate-800">{viewingPublicationRow.data.journalName || '—'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Publisher:</span>
+                      <span className="text-slate-700">{viewingPublicationRow.data.publisher || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Year:</span>
+                      <strong className="font-mono text-slate-800">{viewingPublicationRow.data.publicationYear || viewingPublicationRow.data.year || '—'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Indexing:</span>
+                      <span className="font-medium text-[#2855B9]">{viewingPublicationRow.data.indexing || viewingPublicationRow.data.journalType || 'Scopus'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Volume & Issue:</span>
+                      <span className="text-slate-700">{viewingPublicationRow.data.volume ? `Vol. ${viewingPublicationRow.data.volume}` : '—'} {viewingPublicationRow.data.issue ? `(Issue ${viewingPublicationRow.data.issue})` : ''}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Pages:</span>
+                      <span className="text-slate-700">{viewingPublicationRow.data.pageNumber || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Identifiers & Citations */}
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                  <span className="text-[10px] font-bold text-slate-800 uppercase tracking-wider block">Bibliographic Identifiers</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="p-2 bg-slate-50 rounded border border-slate-150">
+                      <span className="text-slate-400 text-[10px] block">DOI:</span>
+                      <span className="font-mono text-[11px] font-semibold text-[#2855B9] break-all">{viewingPublicationRow.data.doi || '—'}</span>
+                    </div>
+                    <div className="p-2 bg-slate-50 rounded border border-slate-150">
+                      <span className="text-slate-400 text-[10px] block">ISSN:</span>
+                      <span className="font-mono text-[11px] text-slate-700">{viewingPublicationRow.data.issn || '—'}</span>
+                    </div>
+                    <div className="p-2 bg-slate-50 rounded border border-slate-150">
+                      <span className="text-slate-400 text-[10px] block">ISBN:</span>
+                      <span className="font-mono text-[11px] text-slate-700">{viewingPublicationRow.data.isbn || '—'}</span>
+                    </div>
+                    <div className="p-2 bg-slate-50 rounded border border-slate-150">
+                      <span className="text-slate-400 text-[10px] block">Citations:</span>
+                      <strong className="text-emerald-700 font-bold">{viewingPublicationRow.data.citationCount !== null && viewingPublicationRow.data.citationCount !== undefined ? String(viewingPublicationRow.data.citationCount) : '—'}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Validation Status & Issues */}
+                {(viewingPublicationRow.data._issues?.length > 0 || viewingPublicationRow.data._duplicateReason) && (
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs space-y-1">
+                    <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block">Validation Issues / Remarks</span>
+                    {viewingPublicationRow.data._duplicateReason && (
+                      <p className="text-slate-700 font-medium">Duplicate note: {viewingPublicationRow.data._duplicateReason}</p>
+                    )}
+                    {viewingPublicationRow.data._issues?.map((iss: string, i: number) => (
+                      <p key={i} className="text-amber-800 font-medium flex items-center gap-1">• {iss}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="pt-3 border-t border-slate-100 flex justify-end">
+                <Button size="sm" onClick={() => setViewingPublicationRow(null)} className="bg-[#2855B9] text-white hover:bg-[#1C355B] text-xs px-4">
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -37,103 +37,21 @@ interface DepartmentDetailsPageProps {
   hideSidebar?: boolean;
 }
 
-const INITIAL_DEPARTMENTS: Department[] = [
-  {
-    id: 'dept-1',
-    code: 'CIVIL',
-    name: 'Civil Engineering',
-    hodName: 'Dr. Suresh Rao',
-    hodEmail: 'suresh.rao@christuniversity.in',
-    establishedYear: 2010,
-    phone: '+91 80 4012 9103',
-    description: 'Sustainable infrastructure, geopolymer materials, and smart urban construction technology.',
-    status: 'Active'
-  },
-  {
-    id: 'dept-2',
-    code: 'CSE',
-    name: 'Computer Science and Engineering',
-    hodName: 'Dr. Priya Sharma',
-    hodEmail: 'priya.sharma@christuniversity.in',
-    establishedYear: 2010,
-    phone: '+91 80 4012 9101',
-    description: 'Flagship department offering undergraduate, postgraduate, and doctoral computer science programs.',
-    status: 'Active'
-  },
-  {
-    id: 'dept-3',
-    code: 'ECE',
-    name: 'Electronics and Communication Engineering',
-    hodName: 'Dr. Deepa Singh',
-    hodEmail: 'deepa.singh@christuniversity.in',
-    establishedYear: 2010,
-    phone: '+91 80 4012 9102',
-    description: 'Advanced communications, 5G/6G millimeter wave antennas, and embedded VLSI systems.',
-    status: 'Active'
-  },
-  {
-    id: 'dept-4',
-    code: 'EEE',
-    name: 'Electrical and Electronics Engineering',
-    hodName: 'Dr. Lakshmi Prasad',
-    hodEmail: 'lakshmi.prasad@christuniversity.in',
-    establishedYear: 2010,
-    phone: '+91 80 4012 9104',
-    description: 'Renewable power grids, EV drive power electronics, and battery storage research.',
-    status: 'Active'
-  },
-  {
-    id: 'dept-5',
-    code: 'MECH',
-    name: 'Mechanical and Automobile Engineering',
-    hodName: 'Dr. Karthik Iyer',
-    hodEmail: 'karthik.iyer@christuniversity.in',
-    establishedYear: 2010,
-    phone: '+91 80 4012 9105',
-    description: 'Robotics, additive manufacturing, aerospace composites, and autonomous vehicular technology.',
-    status: 'Active'
-  },
-  {
-    id: 'dept-6',
-    code: 'S&H',
-    name: 'Sciences and Humanities (Engineering)',
-    hodName: 'Dr. Arun Menon',
-    hodEmail: 'arun.menon@christuniversity.in',
-    establishedYear: 2010,
-    phone: '+91 80 4012 9106',
-    description: 'Applied mathematics, physics, chemistry, and professional communication foundational studies.',
-    status: 'Active'
-  },
-  {
-    id: 'dept-7',
-    code: 'ADSE',
-    name: 'AI and Data Science Engineering',
-    hodName: 'Dr. Rajesh Kumar',
-    hodEmail: 'rajesh.kumar@christuniversity.in',
-    establishedYear: 2021,
-    phone: '+91 80 4012 9100',
-    description: 'Pioneering multidisciplinary artificial intelligence, machine learning, and big data engineering.',
-    status: 'Active'
-  },
-  {
-    id: 'dept-8',
-    code: 'SOA',
-    name: 'School of Architecture',
-    hodName: 'Prof. Meera Nair',
-    hodEmail: 'meera.nair@christuniversity.in',
-    establishedYear: 2017,
-    phone: '+91 80 4012 9107',
-    description: 'Architectural design, urban planning, sustainable built environment, and landscape architecture.',
-    status: 'Active'
-  }
-];
+const getApiBaseUrl = () => {
+  const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+  const isProductionHost = typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1';
+  return rawApiUrl || (isProductionHost ? '' : 'http://localhost:5000');
+};
 
 export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-details', hideSidebar = false }: DepartmentDetailsPageProps) {
   const { user } = useAuth();
   const isAdminOrCoordinator = user?.role === 'admin' || user?.role === 'coordinator' || user?.role === 'hod';
 
-  const [departments, setDepartments] = useState<Department[]>(INITIAL_DEPARTMENTS);
-  const [loading, setLoading] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [viewMode, setViewMode] = useState<'table' | 'cards' | 'analytics'>('table');
@@ -146,11 +64,14 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isClearOpen, setIsClearOpen] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const handleClearAll = async () => {
     try {
       setClearLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departments/clear-all?confirmAll=true&confirmation=CONFIRM_UNIVERSITY_CLEAR`, {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/departments/clear-all?confirmAll=true&confirmation=CONFIRM_UNIVERSITY_CLEAR`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${user?.token || localStorage.getItem('token')}`
@@ -187,18 +108,27 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
 
   // Fetch departments from API if available
   const fetchDepartments = async () => {
-    if (!user?.token) return;
+    const token = user?.token || localStorage.getItem('token') || '';
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/departments`, {
-        headers: { Authorization: `Bearer ${user.token}` }
+      setFetchError(null);
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/departments`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success && data.data && data.data.length > 0) {
+      if (res.ok && data.success && Array.isArray(data.data)) {
         setDepartments(data.data);
+      } else {
+        setFetchError(data?.message || `Failed to retrieve department records (HTTP ${res.status})`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Fetch departments error:', err);
+      setFetchError(err.message || 'Unable to connect to the server to load department records.');
     } finally {
       setLoading(false);
     }
@@ -242,22 +172,101 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
   // Save / Edit Department
   const handleSaveDepartment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.code.trim()) return;
+    if (!formData.name.trim() || !formData.code.trim()) {
+      setEditError('Department Code and Full Name are required.');
+      return;
+    }
 
     if (editingDept) {
-      setDepartments(prev =>
-        prev.map(d => (d.id === editingDept.id ? { ...d, ...formData } : d))
-      );
+      if (!editingDept.id) {
+        setEditError('Cannot update department: missing database identifier.');
+        return;
+      }
+
+      // Validate email format if provided (HOD email is optional)
+      if (formData.hodEmail?.trim()) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.hodEmail.trim())) {
+          setEditError('Please enter a valid HOD email address.');
+          return;
+        }
+      }
+
+      // Supported department fields per requirements:
+      // code, name, HOD name, HOD email, established year, phone, description and status
+      const payload = {
+        code: formData.code.trim().toUpperCase(),
+        name: formData.name.trim(),
+        hodName: formData.hodName?.trim() || null,
+        hodEmail: formData.hodEmail?.trim() || null,
+        establishedYear: formData.establishedYear ? Number(formData.establishedYear) : null,
+        phone: formData.phone?.trim() || null,
+        description: formData.description?.trim() || null,
+        status: formData.status || 'Active'
+      };
+
+      const token = user?.token || localStorage.getItem('token') || '';
+      if (!token) {
+        setEditError('Authentication session expired. Please log in again.');
+        return;
+      }
+
+      try {
+        setIsSubmitting(true);
+        setEditError(null);
+
+        const baseUrl = getApiBaseUrl();
+        const res = await fetch(`${baseUrl}/api/departments/${editingDept.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch (jsonErr) {
+          // Response is not JSON
+        }
+
+        if (!res.ok || !data || !data.success) {
+          const errorMessage = data?.message || `Failed to update department (HTTP ${res.status})`;
+          setEditError(errorMessage);
+          return; // Keep dialog open, preserve entered values
+        }
+
+        // Persist verified change in local state
+        const updatedDept: Department = data.data || { ...editingDept, ...payload };
+        setDepartments(prev =>
+          prev.map(d => (d.id === editingDept.id ? { ...d, ...updatedDept } : d))
+        );
+
+        // Refresh verified department data from API
+        await fetchDepartments();
+
+        // Close dialog and clear state only after confirmed persistence
+        setIsAddModalOpen(false);
+        setEditingDept(null);
+        setEditError(null);
+      } catch (err: any) {
+        console.error('Update department error:', err);
+        setEditError(err.message || 'Network error occurred while updating department. Please try again.');
+      } finally {
+        setIsSubmitting(false);
+      }
     } else {
+      // Preserve existing Add behavior per non-regression rules
       const newD: Department = {
         id: `dept-${Date.now()}`,
         ...formData
       };
       setDepartments([...departments, newD]);
+      setIsAddModalOpen(false);
+      setEditingDept(null);
     }
-
-    setIsAddModalOpen(false);
-    setEditingDept(null);
   };
 
   // Delete Department
@@ -392,6 +401,7 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
                 size="sm"
                 onClick={() => {
                   setEditingDept(null);
+                  setEditError(null);
                   setFormData({
                     code: '',
                     name: '',
@@ -413,6 +423,24 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
           </div>
         }
       />
+
+      {/* Database Fetch Error Alert */}
+      {fetchError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between text-amber-900 text-xs shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="font-medium">{fetchError}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={fetchDepartments}
+            className="h-7 text-xs border-amber-300 hover:bg-amber-100 text-amber-900 rounded-lg shrink-0 ml-3"
+          >
+            Retry Fetch
+          </Button>
+        </div>
+      )}
 
       {/* 2. 5 KPI METRIC CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -533,7 +561,15 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
           {/* ========================================================================= */}
           {/* 4. VIEW CONTENT AREA                                                      */}
           {/* ========================================================================= */}
-          {filteredDepartments.length === 0 ? (
+          {loading && departments.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center space-y-3">
+              <RefreshCw className="w-8 h-8 text-[#2855B9] animate-spin mx-auto" />
+              <h3 className="text-sm font-bold text-slate-900">Loading Department Records</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Retrieving verified academic department records from the university database...
+              </p>
+            </div>
+          ) : filteredDepartments.length === 0 ? (
             <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center space-y-3">
               <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
                 <Search className="w-6 h-6" />
@@ -637,6 +673,7 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
                                 size="sm"
                                 onClick={() => {
                                   setEditingDept(dept);
+                                  setEditError(null);
                                   setFormData({
                                     code: dept.code,
                                     name: dept.name,
@@ -772,7 +809,17 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
       {/* ========================================================================= */}
       {/* 5. ADD / EDIT DEPARTMENT MODAL DIALOG                                     */}
       {/* ========================================================================= */}
-      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+      <Dialog
+        open={isAddModalOpen}
+        onOpenChange={(open) => {
+          if (!open && isSubmitting) return;
+          setIsAddModalOpen(open);
+          if (!open) {
+            setEditingDept(null);
+            setEditError(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-xl bg-white rounded-2xl p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -784,6 +831,13 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
             </DialogDescription>
           </DialogHeader>
 
+          {editError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <span className="leading-snug font-medium">{editError}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSaveDepartment} className="space-y-4 pt-2 text-xs">
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-1">
@@ -794,6 +848,7 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
                   placeholder="e.g. ADSE"
                   className="h-9 text-xs rounded-xl font-mono uppercase"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -805,43 +860,45 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
                   placeholder="e.g. AI and Data Science Engineering"
                   className="h-9 text-xs rounded-xl"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-semibold text-slate-700 mb-1 block">Head of Department (HOD) *</Label>
+                <Label className="text-xs font-semibold text-slate-700 mb-1 block">Head of Department (HOD)</Label>
                 <Input
                   value={formData.hodName}
                   onChange={(e) => setFormData({ ...formData, hodName: e.target.value })}
                   placeholder="e.g. Dr. Rajesh Kumar"
                   className="h-9 text-xs rounded-xl"
-                  required
+                  disabled={isSubmitting}
                 />
               </div>
 
               <div>
-                <Label className="text-xs font-semibold text-slate-700 mb-1 block">HOD Email *</Label>
+                <Label className="text-xs font-semibold text-slate-700 mb-1 block">HOD Email</Label>
                 <Input
                   type="email"
                   value={formData.hodEmail}
                   onChange={(e) => setFormData({ ...formData, hodEmail: e.target.value })}
                   placeholder="e.g. hod.adse@christuniversity.in"
                   className="h-9 text-xs rounded-xl font-mono"
-                  required
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label className="text-xs font-semibold text-slate-700 mb-1 block">Established Year</Label>
                 <Input
                   type="number"
-                  value={formData.establishedYear}
-                  onChange={(e) => setFormData({ ...formData, establishedYear: parseInt(e.target.value) || 2024 })}
+                  value={formData.establishedYear || ''}
+                  onChange={(e) => setFormData({ ...formData, establishedYear: parseInt(e.target.value) || 0 })}
                   className="h-9 text-xs rounded-xl font-mono"
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -852,7 +909,25 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+91 80 4012 9100"
                   className="h-9 text-xs rounded-xl"
+                  disabled={isSubmitting}
                 />
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold text-slate-700 mb-1 block">Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(val: 'Active' | 'Inactive') => setFormData({ ...formData, status: val })}
+                  disabled={isSubmitting}
+                >
+                  <SelectTrigger className="h-9 text-xs rounded-xl">
+                    <SelectValue placeholder="Select Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -864,6 +939,7 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Provide department vision, thrust areas, and specialized laboratories..."
                 className="w-full p-2.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500"
+                disabled={isSubmitting}
               />
             </div>
 
@@ -871,16 +947,24 @@ export function DepartmentDetailsPage({ onNavigate, currentPage = 'department-de
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setIsAddModalOpen(false)}
+                onClick={() => {
+                  if (isSubmitting) return;
+                  setIsAddModalOpen(false);
+                  setEditingDept(null);
+                  setEditError(null);
+                }}
+                disabled={isSubmitting}
                 className="h-9 px-4 text-xs rounded-xl border-slate-200"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="h-9 px-5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold"
+                disabled={isSubmitting}
+                className="h-9 px-5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold flex items-center gap-1.5"
               >
-                {editingDept ? 'Update Department' : 'Save Department'}
+                {isSubmitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isSubmitting ? 'Updating...' : (editingDept ? 'Update Department' : 'Save Department')}</span>
               </Button>
             </DialogFooter>
           </form>

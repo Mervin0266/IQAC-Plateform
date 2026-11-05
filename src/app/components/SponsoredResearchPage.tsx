@@ -673,7 +673,7 @@ export function SponsoredResearchPage({
 
   // Delete Project Handler
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this sponsored research grant record? All attached Agreement Letters and Payment Receipts will also be removed.')) return;
+    if (!window.confirm('Are you sure you want to delete this sponsored research grant record? All attached Sanction Letters and Fund Receipts / Utilization Certificates (UC) will also be removed.')) return;
     try {
       const res = await fetch(`${API_BASE}/api/sponsored-projects/${id}`, {
         method: 'DELETE',
@@ -749,8 +749,8 @@ export function SponsoredResearchPage({
       'Status': p.status,
       'Milestone Progress (%)': p.progressPercentage ?? (p.status === 'Completed' ? 100 : 50),
       'Department': p.department || 'General',
-      'Agreement Letters': (p.agreementLetters || []).map(d => d.driveUrl).join('\n') || '-',
-      'Payment Receipts': (p.paymentReceipts || []).map(d => d.driveUrl).join('\n') || '-',
+      'Sanction Letters': (p.agreementLetters || []).map(d => d.driveUrl).join('\n') || '-',
+      'Fund Receipts / Utilization Certificates (UC)': (p.paymentReceipts || []).map(d => d.driveUrl).join('\n') || '-',
       'Project URL': p.projectUrl || '-',
       'Description': p.description || '-'
     }));
@@ -778,7 +778,7 @@ export function SponsoredResearchPage({
         ]}
         title="Sponsored Research & Grants"
         badge={`${(stats?.totalProjects ?? projects.length).toLocaleString()} Grants`}
-        description="Track funded research projects, principal investigators, sanctioned grants, financial installments, agreement letters, and payment receipts."
+        description="Track funded research projects, principal investigators, sanctioned grants, financial installments, sanction letters, and fund receipts / utilization certificates (UC)."
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <Button
@@ -1008,7 +1008,7 @@ export function SponsoredResearchPage({
                   <div className="flex items-center gap-2 pt-1">
                     <div className="flex-1 flex items-center gap-1.5 text-[11px] text-gray-600">
                       <FileCheck className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Agreement:</span>
+                      <span title="Sanction Letter">Sanction Letter:</span>
                       {proj.agreementLetterCount && proj.agreementLetterCount > 0 ? (
                         <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0">
                           {proj.agreementLetterCount} {proj.agreementLetterCount === 1 ? 'Doc' : 'Docs'}
@@ -1019,7 +1019,7 @@ export function SponsoredResearchPage({
                     </div>
                     <div className="flex-1 flex items-center gap-1.5 text-[11px] text-gray-600">
                       <Receipt className="w-3.5 h-3.5 text-purple-600" />
-                      <span>Receipt:</span>
+                      <span title="Fund Receipt / Utilization Certificate (UC)">Fund Receipt / UC:</span>
                       {proj.paymentReceiptCount && proj.paymentReceiptCount > 0 ? (
                         <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] px-1.5 py-0">
                           {proj.paymentReceiptCount} {proj.paymentReceiptCount === 1 ? 'Doc' : 'Docs'}
@@ -1085,8 +1085,8 @@ export function SponsoredResearchPage({
                   <th className="py-3 px-3 min-w-[130px]">Duration</th>
                   <th className="py-3 px-3 text-right min-w-[140px]">Grant Finances</th>
                   <th className="py-3 px-3 text-center min-w-[100px]">Status</th>
-                  <th className="py-3 px-3 text-center min-w-[100px]">Agreement Letter</th>
-                  <th className="py-3 px-3 text-center min-w-[100px]">Payment Receipt</th>
+                  <th className="py-3 px-3 text-center min-w-[100px]" title="Sanction Letter">Sanction Letter</th>
+                  <th className="py-3 px-3 text-center min-w-[100px]" title="Fund Receipt / Utilization Certificate (UC)">Fund Receipt / UC</th>
                   <th className="py-3 px-3 text-center w-24">Actions</th>
                 </tr>
               </thead>
@@ -1141,10 +1141,10 @@ export function SponsoredResearchPage({
                         {getStatusBadge(proj.status)}
                       </td>
 
-                      {/* Agreement Letter Column */}
+                      {/* Sanction Letter Column */}
                       <td className="py-3 px-3 text-center">
                         {proj.agreementLetterCount && proj.agreementLetterCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2] text-[10px] font-semibold">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2] text-[10px] font-semibold" title={`${proj.agreementLetterCount} Sanction Letter(s) attached`}>
                             <FileCheck className="w-3 h-3 text-[#167447]" />
                             {proj.agreementLetterCount} {proj.agreementLetterCount === 1 ? 'Doc' : 'Docs'}
                           </span>
@@ -1153,10 +1153,10 @@ export function SponsoredResearchPage({
                         )}
                       </td>
 
-                      {/* Payment Receipt Column */}
+                      {/* Fund Receipt / UC Column */}
                       <td className="py-3 px-3 text-center">
                         {proj.paymentReceiptCount && proj.paymentReceiptCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2] text-[10px] font-semibold">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2] text-[10px] font-semibold" title={`${proj.agreementLetterCount} Sanction Letter(s) attached`}>
                             <Receipt className="w-3 h-3 text-[#167447]" />
                             {proj.paymentReceiptCount} {proj.paymentReceiptCount === 1 ? 'Doc' : 'Docs'}
                           </span>
@@ -1604,12 +1604,12 @@ export function SponsoredResearchPage({
               </h4>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 1. AGREEMENT LETTER */}
+                {/* 1. SANCTION LETTER */}
                 <div className="p-3 bg-white rounded-lg border border-blue-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                       <FileCheck className="w-4 h-4 text-blue-600" />
-                      Agreement Letter
+                      Sanction Letter
                     </span>
                     <span className="text-[10px] text-gray-400">PDF, JPG, PNG (Max 10MB)</span>
                   </div>
@@ -1642,7 +1642,7 @@ export function SponsoredResearchPage({
                   {/* Show existing attached agreement letters if editing */}
                   {editingProject && editingProject.agreementLetters && editingProject.agreementLetters.length > 0 && (
                     <div className="pt-1.5 border-t border-gray-150 space-y-1">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">Attached ({editingProject.agreementLetters.length}):</span>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">Attached Sanction Letters ({editingProject.agreementLetters.length}):</span>
                       {editingProject.agreementLetters.map(doc => (
                         <div key={doc.id} className="flex items-center justify-between text-[11px] bg-slate-50 p-1.5 rounded">
                           <a href={doc.driveUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[180px] flex items-center gap-1">
@@ -1663,12 +1663,12 @@ export function SponsoredResearchPage({
                   )}
                 </div>
 
-                {/* 2. PAYMENT RECEIPT */}
+                {/* 2. FUND RECEIPT / UTILIZATION CERTIFICATE (UC) */}
                 <div className="p-3 bg-white rounded-lg border border-purple-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
                       <Receipt className="w-4 h-4 text-purple-600" />
-                      Payment Receipt
+                      Fund Receipt / Utilization Certificate (UC)
                     </span>
                     <span className="text-[10px] text-gray-400">PDF, JPG, PNG (Max 10MB)</span>
                   </div>
@@ -1683,7 +1683,7 @@ export function SponsoredResearchPage({
                       className="h-8 text-[11px] cursor-pointer"
                     />
                     {paymentFiles.length > 0 && (
-                      <p className="text-[10px] text-emerald-600 mt-1 font-medium">{paymentFiles.length} receipt(s) selected for upload</p>
+                      <p className="text-[10px] text-emerald-600 mt-1 font-medium">{paymentFiles.length} document(s) selected for upload</p>
                     )}
                   </div>
 
@@ -1701,7 +1701,7 @@ export function SponsoredResearchPage({
                   {/* Show existing attached payment receipts if editing */}
                   {editingProject && editingProject.paymentReceipts && editingProject.paymentReceipts.length > 0 && (
                     <div className="pt-1.5 border-t border-gray-150 space-y-1">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">Attached ({editingProject.paymentReceipts.length}):</span>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">Attached Fund Receipts / UCs ({editingProject.paymentReceipts.length}):</span>
                       {editingProject.paymentReceipts.map(doc => (
                         <div key={doc.id} className="flex items-center justify-between text-[11px] bg-slate-50 p-1.5 rounded">
                           <a href={doc.driveUrl} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline truncate max-w-[180px] flex items-center gap-1">
@@ -1712,7 +1712,7 @@ export function SponsoredResearchPage({
                             type="button"
                             onClick={() => handleDeleteDocument(doc.id, editingProject.id)}
                             className="text-red-500 hover:text-red-700"
-                            title="Remove Receipt"
+                            title="Remove Document"
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>
@@ -1959,14 +1959,14 @@ export function SponsoredResearchPage({
 
                 {/* TAB 3: DOCUMENTS */}
                 <TabsContent value="documents" className="space-y-4 pt-3 text-xs">
-                  {/* Agreement Letters */}
+                  {/* Sanction Letters */}
                   <div className="border border-blue-200 rounded-lg p-3 bg-blue-50/20 space-y-2">
                     <h5 className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                       <FileCheck className="w-4 h-4 text-blue-600" />
-                      Agreement Letters & Sanction Orders ({(viewingProject.agreementLetters || []).length})
+                      Sanction Letters ({(viewingProject.agreementLetters || []).length})
                     </h5>
                     {(viewingProject.agreementLetters || []).length === 0 ? (
-                      <p className="text-gray-400 italic text-[11px]">No Agreement Letters attached yet.</p>
+                      <p className="text-gray-400 italic text-[11px]">No Sanction Letters attached yet.</p>
                     ) : (
                       <div className="space-y-1.5">
                         {(viewingProject.agreementLetters || []).map(doc => (
@@ -1991,14 +1991,14 @@ export function SponsoredResearchPage({
                     )}
                   </div>
 
-                  {/* Payment Receipts */}
+                  {/* Fund Receipts / UCs */}
                   <div className="border border-purple-200 rounded-lg p-3 bg-purple-50/20 space-y-2">
                     <h5 className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
                       <Receipt className="w-4 h-4 text-purple-600" />
-                      Payment Receipts & UC Documents ({(viewingProject.paymentReceipts || []).length})
+                      Fund Receipts / Utilization Certificates (UC) ({(viewingProject.paymentReceipts || []).length})
                     </h5>
                     {(viewingProject.paymentReceipts || []).length === 0 ? (
-                      <p className="text-gray-400 italic text-[11px]">No Payment Receipts attached yet.</p>
+                      <p className="text-gray-400 italic text-[11px]">No Fund Receipts / Utilization Certificates (UC) attached yet.</p>
                     ) : (
                       <div className="space-y-1.5">
                         {(viewingProject.paymentReceipts || []).map(doc => (

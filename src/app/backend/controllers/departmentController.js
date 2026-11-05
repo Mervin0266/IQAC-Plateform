@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const { Department, School, Campus, Course, ProgramLevel, User } = require('../models');
 
 // @desc    Get all departments (optionally filtered by schoolId)
@@ -253,6 +254,38 @@ exports.updateDepartment = async (req, res) => {
       });
     }
 
+    // Check duplicate code if code is being changed
+    if (req.body.code && req.body.code !== department.code) {
+      const existingCode = await Department.findOne({
+        where: {
+          code: req.body.code,
+          id: { [Op.ne]: req.params.id }
+        }
+      });
+      if (existingCode) {
+        return res.status(400).json({
+          success: false,
+          message: `Department code '${req.body.code}' is already assigned to '${existingCode.name}'.`
+        });
+      }
+    }
+
+    // Check duplicate name if name is being changed
+    if (req.body.name && req.body.name !== department.name) {
+      const existingName = await Department.findOne({
+        where: {
+          name: req.body.name,
+          id: { [Op.ne]: req.params.id }
+        }
+      });
+      if (existingName) {
+        return res.status(400).json({
+          success: false,
+          message: `Department name '${req.body.name}' is already registered.`
+        });
+      }
+    }
+
     // Validate school exists if provided
     if (req.body.schoolId) {
       const school = await School.findByPk(req.body.schoolId);
@@ -274,13 +307,47 @@ exports.updateDepartment = async (req, res) => {
       }
     }
 
-    await department.update(req.body);
+    // Supported department profile fields
+    const allowedFields = [
+      'code',
+      'name',
+      'shortName',
+      'schoolId',
+      'hodId',
+      'hodName',
+      'hodEmail',
+      'establishedYear',
+      'phone',
+      'description',
+      'status'
+    ];
+    const updateData = {};
+    for (const key of allowedFields) {
+      if (req.body[key] !== undefined) {
+        updateData[key] = req.body[key];
+      }
+    }
+
+    await department.update(updateData);
     res.json({
       success: true,
       data: department
     });
   } catch (error) {
     console.error('Update department error:', error);
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      const field = error.errors?.[0]?.path || 'code or name';
+      return res.status(400).json({
+        success: false,
+        message: `A department with this ${field} already exists.`
+      });
+    }
+    if (error.name === 'SequelizeValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: error.errors?.[0]?.message || error.message || 'Validation error'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Server error'

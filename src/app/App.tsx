@@ -139,9 +139,9 @@ function AppContent() {
       case 'qs-india-ranking':
         return <RankingPage onNavigate={setCurrentPage} currentPage={currentPage} />;
       case 'publications':
-        return <PublicationsPage onNavigate={setCurrentPage} />;
+        return <ResearchPage onNavigate={setCurrentPage} currentPage={currentPage} />;
       case 'patents':
-        return <PatentsPage onNavigate={setCurrentPage} />;
+        return <ResearchPage onNavigate={setCurrentPage} currentPage="research-innovation" />;
       case 'research-metrics':
       case 'research-innovation':
       case 'sponsored-research':

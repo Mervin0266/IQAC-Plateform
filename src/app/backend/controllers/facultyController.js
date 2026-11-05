@@ -8,6 +8,149 @@ const { parsePagination, formatPaginationResponse, streamBatchedExport } = requi
 
 // @desc    Get all faculty
 /**
+ * Helper to parse academic year start year (e.g. '2025-2026' -> 2025, '2024' -> 2024)
+ */
+const parseAcademicYearStart = (ay) => {
+  if (!ay) return 0;
+  const match = String(ay).match(/\b(19\d{2}|20\d{2})\b/);
+  return match ? parseInt(match[1], 10) : 0;
+};
+
+/**
+ * Normalizes Employee ID preserving leading zeros and characters
+ */
+const normalizeEmployeeId = (empId) => {
+  if (empId === null || empId === undefined) return '';
+  return String(empId).trim();
+};
+
+/**
+ * Deduplicate faculty candidate rows by Employee ID across the full authorized dataset.
+ * Selection priority:
+ * 1. Record matching explicitly selected Academic Year (if filtering by year)
+ * 2. Record from the latest valid academic year
+ * 3. Deterministic tie-breaker: createdAt DESC, then id DESC
+ * Preserves original record UUID for Edit/View/Delete.
+ * Detects identity conflicts (different names/departments sharing an Employee ID) safely.
+ */
+const deduplicateFacultyRecords = (candidateRows, selectedAcademicYear = 'All') => {
+  if (!Array.isArray(candidateRows) || candidateRows.length === 0) {
+    return [];
+  }
+
+  const selectedYearClean = selectedAcademicYear && selectedAcademicYear.toLowerCase() !== 'all'
+    ? selectedAcademicYear.trim()
+    : null;
+
+  // Group by normalized Employee ID (or record ID if Employee ID is missing)
+  const grouped = new Map();
+
+  for (const row of candidateRows) {
+    const rawEmpId = row.employeeId;
+    const normId = normalizeEmployeeId(rawEmpId);
+    const key = normId ? `EMPID:${normId}` : `ID:${row.id}`;
+
+    if (!grouped.has(key)) {
+      grouped.set(key, [row]);
+    } else {
+      grouped.get(key).push(row);
+    }
+  }
+
+  const canonicalRecords = [];
+
+  for (const [key, rows] of grouped.entries()) {
+    if (rows.length === 1) {
+      canonicalRecords.push(rows[0]);
+      continue;
+    }
+
+    // Check for identity conflicts (different names or different departments sharing an Employee ID)
+    const baseName = (rows[0].name || '').trim().toLowerCase();
+    const baseDept = (rows[0].department || '').trim().toLowerCase();
+    let hasConflict = false;
+
+    for (let i = 1; i < rows.length; i++) {
+      const otherName = (rows[i].name || '').trim().toLowerCase();
+      const otherDept = (rows[i].department || '').trim().toLowerCase();
+      if (otherName !== baseName || otherDept !== baseDept) {
+        hasConflict = true;
+        break;
+      }
+    }
+
+    // Sort rows within the group by selection priority:
+    // 1. Matches explicitly selected Academic Year
+    // 2. Latest valid academic year
+    // 3. Fallback to createdAt DESC
+    // 4. Deterministic id DESC
+    rows.sort((a, b) => {
+      if (selectedYearClean) {
+        const aMatches = a.academicYear && (a.academicYear === selectedYearClean || a.academicYear.startsWith(selectedYearClean.slice(0, 4)));
+        const bMatches = b.academicYear && (b.academicYear === selectedYearClean || b.academicYear.startsWith(selectedYearClean.slice(0, 4)));
+        if (aMatches && !bMatches) return -1;
+        if (!aMatches && bMatches) return 1;
+      }
+
+      const yearA = parseAcademicYearStart(a.academicYear);
+      const yearB = parseAcademicYearStart(b.academicYear);
+      if (yearA !== yearB) {
+        return yearB - yearA;
+      }
+
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (dateA !== dateB) {
+        return dateB - dateA;
+      }
+
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    });
+
+    const chosen = rows[0];
+    if (hasConflict) {
+      chosen.hasIdentityConflict = true;
+    }
+    canonicalRecords.push(chosen);
+  }
+
+  return canonicalRecords;
+};
+
+/**
+ * Sort canonical records deterministically according to sortBy parameter
+ */
+const sortCanonicalRecords = (records, sortBy = 'name-asc') => {
+  const [field, dir] = (sortBy || 'name-asc').split('-');
+  const isDesc = (dir && dir.toLowerCase() === 'desc');
+
+  return records.sort((a, b) => {
+    let valA = a[field];
+    let valB = b[field];
+
+    if (field === 'sNo') {
+      const numA = parseInt(valA, 10) || 0;
+      const numB = parseInt(valB, 10) || 0;
+      return isDesc ? numB - numA : numA - numB;
+    }
+
+    if (field === 'employeeId') {
+      const strA = String(valA || '');
+      const strB = String(valB || '');
+      const cmp = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+      return isDesc ? -cmp : cmp;
+    }
+
+    const strA = String(valA || '').toLowerCase();
+    const strB = String(valB || '').toLowerCase();
+    const cmp = strA.localeCompare(strB);
+    if (cmp !== 0) return isDesc ? -cmp : cmp;
+
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
+};
+
+/**
  * Build query conditions from request for faculty querying & dynamic statistics
  */
 const buildFacultyFilterWhere = (req, scopeWhere) => {
@@ -35,11 +178,23 @@ const buildFacultyFilterWhere = (req, scopeWhere) => {
     });
   }
 
-  // Designation Filter
-  if (req.query.designation && req.query.designation !== 'all' && req.query.designation !== 'All') {
+  // Designation Filter (Exact normalized comparison - Professor matches only Professor)
+  if (req.query.designation && req.query.designation !== 'all' && req.query.designation !== 'All' && req.query.designation !== 'All Designations') {
+    const desig = req.query.designation.trim();
     andConditions.push({
-      designation: { [Op.iLike]: `%${req.query.designation.trim()}%` }
+      designation: { [Op.iLike]: desig }
     });
+  }
+
+  // Gender Filter (Exact validated values: Male, Female, Other; All keeps all including null)
+  if (req.query.gender && req.query.gender.toLowerCase() !== 'all' && req.query.gender.toLowerCase() !== 'all genders') {
+    const rawG = req.query.gender.trim();
+    const normalizedGender = rawG.charAt(0).toUpperCase() + rawG.slice(1).toLowerCase();
+    if (['Male', 'Female', 'Other'].includes(normalizedGender)) {
+      andConditions.push({
+        gender: normalizedGender
+      });
+    }
   }
 
   // Full-Text Search across major faculty fields
@@ -78,121 +233,84 @@ const buildFacultySortOrder = (req) => {
   return order;
 };
 
-// @desc    Get all faculty with dynamic filters, pagination, and KPI stats
+// @desc    Get all faculty with dynamic filters, server-side deduplication, and pagination
 // @route   GET /api/faculty
 // @access  Private
 exports.getFaculty = async (req, res) => {
   try {
     const { where: scopeWhere } = await resolveDepartmentScope(req, 'Faculty', false);
     const { andConditions, where } = buildFacultyFilterWhere(req, scopeWhere);
-    const order = buildFacultySortOrder(req);
 
     const pagination = parsePagination(req.query);
 
-    if (pagination.isExport || req.query.stream === 'true') {
-      return await streamBatchedExport(res, {
-        model: Faculty,
-        where,
-        order,
-        batchSize: 1000,
-        maxRecords: pagination.limit || 1000000,
-        format: req.query.format === 'csv' ? 'csv' : 'json',
-        filename: 'faculty_export',
-        transformRow: (rawRow) => sanitizeFacultyData([rawRow], req.user, false)[0]
+    // Fetch all matching candidate records across the full authorized dataset
+    const allCandidates = await Faculty.findAll({
+      where,
+      order: [['academicYear', 'DESC'], ['createdAt', 'DESC'], ['id', 'ASC']]
+    });
+
+    // Deduplicate candidate records by normalized Employee ID across full dataset BEFORE pagination
+    const canonicalRecords = deduplicateFacultyRecords(allCandidates, req.query.academicYear);
+
+    // Sort canonical records per user requested sortBy parameter
+    const sortedRecords = sortCanonicalRecords(canonicalRecords, req.query.sortBy || 'name-asc');
+    const total = sortedRecords.length;
+
+    // Handle full export if requested
+    if (pagination.isExport || req.query.stream === 'true' || req.query.export === 'true') {
+      const sanitizedExport = sanitizeFacultyData(sortedRecords, req.user, false);
+      return res.json({
+        success: true,
+        count: sanitizedExport.length,
+        total: sanitizedExport.length,
+        data: sanitizedExport
       });
     }
 
-    const { page, limit, offset } = pagination;
+    const { page, limit } = pagination;
+    const offset = (page - 1) * limit;
+    const paginatedRows = sortedRecords.slice(offset, offset + limit);
 
-    // Concurrently fetch faculty page and compute dynamic distribution metrics on the EXACT filtered where
-    const [
-      facultyResult,
-      phdCount,
-      seniorCount,
-      deptRows,
-      desigRows,
-      allYearsRows,
-      expRows
-    ] = await Promise.all([
-      Faculty.findAndCountAll({
-        where,
-        order,
-        limit,
-        offset
-      }),
-      Faculty.count({
-        where: {
-          [Op.and]: [
-            ...andConditions,
-            {
-              [Op.or]: [
-                { qualificationLevel: { [Op.iLike]: '%PHD%' } },
-                { highestQualification: { [Op.iLike]: '%DOCTOR%' } }
-              ]
-            }
-          ]
-        }
-      }),
-      Faculty.count({
-        where: {
-          [Op.and]: [
-            ...andConditions,
-            {
-              [Op.or]: [
-                { designation: { [Op.iLike]: '%Professor%' } },
-                { designation: { [Op.iLike]: '%Head%' } },
-                { designation: { [Op.iLike]: '%Dean%' } }
-              ]
-            }
-          ]
-        }
-      }),
-      Faculty.findAll({
-        attributes: ['department', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-        where,
-        group: ['department'],
-        raw: true
-      }),
-      Faculty.findAll({
-        attributes: ['designation', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-        where,
-        group: ['designation'],
-        raw: true
-      }),
-      Faculty.findAll({
-        attributes: ['academicYear'],
-        group: ['academicYear'],
-        raw: true
-      }),
-      Faculty.findAll({
-        attributes: ['prevTeachingExpYears', 'prevIndustryExpYears', 'cuExpYears'],
-        where,
-        raw: true
-      })
-    ]);
-
-    const total = facultyResult.count;
+    // Compute distribution and KPI statistics across the deduplicated canonical dataset
+    let phdCount = 0;
+    let seniorCount = 0;
     let totalExpYears = 0;
-    expRows.forEach(f => {
+    const deptCounts = {};
+    const desigCounts = {};
+
+    for (const f of canonicalRecords) {
+      const qualLevel = (f.qualificationLevel || '').toUpperCase().replace(/\./g, '');
+      const highestQual = (f.highestQualification || '').toUpperCase().replace(/\./g, '');
+      if (qualLevel.includes('PHD') || highestQual.includes('DOCTOR') || highestQual.includes('PHD')) {
+        phdCount++;
+      }
+
+      // Senior Cadre definition preservation: Professor, Head, Dean
+      const desig = (f.designation || '').toLowerCase();
+      if (desig.includes('professor') || desig.includes('head') || desig.includes('dean')) {
+        seniorCount++;
+      }
+
       const prevY = parseFloat(f.prevTeachingExpYears || '0') || 0;
       const prevInd = parseFloat(f.prevIndustryExpYears || '0') || 0;
       const cuY = parseFloat(f.cuExpYears || '0') || 0;
       totalExpYears += (prevY + prevInd + cuY);
-    });
+
+      if (f.department && f.department !== 'NIL' && f.department !== 'N/A') {
+        deptCounts[f.department] = (deptCounts[f.department] || 0) + 1;
+      }
+
+      if (f.designation && f.designation !== 'NIL' && f.designation !== 'N/A') {
+        desigCounts[f.designation] = (desigCounts[f.designation] || 0) + 1;
+      }
+    }
+
     const avgExp = total > 0 ? (totalExpYears / total).toFixed(1) : '0';
 
-    const deptCounts = {};
-    deptRows.forEach(r => {
-      if (r.department && r.department !== 'NIL' && r.department !== 'N/A') {
-        deptCounts[r.department] = parseInt(r.count, 10);
-      }
-    });
-
-    const desigCounts = {};
-    desigRows.forEach(r => {
-      if (r.designation && r.designation !== 'NIL' && r.designation !== 'N/A') {
-        desigCounts[r.designation] = parseInt(r.count, 10);
-      }
+    const allYearsRows = await Faculty.findAll({
+      attributes: ['academicYear'],
+      group: ['academicYear'],
+      raw: true
     });
 
     const stats = {
@@ -206,7 +324,7 @@ exports.getFaculty = async (req, res) => {
     };
 
     // Sensitive field protection: Never expose PAN in ordinary faculty list responses (Phase A5)
-    const sanitized = sanitizeFacultyData(facultyResult.rows, req.user, false);
+    const sanitized = sanitizeFacultyData(paginatedRows, req.user, false);
 
     const responsePayload = formatPaginationResponse({
       count: total,
@@ -238,90 +356,55 @@ exports.getFaculty = async (req, res) => {
 exports.getFacultyStats = async (req, res) => {
   try {
     const { where: scopeWhere } = await resolveDepartmentScope(req, 'Faculty', false);
-    const { andConditions, where } = buildFacultyFilterWhere(req, scopeWhere);
+    const { where } = buildFacultyFilterWhere(req, scopeWhere);
 
-    const [
-      total,
-      phdCount,
-      seniorCount,
-      deptRows,
-      desigRows,
-      allYearsRows,
-      expRows
-    ] = await Promise.all([
-      Faculty.count({ where }),
-      Faculty.count({
-        where: {
-          [Op.and]: [
-            ...andConditions,
-            {
-              [Op.or]: [
-                { qualificationLevel: { [Op.iLike]: '%PHD%' } },
-                { highestQualification: { [Op.iLike]: '%DOCTOR%' } }
-              ]
-            }
-          ]
-        }
-      }),
-      Faculty.count({
-        where: {
-          [Op.and]: [
-            ...andConditions,
-            {
-              [Op.or]: [
-                { designation: { [Op.iLike]: '%Professor%' } },
-                { designation: { [Op.iLike]: '%Head%' } },
-                { designation: { [Op.iLike]: '%Dean%' } }
-              ]
-            }
-          ]
-        }
-      }),
-      Faculty.findAll({
-        attributes: ['department', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-        where,
-        group: ['department'],
-        raw: true
-      }),
-      Faculty.findAll({
-        attributes: ['designation', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-        where,
-        group: ['designation'],
-        raw: true
-      }),
-      Faculty.findAll({
-        attributes: ['academicYear'],
-        group: ['academicYear'],
-        raw: true
-      }),
-      Faculty.findAll({
-        attributes: ['prevTeachingExpYears', 'prevIndustryExpYears', 'cuExpYears'],
-        where,
-        raw: true
-      })
-    ]);
+    const allCandidates = await Faculty.findAll({
+      where,
+      order: [['academicYear', 'DESC'], ['createdAt', 'DESC'], ['id', 'ASC']]
+    });
 
+    const canonicalRecords = deduplicateFacultyRecords(allCandidates, req.query.academicYear);
+    const total = canonicalRecords.length;
+
+    let phdCount = 0;
+    let seniorCount = 0;
     let totalExpYears = 0;
-    expRows.forEach(f => {
+    const deptCounts = {};
+    const desigCounts = {};
+
+    for (const f of canonicalRecords) {
+      const qualLevel = (f.qualificationLevel || '').toUpperCase().replace(/\./g, '');
+      const highestQual = (f.highestQualification || '').toUpperCase().replace(/\./g, '');
+      if (qualLevel.includes('PHD') || highestQual.includes('DOCTOR') || highestQual.includes('PHD')) {
+        phdCount++;
+      }
+
+      // Senior Cadre definition preservation: Professor, Head, Dean
+      const desig = (f.designation || '').toLowerCase();
+      if (desig.includes('professor') || desig.includes('head') || desig.includes('dean')) {
+        seniorCount++;
+      }
+
       const prevY = parseFloat(f.prevTeachingExpYears || '0') || 0;
       const prevInd = parseFloat(f.prevIndustryExpYears || '0') || 0;
       const cuY = parseFloat(f.cuExpYears || '0') || 0;
       totalExpYears += (prevY + prevInd + cuY);
-    });
+
+      if (f.department && f.department !== 'NIL' && f.department !== 'N/A') {
+        deptCounts[f.department] = (deptCounts[f.department] || 0) + 1;
+      }
+
+      if (f.designation && f.designation !== 'NIL' && f.designation !== 'N/A') {
+        desigCounts[f.designation] = (desigCounts[f.designation] || 0) + 1;
+      }
+    }
+
     const avgExp = total > 0 ? (totalExpYears / total).toFixed(1) : '0';
 
-    const deptCounts = {};
-    deptRows.forEach(r => {
-      if (r.department && r.department !== 'NIL' && r.department !== 'N/A') {
-        deptCounts[r.department] = parseInt(r.count, 10);
-      }
-    });
-
-    const desigCounts = {};
-    desigRows.forEach(r => {
-      if (r.designation && r.designation !== 'NIL' && r.designation !== 'N/A') {
-        desigCounts[r.designation] = parseInt(r.count, 10);
-      }
+    const allYearsRows = await Faculty.findAll({
+      attributes: ['academicYear'],
+      group: ['academicYear'],
+      raw: true
     });
 
     const stats = {
@@ -692,3 +775,10 @@ exports.clearAllFaculty = async (req, res) => {
     });
   }
 };
+
+// Export internal helper functions for automated testing & verification
+exports.parseAcademicYearStart = parseAcademicYearStart;
+exports.normalizeEmployeeId = normalizeEmployeeId;
+exports.deduplicateFacultyRecords = deduplicateFacultyRecords;
+exports.sortCanonicalRecords = sortCanonicalRecords;
+exports.buildFacultyFilterWhere = buildFacultyFilterWhere;

@@ -1528,8 +1528,8 @@ exports.bulkUploadSponsoredProjects = async (req, res) => {
           .filter(s => s.length > 0 && googleDriveService.isValidDriveUrl(s));
       };
 
-      const agreementLinks = extractLinks(row.agreementLetter || row['Agreement Letter'] || row['Agreement Letters']);
-      const paymentLinks = extractLinks(row.paymentReceipt || row['Payment Receipt'] || row['Payment Receipts']);
+      const agreementLinks = extractLinks(row.agreementLetter || row['Sanction Letter'] || row['Sanction Letters'] || row['Agreement Letter'] || row['Agreement Letters']);
+      const paymentLinks = extractLinks(row.paymentReceipt || row['Fund Receipt / Utilization Certificate (UC)'] || row['Fund Receipts / Utilization Certificates (UC)'] || row['Fund Receipt / UC'] || row['Payment Receipt'] || row['Payment Receipts']);
 
       validRecords.push({
         title: String(title).trim(),
@@ -1585,7 +1585,7 @@ exports.bulkUploadSponsoredProjects = async (req, res) => {
           sourceType: 'drive_link',
           driveFileId: fileId,
           driveUrl: link,
-          fileName: `Agreement Letter (${fileId ? fileId.slice(0, 8) : 'Drive'})`,
+          fileName: `Sanction Letter (${fileId ? fileId.slice(0, 8) : 'Drive'})`,
           uploadedBy: req.user?.id,
           accessStatus: 'pending_verification',
           isActive: true
@@ -1600,7 +1600,7 @@ exports.bulkUploadSponsoredProjects = async (req, res) => {
           sourceType: 'drive_link',
           driveFileId: fileId,
           driveUrl: link,
-          fileName: `Payment Receipt (${fileId ? fileId.slice(0, 8) : 'Drive'})`,
+          fileName: `Fund Receipt / UC (${fileId ? fileId.slice(0, 8) : 'Drive'})`,
           uploadedBy: req.user?.id,
           accessStatus: 'pending_verification',
           isActive: true

@@ -54,7 +54,7 @@ exports.resolveDepartmentScope = async (req, targetModelName, isDeleteOperation 
 
   // 3. Administrator: scoped to department or university-wide with strong confirmation
   if (user.role === 'admin') {
-    const targetDept = req.query.department || (req.body && req.body.department);
+    const targetDept = (req.query && req.query.department) || (req.body && req.body.department);
     if (targetDept && targetDept !== 'all' && targetDept !== 'All') {
       if (targetModelName === 'Course') {
         const deptRecord = await Department.findOne({

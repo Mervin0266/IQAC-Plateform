@@ -4,7 +4,7 @@ const { Sequelize } = require('sequelize');
 if (process.env.NODE_ENV === 'test') {
   require('dotenv').config({ path: require('path').join(__dirname, '../.env.test') });
 } else {
-  require('dotenv').config();
+  require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 }
 
 let sequelize;

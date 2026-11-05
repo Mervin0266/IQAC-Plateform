@@ -109,8 +109,35 @@ UserDepartmentHistory.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 // Publication Associations
 const Publication = require('./Publication');
+const PublicationFaculty = require('./PublicationFaculty');
+const CitationImportBatch = require('./CitationImportBatch');
+const PublicationCitationSnapshot = require('./PublicationCitationSnapshot');
+const CitationYearlyDetail = require('./CitationYearlyDetail');
+
 User.hasMany(Publication, { foreignKey: 'createdBy', as: 'publications' });
 Publication.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+
+Publication.hasMany(PublicationFaculty, { foreignKey: 'publicationId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+PublicationFaculty.belongsTo(Publication, { foreignKey: 'publicationId', as: 'publication' });
+
+Faculty.hasMany(PublicationFaculty, { foreignKey: 'facultyId', as: 'publicationAssociations' });
+PublicationFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+
+Publication.belongsToMany(Faculty, { through: PublicationFaculty, foreignKey: 'publicationId', otherKey: 'facultyId', as: 'associatedFaculty' });
+Faculty.belongsToMany(Publication, { through: PublicationFaculty, foreignKey: 'facultyId', otherKey: 'publicationId', as: 'associatedPublications' });
+
+// Citation Management Associations
+Publication.hasMany(PublicationCitationSnapshot, { foreignKey: 'publicationId', as: 'citationSnapshots', onDelete: 'CASCADE' });
+PublicationCitationSnapshot.belongsTo(Publication, { foreignKey: 'publicationId', as: 'publication' });
+
+PublicationCitationSnapshot.hasMany(CitationYearlyDetail, { foreignKey: 'snapshotId', as: 'yearlyDetails', onDelete: 'CASCADE' });
+CitationYearlyDetail.belongsTo(PublicationCitationSnapshot, { foreignKey: 'snapshotId', as: 'snapshot' });
+
+User.hasMany(CitationImportBatch, { foreignKey: 'uploadedBy', as: 'citationImportBatches' });
+CitationImportBatch.belongsTo(User, { foreignKey: 'uploadedBy', as: 'uploader' });
+
+CitationImportBatch.hasMany(PublicationCitationSnapshot, { foreignKey: 'importBatchId', as: 'snapshots' });
+PublicationCitationSnapshot.belongsTo(CitationImportBatch, { foreignKey: 'importBatchId', as: 'importBatch' });
 
 // Sponsored Research Project Associations
 const SponsoredProject = require('./SponsoredProject');
@@ -134,6 +161,10 @@ module.exports = {
   User,
   Achievement,
   Publication,
+  PublicationFaculty,
+  CitationImportBatch,
+  PublicationCitationSnapshot,
+  CitationYearlyDetail,
   SponsoredProject,
   SponsoredResearchDocument,
   SponsoredResearchInstallment,

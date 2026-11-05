@@ -18,6 +18,7 @@ import { PatentsPage } from './PatentsPage';
 import { SponsoredResearchPage } from './SponsoredResearchPage';
 import { ConsultancyProjectsPage } from './ConsultancyProjectsPage';
 import { PublicationsPage } from './PublicationsPage';
+import { ResearchReportGeneratorDialog } from './ResearchReportGeneratorDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { Button } from './ui/button';
@@ -30,6 +31,7 @@ interface ResearchPageProps {
 
 export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
   const { user } = useAuth();
+  const [isReportGeneratorOpen, setIsReportGeneratorOpen] = useState(false);
   
   // Navigation sync helper
   const getTabFromPage = (page: string) => {
@@ -614,7 +616,18 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
           title="Research & Innovation Workspace"
           description="Institutional repository and analytics tracking publications, patents, sponsored research grants, and consultancy metrics."
           actions={
-            activeTab === 'metrics' ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                onClick={() => setIsReportGeneratorOpen(true)}
+                size="sm"
+                className="bg-[#2855B9] hover:bg-[#1C355B] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs flex items-center gap-1.5"
+                title="Generate Research & Innovation Report"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                <span>Generate Report</span>
+              </Button>
+
+              {activeTab === 'metrics' && (
               <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   onClick={fetchResearchMetrics}
@@ -711,7 +724,8 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                   </>
                 )}
               </div>
-            ) : undefined
+            )}
+          </div>
           }
         />
 
@@ -1485,6 +1499,12 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Research & Innovation Report Generator Dialog */}
+      <ResearchReportGeneratorDialog
+        isOpen={isReportGeneratorOpen}
+        onClose={() => setIsReportGeneratorOpen(false)}
+      />
     </AppShell>
   );
 }

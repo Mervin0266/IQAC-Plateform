@@ -11,6 +11,10 @@ const Publication = sequelize.define('Publication', {
     type: DataTypes.TEXT,
     allowNull: false
   },
+  authorFullNames: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
   title: {
     type: DataTypes.TEXT,
     allowNull: false
@@ -18,6 +22,10 @@ const Publication = sequelize.define('Publication', {
   journalName: {
     type: DataTypes.STRING,
     allowNull: false
+  },
+  publisher: {
+    type: DataTypes.STRING(500),
+    allowNull: true
   },
   journalType: {
     type: DataTypes.STRING,
@@ -31,8 +39,12 @@ const Publication = sequelize.define('Publication', {
   },
   academicYear: {
     type: DataTypes.STRING,
-    allowNull: false,
-    defaultValue: '2024-2025'
+    allowNull: true,
+    defaultValue: null
+  },
+  publicationYear: {
+    type: DataTypes.STRING(10),
+    allowNull: true
   },
   publicationDate: {
     type: DataTypes.DATEONLY,
@@ -43,7 +55,15 @@ const Publication = sequelize.define('Publication', {
     allowNull: true
   },
   issn: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  isbn: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  coden: {
+    type: DataTypes.STRING(100),
     allowNull: true
   },
   volume: {
@@ -65,7 +85,7 @@ const Publication = sequelize.define('Publication', {
   citationCount: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    defaultValue: 0
+    defaultValue: null
   },
   paperUrl: {
     type: DataTypes.TEXT,
@@ -89,7 +109,9 @@ const Publication = sequelize.define('Publication', {
   indexes: [
     { fields: ['journalType'] },
     { fields: ['academicYear'] },
+    { fields: ['publicationYear'] },
     { fields: ['department'] },
+    { fields: ['doi'] },
     { fields: ['createdBy'] }
   ]
 });

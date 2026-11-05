@@ -71,9 +71,92 @@ const autoSeed = async (sequelize) => {
             ALTER TABLE "publications" ALTER COLUMN "pageNumber" DROP NOT NULL;
             ALTER TABLE "publications" ALTER COLUMN "impactFactor" DROP NOT NULL;
             ALTER TABLE "publications" ALTER COLUMN "citationCount" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "citationCount" DROP DEFAULT;
+            ALTER TABLE "publications" ALTER COLUMN "academicYear" DROP NOT NULL;
+            ALTER TABLE "publications" ALTER COLUMN "academicYear" DROP DEFAULT;
             ALTER TABLE "publications" ALTER COLUMN "paperUrl" DROP NOT NULL;
             ALTER TABLE "publications" ALTER COLUMN "abstract" DROP NOT NULL;
             ALTER TABLE "publications" ALTER COLUMN "status" DROP NOT NULL;
+            ALTER TABLE "publications" ADD COLUMN IF NOT EXISTS "authorFullNames" TEXT;
+            ALTER TABLE "publications" ADD COLUMN IF NOT EXISTS "publicationYear" VARCHAR(10);
+            ALTER TABLE "publications" ADD COLUMN IF NOT EXISTS "publisher" VARCHAR(500);
+            ALTER TABLE "publications" ADD COLUMN IF NOT EXISTS "isbn" VARCHAR(100);
+            ALTER TABLE "publications" ADD COLUMN IF NOT EXISTS "coden" VARCHAR(100);
+          EXCEPTION WHEN OTHERS THEN
+            NULL;
+          END;
+
+          BEGIN
+            CREATE TABLE IF NOT EXISTS "publication_faculties" (
+              "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              "publicationId" UUID NOT NULL,
+              "facultyId" UUID,
+              "employeeId" VARCHAR(50) NOT NULL,
+              "facultyName" VARCHAR(255),
+              "department" VARCHAR(255) NOT NULL,
+              "sourceFile" VARCHAR(500),
+              "indexing" VARCHAR(100) DEFAULT 'Scopus',
+              "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+              "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "idx_publication_faculties_pub_emp_unique" ON "publication_faculties" ("publicationId", "employeeId");
+          EXCEPTION WHEN OTHERS THEN
+            NULL;
+          END;
+
+          BEGIN
+            CREATE TABLE IF NOT EXISTS "citation_import_batches" (
+              "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              "filename" VARCHAR(500) NOT NULL,
+              "fileChecksum" VARCHAR(64),
+              "fileFormat" VARCHAR(20) NOT NULL DEFAULT 'csv',
+              "employeeId" VARCHAR(50) NOT NULL,
+              "facultyId" UUID,
+              "facultyName" VARCHAR(255),
+              "department" VARCHAR(255),
+              "uploadedBy" UUID NOT NULL,
+              "sourceType" VARCHAR(100) DEFAULT 'Scopus Citation Overview',
+              "totalRecords" INTEGER DEFAULT 0,
+              "matchedRecords" INTEGER DEFAULT 0,
+              "needsReviewRecords" INTEGER DEFAULT 0,
+              "notFoundRecords" INTEGER DEFAULT 0,
+              "duplicateRecords" INTEGER DEFAULT 0,
+              "updatedRecords" INTEGER DEFAULT 0,
+              "status" VARCHAR(50) DEFAULT 'completed',
+              "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+              "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS "idx_citation_batches_employeeId" ON "citation_import_batches" ("employeeId");
+
+            CREATE TABLE IF NOT EXISTS "publication_citation_snapshots" (
+              "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              "publicationId" UUID NOT NULL,
+              "importBatchId" UUID,
+              "sourceFile" VARCHAR(500) NOT NULL,
+              "employeeId" VARCHAR(50) NOT NULL,
+              "facultyName" VARCHAR(255),
+              "citationSource" VARCHAR(100) DEFAULT 'Scopus',
+              "reportedTotal" INTEGER NOT NULL,
+              "previousTotal" INTEGER,
+              "reconciliationStatus" VARCHAR(50) DEFAULT 'reconciled',
+              "approvalStatus" VARCHAR(50) DEFAULT 'approved',
+              "reportDate" DATE,
+              "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+              "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS "idx_citation_snapshots_pubId" ON "publication_citation_snapshots" ("publicationId");
+
+            CREATE TABLE IF NOT EXISTS "citation_yearly_details" (
+              "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              "snapshotId" UUID NOT NULL,
+              "period" VARCHAR(50) NOT NULL,
+              "citationCount" INTEGER,
+              "periodType" VARCHAR(50) NOT NULL DEFAULT 'year',
+              "status" VARCHAR(50) DEFAULT 'known',
+              "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+              "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS "idx_citation_yearly_snapshotId" ON "citation_yearly_details" ("snapshotId");
           EXCEPTION WHEN OTHERS THEN
             NULL;
           END;
