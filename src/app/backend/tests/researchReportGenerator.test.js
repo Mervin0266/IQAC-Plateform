@@ -1,20 +1,17 @@
 'use strict';
 
 /**
- * Automated Test Suite: Research & Innovation Report Generator V1.5
+ * Automated Test Suite: Research & Innovation Report Generator V1.6
  * CHRIST University IQAC Platform
  * 
  * Tests:
  * 1. Indian Currency Formatting & Number-to-Words Conversion
- * 2. Reporting Period Mapping (CY for IPR, FY for Sponsored & Consultancy)
- * 3. IPR Details Calculations (Patents Published CY, Patents Granted CY, Multi-Year events)
- * 4. Sponsored Research Calculations (Sanctioned Amount vs Amount Received rule)
+ * 2. Reporting Period Mapping & Academic Year (AY) Standardization
+ * 3. IPR Details Calculations & Event-Based AY Attribution (June 1 - May 31)
+ * 4. Sponsored Research Financial & Distinct Funding Agency Calculations (Aliases, Normalization, Isolation)
  * 5. Consultancy Project Calculations (Contract Value in Lakhs * 100,000 rule, single start year exclusion)
- * 6. Section & Period Selection (1, 2, or 3 sections, single/multi-year expansion)
- * 7. Section-Specific Approval Status Filtering
- * 8. Excel (.xlsx) Report Generation & Formula Injection Sanitization (CWE-1236)
- * 9. PDF (.pdf) Report Generation & Validation
- * 10. Scope Enforcement & Missing Data Handling
+ * 6. Excel (.xlsx) Report Generation & Formula Injection Sanitization (CWE-1236)
+ * 7. PDF (.pdf) Report Generation & Academic Year (AY) Parity
  */
 
 const assert = require('assert');
@@ -23,13 +20,17 @@ const {
   numberToIndianWords,
   formatIndianCurrency,
   normalizeReportingPeriod,
+  periodToAYDisplay,
   periodToCYDisplay,
   periodToFYDisplay,
-  periodToStartYear
+  periodToStartYear,
+  dateToAcademicYear
 } = require('../utils/indianCurrencyHelper');
 const {
   generateExcelReport,
-  generatePdfReport
+  generatePdfReport,
+  canonicalizeAgencyName,
+  KNOWN_AGENCY_ALIASES
 } = require('../services/researchReportService');
 const { sanitizeSpreadsheetCell } = require('../utils/spreadsheetSanitizer');
 
@@ -49,7 +50,7 @@ function runTest(testName, fn) {
 }
 
 console.log('================================================================');
-console.log('   CHRIST University IQAC - Research Report Generator V1.5 Tests');
+console.log('   CHRIST University IQAC - Research Report Generator V1.6 Tests');
 console.log('================================================================\n');
 
 // ─── SUITE 1: INDIAN CURRENCY & NUMBER-TO-WORDS ──────────────────────────────
@@ -87,8 +88,8 @@ runTest('Distinguishes confirmed zero from missing or unmapped values', () => {
   assert.strictEqual(formatIndianCurrency(null), '—');
 });
 
-// ─── SUITE 2: REPORTING PERIOD & YEAR-RANGE MAPPING ─────────────────────────
-console.log('\n--- Suite 2: Reporting Period & Year-Range Mapping ---');
+// ─── SUITE 2: REPORTING PERIOD & AY STANDARDIZATION ─────────────────────────
+console.log('\n--- Suite 2: Reporting Period & AY Standardization ---');
 
 runTest('Normalizes 4-digit year ranges (2024-2025 -> 2024-25)', () => {
   assert.strictEqual(normalizeReportingPeriod('2024-2025'), '2024-25');
@@ -105,15 +106,15 @@ runTest('Unmapped single calendar year is NOT automatically assumed to be a year
   assert.strictEqual(normalizeReportingPeriod('2025'), null);
 });
 
-runTest('Generates Calendar Year display (CY) for IPR', () => {
-  assert.strictEqual(periodToCYDisplay('2024-25'), 'CY 2024');
-  assert.strictEqual(periodToCYDisplay('2023-24'), 'CY 2023');
-  assert.strictEqual(periodToCYDisplay('2022-23'), 'CY 2022');
+runTest('Generates Academic Year display (AY) with en-dash (AY 2024–25)', () => {
+  assert.strictEqual(periodToAYDisplay('2024-25'), 'AY 2024–25');
+  assert.strictEqual(periodToAYDisplay('2023-24'), 'AY 2023–24');
+  assert.strictEqual(periodToAYDisplay('2022-23'), 'AY 2022–23');
 });
 
-runTest('Generates Financial Year display (FY) with en-dash for Sponsored & Consultancy', () => {
-  assert.strictEqual(periodToFYDisplay('2024-25'), 'FY 2024–25');
-  assert.strictEqual(periodToFYDisplay('2023-24'), 'FY 2023–24');
+runTest('Legacy helpers (periodToCYDisplay & periodToFYDisplay) return AY display to protect against legacy callers', () => {
+  assert.strictEqual(periodToCYDisplay('2024-25'), 'AY 2024–25');
+  assert.strictEqual(periodToFYDisplay('2024-25'), 'AY 2024–25');
 });
 
 runTest('Extracts integer start year from period key', () => {
@@ -122,47 +123,70 @@ runTest('Extracts integer start year from period key', () => {
   assert.strictEqual(periodToStartYear('invalid'), null);
 });
 
-// ─── SUITE 3: IPR DETAILS CALCULATIONS ──────────────────────────────────────
-console.log('\n--- Suite 3: IPR Details Calculations ---');
+runTest('Derives Academic Year key from date using institutional boundary (June 1 – May 31)', () => {
+  // June 1, 2024 -> AY 2024-25
+  assert.strictEqual(dateToAcademicYear('2024-06-01'), '2024-25');
+  // October 15, 2024 -> AY 2024-25
+  assert.strictEqual(dateToAcademicYear('2024-10-15'), '2024-25');
+  // May 31, 2025 -> AY 2024-25
+  assert.strictEqual(dateToAcademicYear('2025-05-31'), '2024-25');
+  // May 31, 2024 -> AY 2023-24 (before June boundary)
+  assert.strictEqual(dateToAcademicYear('2024-05-31'), '2023-24');
+  // Jan 15, 2024 -> AY 2023-24
+  assert.strictEqual(dateToAcademicYear('2024-01-15'), '2023-24');
+  // Null or invalid
+  assert.strictEqual(dateToAcademicYear(null), null);
+  assert.strictEqual(dateToAcademicYear('invalid-date'), null);
+});
 
-runTest('Separately tracks publication and grant events by calendar year', () => {
+// ─── SUITE 3: IPR DETAILS CALCULATIONS & EVENT-BASED AY ATTRIBUTION ─────────
+console.log('\n--- Suite 3: IPR Details Calculations & Event-Based AY Attribution ---');
+
+runTest('Separately tracks publication and grant events by Academic Year using institutional dates', () => {
   const patents = [
-    { id: 'p1', publishedDate: '2023-05-10', grantYear: 2024, approvalStatus: 'approved' },
-    { id: 'p2', publishedDate: '2024-02-14', grantYear: null, approvalStatus: 'approved' },
+    // p1: published May 10, 2024 (AY 2023-24), granted Nov 15, 2024 (AY 2024-25)
+    { id: 'p1', publishedDate: '2024-05-10', grantedDate: '2024-11-15', approvalStatus: 'approved' },
+    // p2: published Feb 14, 2024 (AY 2023-24), no grant
+    { id: 'p2', publishedDate: '2024-02-14', grantedDate: null, approvalStatus: 'approved' },
+    // p3: published Aug 20, 2024 (AY 2024-25), granted Nov 05, 2024 (AY 2024-25)
     { id: 'p3', publishedDate: '2024-08-20', grantedDate: '2024-11-05', approvalStatus: 'approved' }
   ];
 
   const periods = [
-    { key: '2024-25', startYear: 2024, cyLabel: 'CY 2024' },
-    { key: '2023-24', startYear: 2023, cyLabel: 'CY 2023' }
+    { key: '2024-25', ayLabel: 'AY 2024–25' },
+    { key: '2023-24', ayLabel: 'AY 2023–24' }
   ];
 
   const published = { '2024-25': 0, '2023-24': 0 };
   const granted = { '2024-25': 0, '2023-24': 0 };
 
   patents.forEach(p => {
-    const pubY = p.publishedDate ? new Date(p.publishedDate).getFullYear() : null;
-    const grntY = p.grantYear || (p.grantedDate ? new Date(p.grantedDate).getFullYear() : null);
+    const pubAY = dateToAcademicYear(p.publishedDate);
+    const grntAY = dateToAcademicYear(p.grantedDate);
 
-    periods.forEach(per => {
-      if (pubY === per.startYear) published[per.key]++;
-      if (grntY === per.startYear) granted[per.key]++;
-    });
+    if (pubAY && published[pubAY] !== undefined) published[pubAY]++;
+    if (grntAY && granted[grntAY] !== undefined) granted[grntAY]++;
   });
 
-  // 2024: p2, p3 published = 2
-  // 2023: p1 published = 1
-  assert.strictEqual(published['2024-25'], 2);
-  assert.strictEqual(published['2023-24'], 1);
+  // AY 2024-25: p3 published = 1
+  // AY 2023-24: p1, p2 published = 2
+  assert.strictEqual(published['2024-25'], 1);
+  assert.strictEqual(published['2023-24'], 2);
 
-  // 2024: p1, p3 granted = 2
-  // 2023: 0 granted
+  // AY 2024-25: p1, p3 granted = 2
+  // AY 2023-24: 0 granted
   assert.strictEqual(granted['2024-25'], 2);
   assert.strictEqual(granted['2023-24'], 0);
 });
 
-// ─── SUITE 4: SPONSORED RESEARCH FINANCIAL CALCULATIONS ─────────────────────
-console.log('\n--- Suite 4: Sponsored Research Financial Calculations ---');
+runTest('Never uses grantYear for publication event attribution', () => {
+  const p = { id: 'p4', publishedDate: null, grantYear: 2024, approvalStatus: 'approved' };
+  const pubAY = dateToAcademicYear(p.publishedDate);
+  assert.strictEqual(pubAY, null); // Cannot assume publication from grantYear
+});
+
+// ─── SUITE 4: SPONSORED RESEARCH FINANCIAL & DISTINCT FUNDING AGENCY ─────────
+console.log('\n--- Suite 4: Sponsored Research Financial & Distinct Funding Agency Calculations ---');
 
 runTest('CRITICAL: Total Amount Received uses sanctionedAmount, NOT amountReceived', () => {
   const projects = [
@@ -172,25 +196,131 @@ runTest('CRITICAL: Total Amount Received uses sanctionedAmount, NOT amountReceiv
 
   let sumSanctioned = 0;
   let sumAmountReceived = 0;
-  const agencies = new Set();
 
   projects.forEach(p => {
     sumSanctioned += Number(p.sanctionedAmount);
     sumAmountReceived += Number(p.amountReceived);
-    agencies.add(p.fundingAgency.trim().toLowerCase());
   });
 
   // Report must strictly equal sum of sanctionedAmount (₹12,50,000)
   assert.strictEqual(sumSanctioned, 1250000);
   assert.notStrictEqual(sumSanctioned, sumAmountReceived);
   assert.strictEqual(numberToIndianWords(sumSanctioned), 'Twelve Lakh Fifty Thousand Rupees Only');
-  assert.strictEqual(agencies.size, 2);
 });
 
-runTest('Funding agencies normalization prevents duplicate counts on casing/spacing', () => {
-  const agencies = ['DST - SERB', 'dst - serb ', 'Dst - Serb', 'ICMR'];
-  const normSet = new Set(agencies.map(a => a.trim().toLowerCase().replace(/\s+/g, ' ')));
-  assert.strictEqual(normSet.size, 2); // 'dst - serb' and 'icmr'
+runTest('Case A: Duplicate agencies are counted once (DST, AICTE, DST, SERB, AICTE, ISRO -> 4)', () => {
+  const list = ['DST', 'AICTE', 'DST', 'SERB', 'AICTE', 'ISRO'];
+  const agencySet = new Set();
+  list.forEach(a => {
+    const canon = canonicalizeAgencyName(a);
+    if (canon) agencySet.add(canon);
+  });
+  assert.strictEqual(agencySet.size, 4);
+});
+
+runTest('Case B: Case and whitespace normalization (" AICTE ", "aicte", "AICTE" -> 1)', () => {
+  const list = [' AICTE ', 'aicte', 'AICTE'];
+  const agencySet = new Set();
+  list.forEach(a => {
+    const canon = canonicalizeAgencyName(a);
+    if (canon) agencySet.add(canon);
+  });
+  assert.strictEqual(agencySet.size, 1);
+});
+
+runTest('Case C: Verified national agency aliases map to same canonical identity ("All India Council for Technical Education" & "AICTE" -> 1)', () => {
+  const list = ['All India Council for Technical Education', 'AICTE', 'aicte'];
+  const agencySet = new Set();
+  list.forEach(a => {
+    const canon = canonicalizeAgencyName(a);
+    if (canon) agencySet.add(canon);
+  });
+  assert.strictEqual(agencySet.size, 1);
+  assert.ok(agencySet.has('aicte'));
+});
+
+runTest('Case D: Missing agencies (DST, null, "", "   ", AICTE) -> 2 distinct agencies, 3 missing records flagged', () => {
+  const list = ['DST', null, '', '   ', 'AICTE'];
+  const agencySet = new Set();
+  let missingCount = 0;
+
+  list.forEach(a => {
+    const canon = canonicalizeAgencyName(a);
+    if (canon) {
+      agencySet.add(canon);
+    } else {
+      missingCount++;
+    }
+  });
+
+  assert.strictEqual(agencySet.size, 2);
+  assert.strictEqual(missingCount, 3);
+});
+
+runTest('Case E: Multiple departments isolation: distinct agency count is scoped properly', () => {
+  const projects = [
+    { department: 'Computer Science and Engineering', fundingAgency: 'AICTE' },
+    { department: 'Computer Science and Engineering', fundingAgency: 'DST' },
+    { department: 'Mechanical Engineering', fundingAgency: 'AICTE' },
+    { department: 'Mechanical Engineering', fundingAgency: 'DRDO' }
+  ];
+
+  // Scoped to CSE
+  const cseAgencies = new Set(
+    projects.filter(p => p.department === 'Computer Science and Engineering')
+      .map(p => canonicalizeAgencyName(p.fundingAgency))
+  );
+  assert.strictEqual(cseAgencies.size, 2); // AICTE, DST
+
+  // Scoped to MECH
+  const mechAgencies = new Set(
+    projects.filter(p => p.department === 'Mechanical Engineering')
+      .map(p => canonicalizeAgencyName(p.fundingAgency))
+  );
+  assert.strictEqual(mechAgencies.size, 2); // AICTE, DRDO
+
+  // University-wide (NOT sum of department counts: 2 + 2 = 4, but AICTE is common, so 3 distinct)
+  const uniAgencies = new Set(projects.map(p => canonicalizeAgencyName(p.fundingAgency)));
+  assert.strictEqual(uniAgencies.size, 3); // AICTE, DST, DRDO
+  assert.notStrictEqual(uniAgencies.size, cseAgencies.size + mechAgencies.size);
+});
+
+runTest('Case F: Multiple academic years isolation: distinct agency count is independent per AY column', () => {
+  const projects = [
+    { academicYear: '2024-2025', fundingAgency: 'DST' },
+    { academicYear: '2024-2025', fundingAgency: 'SERB' },
+    { academicYear: '2023-2024', fundingAgency: 'DST' },
+    { academicYear: '2023-2024', fundingAgency: 'ISRO' }
+  ];
+
+  const y24 = new Set(
+    projects.filter(p => normalizeReportingPeriod(p.academicYear) === '2024-25')
+      .map(p => canonicalizeAgencyName(p.fundingAgency))
+  );
+  const y23 = new Set(
+    projects.filter(p => normalizeReportingPeriod(p.academicYear) === '2023-24')
+      .map(p => canonicalizeAgencyName(p.fundingAgency))
+  );
+
+  assert.strictEqual(y24.size, 2); // DST, SERB
+  assert.strictEqual(y23.size, 2); // DST, ISRO
+  // Columns must never sum across years
+});
+
+runTest('Case G: Approval status filtering: only eligible approved records counted', () => {
+  const projects = [
+    { approvalStatus: 'approved', fundingAgency: 'DST' },
+    { approvalStatus: 'pending', fundingAgency: 'SERB' },
+    { approvalStatus: 'rejected', fundingAgency: 'ISRO' }
+  ];
+
+  const allowedStatuses = ['approved'];
+  const eligibleAgencies = new Set(
+    projects.filter(p => allowedStatuses.includes(p.approvalStatus))
+      .map(p => canonicalizeAgencyName(p.fundingAgency))
+  );
+  assert.strictEqual(eligibleAgencies.size, 1);
+  assert.ok(eligibleAgencies.has('dst'));
 });
 
 // ─── SUITE 5: CONSULTANCY PROJECT FINANCIAL CALCULATIONS ────────────────────
@@ -233,15 +363,15 @@ runTest('Spreadsheet sanitizer neutralizes formula injection triggers (=, +, -, 
   assert.strictEqual(sanitizeSpreadsheetCell(1250000), 1250000);
 });
 
-runTest('Generates valid Excel workbook buffer with required sheets', () => {
+runTest('Generates valid Excel workbook buffer with Academic Year (AY) headers and no CY/FY', () => {
   const sampleData = {
     scopeDisplay: 'University-wide',
     periods: [
-      { key: '2024-25', cyLabel: 'CY 2024', fyLabel: 'FY 2024–25' },
-      { key: '2023-24', cyLabel: 'CY 2023', fyLabel: 'FY 2023–24' }
+      { key: '2024-25', ayLabel: 'AY 2024–25', cyLabel: 'AY 2024–25', fyLabel: 'AY 2024–25' },
+      { key: '2023-24', ayLabel: 'AY 2023–24', cyLabel: 'AY 2023–24', fyLabel: 'AY 2023–24' }
     ],
     sections: ['ipr', 'sponsored', 'consultancy'],
-    generatedAt: '04/11/2026, 11:00 PM',
+    generatedAt: '05/11/2026, 02:00 PM',
     iprMetrics: {
       publishedByPeriod: { '2024-25': 5, '2023-24': 3 },
       grantedByPeriod: { '2024-25': 2, '2023-24': 1 }
@@ -270,7 +400,7 @@ runTest('Generates valid Excel workbook buffer with required sheets', () => {
       {
         section: 'IPR Details',
         metric: 'Patents Published',
-        period: 'CY 2024',
+        period: 'AY 2024–25',
         sourceId: 'p-1',
         title: 'Smart Sensor System',
         department: 'CSE',
@@ -291,20 +421,30 @@ runTest('Generates valid Excel workbook buffer with required sheets', () => {
   const wb = XLSX.read(excelBuf, { type: 'buffer' });
   assert.ok(wb.SheetNames.includes('Research & Innovation Report'));
   assert.ok(wb.SheetNames.includes('Contributing Records'));
+
+  // Inspect raw rows in the first sheet to verify AY headers
+  const mainSheet = wb.Sheets['Research & Innovation Report'];
+  const sheetJson = XLSX.utils.sheet_to_json(mainSheet, { header: 1 });
+  const allText = JSON.stringify(sheetJson);
+
+  assert.ok(allText.includes('AY 2024–25'));
+  assert.ok(allText.includes('AY 2023–24'));
+  assert.ok(!allText.includes('CY 2024'));
+  assert.ok(!allText.includes('FY 2024–25'));
 });
 
 // ─── SUITE 7: PDF REPORT EXPORT ─────────────────────────────────────────────
-console.log('\n--- Suite 7: PDF Report Generation & Formatting ---');
+console.log('\n--- Suite 7: PDF Report Generation & AY Parity ---');
 
-runTest('Generates standard PDF 1.4 document buffer', () => {
+runTest('Generates standard PDF 1.4 document buffer with Academic Year headings', () => {
   const sampleData = {
     scopeDisplay: 'University-wide',
     periods: [
-      { key: '2024-25', cyLabel: 'CY 2024', fyLabel: 'FY 2024–25' },
-      { key: '2023-24', cyLabel: 'CY 2023', fyLabel: 'FY 2023–24' }
+      { key: '2024-25', ayLabel: 'AY 2024–25', cyLabel: 'AY 2024–25', fyLabel: 'AY 2024–25' },
+      { key: '2023-24', ayLabel: 'AY 2023–24', cyLabel: 'AY 2023–24', fyLabel: 'AY 2023–24' }
     ],
     sections: ['ipr', 'sponsored'],
-    generatedAt: '04/11/2026, 11:00 PM',
+    generatedAt: '05/11/2026, 02:00 PM',
     iprMetrics: {
       publishedByPeriod: { '2024-25': 4, '2023-24': 2 },
       grantedByPeriod: { '2024-25': 1, '2023-24': 1 }
@@ -331,6 +471,10 @@ runTest('Generates standard PDF 1.4 document buffer', () => {
   assert.ok(fullPdfStr.includes('CHRIST \\(DEEMED TO BE UNIVERSITY\\)'));
   assert.ok(fullPdfStr.includes('INTERNAL QUALITY ASSURANCE CELL'));
   assert.ok(fullPdfStr.includes('Twelve Lakh Fifty Thousand Rupees Only'));
+  // Note: in PDF string escaping, en-dash in UTF-8 or WinAnsi is encoded, but let's check AY is present
+  assert.ok(fullPdfStr.includes('AY 2024'));
+  assert.ok(!fullPdfStr.includes('CY 2024'));
+  assert.ok(!fullPdfStr.includes('FY 2024'));
 });
 
 // ─── SUMMARY ────────────────────────────────────────────────────────────────

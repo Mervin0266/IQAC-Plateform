@@ -37,6 +37,7 @@ interface ResearchReportGeneratorDialogProps {
 interface PeriodItem {
   key: string;
   label: string;
+  ayLabel?: string;
   cyLabel: string;
   fyLabel: string;
   startYear?: number;
@@ -107,11 +108,11 @@ export function ResearchReportGeneratorDialog({
 
   // Configuration options from server
   const [availablePeriods, setAvailablePeriods] = useState<PeriodItem[]>([
-    { key: '2024-25', label: '2024–25', cyLabel: 'CY 2024', fyLabel: 'FY 2024–25', startYear: 2024 },
-    { key: '2023-24', label: '2023–24', cyLabel: 'CY 2023', fyLabel: 'FY 2023–24', startYear: 2023 },
-    { key: '2022-23', label: '2022–23', cyLabel: 'CY 2022', fyLabel: 'FY 2022–23', startYear: 2022 },
-    { key: '2021-22', label: '2021–22', cyLabel: 'CY 2021', fyLabel: 'FY 2021–22', startYear: 2021 },
-    { key: '2020-21', label: '2020–21', cyLabel: 'CY 2020', fyLabel: 'FY 2020–21', startYear: 2020 }
+    { key: '2024-25', label: 'AY 2024–25', ayLabel: 'AY 2024–25', cyLabel: 'AY 2024–25', fyLabel: 'AY 2024–25', startYear: 2024 },
+    { key: '2023-24', label: 'AY 2023–24', ayLabel: 'AY 2023–24', cyLabel: 'AY 2023–24', fyLabel: 'AY 2023–24', startYear: 2023 },
+    { key: '2022-23', label: 'AY 2022–23', ayLabel: 'AY 2022–23', cyLabel: 'AY 2022–23', fyLabel: 'AY 2022–23', startYear: 2022 },
+    { key: '2021-22', label: 'AY 2021–22', ayLabel: 'AY 2021–22', cyLabel: 'AY 2021–22', fyLabel: 'AY 2021–22', startYear: 2021 },
+    { key: '2020-21', label: 'AY 2020–21', ayLabel: 'AY 2020–21', cyLabel: 'AY 2020–21', fyLabel: 'AY 2020–21', startYear: 2020 }
   ]);
   const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
   const [isPrivilegedRole, setIsPrivilegedRole] = useState(false);
@@ -512,7 +513,7 @@ export function ResearchReportGeneratorDialog({
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-bold text-slate-900 leading-tight">IPR Details</div>
                       <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                        Patents Published & Granted (Calendar Year)
+                        Patents Published & Granted (Academic Year)
                       </div>
                     </div>
                   </label>
@@ -533,7 +534,7 @@ export function ResearchReportGeneratorDialog({
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-bold text-slate-900 leading-tight">Sponsored Research Details</div>
                       <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                        Projects, Funding Agencies, Sanctioned Funding (FY)
+                        Projects, Funding Agencies, Sanctioned Funding (Academic Year)
                       </div>
                     </div>
                   </label>
@@ -554,7 +555,7 @@ export function ResearchReportGeneratorDialog({
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-bold text-slate-900 leading-tight">Consultancy Project Details</div>
                       <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                        Projects, Client Orgs, Contract Values in INR (FY)
+                        Projects, Client Orgs, Contract Values in INR (Academic Year)
                       </div>
                     </div>
                   </label>
@@ -566,7 +567,7 @@ export function ResearchReportGeneratorDialog({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-[#2855B9]" />
-                    <h3 className="text-sm font-bold text-slate-900">2. Common Reporting Years</h3>
+                    <h3 className="text-sm font-bold text-slate-900">2. Select Academic Years</h3>
                     <span className="text-[11px] text-slate-500">(Multi-select, newest first)</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs">
@@ -592,7 +593,7 @@ export function ResearchReportGeneratorDialog({
                   <Info className="w-4 h-4 text-[#2855B9] shrink-0 mt-0.5" />
                   <div>
                     <span className="font-semibold text-slate-800">Display Convention: </span>
-                    IPR columns display <strong>Calendar Year (CY)</strong>. Sponsored Research & Consultancy columns display <strong>Financial Year (FY)</strong> using verified year-range grouping. Never labeled Academic Year.
+                    All sections (IPR, Sponsored Research, Consultancy) are standardized to <strong>Academic Year (AY YYYY–YY)</strong> using institutional reporting boundaries (June 1 – May 31).
                   </div>
                 </div>
 
@@ -614,8 +615,8 @@ export function ResearchReportGeneratorDialog({
                         />
                         <span className="font-bold text-slate-900">{period.label}</span>
                       </div>
-                      <span className="text-[11px] text-slate-500 font-normal shrink-0 ml-2 bg-slate-100/80 px-2 py-0.5 rounded-md border border-slate-200/60">
-                        {period.cyLabel} / {period.fyLabel}
+                      <span className="text-[11px] text-[#2855B9] font-medium shrink-0 ml-2 bg-blue-50/80 px-2 py-0.5 rounded-md border border-blue-200/60">
+                        {period.ayLabel || period.label}
                       </span>
                     </label>
                   ))}
@@ -870,7 +871,7 @@ export function ResearchReportGeneratorDialog({
                     </div>
                     <div className="text-xs text-slate-600 flex flex-wrap gap-4">
                       <span><strong>Scope:</strong> {previewData.scopeDisplay}</span>
-                      <span><strong>Reporting Periods:</strong> {previewData.periods.map(p => p.fyLabel).join(', ')}</span>
+                      <span><strong>Reporting Periods:</strong> {previewData.periods.map(p => p.ayLabel || p.label).join(', ')}</span>
                     </div>
                   </div>
 
@@ -901,7 +902,7 @@ export function ResearchReportGeneratorDialog({
                         <h4 className="text-xs font-bold text-[#1C355B] uppercase tracking-wider">
                           1. IPR Details (Patents & Intellectual Property)
                         </h4>
-                        <span className="text-[11px] text-slate-500">Columns in Calendar Year (CY)</span>
+                        <span className="text-[11px] text-slate-500">Columns in Academic Year (AY)</span>
                       </div>
                       <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
                         <table className="w-full text-xs text-left min-w-[500px]">
@@ -910,7 +911,7 @@ export function ResearchReportGeneratorDialog({
                               <th className="py-2.5 px-3.5 font-bold">Metric / Particulars</th>
                               {previewData.periods.map(p => (
                                 <th key={p.key} className="py-2.5 px-3.5 font-bold text-center">
-                                  {p.cyLabel}
+                                  {p.ayLabel || p.label}
                                 </th>
                               ))}
                             </tr>
@@ -945,7 +946,7 @@ export function ResearchReportGeneratorDialog({
                         <h4 className="text-xs font-bold text-[#1C355B] uppercase tracking-wider">
                           {selectedSections.includes('ipr') ? '2' : '1'}. Sponsored Research Details (Research Grants)
                         </h4>
-                        <span className="text-[11px] text-slate-500">Columns in Financial Year (FY)</span>
+                        <span className="text-[11px] text-slate-500">Columns in Academic Year (AY)</span>
                       </div>
                       <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
                         <table className="w-full text-xs text-left min-w-[500px]">
@@ -954,7 +955,7 @@ export function ResearchReportGeneratorDialog({
                               <th className="py-2.5 px-3.5 font-bold">Metric / Particulars</th>
                               {previewData.periods.map(p => (
                                 <th key={p.key} className="py-2.5 px-3.5 font-bold text-center">
-                                  {p.fyLabel}
+                                  {p.ayLabel || p.label}
                                 </th>
                               ))}
                             </tr>
@@ -1012,7 +1013,7 @@ export function ResearchReportGeneratorDialog({
                         <h4 className="text-xs font-bold text-[#1C355B] uppercase tracking-wider">
                           {selectedSections.length === 3 ? '3' : (selectedSections.includes('ipr') || selectedSections.includes('sponsored') ? '2' : '1')}. Consultancy Project Details
                         </h4>
-                        <span className="text-[11px] text-slate-500">Columns in Financial Year (FY)</span>
+                        <span className="text-[11px] text-slate-500">Columns in Academic Year (AY)</span>
                       </div>
                       <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
                         <table className="w-full text-xs text-left min-w-[500px]">
@@ -1021,7 +1022,7 @@ export function ResearchReportGeneratorDialog({
                               <th className="py-2.5 px-3.5 font-bold">Metric / Particulars</th>
                               {previewData.periods.map(p => (
                                 <th key={p.key} className="py-2.5 px-3.5 font-bold text-center">
-                                  {p.fyLabel}
+                                  {p.ayLabel || p.label}
                                 </th>
                               ))}
                             </tr>

@@ -106,14 +106,14 @@ function buildResearchReportPdf({
   const metaBoxHeight = 32;
   rect(margin, currentY - metaBoxHeight, contentWidth, metaBoxHeight, [0.96, 0.97, 0.99], [0.85, 0.88, 0.92]);
   
-  const periodLabels = periods.map(p => p.fyLabel || p.key).join(', ');
+  const periodLabels = periods.map(p => p.ayLabel || p.label || p.key).join(', ');
   text(`Scope: ${scopeDisplay}`, margin + 8, currentY - 14, 'F2', 8.5, [0.2, 0.25, 0.35]);
   text(`Reporting Periods: ${periodLabels}`, margin + 8, currentY - 26, 'F1', 8, [0.35, 0.4, 0.45]);
   text(`Generated: ${generatedAt}`, margin + contentWidth - 180, currentY - 14, 'F1', 8, [0.35, 0.4, 0.45]);
   currentY -= (metaBoxHeight + 16);
 
   // Helper for dynamic table rendering
-  function renderComparativeTable(title, cyOrFy, rows, note = null) {
+  function renderComparativeTable(title, rows, note = null) {
     checkSpace(80);
 
     // Section Title
@@ -131,7 +131,7 @@ function buildResearchReportPdf({
 
     periods.forEach((p, idx) => {
       const colX = margin + labelColWidth + (idx * periodColWidth);
-      const colLabel = cyOrFy === 'CY' ? p.cyLabel : p.fyLabel;
+      const colLabel = p.ayLabel || p.label || p.key;
       text(colLabel, colX + 8, currentY - 15, 'F2', 8.5, [1, 1, 1]);
     });
     currentY -= headerHeight;
@@ -189,7 +189,7 @@ function buildResearchReportPdf({
         values: iprMetrics.grantedByPeriod || {}
       }
     ];
-    renderComparativeTable('1. IPR Details (Patents & Intellectual Property)', 'CY', rows);
+    renderComparativeTable('1. IPR Details (Patents & Intellectual Property)', rows);
   }
 
   // --- SECTION 2: SPONSORED RESEARCH DETAILS ---
@@ -219,7 +219,7 @@ function buildResearchReportPdf({
       }
     ];
     const note = '* Note: Total Amount Received reflects sum of sanctioned funding amounts in accordance with IQAC reporting guidelines.';
-    renderComparativeTable(secTitle, 'FY', rows, note);
+    renderComparativeTable(secTitle, rows, note);
   }
 
   // --- SECTION 3: CONSULTANCY PROJECT DETAILS ---
@@ -250,7 +250,7 @@ function buildResearchReportPdf({
       }
     ];
     const note = '* Note: Total Amount Received reflects sum of contract values (in Lakhs converted to INR) in accordance with IQAC reporting guidelines.';
-    renderComparativeTable(secTitle, 'FY', rows, note);
+    renderComparativeTable(secTitle, rows, note);
   }
 
   // --- OPTIONAL SOURCE BREAKDOWN APPENDIX ---

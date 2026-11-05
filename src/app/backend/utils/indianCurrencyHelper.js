@@ -149,26 +149,58 @@ function normalizeReportingPeriod(val) {
 }
 
 /**
- * Derives Calendar Year display label (e.g. "CY 2024") from period key "2024-25".
+ * Derives Academic Year display label (e.g. "AY 2024–25") from period key "2024-25".
+ * Uses en-dash.
  * @param {string} periodKey - e.g. "2024-25"
- * @returns {string} "CY 2024"
+ * @returns {string} "AY 2024–25"
  */
-function periodToCYDisplay(periodKey) {
+function periodToAYDisplay(periodKey) {
   if (!periodKey) return '—';
-  const startYear = periodKey.split('-')[0];
-  return `CY ${startYear}`;
+  const parts = periodKey.split('-');
+  return `AY ${parts[0]}–${parts[1]}`;
 }
 
 /**
- * Derives Financial Year display label (e.g. "FY 2024–25") from period key "2024-25".
- * Uses en-dash.
+ * Derives normalized Academic Year key (e.g. "2024-25") from a Date or ISO date string
+ * using the institutional academic year calendar boundary (June 1 to May 31).
+ * 
+ * - June 1, 2024 to May 31, 2025 => "2024-25" (AY 2024–25)
+ * - Jan 1, 2024 to May 31, 2024 => "2023-24" (AY 2023–24)
+ * 
+ * @param {string|Date|null} dateInput
+ * @returns {string|null} Normalized period key e.g. "2024-25" or null if invalid
+ */
+function dateToAcademicYear(dateInput) {
+  if (!dateInput) return null;
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return null;
+
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1; // 1-12
+
+  // Institutional academic year boundary: June 1 to May 31
+  const startYear = month >= 6 ? year : year - 1;
+  const endYear = startYear + 1;
+
+  return `${startYear}-${String(endYear).slice(-2)}`;
+}
+
+/**
+ * Standardized Academic Year display label (formerly CY).
  * @param {string} periodKey - e.g. "2024-25"
- * @returns {string} "FY 2024–25"
+ * @returns {string} "AY 2024–25"
+ */
+function periodToCYDisplay(periodKey) {
+  return periodToAYDisplay(periodKey);
+}
+
+/**
+ * Standardized Academic Year display label (formerly FY).
+ * @param {string} periodKey - e.g. "2024-25"
+ * @returns {string} "AY 2024–25"
  */
 function periodToFYDisplay(periodKey) {
-  if (!periodKey) return '—';
-  const parts = periodKey.split('-');
-  return `FY ${parts[0]}–${parts[1]}`;
+  return periodToAYDisplay(periodKey);
 }
 
 /**
@@ -188,6 +220,8 @@ module.exports = {
   normalizeReportingPeriod,
   periodToCYDisplay,
   periodToFYDisplay,
-  periodToStartYear
+  periodToAYDisplay,
+  periodToStartYear,
+  dateToAcademicYear
 };
 
