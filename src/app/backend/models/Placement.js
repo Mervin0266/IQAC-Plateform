@@ -37,7 +37,7 @@ const Placement = sequelize.define('Placement', {
   },
   package: {
     type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
+    allowNull: true
   },
   placementType: {
     type: DataTypes.ENUM('placement', 'internship'),
@@ -49,6 +49,26 @@ const Placement = sequelize.define('Placement', {
     allowNull: true
   },
   location: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  campus: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  school: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  offerLetterUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  offerLetterFileName: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  offerLetterDriveId: {
     type: DataTypes.STRING,
     allowNull: true
   },

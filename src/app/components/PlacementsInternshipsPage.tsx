@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Sidebar } from './Sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -7,7 +7,8 @@ import {
   Users, BarChart3, Upload, Filter, RotateCcw, Search, Download,
   Plus, Edit, Trash2, Eye, X, CheckCircle, Clock, AlertCircle,
   LayoutGrid, Table as TableIcon, Calendar, GraduationCap, MapPin,
-  ExternalLink, Sparkles, ChevronRight, FileSpreadsheet, RefreshCw, AlertTriangle
+  ExternalLink, Sparkles, ChevronRight, FileSpreadsheet, RefreshCw, AlertTriangle,
+  Paperclip, FileText
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -38,10 +39,15 @@ export interface PlacementItem {
   batch: string;
   company: string;
   role?: string;
-  package: number | string;
+  package: number | string | null;
   placementType: 'placement' | 'internship';
   placementDate?: string | null;
   location?: string | null;
+  campus?: string | null;
+  school?: string | null;
+  offerLetterUrl?: string | null;
+  offerLetterFileName?: string | null;
+  offerLetterDriveId?: string | null;
   createdAt?: string;
   creator?: {
     id: string;
@@ -113,6 +119,8 @@ export function PlacementsInternshipsPage({
   const [formLoading, setFormLoading] = useState(false);
 
   const [viewingItem, setViewingItem] = useState<PlacementItem | null>(null);
+  const [offerLetterLoading, setOfferLetterLoading] = useState(false);
+  const detailOfferLetterInputRef = useRef<HTMLInputElement>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [isClearOpen, setIsClearOpen] = useState(false);
@@ -139,6 +147,127 @@ export function PlacementsInternshipsPage({
       alert('Network error while clearing placements');
     } finally {
       setClearLoading(false);
+    }
+  };
+
+  const handleViewOfferLetter = async (item: PlacementItem) => {
+    if (!item) return;
+    if (item.offerLetterUrl && (item.offerLetterUrl.startsWith('http') || item.offerLetterUrl.startsWith('data:'))) {
+      window.open(item.offerLetterUrl, '_blank');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/placements/${item.id}/offer-letter/file`, {
+        headers: { Authorization: `Bearer ${effectiveToken}` }
+      });
+      if (!res.ok) {
+        alert('Could not open offer letter file.');
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch (err) {
+      console.error('Failed to view offer letter', err);
+      alert('Failed to view offer letter file.');
+    }
+  };
+
+  const handleDownloadOfferLetter = async (item: PlacementItem) => {
+    if (!item) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/placements/${item.id}/offer-letter/file`, {
+        headers: { Authorization: `Bearer ${effectiveToken}` }
+      });
+      if (!res.ok) {
+        alert('Could not download offer letter file.');
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = item.offerLetterFileName || `Offer_Letter_${item.studentId || item.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Failed to download offer letter', err);
+      alert('Failed to download offer letter.');
+    }
+  };
+
+  const handleUploadOfferLetterInDetail = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !viewingItem) return;
+
+    const validExtensions = ['.pdf', '.jpg', '.jpeg', '.png'];
+    const lowerName = file.name.toLowerCase();
+    const hasValidExt = validExtensions.some(ext => lowerName.endsWith(ext));
+    if (!hasValidExt) {
+      alert('Invalid file format. Please upload a PDF, JPG, or PNG document.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size exceeds the 10MB limit.');
+      return;
+    }
+
+    try {
+      setOfferLetterLoading(true);
+      const fd = new FormData();
+      fd.append('offerLetter', file);
+
+      const res = await fetch(`${API_BASE}/api/placements/${viewingItem.id}/offer-letter`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${effectiveToken}`
+        },
+        body: fd
+      });
+      const data = await res.json();
+      if (data.success && data.placement) {
+        const updated = data.placement;
+        setViewingItem(prev => (prev ? { ...prev, ...updated } : null));
+        setPlacements(prev => prev.map(p => (p.id === updated.id ? { ...p, ...updated } : p)));
+      } else {
+        alert(data.message || 'Failed to upload offer letter.');
+      }
+    } catch (err) {
+      console.error('Error uploading offer letter:', err);
+      alert('Failed to upload offer letter.');
+    } finally {
+      setOfferLetterLoading(false);
+      if (detailOfferLetterInputRef.current) {
+        detailOfferLetterInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteOfferLetterInDetail = async () => {
+    if (!viewingItem) return;
+    if (!window.confirm('Are you sure you want to remove the offer letter document for this candidate?')) return;
+
+    try {
+      setOfferLetterLoading(true);
+      const res = await fetch(`${API_BASE}/api/placements/${viewingItem.id}/offer-letter`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${effectiveToken}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setViewingItem(prev => (prev ? { ...prev, offerLetterUrl: null, offerLetterFileName: null, offerLetterDriveId: null } : null));
+        setPlacements(prev => prev.map(p => (p.id === viewingItem.id ? { ...p, offerLetterUrl: null, offerLetterFileName: null, offerLetterDriveId: null } : p)));
+      } else {
+        alert(data.message || 'Failed to remove offer letter.');
+      }
+    } catch (err) {
+      console.error('Error deleting offer letter:', err);
+      alert('Failed to remove offer letter.');
+    } finally {
+      setOfferLetterLoading(false);
     }
   };
 
@@ -222,17 +351,19 @@ export function PlacementsInternshipsPage({
   }, [placements]);
 
   // Format LPA
-  const formatLPA = (val: number | string) => {
-    const num = parseFloat(String(val || 0));
-    if (!num || isNaN(num)) return '₹ 0.0 LPA';
-    const lpa = num > 1000 ? num / 100000 : num;
-    return `₹ ${lpa.toFixed(1).replace(/\.0$/, '')} LPA`;
+  const formatLPA = (val: number | string | null | undefined) => {
+    if (val === null || val === undefined || val === '') return '₹ 0.0 LPA';
+    const num = parseFloat(String(val));
+    if (isNaN(num)) return '₹ 0.0 LPA';
+    return `₹ ${num.toFixed(1).replace(/\.0$/, '')} LPA`;
   };
 
   // Format Stipend
-  const formatStipend = (val: number | string) => {
-    const num = parseFloat(String(val || 0));
-    if (!num || isNaN(num)) return '₹ 0 /mo';
+  const formatStipend = (val: number | string | null | undefined) => {
+    if (val === null || val === undefined || val === '') return 'Not Provided';
+    const num = parseFloat(String(val));
+    if (isNaN(num)) return 'Not Provided';
+    if (num === 0) return '₹0 (Unpaid)';
     return `₹ ${Math.round(num).toLocaleString('en-IN')} /mo`;
   };
 
@@ -906,8 +1037,13 @@ export function PlacementsInternshipsPage({
                       <tr key={item.id} className="hover:bg-[#F1F5F9] transition-colors group">
                         {/* Student Details */}
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-900 group-hover:text-[#2855B9] transition-colors">
-                            {item.studentName}
+                          <div className="font-semibold text-slate-900 group-hover:text-[#2855B9] transition-colors flex items-center gap-1.5">
+                            <span>{item.studentName}</span>
+                            {(item.offerLetterUrl || item.offerLetterFileName) && (
+                              <span title="Offer Letter Attached">
+                                <Paperclip className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] font-mono text-slate-500 mt-0.5">
                             Reg: {item.studentId}
@@ -1076,6 +1212,11 @@ export function PlacementsInternshipsPage({
                             </Badge>
                           )}
                           <span className="text-[11px] font-mono text-slate-500">{item.batch}</span>
+                          {(item.offerLetterUrl || item.offerLetterFileName) && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="Offer Letter Attached">
+                              <Paperclip className="w-2.5 h-2.5" /> Letter
+                            </span>
+                          )}
                         </div>
                         <CardTitle className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
                           {item.studentName}
@@ -1499,9 +1640,118 @@ export function PlacementsInternshipsPage({
                   <span className="font-semibold text-slate-800">{viewingItem.course || 'Undergraduate'}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-100">
+                  <span className="text-slate-500">Campus:</span>
+                  <span className="font-semibold text-slate-800">{viewingItem.campus || '-'}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-100">
+                  <span className="text-slate-500">School:</span>
+                  <span className="font-semibold text-slate-800">{viewingItem.school || '-'}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-100">
                   <span className="text-slate-500">Offer Date:</span>
                   <span className="font-mono text-slate-700">{viewingItem.placementDate || '-'}</span>
                 </div>
+              </div>
+
+              {/* Offer Letter Document Section */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase font-bold text-slate-500 flex items-center gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5 text-slate-600" />
+                    Offer Letter Document
+                  </span>
+                  {viewingItem.offerLetterUrl || viewingItem.offerLetterFileName ? (
+                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-medium">
+                      Attached
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-slate-500 border-slate-300 text-[10px]">
+                      Not Uploaded
+                    </Badge>
+                  )}
+                </div>
+
+                {viewingItem.offerLetterUrl || viewingItem.offerLetterFileName ? (
+                  <div className="flex items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center gap-2 min-w-0 mr-2">
+                      <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-mono text-xs text-slate-800 truncate" title={viewingItem.offerLetterFileName || 'Offer_Letter.pdf'}>
+                        {viewingItem.offerLetterFileName || 'Offer_Letter.pdf'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleViewOfferLetter(viewingItem)}
+                        className="h-7 px-2 text-xs text-blue-700 hover:bg-blue-50"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDownloadOfferLetter(viewingItem)}
+                        className="h-7 px-2 text-xs text-slate-700 hover:bg-slate-100"
+                      >
+                        <Download className="w-3.5 h-3.5 mr-1" />
+                        Download
+                      </Button>
+                      {isAdminOrCoordinator && (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={offerLetterLoading}
+                            onClick={() => detailOfferLetterInputRef.current?.click()}
+                            className="h-7 px-2 text-xs text-amber-700 hover:bg-amber-50"
+                          >
+                            Replace
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={offerLetterLoading}
+                            onClick={handleDeleteOfferLetterInDetail}
+                            className="h-7 px-2 text-xs text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between bg-white p-2.5 rounded-lg border border-dashed border-slate-300">
+                    <span className="text-slate-500 text-xs italic">No offer letter has been attached to this record yet.</span>
+                    {isAdminOrCoordinator && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={offerLetterLoading}
+                        onClick={() => detailOfferLetterInputRef.current?.click()}
+                        className="h-7 px-2 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50 shrink-0"
+                      >
+                        <Upload className="w-3.5 h-3.5 mr-1" />
+                        Upload File
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                <input
+                  type="file"
+                  ref={detailOfferLetterInputRef}
+                  style={{ display: 'none' }}
+                  accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                  onChange={handleUploadOfferLetterInDetail}
+                />
               </div>
 
               <DialogFooter className="pt-3">

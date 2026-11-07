@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
-import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info, Download, RefreshCw, Edit2, X, AlertCircle, ExternalLink, FolderOpen, FolderPlus, FolderUp, FilePlus, Eye, Award } from 'lucide-react';
+import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info, Download, RefreshCw, Edit2, X, AlertCircle, ExternalLink, FolderOpen, FolderPlus, FolderUp, FilePlus, Eye, Award, FileText } from 'lucide-react';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName, normalizeDesignationName } from './FacultyDetailsPage';
 import { CitationsBulkUploadFlow } from './CitationsBulkUploadFlow';
@@ -452,6 +452,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     linkedCount?: number;
     duplicatesCount?: number;
     errorsCount?: number;
+    offerLettersCount?: number;
     message?: string;
     success?: boolean;
     data?: any[];
@@ -487,10 +488,18 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const [selectedSchool, setSelectedSchool] = useState<string>('School of Engineering and Technology');
   const [selectedPublicationIndexing, setSelectedPublicationIndexing] = useState<string>('Scopus');
   const [selectedPublicationYear, setSelectedPublicationYear] = useState<string>('2024');
-  const [previewFilter, setPreviewFilter] = useState<'all' | 'ready' | 'needs_review' | 'duplicate'>('all');
+  const [previewFilter, setPreviewFilter] = useState<'all' | 'ready' | 'needs_review' | 'duplicate' | 'invalid'>('all');
   const [editingPublicationRow, setEditingPublicationRow] = useState<{ index: number; data: any } | null>(null);
   const [viewingPublicationRow, setViewingPublicationRow] = useState<{ index: number; data: any } | null>(null);
   const [publicationUploadMode, setPublicationUploadMode] = useState<'publications' | 'citations'>('publications');
+
+  // Placements & Internships V2.1 state
+  const [selectedPlacementType, setSelectedPlacementType] = useState<'placement' | 'internship'>('placement');
+  const [placementOfferLetterFiles, setPlacementOfferLetterFiles] = useState<Record<string, File>>({});
+  const [activePlacementTempId, setActivePlacementTempId] = useState<string | null>(null);
+  const [isVerifyingPlacements, setIsVerifyingPlacements] = useState<boolean>(false);
+  const [placementVerificationSummary, setPlacementVerificationSummary] = useState<any>(null);
+  const placementFileInputRef = useRef<HTMLInputElement>(null);
 
   // Publications Multi-File & Folder upload state
   const [publicationFiles, setPublicationFiles] = useState<PublicationFileItem[]>([]);
@@ -545,8 +554,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     setSelectedAcademicYear('2024-2025');
     setSelectedCampus('Kengeri Campus');
     setSelectedSchool('School of Engineering and Technology');
+    setSelectedPlacementType('placement');
+    setPlacementOfferLetterFiles({});
+    setActivePlacementTempId(null);
+    setIsVerifyingPlacements(false);
+    setPlacementVerificationSummary(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    if (placementFileInputRef.current) {
+      placementFileInputRef.current.value = '';
     }
     if (multiFileInputRef.current) {
       multiFileInputRef.current.value = '';
@@ -603,11 +620,14 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         `ECE,"Electronics and Communication Engineering","Dr. Priya Sharma","hod.ece@christuniversity.in",2006,"080-1234568","Focus on Signal Processing, VLSI Design, and Embedded Systems."`;
       fileName = 'departments_bulk_template.csv';
     } else if (isPlacement) {
+      const isIntern = selectedPlacementType === 'internship';
       csvContent =
-        "Register Number,Name,AY (Academic Year),Department,Course,Company,Package\n" +
-        "\"2460301\",\"Aarav Sharma\",\"2024-2025\",\"Computer Science and Engineering\",\"BTech in Computer Science and Engineering\",\"Google\",12.50\n" +
-        "\"2460302\",\"Ananya Rao\",\"2024-2025\",\"AI and Data Science Engineering\",\"BTech (Artificial Intelligence and Machine Learning)\",\"Samsung\",8.50";
-      fileName = 'placements_bulk_template.csv';
+        "Register Number,Name,Department,Program,Designation/Role,Company,Package\n" +
+        (isIntern
+          ? "\"2447002\",\"Jane Smith\",\"Computer Science and Engineering\",\"B.Tech Computer Science and Engineering\",\"Frontend Developer Intern\",\"Microsoft India\",45000\n\"2447003\",\"Arun Kumar\",\"Electronics and Communication Engineering\",\"B.Tech Electronics and Communication Engineering\",\"Hardware Intern\",\"Texas Instruments\",0"
+          : "\"2447001\",\"John Doe\",\"Computer Science and Engineering\",\"B.Tech Computer Science and Engineering\",\"Software Development Engineer\",\"Google India\",14.50\n\"2447004\",\"Priya Sharma\",\"AI and Data Science Engineering\",\"B.Tech (Artificial Intelligence and Machine Learning)\",\"Data Engineer\",\"Samsung R&D\",8.50"
+        );
+      fileName = isIntern ? 'internships_bulk_template.csv' : 'placements_bulk_template.csv';
     } else if (isDepartmentalActivity) {
       csvContent =
         DEPARTMENTAL_ACTIVITY_MATRIX_HEADERS.map(h => `"${h}"`).join(',') + '\n' +
@@ -692,12 +712,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       ];
       fileName = 'departments_bulk_template.xlsx';
     } else if (isPlacement) {
-      headers = ['Register Number', 'Name', 'AY (Academic Year)', 'Department', 'Course', 'Company', 'Package'];
-      sampleRows = [
-        ['2460301', 'Aarav Sharma', '2024-2025', 'Computer Science and Engineering', 'BTech in Computer Science and Engineering', 'Google', 12.50],
-        ['2460302', 'Ananya Rao', '2024-2025', 'AI and Data Science Engineering', 'BTech (Artificial Intelligence and Machine Learning)', 'Samsung', 8.50]
+      const isIntern = selectedPlacementType === 'internship';
+      headers = ['Register Number', 'Name', 'Department', 'Program', 'Designation/Role', 'Company', 'Package'];
+      sampleRows = isIntern ? [
+        ['2447002', 'Jane Smith', 'Computer Science and Engineering', 'B.Tech Computer Science and Engineering', 'Frontend Developer Intern', 'Microsoft India', 45000],
+        ['2447003', 'Arun Kumar', 'Electronics and Communication Engineering', 'B.Tech Electronics and Communication Engineering', 'Hardware Intern', 'Texas Instruments', 0]
+      ] : [
+        ['2447001', 'John Doe', 'Computer Science and Engineering', 'B.Tech Computer Science and Engineering', 'Software Development Engineer', 'Google India', 14.50],
+        ['2447004', 'Priya Sharma', 'AI and Data Science Engineering', 'B.Tech (Artificial Intelligence and Machine Learning)', 'Data Engineer', 'Samsung R&D', 8.50]
       ];
-      fileName = 'placements_bulk_template.xlsx';
+      fileName = isIntern ? 'internships_bulk_template.xlsx' : 'placements_bulk_template.xlsx';
     } else if (isDepartmentalActivity) {
       headers = DEPARTMENTAL_ACTIVITY_MATRIX_HEADERS;
       sampleRows = [
@@ -1384,6 +1408,24 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       if (!hasTitle) missing.push('Title');
       if (!hasAuthor) missing.push('Authors / Author full names');
       if (!hasJournal) missing.push('Source title (Journal Name)');
+    } else if (isPlacement) {
+      const lowerHeaders = headers.map(h => h.toLowerCase().trim());
+      const hasReg = lowerHeaders.some(h => h === 'register number' || h === 'reg no' || h === 'register no' || h === 'studentid');
+      const hasName = lowerHeaders.some(h => h === 'name' || h === 'student name' || h === 'studentname');
+      const hasDept = lowerHeaders.some(h => h === 'department' || h === 'dept');
+      const hasProgram = lowerHeaders.some(h => h === 'program' || h === 'course' || h === 'degree');
+      const hasRole = lowerHeaders.some(h => h === 'designation/role' || h === 'designation' || h === 'role' || h === 'job title');
+      const hasCompany = lowerHeaders.some(h => h === 'company' || h === 'recruiter' || h === 'organization');
+      const hasPackage = lowerHeaders.some(h => h === 'package' || h === 'stipend' || h === 'ctc' || h === 'salary');
+
+      missing = [];
+      if (!hasReg) missing.push('Register Number');
+      if (!hasName) missing.push('Name');
+      if (!hasDept) missing.push('Department');
+      if (!hasProgram) missing.push('Program');
+      if (!hasRole) missing.push('Designation/Role');
+      if (!hasCompany) missing.push('Company');
+      if (selectedPlacementType === 'placement' && !hasPackage) missing.push('Package');
     } else {
       const required = ['title', 'category', 'date', 'year'];
       missing = required.filter(field => !headers.includes(field));
@@ -1522,22 +1564,36 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               default: record[header] = val;
             }
           } else if (isPlacement) {
-            if (header === 'Name' || header === 'studentName') {
-              record['studentName'] = val;
-            } else if (header === 'Register Number' || header === 'studentId') {
-              record['studentId'] = val;
-            } else if (['AY (Academic Year)', 'AY( Academic Year)', 'AY (Academic Year)', 'AY', 'Batch', 'batch'].includes(header)) {
-              record['batch'] = val;
-            } else if (header === 'Department' || header === 'department') {
-              record['department'] = val;
-            } else if (header === 'Course' || header === 'course') {
-              record['course'] = val;
-            } else if (header === 'Company' || header === 'company') {
-              record['company'] = val;
-            } else if (header === 'Package' || header === 'package') {
-              let rawPkg = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
-              if (rawPkg > 1000) rawPkg = rawPkg / 100000;
-              record['package'] = rawPkg;
+            const lh = header.toLowerCase().trim();
+            if (lh === 'register number' || lh === 'reg no' || lh === 'register no' || lh === 'studentid') {
+              record['studentId'] = val ? String(val).trim() : '';
+            } else if (lh === 'name' || lh === 'student name' || lh === 'studentname') {
+              record['studentName'] = val ? String(val).trim() : '';
+            } else if (['ay (academic year)', 'ay( academic year)', 'ay', 'batch'].includes(lh)) {
+              record['batch'] = val ? String(val).trim() : selectedAcademicYear;
+            } else if (lh === 'department' || lh === 'dept') {
+              record['department'] = val ? String(val).trim() : '';
+            } else if (lh === 'program' || lh === 'course' || lh === 'degree') {
+              record['course'] = val ? String(val).trim() : '';
+            } else if (lh === 'designation/role' || lh === 'designation' || lh === 'role' || lh === 'job title') {
+              record['role'] = val ? String(val).trim() : '';
+            } else if (lh === 'company' || lh === 'recruiter' || lh === 'organization') {
+              record['company'] = val ? String(val).trim() : '';
+            } else if (lh === 'package' || lh === 'stipend' || lh === 'ctc' || lh === 'salary') {
+              record['rawPackage'] = val;
+              if (selectedPlacementType === 'placement') {
+                const cleanStr = String(val !== undefined && val !== null ? val : '').trim();
+                const num = parseFloat(cleanStr.replace(/[^0-9.]/g, ''));
+                record['package'] = isNaN(num) ? 0 : num;
+              } else {
+                const cleanStr = String(val !== undefined && val !== null ? val : '').trim();
+                if (!cleanStr) {
+                  record['package'] = null;
+                } else {
+                  const num = parseFloat(cleanStr.replace(/[^0-9.]/g, ''));
+                  record['package'] = isNaN(num) ? null : num;
+                }
+              }
             } else {
               record[header] = val;
             }
@@ -1727,13 +1783,18 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       });
 
       if (isPlacement) {
-        if (!record.role) record.role = 'NIL';
-        if (!record.placementType) record.placementType = 'placement';
+        if (!record._tempId) record._tempId = crypto.randomUUID();
+        record.batch = selectedAcademicYear;
+        record.academicYear = selectedAcademicYear;
+        record.placementType = selectedPlacementType;
+        record.campus = selectedCampus;
+        record.school = selectedSchool;
         if (!record.placementDate) record.placementDate = new Date().toISOString().split('T')[0];
+        if (!record.role) record.role = '';
       }
 
-      // Default any missing, null, or empty string values to 'NIL' (except for publications/patents/sponsored where optional fields can remain empty/null)
-      if (!isPublication && !isPatent && !isSponsored) {
+      // Default any missing, null, or empty string values to 'NIL' (except for publications/patents/sponsored/placements where optional fields can remain empty/null)
+      if (!isPublication && !isPatent && !isSponsored && !isPlacement) {
         Object.keys(record).forEach(k => {
           if (record[k] === undefined || record[k] === null || record[k] === '' || String(record[k]).trim() === '') {
             record[k] = 'NIL';
@@ -1824,6 +1885,93 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     }
 
     setPreviewData(records);
+    if (isPlacement && token) {
+      verifyPlacementsBatch(records, {
+        ay: selectedAcademicYear,
+        type: selectedPlacementType,
+        campus: selectedCampus,
+        school: selectedSchool
+      });
+    }
+  };
+
+  const verifyPlacementsBatch = async (
+    itemsToVerify: any[],
+    options?: { ay?: string; type?: 'placement' | 'internship'; campus?: string; school?: string }
+  ) => {
+    if (!token || itemsToVerify.length === 0) return;
+    setIsVerifyingPlacements(true);
+    try {
+      const rawApi = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const baseUrl = rawApi.replace(/\/+$/, '');
+      const res = await fetch(`${baseUrl}/api/placements/verify-bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          placements: itemsToVerify,
+          academicYear: options?.ay || selectedAcademicYear,
+          placementType: options?.type || selectedPlacementType,
+          campus: options?.campus || selectedCampus,
+          school: options?.school || selectedSchool
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPlacementVerificationSummary(data.summary);
+        setPreviewData(prev => {
+          const verifiedMap = new Map<string, any>((data.records || []).map((r: any) => [r._tempId || String(r.rowIndex), r]));
+          return prev.map((row, idx) => {
+            const key = row._tempId || String(idx + 1);
+            const matched: any = verifiedMap.get(key);
+            if (matched) {
+              return {
+                ...row,
+                ...matched,
+                _tempId: row._tempId || matched._tempId,
+                _rowStatus: matched.status,
+                _issues: matched.issues
+              };
+            }
+            return row;
+          });
+        });
+      }
+    } catch (vErr) {
+      console.error('Failed to verify placements batch:', vErr);
+    } finally {
+      setIsVerifyingPlacements(false);
+    }
+  };
+
+  const handleOfferLetterFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !activePlacementTempId) return;
+    const file = files[0];
+
+    const validExts = ['.pdf', '.jpg', '.jpeg', '.png'];
+    const lowerName = file.name.toLowerCase();
+    const isValidExt = validExts.some(ext => lowerName.endsWith(ext));
+    if (!isValidExt) {
+      alert('Invalid offer letter file format. Accepted formats: PDF, JPG, JPEG, PNG.');
+      if (placementFileInputRef.current) placementFileInputRef.current.value = '';
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Offer letter file exceeds 10MB size limit.');
+      if (placementFileInputRef.current) placementFileInputRef.current.value = '';
+      return;
+    }
+
+    setPlacementOfferLetterFiles(prev => ({
+      ...prev,
+      [activePlacementTempId]: file
+    }));
+    setActivePlacementTempId(null);
+    if (placementFileInputRef.current) placementFileInputRef.current.value = '';
   };
 
   const handleUploadSubmit = async () => {
@@ -1897,7 +2045,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           if (!item[k] || String(item[k]).toLowerCase() === 'nil' || String(item[k]).toLowerCase() === 'n/a' || String(item[k]).toLowerCase() === 'invalid date' || String(item[k]).trim() === '') {
             item[k] = null;
           }
-        } else if (!isPublication && !isPatent && !isSponsored && !isConsultancy) {
+        } else if (!isPublication && !isPatent && !isSponsored && !isConsultancy && !isPlacement) {
           if (item[k] === undefined || item[k] === null || item[k] === '' || String(item[k]).trim() === '') {
             item[k] = 'NIL';
           }
@@ -1909,11 +2057,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
 
     const readyRecords = isPublication
       ? dataWithCommonFields.filter(r => r._rowStatus === 'ready')
-      : dataWithCommonFields;
+      : isPlacement
+        ? dataWithCommonFields.filter(r => (r._rowStatus === 'ready' || r.status === 'ready'))
+        : dataWithCommonFields;
 
-    if (isPublication && readyRecords.length === 0) {
+    if ((isPublication || isPlacement) && readyRecords.length === 0) {
       setLoading(false);
-      setUploadError('No valid "Ready" publication records found to import. Please review and resolve flagged rows before importing.');
+      setUploadError(isPlacement
+        ? 'No valid "Ready" placement records found to import. Unregistered students and duplicate records cannot be imported.'
+        : 'No valid "Ready" publication records found to import. Please review and resolve flagged rows before importing.'
+      );
       return;
     }
 
@@ -1935,7 +2088,13 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               : isFaculty
                 ? { faculty: dataWithCommonFields }
                 : isPlacement
-                  ? { placements: dataWithCommonFields }
+                  ? {
+                      placements: readyRecords,
+                      academicYear: selectedAcademicYear,
+                      placementType: selectedPlacementType,
+                      campus: selectedCampus,
+                      school: selectedSchool
+                    }
                   : isStudent
                     ? { students: dataWithCommonFields }
                     : isDepartment
@@ -1955,12 +2114,35 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       const data = await response.json();
 
       if (data.success) {
+        let offerLettersUploaded = 0;
+        if (isPlacement && data.data && Array.isArray(data.data)) {
+          for (const created of data.data) {
+            const file = created._tempId ? placementOfferLetterFiles[created._tempId] : null;
+            if (file && created.id) {
+              try {
+                const formData = new FormData();
+                formData.append('offerLetter', file);
+                const uploadRes = await fetch(`${baseUrl}/api/placements/${created.id}/offer-letter`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}` },
+                  body: formData
+                });
+                const uploadJson = await uploadRes.json();
+                if (uploadJson.success) offerLettersUploaded++;
+              } catch (flErr) {
+                console.error('Failed to upload offer letter for', created.id, flErr);
+              }
+            }
+          }
+        }
+
         setImportResult({
           count: data.count,
           createdCount: data.createdCount,
           linkedCount: data.linkedCount,
           duplicatesCount: data.duplicatesCount,
           errorsCount: data.errorsCount,
+          offerLettersCount: offerLettersUploaded,
           message: data.message || 'Bulk upload completed successfully.',
           success: true,
           data: data.data,
@@ -2007,7 +2189,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     if (isFaculty) return FACULTY_REQUIRED;
     if (isStudent) return ['Register No', 'Student Name'];
     if (isDepartment) return ['Code', 'Name'];
-    if (isPlacement) return ['Register Number', 'Name', 'AY (Academic Year)', 'Department', 'Company', 'Package'];
+    if (isPlacement) return ['Register Number', 'Name', 'Department', 'Program', 'Designation/Role', 'Company', 'Package'];
     if (isDepartmentalActivity) return ['Department'];
     return ['title', 'category', 'date', 'year'];
   }, [isSponsored, isPatent, isPublication, isConsultancy, isFaculty, isStudent, isDepartment, isPlacement, isDepartmentalActivity]);
@@ -2423,12 +2605,63 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   <FileSpreadsheet className="w-4 h-4 text-[#2f4692]" />
                   Common Upload Metadata (Applied to all records in this file)
                 </h4>
+
+                {isPlacement && (
+                  <div className="pt-1 pb-2 border-b border-slate-200">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      Upload Record Type <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-800">
+                        <input
+                          type="radio"
+                          name="placementType"
+                          value="placement"
+                          checked={selectedPlacementType === 'placement'}
+                          onChange={() => {
+                            setSelectedPlacementType('placement');
+                            if (previewData.length > 0) {
+                              verifyPlacementsBatch(previewData, { type: 'placement' });
+                            }
+                          }}
+                          className="text-[#2F4692] focus:ring-[#2F4692]"
+                        />
+                        <span className="font-semibold text-slate-900">Placement</span>
+                        <span className="text-slate-500 text-[11px]">(Full-time offer, Package = LPA)</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-800">
+                        <input
+                          type="radio"
+                          name="placementType"
+                          value="internship"
+                          checked={selectedPlacementType === 'internship'}
+                          onChange={() => {
+                            setSelectedPlacementType('internship');
+                            if (previewData.length > 0) {
+                              verifyPlacementsBatch(previewData, { type: 'internship' });
+                            }
+                          }}
+                          className="text-[#2F4692] focus:ring-[#2F4692]"
+                        />
+                        <span className="font-semibold text-slate-900">Internship</span>
+                        <span className="text-slate-500 text-[11px]">(Monthly stipend in INR, Optional)</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year <span className="text-red-500">*</span></label>
                     <select
                       value={selectedAcademicYear}
-                      onChange={(e) => setSelectedAcademicYear(e.target.value)}
+                      onChange={(e) => {
+                        const newAy = e.target.value;
+                        setSelectedAcademicYear(newAy);
+                        if (isPlacement && previewData.length > 0) {
+                          verifyPlacementsBatch(previewData, { ay: newAy });
+                        }
+                      }}
                       className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 font-medium focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="2020-2021">2020-2021</option>
@@ -2446,7 +2679,13 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Campus <span className="text-red-500">*</span></label>
                     <select
                       value={selectedCampus}
-                      onChange={(e) => setSelectedCampus(e.target.value)}
+                      onChange={(e) => {
+                        const newC = e.target.value;
+                        setSelectedCampus(newC);
+                        if (isPlacement && previewData.length > 0) {
+                          verifyPlacementsBatch(previewData, { campus: newC });
+                        }
+                      }}
                       className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
                     >
                       {campusList.map((c, i) => (
@@ -2459,7 +2698,13 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                     <label className="block text-xs font-semibold text-gray-700 mb-1">School <span className="text-red-500">*</span></label>
                     <select
                       value={selectedSchool}
-                      onChange={(e) => setSelectedSchool(e.target.value)}
+                      onChange={(e) => {
+                        const newS = e.target.value;
+                        setSelectedSchool(newS);
+                        if (isPlacement && previewData.length > 0) {
+                          verifyPlacementsBatch(previewData, { school: newS });
+                        }
+                      }}
                       className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
                     >
                       {schoolList.map((s, i) => (
@@ -2472,6 +2717,22 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   All records in this bulk file will automatically inherit these Academic Year, Campus, and School selections.
                 </p>
               </div>
+
+              {/* Placement V2.1 Specifications Guide */}
+              {isPlacement && (
+                <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl text-xs space-y-1 text-slate-700">
+                  <div className="flex items-center gap-1.5 font-bold text-[#2855B9]">
+                    <Info className="w-4 h-4 text-[#2855B9]" />
+                    <span>Placements & Internships Bulk Upload V2.1 Guide</span>
+                  </div>
+                  <ul className="list-disc pl-5 text-[11px] space-y-0.5 text-slate-600">
+                    <li>Requires exactly seven columns: <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-blue-900">Register Number, Name, Department, Program, Designation/Role, Company, Package</code>.</li>
+                    <li><strong>Student Verification:</strong> Every student Register Number is verified against <em>Student Details</em>.</li>
+                    <li><strong>Compensation:</strong> {selectedPlacementType === 'placement' ? 'Annual salary in LPA (mandatory, positive number).' : 'Monthly stipend in INR (optional; blank = "Not Provided", 0 = "₹0 — Unpaid Internship").'}</li>
+                    <li><strong>Offer Letters:</strong> Optional. You can attach offer letters per offer record in the preview stage.</li>
+                  </ul>
+                </div>
+              )}
 
               {/* Department Selection for Consultancy */}
               {isConsultancy && (
@@ -2520,6 +2781,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   </div>
                 )}
               </div>
+
+              {isPlacement && (
+                <input
+                  type="file"
+                  ref={placementFileInputRef}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={handleOfferLetterFileSelected}
+                />
+              )}
 
               {file && (
                 <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center justify-between">

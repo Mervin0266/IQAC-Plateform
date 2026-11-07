@@ -892,6 +892,105 @@ async function deleteConsultancyDocumentFile(driveFileId) {
   }
 }
 
+/**
+ * Ensures folder hierarchy for Placements & Internships Offer Letters.
+ */
+async function ensurePlacementFolderHierarchy({ batch, department }) {
+  const rootId = await getSharedDriveRootId();
+  const placementsRootFolderId = await findOrCreateFolder('Placements & Internships', rootId);
+  const yearFolderId = await findOrCreateFolder(sanitizeName(batch || 'General'), placementsRootFolderId);
+  const deptFolderId = await findOrCreateFolder(sanitizeName(department || 'General'), yearFolderId);
+
+  return {
+    placementsRootFolderId,
+    yearFolderId,
+    deptFolderId
+  };
+}
+
+/**
+ * Upload an offer letter document file directly into Google Drive.
+ */
+async function uploadPlacementOfferLetterFile({ placementId, department, batch, fileBuffer, fileName, mimeType }) {
+  if (!isDriveConfigured()) {
+    throw new Error('Google Drive integration is not configured. Direct uploads cannot be saved to institutional storage.');
+  }
+
+  const hierarchy = await ensurePlacementFolderHierarchy({
+    batch,
+    department
+  });
+
+  const parentFolderId = hierarchy.deptFolderId;
+  const safeFileName = sanitizeName(fileName);
+
+  const boundary = `-------314159265358979323846_${Date.now()}`;
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelimiter = `\r\n--${boundary}--`;
+
+  const metadata = {
+    name: safeFileName,
+    parents: [parentFolderId]
+  };
+
+  const multipartBody = Buffer.concat([
+    Buffer.from(
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`
+    ),
+    fileBuffer,
+    Buffer.from(closeDelimiter)
+  ]);
+
+  const token = await getAccessToken();
+  const uploadParams = new URLSearchParams({
+    uploadType: 'multipart',
+    supportsAllDrives: 'true'
+  });
+
+  const uploadRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files?${uploadParams.toString()}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`,
+      'Content-Length': String(multipartBody.length)
+    },
+    body: multipartBody
+  });
+
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text();
+    throw new Error(`Google Drive API upload failed (${uploadRes.status}): ${errText}`);
+  }
+
+  const uploadData = await uploadRes.json();
+  const fileId = uploadData.id;
+
+  try {
+    await driveRequest(`/files/${fileId}/permissions?supportsAllDrives=true`, {
+      method: 'POST',
+      body: JSON.stringify({
+        role: 'reader',
+        type: 'anyone'
+      })
+    });
+  } catch (permErr) {
+    console.warn('[GoogleDrive] Note: Could not set public permission on offer letter file:', permErr.message);
+  }
+
+  const webViewLink = `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`;
+
+  return {
+    driveFileId: fileId,
+    driveFolderId: parentFolderId,
+    driveUrl: webViewLink,
+    fileName: safeFileName
+  };
+}
+
 module.exports = {
   isDriveConfigured,
   sanitizeName,
@@ -910,5 +1009,7 @@ module.exports = {
   deleteSponsoredDocumentFile,
   ensureConsultancyFolderHierarchy,
   uploadConsultancyDocumentFile,
-  deleteConsultancyDocumentFile
+  deleteConsultancyDocumentFile,
+  ensurePlacementFolderHierarchy,
+  uploadPlacementOfferLetterFile
 };
