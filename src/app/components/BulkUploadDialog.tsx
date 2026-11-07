@@ -1923,7 +1923,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         setPlacementVerificationSummary(data.summary);
         setPreviewData(prev => {
           const verifiedMap = new Map<string, any>((data.records || []).map((r: any) => [r._tempId || String(r.rowIndex), r]));
-          return prev.map((row, idx) => {
+          return prev.map((row: any, idx: number) => {
             const key = row._tempId || String(idx + 1);
             const matched: any = verifiedMap.get(key);
             if (matched) {
@@ -1931,8 +1931,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                 ...row,
                 ...matched,
                 _tempId: row._tempId || matched._tempId,
-                _rowStatus: matched.status,
-                _issues: matched.issues
+                _rowStatus: matched._rowStatus || matched.status,
+                _issues: matched._issues || matched.issues
               };
             }
             return row;
