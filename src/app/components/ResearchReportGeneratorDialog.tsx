@@ -131,7 +131,7 @@ export function ResearchReportGeneratorDialog({
   });
   const [selectedScope, setSelectedScope] = useState<'university' | 'department'>('university');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
-  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'both'>('excel');
+  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'word' | 'all' | 'both'>('excel');
   const [includeSourceBreakdown, setIncludeSourceBreakdown] = useState<boolean>(false);
 
   // Preview Data
@@ -327,7 +327,7 @@ export function ResearchReportGeneratorDialog({
   };
 
   // Trigger File Download
-  const downloadFile = async (format: 'excel' | 'pdf') => {
+  const downloadFile = async (format: 'excel' | 'pdf' | 'word') => {
     const token = user?.token || localStorage.getItem('token');
     const payload = {
       sections: selectedSections,
@@ -358,7 +358,8 @@ export function ResearchReportGeneratorDialog({
     const a = document.createElement('a');
     a.href = url;
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    a.download = `CHRIST_IQAC_Research_Report_${timestamp}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+    const ext = format === 'excel' ? 'xlsx' : (format === 'pdf' ? 'pdf' : 'docx');
+    a.download = `CHRIST_IQAC_Research_Report_${timestamp}.${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -366,7 +367,7 @@ export function ResearchReportGeneratorDialog({
   };
 
   // Handle Export Action
-  const handleExport = async (overrideFormat?: 'excel' | 'pdf' | 'both') => {
+  const handleExport = async (overrideFormat?: 'excel' | 'pdf' | 'word' | 'all' | 'both') => {
     if (!validateConfig()) return;
 
     const fmt = overrideFormat || exportFormat;
@@ -375,16 +376,25 @@ export function ResearchReportGeneratorDialog({
     setValidationError(null);
 
     try {
-      if (fmt === 'both') {
+      if (fmt === 'all') {
+        setExportMessage('Downloading Excel workbook (.xlsx)...');
+        await downloadFile('excel');
+        setExportMessage('Downloading PDF report (.pdf)...');
+        await downloadFile('pdf');
+        setExportMessage('Downloading Word document (.docx)...');
+        await downloadFile('word');
+        setExportMessage('All report formats (Excel, PDF, Word) downloaded successfully.');
+      } else if (fmt === 'both') {
         setExportMessage('Downloading Excel workbook (.xlsx)...');
         await downloadFile('excel');
         setExportMessage('Downloading PDF report (.pdf)...');
         await downloadFile('pdf');
         setExportMessage('Both Excel and PDF reports downloaded successfully.');
       } else {
-        setExportMessage(`Generating and downloading ${fmt.toUpperCase()} report...`);
+        const fmtLabel = fmt === 'excel' ? 'Excel workbook (.xlsx)' : (fmt === 'pdf' ? 'PDF report (.pdf)' : 'Word document (.docx)');
+        setExportMessage(`Generating and downloading ${fmtLabel}...`);
         await downloadFile(fmt);
-        setExportMessage(`${fmt === 'excel' ? 'Excel workbook (.xlsx)' : 'PDF report (.pdf)'} downloaded successfully.`);
+        setExportMessage(`${fmtLabel} downloaded successfully.`);
       }
     } catch (err: any) {
       setValidationError(err.message || 'Failed to export report.');
@@ -800,8 +810,8 @@ export function ResearchReportGeneratorDialog({
                     </div>
 
                     <div className="space-y-3">
-                      <div className="flex items-center gap-4">
-                        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none p-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
                           <input
                             type="radio"
                             name="format"
@@ -812,7 +822,7 @@ export function ResearchReportGeneratorDialog({
                           />
                           <span>Excel (.xlsx)</span>
                         </label>
-                        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none p-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
                           <input
                             type="radio"
                             name="format"
@@ -823,16 +833,27 @@ export function ResearchReportGeneratorDialog({
                           />
                           <span>PDF (.pdf)</span>
                         </label>
-                        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none p-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
                           <input
                             type="radio"
                             name="format"
-                            value="both"
-                            checked={exportFormat === 'both'}
-                            onChange={() => setExportFormat('both')}
+                            value="word"
+                            checked={exportFormat === 'word'}
+                            onChange={() => setExportFormat('word')}
                             className="text-[#2855B9]"
                           />
-                          <span>Both</span>
+                          <span>Word (.docx)</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none p-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                          <input
+                            type="radio"
+                            name="format"
+                            value="all"
+                            checked={exportFormat === 'all'}
+                            onChange={() => setExportFormat('all')}
+                            className="text-[#2855B9]"
+                          />
+                          <span>All Formats</span>
                         </label>
                       </div>
 
@@ -845,7 +866,7 @@ export function ResearchReportGeneratorDialog({
                         <div>
                           <div className="text-xs font-bold text-slate-800">Include Source Breakdown</div>
                           <div className="text-[11px] text-slate-500 leading-tight mt-0.5">
-                            Adds Sheet 2 in Excel / Appendix in PDF detailing contributing records.
+                            Adds Contributing Records sheet in Excel / Appendix in PDF and Word detailing contributing records.
                           </div>
                         </div>
                       </label>
@@ -1182,6 +1203,18 @@ export function ResearchReportGeneratorDialog({
                 >
                   <FileDown className="w-3.5 h-3.5" />
                   <span>Download PDF</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => handleExport('word')}
+                  disabled={exporting}
+                  size="sm"
+                  className="bg-[#1C355B] hover:bg-slate-900 text-white text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs flex items-center gap-1.5"
+                  title="Download Word Document (.docx)"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Download Word</span>
                 </Button>
               </>
             )}

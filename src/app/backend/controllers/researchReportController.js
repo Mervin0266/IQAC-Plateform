@@ -143,9 +143,20 @@ exports.exportReport = async (req, res) => {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.setHeader('Content-Length', pdfBuffer.length);
       return res.status(200).send(pdfBuffer);
+    } else if (format === 'word' || format === 'docx') {
+      const wordBuffer = await researchReportService.generateWordReport(reportData, !!includeSourceBreakdown);
+      const filename = `CHRIST_IQAC_Research_Report_${timestamp}.docx`;
+
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', wordBuffer.length);
+      return res.status(200).send(wordBuffer);
     } else {
       // Default to Excel
-      const excelBuffer = researchReportService.generateExcelReport(reportData, !!includeSourceBreakdown);
+      const excelBuffer = await researchReportService.generateExcelReport(reportData, !!includeSourceBreakdown);
       const filename = `CHRIST_IQAC_Research_Report_${timestamp}.xlsx`;
 
       res.setHeader(

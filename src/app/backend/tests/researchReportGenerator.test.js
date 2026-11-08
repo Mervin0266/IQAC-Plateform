@@ -28,6 +28,7 @@ const {
 } = require('../utils/indianCurrencyHelper');
 const {
   generateExcelReport,
+  generateWordReport,
   generatePdfReport,
   canonicalizeAgencyName,
   KNOWN_AGENCY_ALIASES
@@ -36,21 +37,25 @@ const { sanitizeSpreadsheetCell } = require('../utils/spreadsheetSanitizer');
 
 let passedTests = 0;
 let totalTests = 0;
+let testQueue = Promise.resolve();
 
 function runTest(testName, fn) {
   totalTests++;
-  try {
-    fn();
-    console.log(`  ✓ [PASS] ${testName}`);
-    passedTests++;
-  } catch (err) {
-    console.error(`  ✗ [FAIL] ${testName}`);
-    console.error(`     Error: ${err.message}`);
-  }
+  testQueue = testQueue.then(async () => {
+    try {
+      await fn();
+      console.log(`  ✓ [PASS] ${testName}`);
+      passedTests++;
+    } catch (err) {
+      console.error(`  ✗ [FAIL] ${testName}`);
+      console.error(`     Error: ${err.message}`);
+    }
+  });
 }
 
 console.log('================================================================');
-console.log('   CHRIST University IQAC - Research Report Generator V1.6 Tests');
+console.log('   CHRIST University IQAC - Research Report Generator V1.8 Tests');
+console.log('   Excel, PDF & Word Export Suite with Strict Uniform AY Styling');
 console.log('================================================================\n');
 
 // ─── SUITE 1: INDIAN CURRENCY & NUMBER-TO-WORDS ──────────────────────────────
@@ -363,7 +368,7 @@ runTest('Spreadsheet sanitizer neutralizes formula injection triggers (=, +, -, 
   assert.strictEqual(sanitizeSpreadsheetCell(1250000), 1250000);
 });
 
-runTest('Generates valid Excel workbook buffer with Academic Year (AY) headers and no CY/FY', () => {
+runTest('Generates valid Excel workbook buffer with Academic Year (AY) headers and no CY/FY', async () => {
   const sampleData = {
     scopeDisplay: 'University-wide',
     periods: [
@@ -413,9 +418,12 @@ runTest('Generates valid Excel workbook buffer with Academic Year (AY) headers a
     ]
   };
 
-  const excelBuf = generateExcelReport(sampleData, true);
+  const excelBuf = await generateExcelReport(sampleData, true);
   assert.ok(Buffer.isBuffer(excelBuf));
   assert.ok(excelBuf.length > 1000);
+  // Verify PK zip magic bytes (OpenXML .xlsx)
+  assert.strictEqual(excelBuf[0], 0x50);
+  assert.strictEqual(excelBuf[1], 0x4b);
 
   // Read back and verify sheets
   const wb = XLSX.read(excelBuf, { type: 'buffer' });
@@ -436,7 +444,7 @@ runTest('Generates valid Excel workbook buffer with Academic Year (AY) headers a
 // ─── SUITE 7: PDF REPORT EXPORT ─────────────────────────────────────────────
 console.log('\n--- Suite 7: PDF Report Generation & AY Parity ---');
 
-runTest('Generates standard PDF 1.4 document buffer with Academic Year headings', () => {
+runTest('Generates standard PDF 1.4 document buffer with Academic Year headings and embedded logo', () => {
   const sampleData = {
     scopeDisplay: 'University-wide',
     periods: [
@@ -471,17 +479,122 @@ runTest('Generates standard PDF 1.4 document buffer with Academic Year headings'
   assert.ok(fullPdfStr.includes('CHRIST \\(DEEMED TO BE UNIVERSITY\\)'));
   assert.ok(fullPdfStr.includes('INTERNAL QUALITY ASSURANCE CELL'));
   assert.ok(fullPdfStr.includes('Twelve Lakh Fifty Thousand Rupees Only'));
-  // Note: in PDF string escaping, en-dash in UTF-8 or WinAnsi is encoded, but let's check AY is present
   assert.ok(fullPdfStr.includes('AY 2024'));
   assert.ok(!fullPdfStr.includes('CY 2024'));
   assert.ok(!fullPdfStr.includes('FY 2024'));
+  assert.ok(fullPdfStr.includes('/Im1') || fullPdfStr.includes('XObject'));
+});
+
+// ─── SUITE 8: WORD (.DOCX) REPORT EXPORT ────────────────────────────────────
+console.log('\n--- Suite 8: Word (.docx) Report Export & Uniform AY Styling ---');
+
+runTest('Generates valid Word OpenXML document buffer with editable tables and official logo', async () => {
+  const sampleData = {
+    scopeDisplay: 'School of Engineering and Technology',
+    periods: [
+      { key: '2024-25', ayLabel: 'AY 2024–25', cyLabel: 'AY 2024–25', fyLabel: 'AY 2024–25' },
+      { key: '2023-24', ayLabel: 'AY 2023–24', cyLabel: 'AY 2023–24', fyLabel: 'AY 2023–24' },
+      { key: '2022-23', ayLabel: 'AY 2022–23', cyLabel: 'AY 2022–23', fyLabel: 'AY 2022–23' }
+    ],
+    sections: ['ipr', 'sponsored', 'consultancy'],
+    generatedAt: '08/11/2026, 10:00 PM',
+    iprMetrics: {
+      publishedByPeriod: { '2024-25': 6, '2023-24': 4, '2022-23': 2 },
+      grantedByPeriod: { '2024-25': 2, '2023-24': 1, '2022-23': 0 }
+    },
+    sponsoredMetrics: {
+      projectsByPeriod: { '2024-25': 5, '2023-24': 3, '2022-23': 2 },
+      agenciesByPeriod: { '2024-25': 4, '2023-24': 2, '2022-23': 1 },
+      amountByPeriod: { '2024-25': 2500000, '2023-24': 1500000, '2022-23': 800000 },
+      amountFormattedByPeriod: { '2024-25': '₹25,00,000', '2023-24': '₹15,00,000', '2022-23': '₹8,00,000' },
+      amountInWordsByPeriod: {
+        '2024-25': 'Twenty Five Lakh Rupees Only',
+        '2023-24': 'Fifteen Lakh Rupees Only',
+        '2022-23': 'Eight Lakh Rupees Only'
+      }
+    },
+    consultancyMetrics: {
+      projectsByPeriod: { '2024-25': 3, '2023-24': 2, '2022-23': 1 },
+      agenciesByPeriod: { '2024-25': 3, '2023-24': 2, '2022-23': 1 },
+      amountByPeriod: { '2024-25': 1200000, '2023-24': 600000, '2022-23': 300000 },
+      amountFormattedByPeriod: { '2024-25': '₹12,00,000', '2023-24': '₹6,00,000', '2022-23': '₹3,00,000' },
+      amountInWordsByPeriod: {
+        '2024-25': 'Twelve Lakh Rupees Only',
+        '2023-24': 'Six Lakh Rupees Only',
+        '2022-23': 'Three Lakh Rupees Only'
+      }
+    },
+    sourceRecords: [
+      {
+        section: 'IPR Details',
+        metric: 'Patents Published',
+        period: 'AY 2024–25',
+        sourceId: 'p-1',
+        title: 'Autonomous Drone Navigation',
+        department: 'Computer Science and Engineering',
+        status: 'approved',
+        agency: 'N/A',
+        amountSource: '—',
+        amountFormatted: '—',
+        note: 'Published 2024'
+      }
+    ]
+  };
+
+  const wordBuf = await generateWordReport(sampleData, true);
+  assert.ok(Buffer.isBuffer(wordBuf));
+  assert.ok(wordBuf.length > 50000);
+  // Verify PK zip magic bytes (OpenXML .docx)
+  assert.strictEqual(wordBuf[0], 0x50);
+  assert.strictEqual(wordBuf[1], 0x4b);
+});
+
+runTest('All export formats (Excel, PDF, Word) produce valid documents from shared reportData', async () => {
+  const sampleData = {
+    scopeDisplay: 'University-wide',
+    periods: [
+      { key: '2024-25', ayLabel: 'AY 2024–25', cyLabel: 'AY 2024–25', fyLabel: 'AY 2024–25' },
+      { key: '2023-24', ayLabel: 'AY 2023–24', cyLabel: 'AY 2023–24', fyLabel: 'AY 2023–24' }
+    ],
+    sections: ['ipr', 'sponsored'],
+    generatedAt: '08/11/2026, 10:00 PM',
+    iprMetrics: {
+      publishedByPeriod: { '2024-25': 2, '2023-24': 1 },
+      grantedByPeriod: { '2024-25': 1, '2023-24': 0 }
+    },
+    sponsoredMetrics: {
+      projectsByPeriod: { '2024-25': 1, '2023-24': 1 },
+      agenciesByPeriod: { '2024-25': 1, '2023-24': 1 },
+      amountByPeriod: { '2024-25': 500000, '2023-24': 500000 },
+      amountFormattedByPeriod: { '2024-25': '₹5,00,000', '2023-24': '₹5,00,000' },
+      amountInWordsByPeriod: {
+        '2024-25': 'Five Lakh Rupees Only',
+        '2023-24': 'Five Lakh Rupees Only'
+      }
+    }
+  };
+
+  const [excelBuf, pdfBuf, wordBuf] = await Promise.all([
+    generateExcelReport(sampleData, false),
+    Promise.resolve(generatePdfReport(sampleData, false)),
+    generateWordReport(sampleData, false)
+  ]);
+
+  assert.ok(Buffer.isBuffer(excelBuf) && excelBuf.length > 1000);
+  assert.ok(Buffer.isBuffer(pdfBuf) && pdfBuf.length > 500);
+  assert.ok(Buffer.isBuffer(wordBuf) && wordBuf.length > 30000);
 });
 
 // ─── SUMMARY ────────────────────────────────────────────────────────────────
-console.log('\n================================================================');
-console.log(`   Research Report Generator Test Suite Results: ${passedTests}/${totalTests} Passed`);
-console.log('================================================================\n');
+testQueue.then(() => {
+  console.log('\n================================================================');
+  console.log(`   Research Report Generator Test Suite Results: ${passedTests}/${totalTests} Passed`);
+  console.log('================================================================\n');
 
-if (passedTests !== totalTests) {
+  if (passedTests !== totalTests) {
+    process.exit(1);
+  }
+}).catch(err => {
+  console.error('Fatal test error:', err);
   process.exit(1);
-}
+});

@@ -30,6 +30,8 @@ const {
   dateToAcademicYear
 } = require('../utils/indianCurrencyHelper');
 const { buildResearchReportPdf } = require('../utils/pdfReportBuilder');
+const { buildResearchReportExcel } = require('../utils/excelReportBuilder');
+const { buildResearchReportWord } = require('../utils/wordReportBuilder');
 const { sanitizeSpreadsheetCell } = require('../utils/spreadsheetSanitizer');
 
 const DEFAULT_PERIODS = ['2024-25', '2023-24', '2022-23', '2021-22', '2020-21'];
@@ -676,171 +678,23 @@ async function generateReportData({
 }
 
 /**
- * Generates Excel Workbook (.xlsx) from report data.
+ * Generates Professional Excel Workbook (.xlsx) from report data.
  */
-function generateExcelReport(reportData, includeSourceBreakdown = false) {
-  const {
-    scopeDisplay,
-    periods,
-    sections,
-    generatedAt,
-    iprMetrics,
-    sponsoredMetrics,
-    consultancyMetrics,
-    sourceRecords = []
-  } = reportData;
+async function generateExcelReport(reportData, includeSourceBreakdown = false) {
+  return await buildResearchReportExcel({
+    reportData,
+    includeSourceBreakdown
+  });
+}
 
-  const wb = XLSX.utils.book_new();
-
-  // --- SHEET 1: RESEARCH & INNOVATION REPORT ---
-  const reportRows = [
-    ['CHRIST (DEEMED TO BE UNIVERSITY)'],
-    ['INTERNAL QUALITY ASSURANCE CELL (IQAC)'],
-    ['RESEARCH & INNOVATION ANNUAL CONSOLIDATED REPORT'],
-    [`Reporting Scope: ${scopeDisplay}`, `Generated On: ${generatedAt}`],
-    [`Reporting Periods: ${periods.map(p => p.ayLabel).join(', ')}`],
-    [] // Blank divider
-  ];
-
-  // Section 1: IPR
-  if (sections.includes('ipr') && iprMetrics) {
-    reportRows.push(['1. IPR Details (Patents & Intellectual Property)']);
-    const ayHeaders = ['Metric / Particulars', ...periods.map(p => p.ayLabel)];
-    reportRows.push(ayHeaders);
-    reportRows.push([
-      'Number of Patents Published',
-      ...periods.map(p => iprMetrics.publishedByPeriod[p.key] ?? 0)
-    ]);
-    reportRows.push([
-      'Number of Patents Granted',
-      ...periods.map(p => iprMetrics.grantedByPeriod[p.key] ?? 0)
-    ]);
-    reportRows.push([]);
-  }
-
-  // Section 2: Sponsored Research
-  if (sections.includes('sponsored') && sponsoredMetrics) {
-    const secNum = sections.includes('ipr') ? '2' : '1';
-    reportRows.push([`${secNum}. Sponsored Research Details (Research Grants & Seed Money)`]);
-    const ayHeaders = ['Metric / Particulars', ...periods.map(p => p.ayLabel)];
-    reportRows.push(ayHeaders);
-    reportRows.push([
-      'Total Sponsored Projects',
-      ...periods.map(p => sponsoredMetrics.projectsByPeriod[p.key] ?? 0)
-    ]);
-    reportRows.push([
-      'Total Funding Agencies',
-      ...periods.map(p => sponsoredMetrics.agenciesByPeriod[p.key] ?? 0)
-    ]);
-    reportRows.push([
-      'Total Amount Received (INR)',
-      ...periods.map(p => sponsoredMetrics.amountByPeriod[p.key] ?? 0)
-    ]);
-    reportRows.push([
-      '↳ Amount in Words',
-      ...periods.map(p => sponsoredMetrics.amountInWordsByPeriod[p.key] ?? '—')
-    ]);
-    reportRows.push([
-      '* Methodology Note: Total Amount Received reflects sum of sanctioned funding amounts in accordance with IQAC reporting guidelines. Total Funding Agencies reflects distinct funding agencies.'
-    ]);
-    reportRows.push([]);
-  }
-
-  // Section 3: Consultancy Projects
-  if (sections.includes('consultancy') && consultancyMetrics) {
-    let num = 1;
-    if (sections.includes('ipr')) num++;
-    if (sections.includes('sponsored')) num++;
-    reportRows.push([`${num}. Consultancy Project Details (Advisory & Commercial Projects)`]);
-    const ayHeaders = ['Metric / Particulars', ...periods.map(p => p.ayLabel)];
-    reportRows.push(ayHeaders);
-    reportRows.push([
-      'Total Consultancy Projects',
-      ...periods.map(p => consultancyMetrics.projectsByPeriod[p.key] ?? 0)
-    ]);
-    reportRows.push([
-      'Total Client Organizations',
-      ...periods.map(p => consultancyMetrics.agenciesByPeriod[p.key] ?? 0)
-    ]);
-    reportRows.push([
-      'Total Amount Received (INR)',
-      ...periods.map(p => consultancyMetrics.amountByPeriod[p.key] ?? 0)
-    ]);
-    reportRows.push([
-      '↳ Amount in Words',
-      ...periods.map(p => consultancyMetrics.amountInWordsByPeriod[p.key] ?? '—')
-    ]);
-    reportRows.push([
-      '* Methodology Note: Total Amount Received reflects sum of contract values (in Lakhs converted to INR) in accordance with IQAC reporting guidelines. Total Client Organizations reflects distinct client organizations.'
-    ]);
-    reportRows.push([]);
-  }
-
-  // Sanitize all cells against formula injection (CWE-1236)
-  const sanitizedReportRows = reportRows.map(row => row.map(sanitizeSpreadsheetCell));
-  const reportWs = XLSX.utils.aoa_to_sheet(sanitizedReportRows);
-
-  // Set column widths
-  reportWs['!cols'] = [
-    { wch: 45 },
-    ...periods.map(() => ({ wch: 22 }))
-  ];
-
-  XLSX.utils.book_append_sheet(wb, reportWs, 'Research & Innovation Report');
-
-  // --- SHEET 2: OPTIONAL CONTRIBUTING RECORDS BREAKDOWN ---
-  if (includeSourceBreakdown && sourceRecords && sourceRecords.length > 0) {
-    const sourceHeaders = [
-      'Section',
-      'Metric',
-      'Reporting Period',
-      'Source Record ID',
-      'Record Title / Project Name',
-      'Department',
-      'Approval Status',
-      'Relevant Organization',
-      'Source Amount',
-      'Converted Amount (INR)',
-      'Inclusion / Exclusion Reason'
-    ];
-
-    const sourceDataRows = sourceRecords.map(r => [
-      r.section,
-      r.metric,
-      r.period,
-      r.sourceId,
-      r.title,
-      r.department,
-      r.status,
-      r.agency,
-      r.amountSource || '—',
-      r.amountFormatted || '—',
-      r.note
-    ]);
-
-    const sanitizedSourceRows = [sourceHeaders, ...sourceDataRows].map(row =>
-      row.map(sanitizeSpreadsheetCell)
-    );
-    const sourceWs = XLSX.utils.aoa_to_sheet(sanitizedSourceRows);
-
-    sourceWs['!cols'] = [
-      { wch: 20 },
-      { wch: 22 },
-      { wch: 15 },
-      { wch: 36 },
-      { wch: 40 },
-      { wch: 25 },
-      { wch: 16 },
-      { wch: 30 },
-      { wch: 18 },
-      { wch: 22 },
-      { wch: 35 }
-    ];
-
-    XLSX.utils.book_append_sheet(wb, sourceWs, 'Contributing Records');
-  }
-
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+/**
+ * Generates Microsoft Word (.docx) document buffer from report data.
+ */
+async function generateWordReport(reportData, includeSourceBreakdown = false) {
+  return await buildResearchReportWord({
+    reportData,
+    includeSourceBreakdown
+  });
 }
 
 /**
@@ -858,6 +712,7 @@ module.exports = {
   generateReportData,
   generateExcelReport,
   generatePdfReport,
+  generateWordReport,
   discoverReportingPeriods,
   canonicalizeAgencyName,
   KNOWN_AGENCY_ALIASES

@@ -3,10 +3,15 @@
 /**
  * Pure Node.js Standard PDF 1.4 Builder for Research & Innovation Reports
  * CHRIST University IQAC Platform
- * 
- * Generates self-contained, valid PDF 1.4 documents without third-party dependencies.
- * Supports multi-page tables, headers, footers, pagination, and styling.
+ *
+ * Generates self-contained, valid PDF 1.4 documents with:
+ * - Embedded official CHRIST University logo
+ * - Official institutional color palette (Slate Blue #1C355B, Primary Blue #2855B9, Pale Blue #E7EEF9)
+ * - Uniform Academic Year column styling (No latest-year highlight)
+ * - Multi-page tables, headers, footers, pagination, and wrapped methodology notes
  */
+
+const { getLogoPdfImageStreams } = require('./logoHelper');
 
 function escapePdfText(str) {
   if (str === null || str === undefined) return '';
@@ -32,6 +37,7 @@ function buildResearchReportPdf({
     scopeDisplay = 'University-wide',
     periods = [],
     sections = [],
+    statuses = {},
     generatedAt = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
     iprMetrics = null,
     sponsoredMetrics = null,
@@ -48,6 +54,9 @@ function buildResearchReportPdf({
   const pages = [];
   let currentPageOps = [];
   let currentY = pageHeight - margin;
+
+  // Retrieve logo image streams if available
+  const logoStreams = getLogoPdfImageStreams();
 
   function newPage() {
     if (currentPageOps.length > 0) {
@@ -73,9 +82,13 @@ function buildResearchReportPdf({
       s += `${strokeRgb[0]} ${strokeRgb[1]} ${strokeRgb[2]} RG `;
     }
     s += `${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re `;
-    if (fillRgb && strokeRgb) s += 'B\n';
-    else if (fillRgb) s += 'f\n';
-    else if (strokeRgb) s += 'S\n';
+    if (fillRgb && strokeRgb) {
+      s += 'B';
+    } else if (fillRgb) {
+      s += 'f';
+    } else if (strokeRgb) {
+      s += 'S';
+    }
     currentPageOps.push(s);
   }
 
@@ -86,47 +99,66 @@ function buildResearchReportPdf({
   }
 
   function renderPageHeader() {
-    // Header top band
-    rect(margin, currentY - 2, contentWidth, 2, [0.16, 0.33, 0.73], null); // #2855B9
+    // Header top band (Primary Blue #2855B9)
+    rect(margin, currentY - 2, contentWidth, 2, [0.16, 0.33, 0.73], null);
     currentY -= 8;
   }
 
   // --- START COVER / HEADER BLOCK ---
   renderPageHeader();
 
-  // Institution title
-  text('CHRIST (DEEMED TO BE UNIVERSITY)', margin, currentY - 14, 'F2', 15, [0.11, 0.21, 0.36]); // #1C355B
-  currentY -= 20;
-  text('INTERNAL QUALITY ASSURANCE CELL (IQAC)', margin, currentY - 10, 'F2', 10, [0.16, 0.33, 0.73]);
-  currentY -= 16;
-  text('RESEARCH & INNOVATION ANNUAL CONSOLIDATED REPORT', margin, currentY - 10, 'F2', 11, [0.2, 0.25, 0.35]);
-  currentY -= 18;
+  // Institution title and logo
+  if (logoStreams) {
+    const logoW = 100;
+    const logoH = 33.9;
+    currentPageOps.push(`q ${logoW.toFixed(2)} 0 0 ${logoH.toFixed(2)} ${margin.toFixed(2)} ${(currentY - 36).toFixed(2)} cm /Im1 Do Q`);
+
+    const titleLeft = margin + logoW + 14;
+    text('CHRIST (DEEMED TO BE UNIVERSITY)', titleLeft, currentY - 12, 'F2', 13.5, [0.11, 0.21, 0.36]); // #1C355B
+    text('INTERNAL QUALITY ASSURANCE CELL (IQAC)', titleLeft, currentY - 24, 'F2', 9.5, [0.16, 0.33, 0.73]); // #2855B9
+    text('RESEARCH & INNOVATION ANNUAL CONSOLIDATED REPORT', titleLeft, currentY - 36, 'F2', 10.5, [0.11, 0.21, 0.36]);
+    currentY -= 44;
+  } else {
+    text('CHRIST (DEEMED TO BE UNIVERSITY)', margin, currentY - 14, 'F2', 15, [0.11, 0.21, 0.36]);
+    currentY -= 20;
+    text('INTERNAL QUALITY ASSURANCE CELL (IQAC)', margin, currentY - 10, 'F2', 10, [0.16, 0.33, 0.73]);
+    currentY -= 16;
+    text('RESEARCH & INNOVATION ANNUAL CONSOLIDATED REPORT', margin, currentY - 10, 'F2', 11, [0.11, 0.21, 0.36]);
+    currentY -= 18;
+  }
 
   // Metadata Box
-  const metaBoxHeight = 32;
-  rect(margin, currentY - metaBoxHeight, contentWidth, metaBoxHeight, [0.96, 0.97, 0.99], [0.85, 0.88, 0.92]);
-  
+  const statusSummaryText = [];
+  if (sections.includes('ipr') && statuses.ipr) statusSummaryText.push(`IPR: ${statuses.ipr.join(', ')}`);
+  if (sections.includes('sponsored') && statuses.sponsored) statusSummaryText.push(`Sponsored: ${statuses.sponsored.join(', ')}`);
+  if (sections.includes('consultancy') && statuses.consultancy) statusSummaryText.push(`Consultancy: ${statuses.consultancy.join(', ')}`);
+
+  const metaBoxHeight = 30;
+  rect(margin, currentY - metaBoxHeight, contentWidth, metaBoxHeight, [0.97, 0.98, 0.99], [0.85, 0.88, 0.92]);
+
   const periodLabels = periods.map(p => p.ayLabel || p.label || p.key).join(', ');
-  text(`Scope: ${scopeDisplay}`, margin + 8, currentY - 14, 'F2', 8.5, [0.2, 0.25, 0.35]);
-  text(`Reporting Periods: ${periodLabels}`, margin + 8, currentY - 26, 'F1', 8, [0.35, 0.4, 0.45]);
-  text(`Generated: ${generatedAt}`, margin + contentWidth - 180, currentY - 14, 'F1', 8, [0.35, 0.4, 0.45]);
-  currentY -= (metaBoxHeight + 16);
+  text(`Scope: ${scopeDisplay}`, margin + 8, currentY - 13, 'F2', 8.5, [0.11, 0.21, 0.36]);
+  text(`Reporting Periods: ${periodLabels}`, margin + 8, currentY - 24, 'F1', 8, [0.35, 0.4, 0.45]);
+  text(`Generated: ${generatedAt}`, margin + contentWidth - 170, currentY - 13, 'F1', 8, [0.35, 0.4, 0.45]);
+  text(`Status: ${statusSummaryText.join(' | ') || 'All Approved Records'}`, margin + contentWidth - 250, currentY - 24, 'F1', 7.5, [0.4, 0.45, 0.5]);
+  currentY -= (metaBoxHeight + 14);
 
   // Helper for dynamic table rendering
   function renderComparativeTable(title, rows, note = null) {
-    checkSpace(80);
+    checkSpace(90);
 
-    // Section Title
-    text(title, margin, currentY - 10, 'F2', 11, [0.11, 0.21, 0.36]);
-    currentY -= 18;
+    // Section Title Banner (Pale Blue #E7EEF9)
+    rect(margin, currentY - 18, contentWidth, 18, [0.91, 0.93, 0.98], [0.8, 0.84, 0.9]);
+    text(title, margin + 8, currentY - 13, 'F2', 9.5, [0.11, 0.21, 0.36]);
+    currentY -= 20;
 
     const numCols = periods.length;
     const labelColWidth = isLandscape ? 260 : 200;
     const periodColWidth = (contentWidth - labelColWidth) / numCols;
 
-    // Header Row
+    // Table Header Row (Slate Blue #1C355B - UNIFORM across all AY columns)
     const headerHeight = 22;
-    rect(margin, currentY - headerHeight, contentWidth, headerHeight, [0.16, 0.33, 0.73], [0.16, 0.33, 0.73]);
+    rect(margin, currentY - headerHeight, contentWidth, headerHeight, [0.11, 0.21, 0.36], [0.11, 0.21, 0.36]);
     text('Metric / Particulars', margin + 8, currentY - 15, 'F2', 8.5, [1, 1, 1]);
 
     periods.forEach((p, idx) => {
@@ -140,7 +172,7 @@ function buildResearchReportPdf({
     rows.forEach((row, rowIdx) => {
       const isAlt = rowIdx % 2 === 1;
       const isWordsRow = !!row.isWordsRow;
-      const rowHeight = isWordsRow ? 20 : 22;
+      const rowHeight = isWordsRow ? 24 : 22;
 
       checkSpace(rowHeight + 10);
 
@@ -151,7 +183,7 @@ function buildResearchReportPdf({
       rect(margin, currentY - rowHeight, contentWidth, rowHeight, bg, [0.85, 0.88, 0.92]);
 
       const labelFont = isWordsRow ? 'F1' : (row.isTotal ? 'F2' : 'F1');
-      const labelColor = isWordsRow ? [0.4, 0.45, 0.5] : [0.15, 0.2, 0.25];
+      const labelColor = isWordsRow ? [0.4, 0.45, 0.5] : [0.11, 0.16, 0.23];
       const labelSize = isWordsRow ? 7.5 : 8.5;
 
       text(row.label, margin + (isWordsRow ? 18 : 8), currentY - (rowHeight * 0.65), labelFont, labelSize, labelColor);
@@ -161,7 +193,7 @@ function buildResearchReportPdf({
         const cellVal = row.values[p.key] !== undefined ? String(row.values[p.key]) : '—';
         const valFont = isWordsRow ? 'F1' : (row.isTotal ? 'F2' : 'F1');
         const valSize = isWordsRow ? 7.5 : 8.5;
-        const valColor = isWordsRow ? [0.35, 0.4, 0.5] : [0.1, 0.15, 0.2];
+        const valColor = row.isTotal ? [0.09, 0.4, 0.2] : (isWordsRow ? [0.3, 0.35, 0.45] : [0.1, 0.15, 0.2]);
         text(cellVal, colX + 8, currentY - (rowHeight * 0.65), valFont, valSize, valColor);
       });
 
@@ -170,8 +202,9 @@ function buildResearchReportPdf({
 
     if (note) {
       currentY -= 4;
-      text(note, margin + 4, currentY - 8, 'F1', 7.5, [0.45, 0.5, 0.55]);
-      currentY -= 14;
+      rect(margin, currentY - 18, contentWidth, 18, [0.97, 0.98, 0.99], [0.89, 0.91, 0.94]);
+      text(`* Methodology Note: ${note}`, margin + 6, currentY - 12, 'F1', 7.5, [0.4, 0.45, 0.5]);
+      currentY -= 24;
     } else {
       currentY -= 12;
     }
@@ -218,8 +251,11 @@ function buildResearchReportPdf({
         values: sponsoredMetrics.amountInWordsByPeriod || {}
       }
     ];
-    const note = '* Note: Total Amount Received reflects sum of sanctioned funding amounts in accordance with IQAC reporting guidelines.';
-    renderComparativeTable(secTitle, rows, note);
+    renderComparativeTable(
+      secTitle,
+      rows,
+      'Total Amount Received reflects sum of sanctioned funding amounts in accordance with IQAC reporting guidelines. Total Funding Agencies reflects distinct funding agencies.'
+    );
   }
 
   // --- SECTION 3: CONSULTANCY PROJECT DETAILS ---
@@ -227,7 +263,6 @@ function buildResearchReportPdf({
     let num = 1;
     if (sections.includes('ipr')) num++;
     if (sections.includes('sponsored')) num++;
-    const secTitle = `${num}. Consultancy Project Details (Advisory & Commercial Projects)`;
 
     const rows = [
       {
@@ -249,11 +284,14 @@ function buildResearchReportPdf({
         values: consultancyMetrics.amountInWordsByPeriod || {}
       }
     ];
-    const note = '* Note: Total Amount Received reflects sum of contract values (in Lakhs converted to INR) in accordance with IQAC reporting guidelines.';
-    renderComparativeTable(secTitle, rows, note);
+    renderComparativeTable(
+      `${num}. Consultancy Project Details (Advisory & Commercial Projects)`,
+      rows,
+      'Total Amount Received reflects sum of contract values (in Lakhs converted to INR) in accordance with IQAC reporting guidelines. Total Client Organizations reflects distinct client organizations.'
+    );
   }
 
-  // --- OPTIONAL SOURCE BREAKDOWN APPENDIX ---
+  // --- APPENDIX: CONTRIBUTING SOURCE RECORDS BREAKDOWN ---
   if (includeSourceBreakdown && sourceRecords && sourceRecords.length > 0) {
     newPage();
     renderPageHeader();
@@ -267,79 +305,64 @@ function buildResearchReportPdf({
     const headers = ['Section', 'Metric', 'Period', 'Title / Project', 'Dept', 'Status', 'Agency', 'Amount', 'Note'];
     const hHeight = 18;
 
-    rect(margin, currentY - hHeight, contentWidth, hHeight, [0.16, 0.33, 0.73], null);
-    let curX = margin;
+    rect(margin, currentY - hHeight, contentWidth, hHeight, [0.11, 0.21, 0.36], [0.11, 0.21, 0.36]);
+    let hX = margin;
     headers.forEach((h, i) => {
-      text(h, curX + 4, currentY - 12, 'F2', 7.5, [1, 1, 1]);
-      curX += colWidths[i] || 60;
+      text(h, hX + 4, currentY - 13, 'F2', 7.5, [1, 1, 1]);
+      hX += colWidths[i];
     });
     currentY -= hHeight;
 
-    sourceRecords.slice(0, 100).forEach((rec, idx) => {
+    sourceRecords.forEach((r, rIdx) => {
       checkSpace(18);
-      const isAlt = idx % 2 === 1;
-      const rHeight = 16;
-      rect(margin, currentY - rHeight, contentWidth, rHeight, isAlt ? [0.96, 0.97, 0.99] : [1, 1, 1], [0.88, 0.9, 0.93]);
+      const isAlt = rIdx % 2 === 1;
+      const rH = 16;
+      rect(margin, currentY - rH, contentWidth, rH, isAlt ? [0.96, 0.97, 0.99] : [1, 1, 1], [0.88, 0.9, 0.93]);
 
       const vals = [
-        rec.section || '—',
-        rec.metric || '—',
-        rec.period || '—',
-        (rec.title || '—').slice(0, isLandscape ? 30 : 20),
-        (rec.department || '—').slice(0, 14),
-        rec.status || '—',
-        (rec.agency || '—').slice(0, 14),
-        rec.amountFormatted || '—',
-        (rec.note || 'Included').slice(0, 14)
+        r.section,
+        r.metric,
+        r.period,
+        (r.title || '').slice(0, 35),
+        (r.department || '').slice(0, 18),
+        r.status,
+        (r.agency || '').slice(0, 18),
+        r.amountFormatted || '—',
+        (r.note || '').slice(0, 20)
       ];
 
-      let cellX = margin;
+      let vX = margin;
       vals.forEach((v, i) => {
-        text(v, cellX + 4, currentY - 11, 'F1', 6.5, [0.2, 0.2, 0.25]);
-        cellX += colWidths[i] || 60;
+        text(String(v), vX + 4, currentY - 11, 'F1', 7, [0.15, 0.2, 0.25]);
+        vX += colWidths[i];
       });
-
-      currentY -= rHeight;
+      currentY -= rH;
     });
-
-    if (sourceRecords.length > 100) {
-      currentY -= 10;
-      text(`* Truncated: Displaying top 100 of ${sourceRecords.length} contributing records. Full source breakdown available in Excel export.`, margin, currentY - 8, 'F1', 7.5, [0.45, 0.5, 0.55]);
-      currentY -= 14;
-    }
   }
 
-  // Push final page ops
+  // Close current page
   if (currentPageOps.length > 0) {
     pages.push(currentPageOps.join('\n'));
   }
 
-  // --- COMPOSE FINAL PDF WITH NUMBERED PAGES & FOOTERS ---
   const totalPages = pages.length;
-  const pdfObjects = [];
 
-  function addObj(content) {
-    pdfObjects.push(content);
-    return pdfObjects.length;
+  // Assembly of standard PDF 1.4 objects
+  let nextObjId = 1;
+  const catalogIdx = nextObjId++;
+  const pagesRootIdx = nextObjId++;
+  const fontF1Idx = nextObjId++;
+  const fontF2Idx = nextObjId++;
+
+  let smaskIdx = null;
+  let imageObjIdx = null;
+  if (logoStreams) {
+    smaskIdx = nextObjId++;
+    imageObjIdx = nextObjId++;
   }
 
-  // 1: Catalog
-  // 2: Pages root
-  // 3: Font Helvetica
-  // 4: Font Helvetica-Bold
-  const catalogIdx = 1;
-  const pagesRootIdx = 2;
-  const fontF1Idx = 3;
-  const fontF2Idx = 4;
-
-  const fontF1 = `${fontF1Idx} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj`;
-  const fontF2 = `${fontF2Idx} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj`;
-
-  // Reserve page object indices
   const pageIndices = [];
   const contentIndices = [];
-  let nextObjId = 5;
-
   for (let p = 0; p < totalPages; p++) {
     pageIndices.push(nextObjId++);
     contentIndices.push(nextObjId++);
@@ -348,8 +371,28 @@ function buildResearchReportPdf({
   const catalog = `${catalogIdx} 0 obj\n<< /Type /Catalog /Pages ${pagesRootIdx} 0 R >>\nendobj`;
   const kidsStr = pageIndices.map(id => `${id} 0 R`).join(' ');
   const pagesRoot = `${pagesRootIdx} 0 obj\n<< /Type /Pages /Kids [${kidsStr}] /Count ${totalPages} >>\nendobj`;
+  const fontF1 = `${fontF1Idx} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj`;
+  const fontF2 = `${fontF2Idx} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj`;
 
   const assembledObjects = [catalog, pagesRoot, fontF1, fontF2];
+
+  // Add logo Image and SMask XObjects if present
+  if (logoStreams) {
+    const smaskHead = Buffer.from(`${smaskIdx} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${logoStreams.width} /Height ${logoStreams.height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${logoStreams.deflatedAlpha.length} >>\nstream\n`, 'latin1');
+    const smaskTail = Buffer.from('\nendstream\nendobj', 'latin1');
+    const smaskObj = Buffer.concat([smaskHead, logoStreams.deflatedAlpha, smaskTail]);
+
+    const imgHead = Buffer.from(`${imageObjIdx} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${logoStreams.width} /Height ${logoStreams.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /SMask ${smaskIdx} 0 R /Length ${logoStreams.deflatedRgb.length} >>\nstream\n`, 'latin1');
+    const imgTail = Buffer.from('\nendstream\nendobj', 'latin1');
+    const imgObj = Buffer.concat([imgHead, logoStreams.deflatedRgb, imgTail]);
+
+    assembledObjects.push(smaskObj);
+    assembledObjects.push(imgObj);
+  }
+
+  const resourcesDict = logoStreams
+    ? `<< /Font << /F1 ${fontF1Idx} 0 R /F2 ${fontF2Idx} 0 R >> /XObject << /Im1 ${imageObjIdx} 0 R >> >>`
+    : `<< /Font << /F1 ${fontF1Idx} 0 R /F2 ${fontF2Idx} 0 R >> >>`;
 
   for (let p = 0; p < totalPages; p++) {
     const pageId = pageIndices[p];
@@ -370,7 +413,7 @@ function buildResearchReportPdf({
     const contentLen = Buffer.byteLength(footerOps, 'latin1');
     const contentObj = `${contentId} 0 obj\n<< /Length ${contentLen} >>\nstream\n${footerOps}\nendstream\nendobj`;
 
-    const pageObj = `${pageId} 0 obj\n<< /Type /Page /Parent ${pagesRootIdx} 0 R /MediaBox [0 0 ${pageWidth.toFixed(2)} ${pageHeight.toFixed(2)}] /Resources << /Font << /F1 ${fontF1Idx} 0 R /F2 ${fontF2Idx} 0 R >> >> /Contents ${contentId} 0 R >>\nendobj`;
+    const pageObj = `${pageId} 0 obj\n<< /Type /Page /Parent ${pagesRootIdx} 0 R /MediaBox [0 0 ${pageWidth.toFixed(2)} ${pageHeight.toFixed(2)}] /Resources ${resourcesDict} /Contents ${contentId} 0 R >>\nendobj`;
 
     assembledObjects.push(pageObj);
     assembledObjects.push(contentObj);
@@ -378,15 +421,16 @@ function buildResearchReportPdf({
 
   // Serialize PDF buffer with precise xref table
   const header = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
-  let body = '';
-  const offsets = [0];
+  const assembledBuffers = [];
   let curOffset = Buffer.byteLength(header, 'latin1');
+  const offsets = [0];
 
   for (let i = 0; i < assembledObjects.length; i++) {
     offsets.push(curOffset);
-    const objStr = assembledObjects[i] + '\n';
-    body += objStr;
-    curOffset += Buffer.byteLength(objStr, 'latin1');
+    const item = assembledObjects[i];
+    const itemBuf = Buffer.isBuffer(item) ? item : Buffer.from(item + '\n', 'latin1');
+    assembledBuffers.push(itemBuf);
+    curOffset += itemBuf.length;
   }
 
   const startXref = curOffset;
@@ -399,7 +443,7 @@ function buildResearchReportPdf({
 
   return Buffer.concat([
     Buffer.from(header, 'latin1'),
-    Buffer.from(body, 'latin1'),
+    ...assembledBuffers,
     Buffer.from(xref, 'latin1'),
     Buffer.from(trailer, 'latin1')
   ]);
@@ -409,4 +453,3 @@ module.exports = {
   buildResearchReportPdf,
   escapePdfText
 };
-
