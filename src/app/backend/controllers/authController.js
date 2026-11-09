@@ -48,12 +48,13 @@ const resolveJwtExpiry = () => {
 // Generate JWT Token with tokenVersion claim for reliable session invalidation
 const generateToken = (user) => {
   const tokenVersion = user.tokenVersion !== undefined && user.tokenVersion !== null ? user.tokenVersion : 0;
+  const jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_secret' : undefined);
   return jwt.sign(
     {
       id: user.id,
       tokenVersion
     },
-    process.env.JWT_SECRET,
+    jwtSecret,
     {
       algorithm: 'HS256',
       expiresIn: resolveJwtExpiry()

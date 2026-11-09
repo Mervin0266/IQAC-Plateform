@@ -73,12 +73,15 @@ exports.resolveDepartmentScope = async (req, targetModelName, isDeleteOperation 
     }
 
     if (isDeleteOperation) {
-      const confirmAll = req.query.confirmAll === 'true' || (req.body && req.body.confirmAll === true);
-      const confirmation = req.query.confirmation || (req.body && req.body.confirmation);
-      const isConfirmed = confirmAll || confirmation === 'CONFIRM_UNIVERSITY_CLEAR' || confirmation === 'CLEAR_ALL_CONFIRMED';
+      const confirmAll = (req.query && req.query.confirmAll === 'true') || (req.body && req.body.confirmAll === true);
+      const confirmation = (req.query && req.query.confirmation) || (req.body && req.body.confirmation);
+      const isConfirmed = confirmation === 'CONFIRM_UNIVERSITY_CLEAR' || confirmation === 'CLEAR_ALL_CONFIRMED';
 
-      if (!isConfirmed) {
-        console.warn(`[AUDIT] Administrator ${user.email} initiated university-wide clear on ${targetModelName}.`);
+      if (!confirmAll || !isConfirmed) {
+        throw {
+          status: 400,
+          message: 'Administrator university-wide bulk deletion requires explicit dual-confirmation (confirmAll=true and confirmation="CONFIRM_UNIVERSITY_CLEAR").'
+        };
       }
     }
 

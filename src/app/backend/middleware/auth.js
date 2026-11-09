@@ -20,7 +20,8 @@ const auth = async (req, res, next) => {
     }
 
     // 2. Verify token with algorithm pinning
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    const jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_secret' : undefined);
+    const decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] });
     
     // 3. Retrieve user from database
     const user = await User.findByPk(decoded.id, {
