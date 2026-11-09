@@ -67,7 +67,15 @@ exports.getReportConfig = async (req, res) => {
       ProgramLevel ? ProgramLevel.findAll({ attributes: ['id', 'name'], raw: true }).catch(() => []) : []
     ]);
 
-    const academicYears = ['AY 2024–25', 'AY 2023–24', 'AY 2022–23', 'AY 2021–22', 'AY 2020–21'];
+    const academicYears = [
+      'AY 2026–27',
+      'AY 2025–26',
+      'AY 2024–25',
+      'AY 2023–24',
+      'AY 2022–23',
+      'AY 2021–22',
+      'AY 2020–21'
+    ];
     const reportLevels = [
       { id: 'summary', name: 'Summary Report', description: 'Executive indicators, core KPIs across all 5 sections, methodology & data quality indicators.' },
       { id: 'analytical', name: 'Analytical Report', description: 'All 5 sections, multi-year comparisons, department comparisons, and analytical breakdown tables.' },
@@ -84,7 +92,7 @@ exports.getReportConfig = async (req, res) => {
       success: true,
       data: {
         academicYears,
-        defaultAcademicYears: ['AY 2024–25', 'AY 2023–24', 'AY 2022–23'],
+        defaultAcademicYears: ['AY 2026–27', 'AY 2025–26', 'AY 2024–25', 'AY 2023–24'],
         campuses: campuses.map(c => ({ id: c.id, name: c.name })),
         schools: schools.map(s => ({ id: s.id, name: s.name, campusId: s.campusId })),
         departments: departments.map(d => ({ id: d.id, name: d.name, shortName: d.shortName, schoolId: d.schoolId })),

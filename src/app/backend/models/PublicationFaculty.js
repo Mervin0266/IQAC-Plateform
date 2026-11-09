@@ -41,17 +41,17 @@ const PublicationFaculty = sequelize.define('PublicationFaculty', {
     comment: 'Normalized string Employee ID with preserved leading zeros'
   },
   facultyName: {
-    type: DataTypes.STRING(255),
+    type: DataTypes.TEXT,
     allowNull: true,
     comment: 'Snapshot of verified faculty member name'
   },
   department: {
-    type: DataTypes.STRING(255),
+    type: DataTypes.TEXT,
     allowNull: false,
     comment: 'Verified department derived from faculty master directory'
   },
   sourceFile: {
-    type: DataTypes.STRING(500),
+    type: DataTypes.TEXT,
     allowNull: true,
     comment: 'Name of the source spreadsheet file (e.g. 2043_Adarsh_S_V.xlsx)'
   },

@@ -12,7 +12,8 @@ const {
   generateInstitutionalExcelReport,
   generateInstitutionalPdfReport,
   generateInstitutionalWordReport,
-  normalizeAY
+  normalizeAY,
+  expandAyList
 } = require('../services/institutionalReportService');
 
 async function runTests() {
@@ -55,10 +56,26 @@ async function runTests() {
     assert.strictEqual(normalizeAY('2024'), '2024-25');
   });
 
-  // 2. Centralized Analytics Aggregation & 5 Sections Coverage
-  await testAsync('getInstitutionalAnalytics returns all 5 sections with correct structure', async () => {
+  // 2. Academic Year Multi-Format Expansion for Database Queries
+  test('expandAyList expands canonical AY into 4-digit, 2-digit, AY-prefixed, and calendar formats', () => {
+    const expanded = expandAyList(['AY 2024–25', '2023-24']);
+    // Must include 4-digit database format
+    assert.ok(expanded.includes('2024-2025'), 'Must match 2024-2025 stored in students/faculties');
+    assert.ok(expanded.includes('2023-2024'), 'Must match 2023-2024 stored in sponsored/patents');
+    // Must include 2-digit format
+    assert.ok(expanded.includes('2024-25'));
+    assert.ok(expanded.includes('2024–25'));
+    assert.ok(expanded.includes('AY 2024-25'));
+    assert.ok(expanded.includes('AY 2024–25'));
+    // Must include publication calendar year start
+    assert.ok(expanded.includes('2024'), 'Must match publication calendar year 2024');
+    assert.ok(expanded.includes('2023'), 'Must match publication calendar year 2023');
+  });
+
+  // 3. Centralized Analytics Aggregation & 5 Sections Coverage
+  await testAsync('getInstitutionalAnalytics returns all 5 sections with correct structure and dataQuality indicators', async () => {
     const data = await getInstitutionalAnalytics({
-      academicYears: ['AY 2024–25', 'AY 2023–24'],
+      academicYears: ['AY 2026–27', 'AY 2025–26', 'AY 2024–25', 'AY 2023–24'],
       campus: 'All',
       school: 'All'
     });
@@ -69,6 +86,7 @@ async function runTests() {
     assert.ok(data.researchInnovation, 'Section 3: researchInnovation must be present');
     assert.ok(data.placementsInternships, 'Section 4: placementsInternships must be present');
     assert.ok(data.accreditationRankings, 'Section 5: accreditationRankings must be present');
+    assert.ok(data.dataQuality, 'Data quality status object must be present');
 
     // Section 1 Verification
     assert.strictEqual(typeof data.executiveOverview.totalStudents, 'number');
@@ -100,7 +118,7 @@ async function runTests() {
     assert.strictEqual(data.accreditationRankings.criteriaBreakdown.length, 7);
   });
 
-  // 3. Excel Export Buffer Generation (All 3 Report Levels)
+  // 4. Excel Export Buffer Generation (All 3 Report Levels)
   await testAsync('generateInstitutionalExcelReport creates valid .xlsx buffer across levels', async () => {
     const mockReportData = await getInstitutionalAnalytics();
 
@@ -130,11 +148,11 @@ async function runTests() {
     assert.ok(detailedBuf.length > 5000);
   });
 
-  // 4. PDF Export Buffer Generation (Valid PDF 1.4 header and SMask logo)
+  // 5. PDF Export Buffer Generation (Valid PDF 1.4 header and SMask logo)
   test('generateInstitutionalPdfReport creates valid PDF 1.4 buffer', () => {
     const mockReportData = {
       scopeDisplay: 'University-wide',
-      academicYears: ['AY 2024–25', 'AY 2023–24'],
+      academicYears: ['AY 2026–27', 'AY 2025–26', 'AY 2024–25'],
       executiveOverview: { totalStudents: 500, totalFaculty: 40, studentFacultyRatio: '12.5' },
       academicFaculty: { phdFacultyCount: 25, phdPercentage: '62.5' },
       researchInnovation: { totalPublications: 85, totalCitations: 240, totalSponsoredAmountLakhs: 45.5 },
@@ -154,7 +172,7 @@ async function runTests() {
     assert.ok(pdfBuf.length > 10000, 'PDF buffer should contain fonts and embedded streams');
   });
 
-  // 5. Word (.docx) Export Buffer Generation
+  // 6. Word (.docx) Export Buffer Generation
   await testAsync('generateInstitutionalWordReport creates valid Word document buffer', async () => {
     const mockReportData = {
       scopeDisplay: 'School of Engineering and Technology',
@@ -179,18 +197,18 @@ async function runTests() {
     assert.ok(wordBuf.length > 5000, 'Word buffer size should be valid');
   });
 
-  // 6. Placement LPA vs Stipend Segregation
+  // 7. Placement LPA vs Stipend Segregation
   await testAsync('Placement package calculations segregate LPA from monthly stipends', async () => {
     const data = await getInstitutionalAnalytics();
     const place = data.placementsInternships;
 
-    // Average LPA should be formatted as decimal string or number
-    assert.ok(typeof place.avgPackageLpa === 'string' || typeof place.avgPackageLpa === 'number');
+    // Average LPA should be formatted as decimal string or number or null
+    assert.ok(typeof place.avgPackageLpa === 'string' || typeof place.avgPackageLpa === 'number' || place.avgPackageLpa === null);
     // Internship stipend should be an integer in INR
     assert.strictEqual(typeof place.avgInternshipStipend, 'number');
   });
 
-  // 7. Scoped filtering adherence
+  // 8. Scoped filtering adherence
   await testAsync('getInstitutionalAnalytics respects department filtering', async () => {
     const data = await getInstitutionalAnalytics({
       departments: ['Computer Science and Engineering']

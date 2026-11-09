@@ -59,13 +59,21 @@ export function InstitutionalReportGeneratorDialog({
   const [selectedCampus, setSelectedCampus] = useState<string>('All');
   const [selectedSchool, setSelectedSchool] = useState<string>('All');
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
-  const [selectedYears, setSelectedYears] = useState<string[]>(['AY 2024–25', 'AY 2023–24', 'AY 2022–23']);
+  const [selectedYears, setSelectedYears] = useState<string[]>(['AY 2026–27', 'AY 2025–26', 'AY 2024–25', 'AY 2023–24']);
 
   // Metadata from backend config
   const [campuses, setCampuses] = useState<Array<{ id: string; name: string }>>([]);
   const [schools, setSchools] = useState<Array<{ id: string; name: string; campusId?: string }>>([]);
   const [departments, setDepartments] = useState<Array<{ id: string; name: string; shortName?: string; schoolId?: string }>>([]);
-  const availableYears = ['AY 2024–25', 'AY 2023–24', 'AY 2022–23', 'AY 2021–22', 'AY 2020–21'];
+  const availableYears = [
+    'AY 2026–27',
+    'AY 2025–26',
+    'AY 2024–25',
+    'AY 2023–24',
+    'AY 2022–23',
+    'AY 2021–22',
+    'AY 2020–21'
+  ];
 
   // State
   const [loadingConfig, setLoadingConfig] = useState(false);

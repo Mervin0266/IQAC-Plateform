@@ -1171,7 +1171,7 @@ exports.bulkUploadPublications = async (req, res) => {
         journalType: normalizedType,
         department: effectiveDept,
         academicYear: cleanPubYear,
-        publicationYear: cleanPubYear,
+        publicationYear: cleanPubYear ? String(cleanPubYear).trim().substring(0, 10) : null,
         publicationDate: sanitizeDate(rawDate),
         doi: cleanDoi,
         issn: cleanIssn,
@@ -1296,10 +1296,12 @@ exports.bulkUploadPublications = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error('Bulk upload publications error:', error);
+    const detailMsg = error.parent?.detail || error.original?.message || error.message || 'Internal database error';
     res.status(500).json({
       success: false,
-      message: 'Failed to process bulk upload for publications.',
-      error: error.message
+      message: `Failed to process bulk upload for publications: ${detailMsg}`,
+      error: error.message,
+      detail: detailMsg
     });
   }
 };

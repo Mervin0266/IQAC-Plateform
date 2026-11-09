@@ -7,7 +7,7 @@
  *    Placements & Internships, Accreditation & Rankings.
  * 2. Shared Global Filter Bar: Campus, School, Department(s), Academic Year(s), Reset & Active Pills.
  * 3. Contextual Sub-Filters: Program Level, Designation, Indexing, Batch, Status.
- * 4. Interactive Recharts Visualizations (Bar, Line, Donut, Grouped Bar).
+ * 4. Dual-Axis Scaled Recharts Visualizations (Bar, Line, Donut, Grouped Bar).
  * 5. Drill-Down KPI Cards linking to authorized, filtered source records.
  * 6. Centralized "Generate Report" feature opening InstitutionalReportGeneratorDialog.
  * 7. Clear separation between live verified calculations and reference benchmarks (NAAC/NIRF).
@@ -29,7 +29,7 @@ import {
   Tooltip,
   Legend
 } from 'recharts';
-import { AppShell, PageHeader, StatCard, SectionCard } from './design-system';
+import { AppShell, PageHeader, StatCard } from './design-system';
 import { RoleIndicator } from './RoleIndicator';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useAuth } from '../contexts/AuthContext';
@@ -46,21 +46,19 @@ import {
   LayoutGrid,
   RefreshCw,
   ArrowUpRight,
-  ChevronRight,
-  FileSpreadsheet,
   FileText,
   Compass,
   Filter,
   CheckCircle2,
   Calendar,
-  Layers,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  Info,
+  AlertCircle
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { InstitutionalReportGeneratorDialog } from './InstitutionalReportGeneratorDialog';
-import { PlacementStatsCard } from './dashboard/PlacementStatsCard';
 
 interface DashboardPageProps {
   onNavigate: (page: string) => void;
@@ -91,11 +89,27 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   // Complete Institutional Report Dialog Modal state
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
 
+  // Available Academic Years across the institutional database
+  const availableYears = [
+    'AY 2026–27',
+    'AY 2025–26',
+    'AY 2024–25',
+    'AY 2023–24',
+    'AY 2022–23',
+    'AY 2021–22',
+    'AY 2020–21'
+  ];
+
   // Global Shared Filters
   const [filterCampus, setFilterCampus] = useState<string>('All');
   const [filterSchool, setFilterSchool] = useState<string>('All');
   const [filterDepartment, setFilterDepartment] = useState<string>('All');
-  const [filterYears, setFilterYears] = useState<string[]>(['AY 2024–25', 'AY 2023–24', 'AY 2022–23']);
+  const [filterYears, setFilterYears] = useState<string[]>([
+    'AY 2026–27',
+    'AY 2025–26',
+    'AY 2024–25',
+    'AY 2023–24'
+  ]);
 
   // Contextual Sub-Filters
   const [filterProgramLevel, setFilterProgramLevel] = useState<string>('All');
@@ -107,7 +121,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [campuses, setCampuses] = useState<Array<{ id: string; name: string }>>([]);
   const [schools, setSchools] = useState<Array<{ id: string; name: string; campusId?: string }>>([]);
   const [departments, setDepartments] = useState<Array<{ id: string; name: string; shortName?: string; schoolId?: string }>>([]);
-  const availableYears = ['AY 2024–25', 'AY 2023–24', 'AY 2022–23', 'AY 2021–22', 'AY 2020–21'];
 
   // Live Analytics Data from Centralized Service
   const [analyticsData, setAnalyticsData] = useState<any>(null);
@@ -145,7 +158,12 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       if (filterCampus !== 'All') params.append('campus', filterCampus);
       if (filterSchool !== 'All') params.append('school', filterSchool);
       if (filterDepartment !== 'All') params.append('department', filterDepartment);
-      if (filterYears.length > 0) params.append('academicYears', filterYears.join(','));
+
+      // Pass selected academic years (if subset selected)
+      if (filterYears.length > 0 && filterYears.length < availableYears.length) {
+        params.append('academicYears', filterYears.join(','));
+      }
+
       if (filterProgramLevel !== 'All') params.append('program', filterProgramLevel);
       if (filterIndexing !== 'All') params.append('indexing', filterIndexing);
       if (filterBatch !== 'All') params.append('batch', filterBatch);
@@ -161,7 +179,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         }
       }
     } catch (err) {
-      console.warn('Analytics fetch error, using fallback:', err);
+      console.warn('Analytics fetch error:', err);
     } finally {
       setLoadingAnalytics(false);
     }
@@ -176,14 +194,23 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     setFilterCampus('All');
     setFilterSchool('All');
     setFilterDepartment('All');
-    setFilterYears(['AY 2024–25', 'AY 2023–24', 'AY 2022–23']);
+    setFilterYears(['AY 2026–27', 'AY 2025–26', 'AY 2024–25', 'AY 2023–24']);
     setFilterProgramLevel('All');
     setFilterDesignation('All');
     setFilterIndexing('All');
     setFilterBatch('All');
   };
 
-  // Toggle year selection
+  // Select all academic years
+  const handleSelectAllYears = () => {
+    if (filterYears.length === availableYears.length) {
+      setFilterYears(['AY 2026–27', 'AY 2025–26', 'AY 2024–25', 'AY 2023–24']);
+    } else {
+      setFilterYears([...availableYears]);
+    }
+  };
+
+  // Toggle single year selection
   const handleToggleYear = (yr: string) => {
     setFilterYears(prev => {
       if (prev.includes(yr)) {
@@ -195,25 +222,26 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     });
   };
 
-  // Merge live backend data with fallback stats
+  // Extract sections from live backend analytics
   const exec = analyticsData?.executiveOverview || {};
   const acad = analyticsData?.academicFaculty || {};
   const resData = analyticsData?.researchInnovation || {};
   const placeData = analyticsData?.placementsInternships || {};
   const accData = analyticsData?.accreditationRankings || {};
+  const quality = analyticsData?.dataQuality || {};
 
-  const totalStudents = exec.totalStudents ?? dashboard.liveStats.totalStudents ?? 0;
-  const totalFaculty = exec.totalFaculty ?? dashboard.liveStats.totalFaculty ?? 0;
-  const sfr = exec.studentFacultyRatio ?? dashboard.liveStats.sfr ?? '—';
-  const totalPubs = resData.totalPublications ?? dashboard.liveStats.totalPapers ?? 0;
+  const totalStudents = exec.totalStudents ?? 0;
+  const totalFaculty = exec.totalFaculty ?? 0;
+  const sfr = exec.studentFacultyRatio ?? '—';
+  const totalPubs = resData.totalPublications ?? 0;
   const totalCitations = resData.totalCitations ?? 0;
-  const placementRate = placeData.placementRate ?? dashboard.liveStats.placedPercentage ?? 0;
-  const avgSalaryLpa = placeData.avgPackageLpa ?? dashboard.liveStats.avgSalaryLpa ?? '0.0';
-  const highestSalaryLpa = placeData.highestPackageLpa ?? dashboard.liveStats.highestSalaryLpa ?? '0.0';
+  const placementRate = placeData.placementRate ?? 0;
+  const avgSalaryLpa = placeData.avgPackageLpa || '—';
+  const highestSalaryLpa = placeData.highestPackageLpa || '—';
 
-  const totalGrantsCrores = resData.totalSponsoredAmountCrores ?? dashboard.liveStats.totalGrantsCrores ?? '0.00';
-  const totalGrantsLakhs = resData.totalSponsoredAmountLakhs ?? dashboard.liveStats.totalGrantsAmountLakhs ?? 0;
-  const consultancyLakhs = resData.totalConsultancyAmountLakhs ?? dashboard.liveStats.consultancyAmountLakhs ?? 0;
+  const totalGrantsCrores = resData.totalSponsoredAmountCrores ?? '0.00';
+  const totalGrantsLakhs = resData.totalSponsoredAmountLakhs ?? 0;
+  const consultancyLakhs = resData.totalConsultancyAmountLakhs ?? 0;
 
   // Quick modules navigation directory
   const quickModules = [
@@ -250,7 +278,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       route: 'placements-internships',
       icon: Briefcase,
       desc: 'Corporate recruiters, placement rates, packages & internship stipends',
-      stat: `${placementRate}% Placed • ₹ ${avgSalaryLpa} LPA Avg CTC`,
+      stat: `${placementRate}% Placed • ${placeData.totalOffers || 0} Offers Recorded`,
     },
     {
       title: 'Accreditation Master (NAAC & NBA)',
@@ -271,7 +299,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         description="Comprehensive institutional analytics platform covering academic cohorts, faculty profiles, research outputs, recruitment, and accreditation compliance."
         actions={
           <div className="flex items-center gap-2.5">
-            {/* Centralized "Generate Report" Button (Replaces "Export Summary") */}
+            {/* Centralized "Generate Report" Button */}
             <button
               type="button"
               onClick={() => setIsReportDialogOpen(true)}
@@ -287,11 +315,11 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 dashboard.refetchDashboard();
                 fetchAnalytics();
               }}
-              disabled={loadingAnalytics || dashboard.loading}
+              disabled={loadingAnalytics}
               className="inline-flex items-center gap-2 h-9 px-3.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl transition-all shadow-xs disabled:opacity-50"
               title="Refresh Live Analytics"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loadingAnalytics || dashboard.loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loadingAnalytics ? 'animate-spin' : ''}`} />
               <span>{loadingAnalytics ? 'Syncing...' : 'Refresh'}</span>
             </button>
           </div>
@@ -312,14 +340,22 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           </div>
 
           <div className="flex items-center space-x-2">
-            {(filterCampus !== 'All' || filterSchool !== 'All' || filterDepartment !== 'All' || filterYears.length !== 3) && (
+            <button
+              type="button"
+              onClick={handleSelectAllYears}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+            >
+              {filterYears.length === availableYears.length ? 'Default Years' : 'All Academic Years'}
+            </button>
+
+            {(filterCampus !== 'All' || filterSchool !== 'All' || filterDepartment !== 'All' || filterYears.length !== 4) && (
               <button
                 type="button"
                 onClick={handleResetFilters}
                 className="inline-flex items-center space-x-1 text-xs text-slate-600 hover:text-blue-600 px-2 py-1 rounded hover:bg-slate-50 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset Filters</span>
+                <span>Reset</span>
               </button>
             )}
           </div>
@@ -376,9 +412,11 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
           {/* Academic Years Selector (Multi-Pill) */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-600 mb-1">Academic Years ({filterYears.length})</label>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1">
+              Academic Years ({filterYears.length})
+            </label>
             <div className="flex flex-wrap gap-1">
-              {availableYears.slice(0, 4).map(yr => {
+              {availableYears.map(yr => {
                 const isSelected = filterYears.includes(yr);
                 return (
                   <button
@@ -412,8 +450,14 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             {filterDepartment === 'All' ? 'All Departments' : filterDepartment}
           </Badge>
           <Badge variant="outline" className="text-[11px] font-normal py-0 bg-blue-50 text-blue-700 border-blue-200">
-            {filterYears.join(', ')}
+            {filterYears.length === availableYears.length ? 'All Academic Years' : filterYears.join(', ')}
           </Badge>
+          {loadingAnalytics && (
+            <span className="inline-flex items-center text-blue-600 font-medium ml-2">
+              <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+              Calculating live metrics...
+            </span>
+          )}
         </div>
       </div>
 
@@ -499,15 +543,15 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             <StatCard
               title="Placement Rate"
               value={`${placementRate}%`}
-              subtitle={`Avg ₹ ${avgSalaryLpa} LPA`}
+              subtitle={placeData.totalOffers > 0 ? avgSalaryLpa : 'No placement records'}
               icon={Briefcase}
               onClick={() => onNavigate('placements-internships')}
             />
           </div>
 
-          {/* 2 Primary Interactive Recharts Visualizations */}
+          {/* 2 Primary Interactive Recharts Visualizations (Dual-Axis Scaled) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Chart 1: Multi-Year Progression */}
+            {/* Chart 1: Multi-Year Progression (Dual Axis) */}
             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -515,7 +559,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     Annual Multi-Year Institutional Progression
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Growth trends across Students, Publications & Placements
+                    Students (left axis) vs Publications & Placements (right axis)
                   </p>
                 </div>
                 <Badge variant="outline" className="text-xs bg-slate-50">
@@ -524,31 +568,34 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               </div>
 
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={exec.yearlyOverview || [
-                      { academicYear: 'AY 2022–23', students: 1200, publications: 180, placed: 420 },
-                      { academicYear: 'AY 2023–24', students: 1350, publications: 220, placed: 490 },
-                      { academicYear: 'AY 2024–25', students: 1520, publications: 280, placed: 580 }
-                    ]}
-                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                    <XAxis dataKey="academicYear" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                    <Bar dataKey="students" name="Students" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="publications" name="Publications" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="placed" name="Placements" fill={COLORS.amber} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {(!exec.yearlyOverview || exec.yearlyOverview.length === 0) ? (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                    No progression data available for selected scope
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={exec.yearlyOverview}
+                      margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                      <XAxis dataKey="academicYear" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                      <YAxis yAxisId="left" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      <Bar yAxisId="left" dataKey="students" name="Students (Left)" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="right" dataKey="publications" name="Publications (Right)" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="right" dataKey="placed" name="Placements (Right)" fill={COLORS.amber} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
-            {/* Chart 2: Department Comparative Analytics */}
+            {/* Chart 2: Department Comparative Distribution (Dual Axis) */}
             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -556,7 +603,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     Department Comparative Distribution
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Student cohort vs Faculty strength across top departments
+                    Students (left axis) vs Faculty count (right axis)
                   </p>
                 </div>
                 <Badge variant="outline" className="text-xs bg-slate-50">
@@ -565,33 +612,34 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               </div>
 
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={acad.departmentBreakdown ? acad.departmentBreakdown.slice(0, 6) : [
-                      { shortName: 'CSE', students: 480, faculty: 32 },
-                      { shortName: 'ECE', students: 360, faculty: 24 },
-                      { shortName: 'MECH', students: 240, faculty: 18 },
-                      { shortName: 'CIVIL', students: 180, faculty: 14 },
-                      { shortName: 'SOA', students: 210, faculty: 16 }
-                    ]}
-                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                    <XAxis dataKey="shortName" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                    <Bar dataKey="students" name="Students" fill={COLORS.slate} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="faculty" name="Faculty" fill={COLORS.sky} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {(!acad.departmentBreakdown || acad.departmentBreakdown.length === 0) ? (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                    No department data available for selected scope
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={acad.departmentBreakdown}
+                      margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                      <XAxis dataKey="shortName" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                      <YAxis yAxisId="left" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      <Bar yAxisId="left" dataKey="students" name="Students (Left)" fill={COLORS.slate} radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="right" dataKey="faculty" name="Faculty (Right)" fill={COLORS.sky} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Structural Hierarchy Card */}
+          {/* Structural Hierarchy Banner */}
           <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-xl p-5 text-white shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
               <div className="flex items-center space-x-2.5">
@@ -628,7 +676,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               <div className="p-3 bg-white/5 rounded-lg border border-white/10">
                 <span className="text-[11px] text-slate-300 uppercase">Programs</span>
                 <p className="text-xl font-bold text-white mt-1">
-                  {exec.structuralHierarchy?.totalCourses || 27}
+                  {exec.structuralHierarchy?.totalCourses || 31}
                 </p>
                 <span className="text-[10px] text-slate-400">UG, PG, PhD Degrees</span>
               </div>
@@ -760,11 +808,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={acad.designationDistribution || [
-                        { name: 'Professor / Assoc.', count: 28 },
-                        { name: 'Assistant Professor', count: 62 },
-                        { name: 'Other Academic Cadre', count: 12 }
-                      ]}
+                      data={acad.designationDistribution || []}
                       dataKey="count"
                       nameKey="name"
                       cx="50%"
@@ -792,11 +836,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={acad.programLevelDistribution || [
-                      { name: 'UG', count: 1200 },
-                      { name: 'PG', count: 320 },
-                      { name: 'PhD', count: 65 }
-                    ]}
+                    data={acad.programLevelDistribution || []}
                     margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
@@ -818,10 +858,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={acad.genderDistribution || [
-                        { name: 'Male', count: 58 },
-                        { name: 'Female', count: 44 }
-                      ]}
+                      data={acad.genderDistribution || []}
                       dataKey="count"
                       nameKey="name"
                       cx="50%"
@@ -868,7 +905,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                   {(acad.departmentBreakdown || []).map((d: any, idx: number) => (
                     <tr key={idx} className="hover:bg-slate-50/50">
                       <td className="py-2.5 px-3 font-medium text-slate-900">{d.departmentName}</td>
-                      <td className="py-2.5 px-3 text-right">{d.students}</td>
+                      <td className="py-2.5 px-3 text-right">{d.students.toLocaleString('en-IN')}</td>
                       <td className="py-2.5 px-3 text-right">{d.faculty}</td>
                       <td className="py-2.5 px-3 text-right font-medium text-blue-600">{d.sfr}:1</td>
                       <td className="py-2.5 px-3 text-right">{d.phdCount}</td>
@@ -951,31 +988,28 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             />
           </div>
 
-          {/* Charts Row */}
+          {/* Charts Row (Dual-Axis Scaled) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Chart: Annual Pubs & Citations */}
             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
               <h3 className="text-sm font-semibold text-slate-900 mb-1">Annual Publications & Citations Trend</h3>
-              <p className="text-xs text-slate-500 mb-4">Multi-year research output progression</p>
+              <p className="text-xs text-slate-500 mb-4">Publications (left axis) vs Approved Citations (right axis)</p>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={resData.yearlyResearch || [
-                      { academicYear: 'AY 2022–23', publications: 140, citations: 450 },
-                      { academicYear: 'AY 2023–24', publications: 190, citations: 680 },
-                      { academicYear: 'AY 2024–25', publications: 260, citations: 920 }
-                    ]}
+                    data={resData.yearlyResearch || []}
                     margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                     <XAxis dataKey="academicYear" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
+                    <YAxis yAxisId="left" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#94A3B8" fontSize={11} tickLine={false} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
                     />
                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                    <Bar dataKey="publications" name="Publications" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="citations" name="Citations" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="publications" name="Publications (Left)" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="citations" name="Citations (Right)" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -989,12 +1023,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={resData.indexingDistribution || [
-                        { name: 'Scopus Indexed', count: 180 },
-                        { name: 'Web of Science', count: 65 },
-                        { name: 'UGC-CARE Listed', count: 35 },
-                        { name: 'Other Peer-Reviewed', count: 15 }
-                      ]}
+                      data={resData.indexingDistribution || []}
                       dataKey="count"
                       nameKey="name"
                       cx="50%"
@@ -1034,14 +1063,27 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">All Batches</SelectItem>
+                  <SelectItem value="2027">Batch 2027</SelectItem>
+                  <SelectItem value="2026">Batch 2026</SelectItem>
                   <SelectItem value="2025">Batch 2025</SelectItem>
                   <SelectItem value="2024">Batch 2024</SelectItem>
-                  <SelectItem value="2023">Batch 2023</SelectItem>
-                  <SelectItem value="2022">Batch 2022</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
+
+          {/* Status Note if Table is Empty */}
+          {placeData.totalOffers === 0 && (
+            <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-start space-x-2.5 text-blue-900 text-xs">
+              <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold">Placements & Internships Data Status:</span>
+                <p className="mt-0.5 text-blue-800">
+                  No student placement or internship records have been uploaded for the current scope. Once uploaded via the Placements bulk uploader, campus hiring metrics and CTC bands will dynamically appear here.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
@@ -1068,14 +1110,14 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             />
             <StatCard
               title="Average Package"
-              value={`₹ ${avgSalaryLpa} L`}
+              value={avgSalaryLpa}
               subtitle="Placements LPA CTC"
               icon={Sparkles}
               onClick={() => onNavigate('placements-internships')}
             />
             <StatCard
               title="Highest Package"
-              value={`₹ ${highestSalaryLpa} L`}
+              value={highestSalaryLpa}
               subtitle="Institutional Peak"
               icon={Star}
               onClick={() => onNavigate('placements-internships')}
@@ -1096,26 +1138,26 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               <h3 className="text-sm font-semibold text-slate-900 mb-1">Compensation Range Breakdown (LPA)</h3>
               <p className="text-xs text-slate-500 mb-4">Package distribution across placed students</p>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={placeData.salaryRanges || [
-                      { range: '< 5 LPA', count: 45 },
-                      { range: '5 – 8 LPA', count: 120 },
-                      { range: '8 – 12 LPA', count: 85 },
-                      { range: '12 – 15 LPA', count: 32 },
-                      { range: '15+ LPA', count: 18 }
-                    ]}
-                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                    <XAxis dataKey="range" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                    />
-                    <Bar dataKey="count" name="Offers" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {placeData.totalOffers === 0 ? (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                    No compensation records available to display
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={placeData.salaryRanges || []}
+                      margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                      <XAxis dataKey="range" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                      <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
+                      />
+                      <Bar dataKey="count" name="Offers" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
@@ -1124,27 +1166,27 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               <h3 className="text-sm font-semibold text-slate-900 mb-1">Leading Corporate Recruiters</h3>
               <p className="text-xs text-slate-500 mb-4">Top hiring partners by student offers</p>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={placeData.topRecruiters || [
-                      { company: 'Infosys', offers: 42 },
-                      { company: 'TCS', offers: 38 },
-                      { company: 'Wipro', offers: 28 },
-                      { company: 'Accenture', offers: 25 },
-                      { company: 'Cognizant', offers: 22 }
-                    ]}
-                    layout="vertical"
-                    margin={{ top: 10, right: 10, left: 20, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                    <XAxis type="number" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <YAxis dataKey="company" type="category" stroke="#94A3B8" fontSize={11} tickLine={false} width={80} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                    />
-                    <Bar dataKey="offers" name="Job Offers" fill={COLORS.primary} radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {(!placeData.topRecruiters || placeData.topRecruiters.length === 0) ? (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                    No corporate recruiting records available to display
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={placeData.topRecruiters}
+                      layout="vertical"
+                      margin={{ top: 10, right: 10, left: 20, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                      <XAxis type="number" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                      <YAxis dataKey="company" type="category" stroke="#94A3B8" fontSize={11} tickLine={false} width={80} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
+                      />
+                      <Bar dataKey="offers" name="Job Offers" fill={COLORS.primary} radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
@@ -1228,15 +1270,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={accData.criteriaBreakdown || [
-                    { criterion: 'C1: Curricular', score: 3.82, target: 3.9 },
-                    { criterion: 'C2: Teaching-Learning', score: 3.76, target: 3.85 },
-                    { criterion: 'C3: Research & Innov.', score: 3.65, target: 3.8 },
-                    { criterion: 'C4: Infrastructure', score: 3.88, target: 3.9 },
-                    { criterion: 'C5: Student Support', score: 3.79, target: 3.85 },
-                    { criterion: 'C6: Governance', score: 3.7, target: 3.8 },
-                    { criterion: 'C7: Best Practices', score: 3.91, target: 3.95 }
-                  ]}
+                  data={accData.criteriaBreakdown || []}
                   margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />

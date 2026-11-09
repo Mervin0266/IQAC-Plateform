@@ -2158,9 +2158,13 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         onSuccess();
         setCurrentStage('summary');
       } else {
-        setUploadError(data.message || 'Bulk upload failed.');
+        const errorDetail = data.detail || data.error;
+        const failureMessage = errorDetail && !data.message?.includes(errorDetail)
+          ? `${data.message || 'Bulk upload failed.'} (${errorDetail})`
+          : (data.message || 'Bulk upload failed.');
+        setUploadError(failureMessage);
         setImportResult({
-          message: data.message || 'Bulk upload failed.',
+          message: failureMessage,
           success: false,
           errors: data.errors
         });
