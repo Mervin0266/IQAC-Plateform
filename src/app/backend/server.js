@@ -166,6 +166,7 @@ app.use('/api/courses', require('./routes/courses'));
 app.use('/api/hierarchy', require('./routes/hierarchy'));
 app.use('/api/system', require('./routes/system'));
 app.use('/api/research-reports', require('./routes/researchReports'));
+app.use('/api/institutional-analytics', require('./routes/institutionalAnalytics'));
 
 // Health check
 app.get(['/health', '/api/health'], (req, res) => {
