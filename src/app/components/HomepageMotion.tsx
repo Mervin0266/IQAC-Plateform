@@ -19,5 +19,5 @@ export function Reveal({ children, className, delay = 0 }: {
     });
     return () => controls.stop();
   }, [seen, quiet, controls, delay]);
-  return <motion.div ref={ref} className={className} initial={false} animate={controls}>{children}</motion.div>;
+  return <motion.div ref={ref} className={className} data-revealed={quiet || seen ? 'true' : 'false'} initial={false} animate={controls}>{children}</motion.div>;
 }

@@ -46,6 +46,12 @@ The hero image loads with high priority. The below-fold library image loads lazi
 - Existing Motion dependency is reused. Font assets total approximately 74 KB; the main bundle increased by approximately 43 KB gzip over the prior build.
 - Production build and existing interaction checks passed. Additional browser checks verified font loading, completed entrance, pause/resume, live reduced-motion switching, and no overflow at 320, 390, 768, 1024, and 1440px.
 
+## Page-wide motion refinement
+
+- The hero's editorial movement now carries through the public journey: access routes and fact cards enter in sequence, verticals lift on interaction, accreditation has a quiet orbital detail, service results enter progressively, and resources, process stages, marquee, and closing call-to-action have their own restrained feedback.
+- A shared `Reveal` state supplies section-level entrance timing while CSS handles decorative details. This keeps the choreography lightweight, avoids additional libraries, and lets the existing pause and reduced-motion settings disable non-essential movement consistently.
+- The public page now uses a compact type scale based on locally served IQ Display for editorial headings and IQ Manrope for utility and reading text, including the navigation and footer.
+
 ## Validation
 
 - Production build: `npm run build` passed.

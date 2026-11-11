@@ -120,7 +120,7 @@ export function PublicHomePage({ onNavigate, onLoginClick }: {
         </div>
       </section>
 
-      <div className="iq-container iq-access" aria-label="Quick access">
+      <Reveal className="iq-container iq-access iq-stagger" delay={.08}>
         <button onClick={onLoginClick}>
           <span className="iq-access-icon"><Users size={23} /></span>
           <span><small>FOR FACULTY & ADMINISTRATION</small><strong>Institutional workspace</strong><span>Document, review, and collaborate</span></span>
@@ -136,15 +136,15 @@ export function PublicHomePage({ onNavigate, onLoginClick }: {
           <span><small>EXPLORE CHRIST</small><strong>Institutional profile</strong><span>Research, achievements, and more</span></span>
           <ArrowUpRight size={19} />
         </a>
-      </div>
+      </Reveal>
 
       <section className="iq-facts" aria-label="Institutional overview">
-        <div className="iq-container iq-facts-grid">
+        <Reveal className="iq-container iq-facts-grid iq-stagger" delay={.12}>
           <div><strong>2003</strong><span>IQAC constituted</span></div>
           <div><strong>5</strong><span>Quality verticals</span></div>
           <a href={IQAC + '/naac'} {...external}><strong>A+</strong><span>NAAC accreditation <ArrowUpRight size={14} /></span></a>
           <a href={IQAC + '/naac'} {...external}><strong>3.42<span>/4</span></strong><span>NAAC CGPA</span></a>
-        </div>
+        </Reveal>
       </section>
 
       <section id="quality" tabIndex={-1} className="iq-section iq-container">
@@ -162,7 +162,7 @@ export function PublicHomePage({ onNavigate, onLoginClick }: {
           </figure>
         </Reveal>
         <div className="iq-subheading"><h3>Five verticals. One shared purpose.</h3><span>OUR AREAS OF FOCUS</span></div>
-        <Reveal className="iq-vertical-grid">
+        <Reveal className="iq-vertical-grid iq-stagger" delay={.05}>
           {verticals.map(({ title, detail, icon: Icon, href }, index) => (
             <a className="iq-vertical" href={href} {...external} key={title}>
               <div className="iq-card-top"><Icon size={25} strokeWidth={1.5} /><span>0{index + 1}</span></div>
@@ -199,8 +199,8 @@ export function PublicHomePage({ onNavigate, onLoginClick }: {
           </div>
           <p className="iq-directory-count" role="status">{matchingServices.length} {matchingServices.length === 1 ? 'area' : 'areas'} to explore{query.trim() && <> for &ldquo;{query.trim()}&rdquo;</>}</p>
           <div className="iq-services">
-            {matchingServices.map(({ title, detail, key, category: group, icon: Icon }) => (
-              <motion.button layout={!quiet ? 'position' : false} initial={false} animate={{ opacity: 1 }} transition={{ duration: quiet ? 0 : .3 }} className={`iq-service${key === 'achievements' ? ' iq-service-featured' : ''}`} key={key} onClick={() => onNavigate(key)}>
+            {matchingServices.map(({ title, detail, key, category: group, icon: Icon }, index) => (
+              <motion.button layout={!quiet ? 'position' : false} initial={quiet ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: quiet ? 0 : .38, delay: quiet ? 0 : Math.min(index * .045, .25), ease: [.22, 1, .36, 1] }} className={['iq-service', key === 'achievements' ? 'iq-service-featured' : ''].filter(Boolean).join(' ')} key={key} onClick={() => onNavigate(key)}>
                 <div className="iq-service-top"><span className="iq-service-icon"><Icon size={23} strokeWidth={1.5} /></span><ArrowUpRight size={18} /></div>
                 <small>{group}</small><h3>{title}</h3><p>{detail}</p>
                 <span className="iq-service-open">Explore area <ArrowRight size={15} /></span>
@@ -217,7 +217,7 @@ export function PublicHomePage({ onNavigate, onLoginClick }: {
           <div className="iq-intro-body"><p>Go straight to the official IQAC resources that inform review, reporting, and institutional planning.</p><a className="iq-inline-link" href={IQAC} {...external}>Visit the official IQAC website <ArrowUpRight size={17} /></a></div>
         </Reveal>
         <div className="iq-resource-meter" aria-hidden="true"><span>THE QUALITY COLLECTION</span><div>{resources.map((item, i) => <i key={item.title} className={resourceIndex === i ? 'active' : ''} />)}</div><span>0{resourceIndex + 1} / 03</span></div>
-        <Reveal className="iq-resource-grid">
+        <Reveal className="iq-resource-grid iq-stagger" delay={.04}>
           {resources.map(({ icon: Icon, ...item }, index) => (
             <a key={item.title} href={item.href} {...external} className="iq-resource" onMouseEnter={() => setResourceIndex(index)} onFocus={() => setResourceIndex(index)}>
               <div className={'iq-resource-art resource-art-' + index} aria-hidden="true">
