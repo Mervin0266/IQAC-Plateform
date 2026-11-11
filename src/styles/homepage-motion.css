@@ -1,0 +1,96 @@
+/* Locally hosted SIL Open Font License families; licenses live beside the files. */
+@font-face{font-family:"IQ Manrope";src:url("../assets/fonts/manrope-latin.woff2") format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:"IQ Display";src:url("../assets/fonts/dm-serif-display-latin.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"IQ Display";src:url("../assets/fonts/dm-serif-display-italic-latin.woff2") format("woff2");font-weight:400;font-style:italic;font-display:swap}
+.iq-site{font-family:"IQ Manrope","Segoe UI",sans-serif}
+.iq-home :is(h1,h2) em,.iq-home .iq-cover-title em,.iq-home .iq-about-photo figcaption strong{font-family:"IQ Display",Georgia,serif}
+.iq-home h1{font-weight:500;letter-spacing:-.055em}
+.iq-home h2{font-weight:550;letter-spacing:-.045em}
+.iq-home h2 em{color:#66785f}
+.iq-home .iq-eyebrow{font-size:11px;letter-spacing:.16em}
+.iq-title-line{display:block;overflow:hidden;padding-bottom:.1em;margin-bottom:-.1em}
+.iq-title-line>span,.iq-title-line>em{display:inline-block;animation:iq-rise .95s cubic-bezier(.22,1,.36,1) both}
+.iq-title-line>em{animation-delay:.14s}
+.iq-hero-copy>.iq-eyebrow{animation:iq-fade .7s both}
+.iq-hero-description{animation:iq-rise .8s .25s both}
+.iq-hero .iq-actions{animation:iq-rise .8s .38s both}
+.iq-hero-seal{animation:iq-rise .8s .5s both}
+.iq-hero-photo{translate:0 var(--hero-drift,0px);scale:1.04;animation:iq-photo 1.5s cubic-bezier(.22,1,.36,1) both}
+.iq-hero-shade{animation:iq-shade 1.2s both}
+.iq-hero-traces{position:absolute;right:-110px;top:-115px;width:610px;height:610px;z-index:-1;pointer-events:none;color:#e8cf91}
+.iq-hero-traces>circle,.iq-hero-traces>path{stroke:currentColor;stroke-width:.6;opacity:.22}
+.iq-hero-traces>circle:nth-child(2){stroke-dasharray:2 10}
+.iq-trace-orbit{transform-origin:300px 300px;animation:iq-orbit 36s linear infinite;fill:currentColor}
+.iq-motion-toggle{position:absolute;right:30px;top:18px;color:#ecdfc0;background:#102039bb;border:1px solid #ffffff38;border-radius:30px;padding:10px 15px;font-size:10px;z-index:3;min-height:38px}
+.iq-motion-toggle:disabled{cursor:default;opacity:.8}
+.iq-access{border-radius:10px;box-shadow:0 14px 45px #14233c12}
+.iq-access-icon,.iq-card-top svg,.iq-service-icon,.iq-cover-icon,.iq-resource-link svg,.iq-button svg{transition:transform .35s cubic-bezier(.22,1,.36,1)}
+.iq-access>:is(:hover,:focus-visible) .iq-access-icon{transform:rotate(-9deg);background:#e9ddbd}
+.iq-home .iq-button:is(:hover,:focus-visible) svg,.iq-resource:is(:hover,:focus-visible) .iq-resource-link svg{transform:translate(4px,-2px)}
+.iq-facts strong{font-family:"IQ Display",Georgia,serif;font-size:43px}
+.iq-facts-grid>*{animation:iq-rise .8s .5s both}
+.iq-section .iq-eyebrow::before,.iq-directory .iq-eyebrow::before{content:"";display:inline-block;vertical-align:middle;width:28px;height:1px;margin-right:12px;background:currentColor}
+.iq-about-photo{border-radius:4px 55px 4px 4px}
+.iq-vertical{position:relative}
+.iq-vertical::after{content:"";height:3px;position:absolute;bottom:0;left:0;right:0;background:#ac8742;transform:scaleX(0);transform-origin:left;transition:transform .35s}
+.iq-vertical:is(:hover,:focus-visible)::after{transform:scaleX(1)}
+.iq-vertical:is(:hover,:focus-visible) .iq-card-top svg{transform:translateY(-4px)}
+.iq-accreditation{background:radial-gradient(ellipse at 10% 50%,#dfd4b940,transparent 65%),#eeece3}
+.iq-grade-ring{position:relative}
+.iq-grade-ring::before{content:"";position:absolute;inset:-22px;border:1px dashed #b1975f70;border-radius:50%;animation:iq-orbit 60s linear infinite}
+.iq-grade-ring strong{font-family:"IQ Display",Georgia,serif}
+.iq-services{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.iq-service{border-radius:9px;padding:27px;transition:border-color .25s,box-shadow .25s,background .25s}
+.iq-service:hover{transform:none;box-shadow:0 12px 28px #11253f10}
+.iq-service:is(:hover,:focus-visible) .iq-service-icon{transform:rotate(-8deg) scale(1.07)}
+.iq-service-featured{grid-column:span 2;background:#18364b;color:#fff;position:relative;overflow:hidden}
+.iq-service-featured::after{content:"";position:absolute;right:-60px;top:-100px;width:320px;height:320px;border:1px solid #d1bd8b33;box-shadow:0 0 0 40px #d1bd8b0a,0 0 0 80px #d1bd8b08;border-radius:50%;pointer-events:none}
+.iq-service-featured h3{font:34px "IQ Display",Georgia,serif}
+.iq-service-featured small,.iq-service-featured p{color:#cbd7df}
+.iq-service-featured .iq-service-icon{color:#ebd49d;background:#ffffff12}
+.iq-service-featured .iq-service-top>svg{color:#ebd49d}
+.iq-service-featured p{max-width:360px}
+.iq-resource-meter{display:flex;align-items:center;gap:24px;margin-bottom:20px;font-size:9px;letter-spacing:.12em;color:#7a6946}
+.iq-resource-meter>div{display:flex;gap:5px;flex:1}
+.iq-resource-meter i{height:2px;background:#deded4;flex:1;transition:background .25s}
+.iq-resource-meter i.active{background:#a6813c}
+.iq-resource-art{height:245px}
+.iq-cover-title{font-size:38px}
+.iq-resource:is(:hover,:focus-visible) .iq-cover-icon{transform:rotate(-10deg) scale(1.14);opacity:.4}
+.iq-cover-footer{transition:letter-spacing .3s}
+.iq-resource:is(:hover,:focus-visible) .iq-cover-footer{letter-spacing:.22em}
+.iq-stage-track{height:2px;background:#ffffff22;margin-bottom:12px;overflow:hidden}
+.iq-stage-track span{display:block;height:100%;background:#dec38c;transform-origin:left}
+.iq-process-steps button{position:relative}
+.iq-process-steps button[aria-pressed=true]::after{content:"";position:absolute;width:6px;height:6px;border-radius:50%;right:10px;top:13px;background:#e5cb92;box-shadow:0 0 16px #e5cb9255}
+.iq-process-detail article>svg{position:absolute;right:0;top:30px;color:#d2bc8c}
+.iq-process-detail article>div{display:flex;gap:10px;align-items:center;color:#dfc996;font-size:11px;margin-top:22px}
+.iq-process-detail h3{font-family:"IQ Display",Georgia,serif}
+.iq-process-symbol>span:nth-child(2){animation:iq-orbit 32s linear infinite}
+.iq-marquee{overflow:hidden;background:#e8dfc9;padding-block:25px;color:#273a40}
+.iq-marquee-track{display:flex;width:max-content;animation:iq-marquee 42s linear infinite}
+.iq-marquee-track>div{display:flex;align-items:center;gap:45px;padding-right:45px;flex-shrink:0}
+.iq-marquee span{font:italic 35px "IQ Display",Georgia,serif;white-space:nowrap}
+.iq-marquee i{font-style:normal;font-size:22px;color:#967944}
+.iq-closing{position:relative;isolation:isolate;background:#112d3e;color:white;overflow:hidden}
+.iq-closing::before{content:"";position:absolute;z-index:-1;inset:-80px;background-image:linear-gradient(#d9c58b0e 1px,transparent 1px),linear-gradient(90deg,#d9c58b0e 1px,transparent 1px);background-size:60px 60px;animation:iq-grid 22s linear infinite;mask-image:linear-gradient(90deg,transparent,#000)}
+.iq-closing .iq-cta{padding-block:85px}
+.iq-closing .iq-eyebrow{color:#dac28b}
+.iq-closing h2 em{color:#e5cea0}
+.iq-closing .iq-cta p:last-child{color:#c1cfd9}
+.iq-home.iq-motion-off *,.iq-home.iq-motion-off *::before,.iq-home.iq-motion-off *::after{animation:none!important;transition:none!important}
+.iq-motion-off .iq-hero-photo{translate:0 0;scale:1}
+.iq-motion-off .iq-marquee-track{width:100%;justify-content:center}
+.iq-motion-off .iq-marquee-track>div{flex-wrap:wrap;justify-content:center;gap:16px;padding-inline:20px}
+.iq-motion-off .iq-marquee-track>div:nth-child(2){display:none}
+@keyframes iq-rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+@keyframes iq-fade{from{opacity:0}to{opacity:1}}
+@keyframes iq-photo{from{opacity:.5;transform:scale(1.06)}to{opacity:1;transform:scale(1)}}
+@keyframes iq-shade{from{opacity:.65;transform:translateX(-30px)}to{opacity:1;transform:translateX(0)}}
+@keyframes iq-orbit{to{transform:rotate(360deg)}}
+@keyframes iq-marquee{to{transform:translateX(-50%)}}
+@keyframes iq-grid{to{transform:translate(60px,60px)}}
+@media(max-width:980px){.iq-hero-photo{translate:0 0!important}.iq-hero-traces{width:400px;height:400px;right:-100px;top:20px}.iq-home h1{font-size:60px}.iq-services{grid-template-columns:repeat(2,minmax(0,1fr))}.iq-service-featured{grid-column:span 2}}
+@media(max-width:700px){.iq-home h1{font-size:clamp(38px,9.7vw,62px)}.iq-home .iq-eyebrow{font-size:9px}.iq-motion-toggle{top:12px;right:20px;font-size:9px}.iq-hero-traces{width:290px;height:290px;right:-90px;top:100px}.iq-service{padding:20px 16px}.iq-service-featured h3{font-size:28px}.iq-services{gap:12px}.iq-resource-meter{gap:12px;font-size:7px}.iq-marquee span{font-size:28px}.iq-closing .iq-cta{padding-block:55px}.iq-process-detail{min-height:330px}}
+@media(max-width:360px){.iq-services{grid-template-columns:1fr}.iq-service-featured{grid-column:auto}.iq-hero .iq-eyebrow{font-size:8px}}
+@media(prefers-reduced-motion:reduce){.iq-home *,.iq-home *::before,.iq-home *::after{animation:none!important;transition:none!important}.iq-hero-photo{translate:0 0!important;scale:1}}

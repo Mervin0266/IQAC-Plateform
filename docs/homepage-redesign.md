@@ -35,7 +35,16 @@ Images are locally served WebP versions of photographs published on the official
 - Library: https://christuniversity.in/uploads/banners/banner/83851659_2026-08-14_10-47-32.jpg
   - `src/assets/iqac-library.webp`, 900 x 435, 39,416 bytes.
 
-The hero image loads with high priority. The below-fold library image loads lazily. No new dependencies, remote fonts, autoplay media, fabricated news, or invented metrics were added.
+The hero image loads with high priority. The below-fold library image loads lazily. No new dependencies, remote font requests, autoplay media, fabricated news, or invented metrics were added.
+
+## Typography and motion enhancement
+
+- Locally hosted Manrope variable and DM Serif Display regular/italic fonts; SIL Open Font License texts are included in src/assets/fonts.
+- Staged hero entrance, desktop-only scroll drift, SVG orbit accents, section reveals, featured institutional card, animated filtering, and resource hover treatments.
+- The quality cycle has an animated progress path and stage transitions. A moving word band and navy closing panel complete the page.
+- Decorative movement can be disabled with the hero control. System reduced-motion changes are applied immediately, including changes made while the page is open.
+- Existing Motion dependency is reused. Font assets total approximately 74 KB; the main bundle increased by approximately 43 KB gzip over the prior build.
+- Production build and existing interaction checks passed. Additional browser checks verified font loading, completed entrance, pause/resume, live reduced-motion switching, and no overflow at 320, 390, 768, 1024, and 1440px.
 
 ## Validation
 

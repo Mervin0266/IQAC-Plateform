@@ -3,6 +3,7 @@ import { PublicNavBar } from './PublicNavBar';
 import { PublicFooter } from './PublicFooter';
 import { PublicHomePage } from './PublicHomePage';
 import '../../styles/public-website.css';
+import '../../styles/homepage-motion.css';
 
 // ── Lazy-loaded public pages ─────────────────────────────────────
 // These were previously statically imported, preventing code-splitting
