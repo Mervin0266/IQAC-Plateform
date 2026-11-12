@@ -4,6 +4,7 @@ import { PublicFooter } from './PublicFooter';
 import { PublicHomePage } from './PublicHomePage';
 import '../../styles/public-website.css';
 import '../../styles/homepage-motion.css';
+import '../../styles/section-experience.css';
 
 // ── Lazy-loaded public pages ─────────────────────────────────────
 // These were previously statically imported, preventing code-splitting
@@ -57,25 +58,25 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
       case 'home':
         return <PublicHomePage onNavigate={navigate} onLoginClick={onLoginClick} />;
       case 'achievements':
-        return <AchievementsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <AchievementsPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'research-innovation':
-        return <ResearchInnovationPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <ResearchInnovationPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'rankings':
-        return <RankingPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <RankingPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'placements-internships':
-        return <PlacementsInternshipsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <PlacementsInternshipsPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'infrastructure':
         return <InfrastructureFacilitiesPage onNavigate={setCurrentSection} isPublicView={true} />;
       case 'international-interactions':
         return <InternationalInteractionsPage onNavigate={setCurrentSection} isPublicView={true} />;
       case 'centre-excellence':
-        return <CentreExcellencePage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <CentreExcellencePage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'incubations':
         return <IncubationsPage onNavigate={setCurrentSection} isPublicView={true} />;
       case 'industry-connects':
         return <IndustryConnectsPage onNavigate={setCurrentSection} isPublicView={true} />;
       case 'consultancy-projects':
-        return <ConsultancyProjectsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <ConsultancyProjectsPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       default:
         return <PublicHomePage onNavigate={navigate} onLoginClick={onLoginClick} />;
     }
@@ -88,7 +89,7 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
         onNavigate={navigate}
         onLoginClick={onLoginClick}
       />
-      <main id="public-content" tabIndex={-1} className="flex-1">
+      <main id="public-content" tabIndex={-1} className={currentSection === 'home' ? 'flex-1' : 'flex-1 iq-section-view iq-public-section'} key={currentSection}>
         <Suspense fallback={<PublicPageLoading />}>
           {renderContent()}
         </Suspense>

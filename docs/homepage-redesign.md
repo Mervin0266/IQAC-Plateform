@@ -66,6 +66,14 @@ The hero image loads with high priority. The below-fold library image loads lazi
 
 ## Local preview
 
+## Section experience refinement
+
+- Public destinations explicitly suppress the staff sidebar. Research now forwards its public layout flag; authenticated pages retain the shared sidebar with a mobile toggle.
+- Authenticated research links open their individual pages directly, avoiding the additional research workspace header around the selected subsection.
+- Shared headers, metric cards, tables, filters, and section typography extend the existing Manrope/DM Serif, navy, and gold visual language. SVG line entrances and short card entrances finish automatically; reduced-motion disables decoration.
+- Production build passed. Browser checks exercised all ten public destinations with no staff sidebar, and verified Placement mobile width, reduced motion, and authenticated mobile navigation with a mocked session and API responses. Live backend operations and real sign-in were not tested.
+- The temporary preview is stopped after verification.
+
 Run `npm run dev -- --host 127.0.0.1 --port 5173 --strictPort` from the repository.
 Open http://127.0.0.1:5173/.
 

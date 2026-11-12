@@ -8,12 +8,12 @@ interface ResearchInnovationPageProps {
   hideSidebar?: boolean;
 }
 
-export function ResearchInnovationPage({ onNavigate, hideSidebar = false }: ResearchInnovationPageProps) {
+export function ResearchInnovationPage({ onNavigate, isPublicView = false, hideSidebar = false }: ResearchInnovationPageProps) {
   const { user } = useAuth();
   return (
     <PatentsPage
       onNavigate={onNavigate}
-      hideSidebar={hideSidebar}
+      hideSidebar={hideSidebar || isPublicView}
       token={user?.token}
       userRole={user?.role}
     />

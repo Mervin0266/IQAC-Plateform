@@ -29,7 +29,8 @@ export function PageHeader({
   className = '',
 }: PageHeaderProps) {
   return (
-    <header className={`bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs ${className}`}>
+    <header className={`iq-page-header bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs ${className}`}>
+      <svg className="iq-page-orbit" viewBox="0 0 240 180" fill="none" aria-hidden="true"><circle cx="120" cy="90" r="66" /><ellipse cx="120" cy="90" rx="110" ry="35" transform="rotate(-28 120 90)" /><path d="M120 6v168M30 90h180" /><circle cx="180" cy="62" r="5" fill="currentColor" /></svg>
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="space-y-1.5 min-w-0">
           {/* Breadcrumbs */}
@@ -58,7 +59,7 @@ export function PageHeader({
 
           {/* Title and Restrained Badge */}
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
               {title}
             </h1>
             {badge && (

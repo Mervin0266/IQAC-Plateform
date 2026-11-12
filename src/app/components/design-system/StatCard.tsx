@@ -40,7 +40,7 @@ export function StatCard({
 }: StatCardProps) {
   const content = (
     <div
-      className={`h-full flex flex-col justify-between bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs relative transition-colors duration-150 ${
+      className={`iq-stat-card h-full flex flex-col justify-between bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs relative transition-colors duration-150 ${
         onClick ? 'cursor-pointer hover:border-slate-300 hover:bg-slate-50/30' : ''
       } ${className}`}
     >

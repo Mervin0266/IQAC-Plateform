@@ -17,6 +17,7 @@ const UserRolesPage = React.lazy(() => import('./components/UserRolesPage').then
 const UserManagementPage = React.lazy(() => import('./components/UserManagementPage').then(m => ({ default: m.UserManagementPage })));
 const RankingPage = React.lazy(() => import('./components/RankingPage').then(m => ({ default: m.RankingPage })));
 const ResearchPage = React.lazy(() => import('./components/ResearchPage').then(m => ({ default: m.ResearchPage })));
+const ConsultancyProjectsPage = React.lazy(() => import('./components/ConsultancyProjectsPage').then(m => ({ default: m.ConsultancyProjectsPage })));
 const PublicationsPage = React.lazy(() => import('./components/PublicationsPage').then(m => ({ default: m.PublicationsPage })));
 const PatentsPage = React.lazy(() => import('./components/PatentsPage').then(m => ({ default: m.PatentsPage })));
 const SponsoredResearchPage = React.lazy(() => import('./components/SponsoredResearchPage').then(m => ({ default: m.SponsoredResearchPage })));
@@ -141,11 +142,13 @@ function AppContent() {
       case 'publications':
         return <PublicationsPage onNavigate={setCurrentPage} />;
       case 'patents':
-        return <PatentsPage onNavigate={setCurrentPage} />;
-      case 'research-metrics':
       case 'research-innovation':
+        return <PatentsPage onNavigate={setCurrentPage} />;
       case 'sponsored-research':
+        return <SponsoredResearchPage onNavigate={setCurrentPage} />;
       case 'consultancy-projects':
+        return <ConsultancyProjectsPage onNavigate={setCurrentPage} />;
+      case 'research-metrics':
         return <ResearchPage onNavigate={setCurrentPage} currentPage={currentPage} />;
       case 'incubations':
         return <IncubationsPage onNavigate={setCurrentPage} />;
