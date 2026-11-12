@@ -91,6 +91,11 @@ const Patent = sequelize.define('Patent', {
     type: DataTypes.STRING(50),
     defaultValue: 'approved'
   },
+  customFields: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: {}
+  },
   createdBy: {
     type: DataTypes.UUID,
     allowNull: true

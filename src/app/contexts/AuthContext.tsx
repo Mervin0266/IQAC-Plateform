@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type UserRole = 'admin' | 'authority' | 'hod' | 'coordinator' | 'faculty';
+export type UserRole = 'admin' | 'iqac_admin' | 'authority' | 'hod' | 'coordinator' | 'faculty' | string;
 
 export interface User {
   id: string;
@@ -8,8 +8,19 @@ export interface User {
   name?: string;
   email: string;
   role: UserRole;
+  isSystemAdmin?: boolean;
   department: string | null;
+  campus?: string | null;
+  school?: string | null;
   token: string;
+  effectivePermissions?: Record<string, Record<string, boolean>>;
+  assignedScopes?: Array<{
+    id?: string;
+    scopeType: string;
+    campusName?: string | null;
+    schoolName?: string | null;
+    departmentName?: string | null;
+  }>;
 }
 
 export interface LoginResult {
@@ -144,13 +155,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (data?.success && data?.data) {
+      const u = data.data.user;
       const newUser: User = {
-        id: data.data.user.id,
-        username: data.data.user.name,
-        email: data.data.user.email,
-        role: data.data.user.role as UserRole,
-        department: data.data.user.department,
-        token: data.data.token
+        id: u.id,
+        username: u.name,
+        name: u.name,
+        email: u.email,
+        role: u.role as UserRole,
+        isSystemAdmin: u.isSystemAdmin !== undefined ? Boolean(u.isSystemAdmin) : (u.role === 'admin' || u.role === 'system_admin'),
+        department: u.department,
+        campus: u.campus || null,
+        school: u.school || null,
+        token: data.data.token,
+        effectivePermissions: u.effectivePermissions || undefined,
+        assignedScopes: u.assignedScopes || undefined
       };
       setUser(newUser);
       localStorage.setItem('iqac_user', JSON.stringify(newUser));

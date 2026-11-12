@@ -19,7 +19,9 @@ export const ROLE_PERMISSIONS = {
       'event-logs',
       'user-roles',
       'user-management',
+      'system-admin',
       'research-innovation',
+      'copyrights',
       'publications',
       'sponsored-research',
       'research-metrics',
@@ -58,6 +60,7 @@ export const ROLE_PERMISSIONS = {
       'naac-accreditation',
       'nba-tracking',
       'research-innovation',
+      'copyrights',
       'publications',
       'sponsored-research',
       'research-metrics',
@@ -92,6 +95,7 @@ export const ROLE_PERMISSIONS = {
       'course-files',
       'strategic-plan',
       'research-innovation',
+      'copyrights',
       'publications',
       'sponsored-research',
       'research-metrics',
@@ -127,6 +131,7 @@ export const ROLE_PERMISSIONS = {
       'course-files',
       'strategic-plan',
       'research-innovation',
+      'copyrights',
       'publications',
       'sponsored-research',
       'research-metrics',
@@ -161,6 +166,7 @@ export const ROLE_PERMISSIONS = {
       'achievements',
       'course-files',
       'research-innovation',
+      'copyrights',
       'publications',
       'sponsored-research',
       'research-metrics',
@@ -187,14 +193,19 @@ export const ROLE_PERMISSIONS = {
   },
 };
 
-export function hasPageAccess(role: UserRole | string, page: string): boolean {
+export function hasPageAccess(role: UserRole | string, page: string, isSystemAdmin?: boolean): boolean {
   if (!role) return true;
-  
+
+  // System Administration V2.0 is exclusively accessible to System Administrators
+  if (page === 'system-admin' || page.startsWith('system-admin-')) {
+    return Boolean(isSystemAdmin || String(role).toLowerCase() === 'admin' || String(role).toLowerCase() === 'system_admin');
+  }
+
   // Normalize role string to handle capitalization or alternate names
   const roleStr = String(role).toLowerCase();
-  const targetRole: UserRole = ROLE_PERMISSIONS[roleStr as UserRole] 
-    ? (roleStr as UserRole)
-    : roleStr.includes('admin') ? 'admin'
+  const targetRole: keyof typeof ROLE_PERMISSIONS = ROLE_PERMISSIONS[roleStr as keyof typeof ROLE_PERMISSIONS]
+    ? (roleStr as keyof typeof ROLE_PERMISSIONS)
+    : (roleStr === 'admin' || roleStr === 'system_admin' || roleStr === 'iqac_admin') ? 'admin'
     : roleStr.includes('authority') || roleStr.includes('dean') ? 'authority'
     : roleStr.includes('hod') || roleStr.includes('head') ? 'hod'
     : roleStr.includes('coord') ? 'coordinator'
@@ -203,7 +214,7 @@ export function hasPageAccess(role: UserRole | string, page: string): boolean {
   const permissions = ROLE_PERMISSIONS[targetRole];
   if (!permissions) return true;
 
-  // Admin and Institutional Authority have universal view access to all pages
+  // Admin and Institutional Authority have universal view access to operational pages
   if (targetRole === 'admin' || targetRole === 'authority') {
     return true;
   }
@@ -228,14 +239,16 @@ export function hasPageAccess(role: UserRole | string, page: string): boolean {
 }
 
 export function hasFeatureAccess(role: UserRole, feature: keyof typeof ROLE_PERMISSIONS.admin.features): boolean {
-  if (!ROLE_PERMISSIONS[role]) return false;
-  return ROLE_PERMISSIONS[role].features[feature];
+  const key = String(role).toLowerCase() === 'iqac_admin' ? 'admin' : (role as keyof typeof ROLE_PERMISSIONS);
+  if (!ROLE_PERMISSIONS[key]) return false;
+  return ROLE_PERMISSIONS[key].features[feature];
 }
 
 export function getRoleDisplayName(role: UserRole): string {
-  if (role === 'admin') return 'System Administrator';
+  if (role === 'admin' || role === 'system_admin') return 'System Administrator';
+  if (role === 'iqac_admin') return 'IQAC Administrator';
   if (role === 'authority') return 'Institutional Authority';
   if (role === 'hod') return 'Head of Department';
   if (role === 'coordinator') return 'Department Coordinator';
-  return role.charAt(0).toUpperCase() + role.slice(1);
+  return String(role).charAt(0).toUpperCase() + String(role).slice(1);
 }

@@ -46,6 +46,40 @@ const AuditLog = sequelize.define('AuditLog', {
   remarks: {
     type: DataTypes.TEXT,
     allowNull: true
+  },
+  // System Administration V2.0 Structured Fields
+  adminUserId: {
+    type: DataTypes.UUID,
+    allowNull: true
+  },
+  adminIdentity: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  module: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  entity: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  affectedRecordId: {
+    type: DataTypes.STRING(150),
+    allowNull: true
+  },
+  reason: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  result: {
+    type: DataTypes.STRING(24),
+    allowNull: true,
+    defaultValue: 'Success'
+  },
+  correlationId: {
+    type: DataTypes.STRING(100),
+    allowNull: true
   }
 }, {
   tableName: 'audit_logs',

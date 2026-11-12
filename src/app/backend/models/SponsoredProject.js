@@ -113,6 +113,11 @@ const SponsoredProject = sequelize.define('SponsoredProject', {
     defaultValue: 'approved',
     comment: 'approved, pending, rejected'
   },
+  customFields: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: {}
+  },
   createdBy: {
     type: DataTypes.UUID,
     allowNull: true

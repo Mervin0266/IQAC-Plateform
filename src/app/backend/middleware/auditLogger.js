@@ -1,5 +1,24 @@
 const { AuditLog } = require('../models');
 
+const SENSITIVE_KEY_REGEX = /password|token|secret|authorization|cookie|privatekey|apikey/i;
+
+function redactSecrets(val) {
+  if (val === null || val === undefined) return val;
+  if (Array.isArray(val)) return val.map(redactSecrets);
+  if (typeof val === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(val)) {
+      if (SENSITIVE_KEY_REGEX.test(k)) {
+        out[k] = '[REDACTED]';
+      } else {
+        out[k] = redactSecrets(v);
+      }
+    }
+    return out;
+  }
+  return val;
+}
+
 /**
  * Standardized audit logger for institutional operations.
  * Supports both destructured options object and legacy positional arguments.
@@ -14,6 +33,14 @@ const logAction = async (...args) => {
   let updatedValue = null;
   let remarks = null;
   let ipAddress = null;
+  let adminUserId = null;
+  let adminIdentity = null;
+  let moduleName = null;
+  let entity = null;
+  let affectedRecordId = null;
+  let reason = null;
+  let result = 'Success';
+  let correlationId = null;
 
   if (args.length === 1 && typeof args[0] === 'object' && args[0] !== null) {
     const opts = args[0];
@@ -26,6 +53,14 @@ const logAction = async (...args) => {
     updatedValue = opts.updatedValue || null;
     remarks = opts.remarks || opts.details || null;
     ipAddress = opts.ipAddress || null;
+    adminUserId = opts.adminUserId || (opts.user && opts.user.id) || null;
+    adminIdentity = opts.adminIdentity || (opts.user && (opts.user.email || opts.user.name)) || null;
+    moduleName = opts.module || null;
+    entity = opts.entity || null;
+    affectedRecordId = opts.affectedRecordId || (opts.recordId ? String(opts.recordId) : null);
+    reason = opts.reason || null;
+    result = opts.result || 'Success';
+    correlationId = opts.correlationId || null;
   } else if (args.length > 1) {
     // Legacy positional arguments: (userIdOrUser, action, titleOrResource, remarksOrDiff, ipAddress)
     const firstArg = args[0];
@@ -38,6 +73,8 @@ const logAction = async (...args) => {
     title = args[2] || null;
     remarks = typeof args[3] === 'string' ? args[3] : JSON.stringify(args[3] || '');
     ipAddress = args[4] || null;
+    adminUserId = (user && user.id) || null;
+    adminIdentity = (user && (user.email || user.name)) || null;
   }
 
   const userName = (user && user.name) || (typeof user === 'string' ? user : 'System');
@@ -52,10 +89,18 @@ const logAction = async (...args) => {
       userRole,
       department,
       action,
-      previousValue,
-      updatedValue,
+      previousValue: redactSecrets(previousValue),
+      updatedValue: redactSecrets(updatedValue),
       ipAddress,
-      remarks
+      remarks,
+      adminUserId,
+      adminIdentity,
+      module: moduleName,
+      entity,
+      affectedRecordId,
+      reason,
+      result,
+      correlationId
     });
     return entry;
   } catch (error) {
@@ -75,5 +120,5 @@ const logActionSafe = async (...args) => {
   }
 };
 
-module.exports = { logAction, logActionSafe };
+module.exports = { logAction, logActionSafe, redactSecrets };
 

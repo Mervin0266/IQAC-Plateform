@@ -99,6 +99,11 @@ const Faculty = sequelize.define('Faculty', {
   status: {
     type: DataTypes.ENUM('Active', 'On Sabbatical', 'Relieved'),
     defaultValue: 'Active'
+  },
+  customFields: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: {}
   }
 }, {
   tableName: 'faculties',

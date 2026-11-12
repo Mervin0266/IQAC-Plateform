@@ -17,6 +17,7 @@ const {
   getPatentProofFile
 } = require('../controllers/patentController');
 const { auth, authorize } = require('../middleware/auth');
+const { requireModuleEnabled, validateFormSubmission } = require('../middleware/configEnforcement');
 
 // Multer memory storage configuration for Direct Google Drive upload (Max 10MB per file)
 const upload = multer({
@@ -41,8 +42,8 @@ router.get('/proofs/file/:proofId', getPatentProofFile);
 router.use(auth);
 
 router.get('/stats', getPatentStats);
-router.post('/bulk', authorize('admin', 'coordinator', 'hod', 'faculty'), bulkUploadPatents);
-router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllPatents);
+router.post('/bulk', authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('patents'), bulkUploadPatents);
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('patents'), clearAllPatents);
 
 // Proof endpoints
 router.get('/:id/proofs', getPatentProofs);
@@ -72,11 +73,11 @@ router.delete('/:id/proofs/:proofId', authorize('admin', 'coordinator', 'hod', '
 
 router.route('/')
   .get(getPatents)
-  .post(authorize('admin', 'coordinator', 'hod', 'faculty'), createPatent);
+  .post(authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('patents'), validateFormSubmission('patent-ip-form', true), createPatent);
 
 router.route('/:id')
   .get(getPatent)
-  .put(authorize('admin', 'coordinator', 'hod', 'faculty'), updatePatent)
-  .delete(authorize('admin', 'coordinator', 'hod', 'faculty'), deletePatent);
+  .put(authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('patents'), validateFormSubmission('patent-ip-form', false), updatePatent)
+  .delete(authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('patents'), deletePatent);
 
 module.exports = router;

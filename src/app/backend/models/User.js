@@ -25,9 +25,21 @@ const User = sequelize.define('User', {
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM('admin', 'authority', 'hod', 'coordinator', 'faculty'),
+    type: DataTypes.STRING(64),
     allowNull: false,
     defaultValue: 'faculty'
+  },
+  roleId: {
+    type: DataTypes.UUID,
+    allowNull: true
+  },
+  campus: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  school: {
+    type: DataTypes.STRING,
+    allowNull: true
   },
   department: {
     type: DataTypes.STRING,
@@ -45,6 +57,18 @@ const User = sequelize.define('User', {
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  deactivatedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  deactivatedBy: {
+    type: DataTypes.UUID,
+    allowNull: true
+  },
+  deactivationReason: {
+    type: DataTypes.TEXT,
+    allowNull: true
   },
   lastLogin: {
     type: DataTypes.DATE,

@@ -15,7 +15,8 @@ const googleDriveService = require('../services/googleDriveService');
 const ALLOWED_PLACEMENT_FIELDS = [
   'studentId', 'studentName', 'batch', 'course', 'company', 'role',
   'package', 'placementType', 'placementDate', 'location',
-  'campus', 'school', 'offerLetterUrl', 'offerLetterFileName', 'offerLetterDriveId'
+  'campus', 'school', 'offerLetterUrl', 'offerLetterFileName', 'offerLetterDriveId',
+  'customFields'
 ];
 
 /**
@@ -504,6 +505,12 @@ exports.updatePlacement = async (req, res) => {
     ALLOWED_PLACEMENT_FIELDS.forEach(f => {
       if (req.body[f] !== undefined) updateData[f] = req.body[f];
     });
+    if (req.body.customFields && typeof req.body.customFields === 'object') {
+      updateData.customFields = {
+        ...(placement.customFields || {}),
+        ...req.body.customFields
+      };
+    }
     if (req.user.role === 'admin' && req.body.department !== undefined) {
       updateData.department = req.body.department;
     }

@@ -152,11 +152,19 @@ export const searchIndex: SearchItem[] = [
   // Research sub-pages
   {
     id: 'patents',
-    title: 'Patents',
-    keywords: ['patents', 'intellectual property', 'innovations', 'filing'],
-    page: 'patents',
+    title: 'IPRs — Patents',
+    keywords: ['patents', 'ipr', 'iprs', 'intellectual property', 'innovations', 'filing'],
+    page: 'research-innovation',
     category: 'Research',
-    description: 'Patent management and tracking'
+    description: 'Patent management and tracking under IPRs'
+  },
+  {
+    id: 'copyrights',
+    title: 'IPRs — Copyrights',
+    keywords: ['copyright', 'copyrights', 'ipr', 'iprs', 'intellectual property', 'diary number', 'roc'],
+    page: 'copyrights',
+    category: 'Research',
+    description: 'Copyright applications, registrations, and faculty associations under IPRs'
   },
   
   {

@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { useAuth } from '../contexts/AuthContext';
 import { PatentsPage } from './PatentsPage';
+import { CopyrightsPage } from './CopyrightsPage';
 import { SponsoredResearchPage } from './SponsoredResearchPage';
 import { ConsultancyProjectsPage } from './ConsultancyProjectsPage';
 import { PublicationsPage } from './PublicationsPage';
@@ -38,7 +39,10 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
     switch (page) {
       case 'research-metrics': return 'metrics';
       case 'publications': return 'publications';
-      case 'research-innovation': return 'patents';
+      case 'research-innovation':
+      case 'patents':
+      case 'copyrights':
+        return 'iprs';
       case 'sponsored-research': return 'sponsored';
       case 'consultancy-projects': return 'consultancy';
       default: return 'metrics';
@@ -53,7 +57,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
       case 'publications':
         onNavigate('publications');
         break;
-      case 'patents':
+      case 'iprs':
         onNavigate('research-innovation');
         break;
       case 'sponsored':
@@ -742,22 +746,6 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
               </TabsTrigger>
 
               <TabsTrigger 
-                value="publications" 
-                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
-              >
-                <BookOpen className="w-4 h-4" />
-                <span>Publications</span>
-              </TabsTrigger>
-
-              <TabsTrigger 
-                value="patents" 
-                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
-              >
-                <Award className="w-4 h-4" />
-                <span>Patents & IP</span>
-              </TabsTrigger>
-
-              <TabsTrigger 
                 value="sponsored" 
                 className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
               >
@@ -771,6 +759,22 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
               >
                 <Briefcase className="w-4 h-4" />
                 <span>Consultancy</span>
+              </TabsTrigger>
+
+              <TabsTrigger 
+                value="iprs" 
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
+              >
+                <Award className="w-4 h-4" />
+                <span>IPRs</span>
+              </TabsTrigger>
+
+              <TabsTrigger 
+                value="publications" 
+                className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Publications</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -1227,9 +1231,47 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
             <PublicationsPage hideSidebar={true} onNavigate={onNavigate} token={user?.token} userRole={user?.role} />
           )}
 
-          {/* TAB 3: PATENTS */}
-          {activeTab === 'patents' && (
-            <PatentsPage hideSidebar={true} onNavigate={onNavigate} token={user?.token} userRole={user?.role} />
+          {/* TAB 3: IPRs (Patents & Copyrights) */}
+          {activeTab === 'iprs' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-slate-200/80 shadow-2xs">
+                <div className="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200/80 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('research-innovation')}
+                    className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      currentPage !== 'copyrights'
+                        ? 'bg-[#2855B9] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <Award className="w-3.5 h-3.5" />
+                    <span>Patents</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('copyrights')}
+                    className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      currentPage === 'copyrights'
+                        ? 'bg-[#2855B9] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Copyrights</span>
+                  </button>
+                </div>
+                <span className="text-[11px] text-slate-500 hidden sm:inline">
+                  Intellectual Property Rights (IPRs)
+                </span>
+              </div>
+
+              {currentPage === 'copyrights' ? (
+                <CopyrightsPage hideSidebar={true} onNavigate={onNavigate} token={user?.token} userRole={user?.role} />
+              ) : (
+                <PatentsPage hideSidebar={true} onNavigate={onNavigate} token={user?.token} userRole={user?.role} />
+              )}
+            </div>
           )}
 
           {/* TAB 4: SPONSORED RESEARCH */}

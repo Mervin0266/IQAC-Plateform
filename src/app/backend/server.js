@@ -145,6 +145,7 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/achievements', require('./routes/achievements'));
 app.use('/api/documents', require('./routes/documents'));
 app.use('/api/patents', require('./routes/patents'));
+app.use('/api/copyrights', require('./routes/copyrights'));
 app.use('/api/placements', require('./routes/placements'));
 app.use('/api/strategic-plans', require('./routes/strategicPlans'));
 app.use('/api/edit-requests', require('./routes/editRequests'));
@@ -165,6 +166,7 @@ app.use('/api/program-levels', require('./routes/programLevels'));
 app.use('/api/courses', require('./routes/courses'));
 app.use('/api/hierarchy', require('./routes/hierarchy'));
 app.use('/api/system', require('./routes/system'));
+app.use('/api/admin', require('./routes/systemAdmin'));
 app.use('/api/research-reports', require('./routes/researchReports'));
 app.use('/api/institutional-analytics', require('./routes/institutionalAnalytics'));
 

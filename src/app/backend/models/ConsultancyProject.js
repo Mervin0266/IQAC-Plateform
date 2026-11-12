@@ -98,6 +98,11 @@ const ConsultancyProject = sequelize.define('ConsultancyProject', {
     allowNull: true,
     defaultValue: null
   },
+  customFields: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: {}
+  },
   createdBy: {
     type: DataTypes.UUID,
     allowNull: false

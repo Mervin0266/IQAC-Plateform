@@ -991,6 +991,80 @@ async function uploadPlacementOfferLetterFile({ placementId, department, batch, 
   };
 }
 
+/**
+ * Ensure Google Drive folder hierarchy for Copyrights:
+ * Root -> IPRs -> Copyrights -> <Year> -> <Department>
+ */
+async function ensureCopyrightFolderHierarchy({ year, department }) {
+  if (!isDriveConfigured()) {
+    throw new Error('Google Drive integration is not configured.');
+  }
+  const rootParentId = (process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || '').trim() || null;
+  const iprFolderId = await findOrCreateFolder('IPRs', rootParentId);
+  const copyrightsFolderId = await findOrCreateFolder('Copyrights', iprFolderId);
+  const yearFolderId = await findOrCreateFolder(sanitizeName(year || 'General'), copyrightsFolderId);
+  const deptFolderId = await findOrCreateFolder(sanitizeName(department || 'General'), yearFolderId);
+  return { iprFolderId, copyrightsFolderId, yearFolderId, deptFolderId };
+}
+
+/**
+ * Upload a Copyright Proof file directly to Google Drive.
+ */
+async function uploadCopyrightProofFile({ year, department, fileBuffer, fileName, mimeType }) {
+  if (!isDriveConfigured()) {
+    throw new Error('Google Drive integration is not configured.');
+  }
+  const hierarchy = await ensureCopyrightFolderHierarchy({ year, department });
+  const parentFolderId = hierarchy.deptFolderId;
+  const safeFileName = sanitizeName(fileName);
+  const boundary = `-------copyright_${Date.now()}`;
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelimiter = `\r\n--${boundary}--`;
+  const metadata = { name: safeFileName, parents: [parentFolderId] };
+  const multipartBody = Buffer.concat([
+    Buffer.from(
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`
+    ),
+    fileBuffer,
+    Buffer.from(closeDelimiter)
+  ]);
+
+  const token = await getAccessToken();
+  const uploadParams = new URLSearchParams({ uploadType: 'multipart', supportsAllDrives: 'true' });
+  const uploadRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files?${uploadParams.toString()}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`,
+      'Content-Length': String(multipartBody.length)
+    },
+    body: multipartBody
+  });
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text();
+    throw new Error(`Google Drive API upload failed (${uploadRes.status}): ${errText}`);
+  }
+  const uploadData = await uploadRes.json();
+  const fileId = uploadData.id;
+  try {
+    await driveRequest(`/files/${fileId}/permissions?supportsAllDrives=true`, {
+      method: 'POST',
+      body: JSON.stringify({ role: 'reader', type: 'anyone' })
+    });
+  } catch (_) {}
+
+  return {
+    driveFileId: fileId,
+    driveFolderId: parentFolderId,
+    driveUrl: `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`,
+    fileName: safeFileName
+  };
+}
+
 module.exports = {
   isDriveConfigured,
   sanitizeName,
@@ -1002,6 +1076,8 @@ module.exports = {
   relocatePatentFolder,
   uploadPatentProofFile,
   deletePatentProofFile,
+  ensureCopyrightFolderHierarchy,
+  uploadCopyrightProofFile,
   verifyDriveLinkAccess,
   ensureSponsoredFolderHierarchy,
   relocateSponsoredProjectFolder,

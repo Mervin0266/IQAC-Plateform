@@ -1,5 +1,6 @@
 import React, { useState, Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { SystemConfigProvider, useSystemConfig } from './contexts/SystemConfigContext';
 import { LoginPage } from './components/LoginPage';
 import { PublicWebsite } from './components/PublicWebsite';
 import { hasPageAccess } from './config/permissions';
@@ -15,6 +16,7 @@ const StrategicPlanPage = React.lazy(() => import('./components/StrategicPlanPag
 const DepartmentTrackingPage = React.lazy(() => import('./components/DepartmentTrackingPage').then(m => ({ default: m.DepartmentTrackingPage })));
 const UserRolesPage = React.lazy(() => import('./components/UserRolesPage').then(m => ({ default: m.UserRolesPage })));
 const UserManagementPage = React.lazy(() => import('./components/UserManagementPage').then(m => ({ default: m.UserManagementPage })));
+const SystemAdminPortal = React.lazy(() => import('./components/SystemAdminPortal').then(m => ({ default: m.SystemAdminPortal })));
 const RankingPage = React.lazy(() => import('./components/RankingPage').then(m => ({ default: m.RankingPage })));
 const ResearchPage = React.lazy(() => import('./components/ResearchPage').then(m => ({ default: m.ResearchPage })));
 const PublicationsPage = React.lazy(() => import('./components/PublicationsPage').then(m => ({ default: m.PublicationsPage })));
@@ -47,6 +49,7 @@ function SuspenseFallback() {
 
 function AppContent() {
   const { user, isAuthenticated } = useAuth();
+  const { isSystemAdmin } = useSystemConfig();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showLogin, setShowLogin] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -80,10 +83,10 @@ function AppContent() {
 
   // Check if user has access to current page (Hook called unconditionally at top level)
   React.useEffect(() => {
-    if (user && !hasPageAccess(user.role, currentPage)) {
+    if (user && !hasPageAccess(user.role, currentPage, isSystemAdmin)) {
       setCurrentPage('dashboard');
     }
-  }, [user, currentPage]);
+  }, [user, currentPage, isSystemAdmin]);
 
   // If not authenticated and not explicitly showing login, show public website
   if (!isAuthenticated || !user) {
@@ -142,6 +145,8 @@ function AppContent() {
         return <ResearchPage onNavigate={setCurrentPage} currentPage={currentPage} />;
       case 'patents':
         return <ResearchPage onNavigate={setCurrentPage} currentPage="research-innovation" />;
+      case 'copyrights':
+        return <ResearchPage onNavigate={setCurrentPage} currentPage="copyrights" />;
       case 'research-metrics':
       case 'research-innovation':
       case 'sponsored-research':
@@ -176,6 +181,8 @@ function AppContent() {
         return <UserRolesPage onNavigate={setCurrentPage} />;
       case 'user-management':
         return <UserManagementPage onNavigate={setCurrentPage} />;
+      case 'system-admin':
+        return <SystemAdminPortal onNavigate={setCurrentPage} />;
       default:
         return <DashboardPage onNavigate={setCurrentPage} />;
     }
@@ -193,7 +200,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <SystemConfigProvider>
+        <AppContent />
+      </SystemConfigProvider>
     </AuthProvider>
   );
 }

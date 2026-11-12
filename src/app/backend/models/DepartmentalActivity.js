@@ -68,6 +68,11 @@ const DepartmentalActivity = sequelize.define('DepartmentalActivity', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  customFields: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: {},
+  },
 }, {
   timestamps: true,
   tableName: 'departmental_activities',

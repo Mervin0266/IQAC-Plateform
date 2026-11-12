@@ -1,10 +1,62 @@
 'use strict';
 
-const { Department } = require('../models');
+const { Op } = require('sequelize');
+const { Department, School, Campus } = require('../models');
 
 /**
- * Resolves safe database query/delete scope based on user role and target model.
- * Enforces Option C policy: HOD/Coordinator strictly scoped to own department;
+ * Resolves all authorized department names for a user considering multi-organizational scopes
+ * (Campuses, Schools, Departments) as well as legacy single user.department.
+ */
+async function resolveAllowedDepartmentsForUser(user) {
+  const scopes = Array.isArray(user.assignedScopes) ? user.assignedScopes : [];
+  const hasUnivScope = user.isSystemAdmin ||
+    user.role === 'admin' ||
+    user.role === 'authority' ||
+    user.role === 'iqac_admin' ||
+    scopes.some(s => s.scopeType === 'university');
+
+  if (hasUnivScope) {
+    return { isUniversityWide: true, departments: [] };
+  }
+
+  const deptNames = new Set();
+  if (user.department && user.department.trim() !== '' && user.department !== 'All') {
+    deptNames.add(user.department.trim());
+  }
+
+  // Expand campus and school scopes into department names safely
+  const campusIds = scopes.filter(s => s.scopeType === 'campus' && s.campusId).map(s => s.campusId);
+  const schoolIds = scopes.filter(s => s.scopeType === 'school' && s.schoolId).map(s => s.schoolId);
+
+  if (campusIds.length > 0 && School) {
+    try {
+      const campusSchools = await School.findAll({ where: { campusId: { [Op.in]: campusIds } }, attributes: ['id'], raw: true });
+      campusSchools.forEach(s => schoolIds.push(s.id));
+    } catch (e) {}
+  }
+
+  if (schoolIds.length > 0 && Department) {
+    try {
+      const schoolDepts = await Department.findAll({ where: { schoolId: { [Op.in]: schoolIds } }, attributes: ['name'], raw: true });
+      schoolDepts.forEach(d => deptNames.add(d.name));
+    } catch (e) {}
+  }
+
+  scopes.forEach(s => {
+    if (s.departmentName && s.departmentName.trim() !== '') {
+      deptNames.add(s.departmentName.trim());
+    }
+  });
+
+  return {
+    isUniversityWide: false,
+    departments: Array.from(deptNames)
+  };
+}
+
+/**
+ * Resolves safe database query/delete scope based on user role, multi-org scopes, and target model.
+ * Enforces Option C policy: HOD/Coordinator strictly scoped to assigned department(s);
  * Admin requires dual-confirmation (confirmAll=true + confirmation phrase) for institution-wide actions.
  */
 exports.resolveDepartmentScope = async (req, targetModelName, isDeleteOperation = false) => {
@@ -21,39 +73,56 @@ exports.resolveDepartmentScope = async (req, targetModelName, isDeleteOperation 
     };
   }
 
-  // 2. HOD and Coordinator are strictly locked to their assigned department
-  if (user.role === 'hod' || user.role === 'coordinator' || user.role === 'faculty') {
-    if (!user.department || user.department.trim() === '' || user.department === 'All') {
+  const resolvedScope = await resolveAllowedDepartmentsForUser(user);
+
+  // 2. Scoped users (HOD, Coordinator, Faculty, or Custom Roles with campus/school/department scope)
+  if (!resolvedScope.isUniversityWide) {
+    const allowedDepts = resolvedScope.departments;
+    if (!allowedDepts || allowedDepts.length === 0) {
       throw {
         status: 403,
         message: 'Access denied: User account is not assigned to a valid department.'
       };
     }
 
-    // Special model compatibility handling for Course (uses departmentId UUID foreign key)
+    const reqDept = (req.query && req.query.department) || (req.body && req.body.department);
+    let targetDepts = allowedDepts;
+
+    if (reqDept && reqDept !== 'all' && reqDept !== 'All') {
+      const normReq = reqDept.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const matched = allowedDepts.find(d => d.toLowerCase().replace(/[^a-z0-9]/g, '') === normReq);
+      if (!matched) {
+        throw {
+          status: 403,
+          message: `Access denied. You do not have access to department '${reqDept}'.`
+        };
+      }
+      targetDepts = [matched];
+    }
+
     if (targetModelName === 'Course') {
-      const deptRecord = await Department.findOne({
-        where: { name: user.department },
+      const deptRecords = await Department.findAll({
+        where: targetDepts.length === 1 ? { name: targetDepts[0] } : { name: { [Op.in]: targetDepts } },
         attributes: ['id']
       });
-      if (!deptRecord) {
-        throw { status: 404, message: `Department record not found for: ${user.department}` };
+      if (!deptRecords || deptRecords.length === 0) {
+        throw { status: 404, message: `Department record not found for: ${targetDepts.join(', ')}` };
       }
+      const ids = deptRecords.map(d => d.id);
       return {
-        where: { departmentId: deptRecord.id },
-        scopeDescription: `Department: ${user.department}`
+        where: ids.length === 1 ? { departmentId: ids[0] } : { departmentId: { [Op.in]: ids } },
+        scopeDescription: `Department: ${targetDepts.join(', ')}`
       };
     }
 
-    // Standard models with 'department' column
     return {
-      where: { department: user.department },
-      scopeDescription: `Department: ${user.department}`
+      where: targetDepts.length === 1 ? { department: targetDepts[0] } : { department: { [Op.in]: targetDepts } },
+      scopeDescription: `Department: ${targetDepts.join(', ')}`
     };
   }
 
-  // 3. Administrator: scoped to department or university-wide with strong confirmation
-  if (user.role === 'admin') {
+  // 3. University-wide Administrator / IQAC Admin: scoped to department or university-wide with strong confirmation
+  if (user.isSystemAdmin || user.role === 'admin' || user.role === 'iqac_admin') {
     const targetDept = (req.query && req.query.department) || (req.body && req.body.department);
     if (targetDept && targetDept !== 'all' && targetDept !== 'All') {
       if (targetModelName === 'Course') {
@@ -91,30 +160,28 @@ exports.resolveDepartmentScope = async (req, targetModelName, isDeleteOperation 
     };
   }
 
-  // 4. Institutional Authority (Dean): read-only across all departments
-  if (user.role === 'authority') {
-    const targetDept = req.query.department || (req.body && req.body.department);
-    if (targetDept && targetDept !== 'all' && targetDept !== 'All') {
-      if (targetModelName === 'Course') {
-        const deptRecord = await Department.findOne({
-          where: { name: targetDept },
-          attributes: ['id']
-        });
-        return {
-          where: deptRecord ? { departmentId: deptRecord.id } : { departmentId: null },
-          scopeDescription: `Department: ${targetDept}`
-        };
-      }
+  // 4. Institutional Authority (Dean) / University-wide non-admin oversight
+  const targetDept = (req.query && req.query.department) || (req.body && req.body.department);
+  if (targetDept && targetDept !== 'all' && targetDept !== 'All') {
+    if (targetModelName === 'Course') {
+      const deptRecord = await Department.findOne({
+        where: { name: targetDept },
+        attributes: ['id']
+      });
       return {
-        where: { department: targetDept },
+        where: deptRecord ? { departmentId: deptRecord.id } : { departmentId: null },
         scopeDescription: `Department: ${targetDept}`
       };
     }
     return {
-      where: {},
-      scopeDescription: 'All University Departments (Authority Oversight)'
+      where: { department: targetDept },
+      scopeDescription: `Department: ${targetDept}`
     };
   }
-
-  throw { status: 403, message: 'Unauthorized role.' };
+  return {
+    where: {},
+    scopeDescription: 'All University Departments (Authority Oversight)'
+  };
 };
+
+exports.resolveAllowedDepartmentsForUser = resolveAllowedDepartmentsForUser;

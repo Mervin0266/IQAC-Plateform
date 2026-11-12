@@ -140,6 +140,11 @@ const Student = sequelize.define('Student', {
   disability: {
     type: DataTypes.STRING,
     allowNull: true
+  },
+  customFields: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: {}
   }
 }, {
   tableName: 'students',

@@ -76,9 +76,32 @@ const auth = async (req, res, next) => {
       }
     }
 
-    // 6. Attach user and enforced department scope to request
+    // 6. Attach user, dynamic RBAC context, and enforced scope to request
     req.user = user;
-    req.enforcedDepartment = (user.role === 'admin' || user.role === 'authority') ? null : user.department;
+    try {
+      const { resolveUserAuthorizationContext } = require('../services/configPropagationService');
+      const authCtx = await resolveUserAuthorizationContext(user);
+      if (authCtx) {
+        req.user.isSystemAdmin = authCtx.isSystemAdmin;
+        req.user.effectivePermissions = authCtx.effectivePermissions;
+        req.user.assignedScopes = authCtx.scopes;
+        req.user.roleRecord = authCtx.roleRecord;
+      } else {
+        req.user.isSystemAdmin = user.role === 'admin' || user.role === 'system_admin';
+      }
+    } catch (ctxErr) {
+      // Safe fallback for isolated unit tests
+      req.user.isSystemAdmin = user.role === 'admin' || user.role === 'system_admin';
+      req.user.assignedScopes = [];
+    }
+
+    const hasUniversityScope = req.user.isSystemAdmin ||
+      user.role === 'admin' ||
+      user.role === 'authority' ||
+      user.role === 'iqac_admin' ||
+      (Array.isArray(req.user.assignedScopes) && req.user.assignedScopes.some(s => s.scopeType === 'university'));
+
+    req.enforcedDepartment = hasUniversityScope ? null : user.department;
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
@@ -104,7 +127,18 @@ const auth = async (req, res, next) => {
 
 const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    if (!req.user) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient permissions.'
+      });
+    }
+    const userRole = req.user.role;
+    const isPermitted = roles.includes(userRole) ||
+      (req.user.isSystemAdmin && roles.includes('admin')) ||
+      (userRole === 'iqac_admin' && roles.includes('admin'));
+
+    if (!isPermitted) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Insufficient permissions.'
@@ -114,43 +148,106 @@ const authorize = (...roles) => {
   };
 };
 
+/**
+ * Strict authorization gate for System Administration V2.0 routes.
+ * Accessible EXCLUSIVELY to authenticated System Administrators.
+ */
+const requireSystemAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required.'
+    });
+  }
+  if (!req.user.isSystemAdmin) {
+    return res.status(403).json({
+      success: false,
+      code: 'SYSTEM_ADMIN_REQUIRED',
+      message: 'Access denied. System Administrator privileges are required for this operation.'
+    });
+  }
+  next();
+};
+
+/**
+ * Granular module permission evaluator (Role + User Overrides).
+ */
+const requireModulePermission = (moduleKey, permission) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+    if (req.user.isSystemAdmin) return next();
+
+    const perms = req.user.effectivePermissions;
+    if (perms && perms[moduleKey] && perms[moduleKey][permission] === true) {
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      message: `Access denied. Missing '${permission}' permission on module '${moduleKey}'.`
+    });
+  };
+};
+
 const checkDepartment = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ success: false, message: 'Authentication required' });
   }
 
-  // Admins and Institutional Authorities have university-wide oversight
-  if (req.user.role === 'admin' || req.user.role === 'authority') {
+  const scopes = Array.isArray(req.user.assignedScopes) ? req.user.assignedScopes : [];
+  const hasUnivScope = req.user.isSystemAdmin ||
+    req.user.role === 'admin' ||
+    req.user.role === 'authority' ||
+    req.user.role === 'iqac_admin' ||
+    scopes.some(s => s.scopeType === 'university');
+
+  // Admins, IQAC Admins, and Institutional Authorities with university scope have oversight
+  if (hasUnivScope) {
     return next();
   }
 
-  const userDept = req.user.department;
-  if (!userDept || userDept.trim() === '' || userDept === 'All') {
+  // Collect all authorized departments from user.department + assigned multi-org scopes
+  const allowedDepts = new Set();
+  if (req.user.department && req.user.department.trim() !== '' && req.user.department !== 'All') {
+    allowedDepts.add(req.user.department.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  }
+  scopes.forEach(s => {
+    if (s.departmentName) {
+      allowedDepts.add(s.departmentName.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    }
+  });
+
+  if (allowedDepts.size === 0 && scopes.length === 0) {
     return res.status(403).json({
       success: false,
-      message: 'Access denied: User account is not assigned to a valid department.'
+      message: 'Access denied: User account is not assigned to a valid department or organizational scope.'
     });
   }
 
-  const reqDept = req.query.department || req.body.department;
+  const reqDept = (req.query && req.query.department) || (req.body && req.body.department);
 
   if (reqDept && reqDept !== 'all' && reqDept !== 'All') {
-    // Normalise department strings for comparison (remove spaces/dashes/special chars)
-    const normUserDept = userDept.toLowerCase().replace(/[^a-z0-9]/g, '');
     const normReqDept = reqDept.toLowerCase().replace(/[^a-z0-9]/g, '');
-    
-    if (normUserDept !== normReqDept) {
+    if (!allowedDepts.has(normReqDept)) {
       return res.status(403).json({
         success: false,
-        message: `Access denied. You can only access records from your own department (${userDept}).`
+        message: `Access denied. You can only access records from your assigned department(s).`
       });
     }
   }
 
-  // Bind the validated department
-  req.enforcedDepartment = userDept;
+  req.enforcedDepartment = req.user.department;
   next();
 };
 
-module.exports = { auth, protect: auth, authorize, checkDepartment };
+module.exports = {
+  auth,
+  protect: auth,
+  authorize,
+  requireSystemAdmin,
+  requireModulePermission,
+  checkDepartment
+};
 

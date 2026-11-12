@@ -21,6 +21,8 @@ import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName, normalizeAcademicYear } from './FacultyDetailsPage';
 import { AppShell, PageHeader, StatCard } from './design-system';
+import { DynamicFormFieldsRenderer } from './DynamicFormFieldsRenderer';
+import { useSystemConfig } from '../contexts/SystemConfigContext';
 
 interface PlacementsInternshipsPageProps {
   onNavigate: (page: string) => void;
@@ -48,6 +50,7 @@ export interface PlacementItem {
   offerLetterUrl?: string | null;
   offerLetterFileName?: string | null;
   offerLetterDriveId?: string | null;
+  customFields?: Record<string, any>;
   createdAt?: string;
   creator?: {
     id: string;
@@ -90,6 +93,12 @@ export function PlacementsInternshipsPage({
   userRole: propUserRole
 }: PlacementsInternshipsPageProps) {
   const { user, logout } = useAuth();
+  const { academicYears: runtimeAcademicYears } = useSystemConfig();
+  const configuredAcademicYears = useMemo(() => {
+    return Array.isArray(runtimeAcademicYears) && runtimeAcademicYears.length > 0
+      ? Array.from(new Set([...runtimeAcademicYears, ...ACADEMIC_YEARS]))
+      : ACADEMIC_YEARS;
+  }, [runtimeAcademicYears]);
   const effectiveToken = propToken || user?.token || '';
   const effectiveRole = propUserRole || user?.role || 'faculty';
   const isAdminOrCoordinator = effectiveRole === 'admin' || effectiveRole === 'coordinator' || effectiveRole === 'hod';
@@ -115,6 +124,7 @@ export function PlacementsInternshipsPage({
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingItem, setEditingItem] = useState<PlacementItem | null>(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
 
@@ -531,6 +541,7 @@ export function PlacementsInternshipsPage({
       ...EMPTY_FORM,
       department: uniqueDepartments[0] || 'AI and Data Science Engineering'
     });
+    setCustomFieldValues({});
     setFormError('');
     setShowFormModal(true);
   };
@@ -551,6 +562,7 @@ export function PlacementsInternshipsPage({
       placementDate: item.placementDate || new Date().toISOString().split('T')[0],
       location: item.location || ''
     });
+    setCustomFieldValues(item.customFields && typeof item.customFields === 'object' ? { ...item.customFields } : {});
     setFormError('');
     setShowFormModal(true);
   };
@@ -568,7 +580,8 @@ export function PlacementsInternshipsPage({
 
     const payload = {
       ...formData,
-      package: parseFloat(formData.package) || 0
+      package: parseFloat(formData.package) || 0,
+      customFields: customFieldValues
     };
 
     try {
@@ -1533,7 +1546,7 @@ export function PlacementsInternshipsPage({
                     <SelectValue placeholder="Select AY" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ACADEMIC_YEARS.map(yr => (
+                    {configuredAcademicYears.map(yr => (
                       <SelectItem key={yr} value={yr}>{yr}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1565,6 +1578,16 @@ export function PlacementsInternshipsPage({
                 className="h-9 text-xs rounded-xl"
               />
             </div>
+
+            <DynamicFormFieldsRenderer
+              formKey="placements-internships-form"
+              mode={editingItem ? 'edit' : 'create'}
+              coreValues={formData}
+              customValues={customFieldValues}
+              onChangeCustomValue={(fieldKey, value) =>
+                setCustomFieldValues((prev) => ({ ...prev, [fieldKey]: value }))
+              }
+            />
 
             <DialogFooter className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
               <Button
@@ -1753,6 +1776,13 @@ export function PlacementsInternshipsPage({
                   onChange={handleUploadOfferLetterInDetail}
                 />
               </div>
+
+              <DynamicFormFieldsRenderer
+                formKey="placements-internships-form"
+                mode="view"
+                coreValues={viewingItem}
+                customValues={viewingItem.customFields || {}}
+              />
 
               <DialogFooter className="pt-3">
                 <Button

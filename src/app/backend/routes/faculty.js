@@ -10,21 +10,22 @@ const {
   clearAllFaculty
 } = require('../controllers/facultyController');
 const { auth, authorize } = require('../middleware/auth');
+const { requireModuleEnabled, validateFormSubmission } = require('../middleware/configEnforcement');
 
 router.use(auth);
 
-router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllFaculty);
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('faculty-details'), clearAllFaculty);
 router.get('/stats', getFacultyStats);
 
 router.route('/')
   .get(getFaculty)
-  .post(authorize('admin', 'coordinator', 'hod'), createFaculty);
+  .post(authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('faculty-details'), validateFormSubmission('faculty-profile-form', true), createFaculty);
 
 router.route('/bulk')
-  .post(authorize('admin', 'coordinator', 'hod'), bulkCreateFaculty);
+  .post(authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('faculty-details'), bulkCreateFaculty);
 
 router.route('/:id')
-  .put(authorize('admin', 'coordinator', 'hod'), updateFaculty)
-  .delete(authorize('admin', 'coordinator', 'hod'), deleteFaculty);
+  .put(authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('faculty-details'), validateFormSubmission('faculty-profile-form', false), updateFaculty)
+  .delete(authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('faculty-details'), deleteFaculty);
 
 module.exports = router;

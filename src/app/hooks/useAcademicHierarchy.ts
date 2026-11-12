@@ -110,6 +110,15 @@ export function useAcademicHierarchy() {
     fetchHierarchy();
   }, [fetchHierarchy]);
 
+  // Listen for centralized configuration updates from System Administration V2.0
+  useEffect(() => {
+    const handleConfigUpdate = () => {
+      fetchHierarchy();
+    };
+    window.addEventListener('iqac:config-updated', handleConfigUpdate);
+    return () => window.removeEventListener('iqac:config-updated', handleConfigUpdate);
+  }, [fetchHierarchy]);
+
   // Quick lookups
   const departmentMap = useMemo(() => {
     const map: Record<string, Department> = {};

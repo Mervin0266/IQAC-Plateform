@@ -18,6 +18,7 @@ const {
   deleteSponsoredInstallment
 } = require('../controllers/sponsoredProjectController');
 const { auth, authorize } = require('../middleware/auth');
+const { requireModuleEnabled, validateFormSubmission } = require('../middleware/configEnforcement');
 
 // Multer memory storage configuration for Direct Google Drive upload (Max 10MB per file)
 const upload = multer({
@@ -31,8 +32,8 @@ const upload = multer({
 router.use(auth);
 
 router.get('/stats', getSponsoredProjectStats);
-router.post('/bulk', authorize('admin', 'coordinator', 'hod', 'faculty'), bulkUploadSponsoredProjects);
-router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllSponsoredProjects);
+router.post('/bulk', authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('sponsored-research'), bulkUploadSponsoredProjects);
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('sponsored-research'), clearAllSponsoredProjects);
 
 // Document attachments (Agreement Letters & Payment Receipts)
 router.post(
@@ -66,11 +67,11 @@ router.delete('/:id/installments/:installmentId', authorize('admin', 'coordinato
 
 router.route('/')
   .get(getSponsoredProjects)
-  .post(authorize('admin', 'coordinator', 'hod', 'faculty'), createSponsoredProject);
+  .post(authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('sponsored-research'), validateFormSubmission('sponsored-research-form', true), createSponsoredProject);
 
 router.route('/:id')
   .get(getSponsoredProject)
-  .put(authorize('admin', 'coordinator', 'hod', 'faculty'), updateSponsoredProject)
-  .delete(authorize('admin', 'coordinator', 'hod', 'faculty'), deleteSponsoredProject);
+  .put(authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('sponsored-research'), validateFormSubmission('sponsored-research-form', false), updateSponsoredProject)
+  .delete(authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('sponsored-research'), deleteSponsoredProject);
 
 module.exports = router;

@@ -3,6 +3,8 @@ const Achievement = require('./Achievement');
 const Document = require('./Document');
 const Patent = require('./Patent');
 const PatentProof = require('./PatentProof');
+const Copyright = require('./Copyright');
+const CopyrightFaculty = require('./CopyrightFaculty');
 const Placement = require('./Placement');
 const StrategicPlan = require('./StrategicPlan');
 const EditRequest = require('./EditRequest');
@@ -25,6 +27,17 @@ const School = require('./School');
 const ProgramLevel = require('./ProgramLevel');
 const Course = require('./Course');
 const DepartmentalActivity = require('./DepartmentalActivity');
+
+// ── System Administration V2.0 Models ─────────────────────────────
+const Role = require('./Role');
+const UserPermissionOverride = require('./UserPermissionOverride');
+const UserOrganizationalScope = require('./UserOrganizationalScope');
+const FormDefinition = require('./FormDefinition');
+const FormField = require('./FormField');
+const SystemConfiguration = require('./SystemConfiguration');
+const ModuleConfig = require('./ModuleConfig');
+const ConfigurationVersion = require('./ConfigurationVersion');
+const ConfigurationBackup = require('./ConfigurationBackup');
 
 // ══════════════════════════════════════════════════════════════════
 // Associations
@@ -62,6 +75,14 @@ Patent.hasMany(PatentProof, { foreignKey: 'patentId', as: 'proofs', onDelete: 'C
 PatentProof.belongsTo(Patent, { foreignKey: 'patentId', as: 'patent' });
 User.hasMany(PatentProof, { foreignKey: 'uploadedBy', as: 'uploadedPatentProofs' });
 PatentProof.belongsTo(User, { foreignKey: 'uploadedBy', as: 'uploader' });
+
+// Copyrights & Faculty Associations
+User.hasMany(Copyright, { foreignKey: 'createdBy', as: 'copyrights' });
+Copyright.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+Copyright.hasMany(CopyrightFaculty, { foreignKey: 'copyrightId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+CopyrightFaculty.belongsTo(Copyright, { foreignKey: 'copyrightId', as: 'copyright' });
+Faculty.hasMany(CopyrightFaculty, { foreignKey: 'facultyId', as: 'copyrightAssociations' });
+CopyrightFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
 
 User.hasMany(Placement, { foreignKey: 'createdBy', as: 'placements' });
 Placement.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
@@ -157,6 +178,19 @@ SponsoredResearchInstallment.belongsTo(SponsoredProject, { foreignKey: 'projectI
 User.hasMany(SponsoredResearchInstallment, { foreignKey: 'createdBy', as: 'createdSponsoredInstallments' });
 SponsoredResearchInstallment.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
+// System Administration V2.0 Associations
+Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
+User.belongsTo(Role, { foreignKey: 'roleId', as: 'assignedRole' });
+
+User.hasMany(UserPermissionOverride, { foreignKey: 'userId', as: 'permissionOverrides', onDelete: 'CASCADE' });
+UserPermissionOverride.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+User.hasMany(UserOrganizationalScope, { foreignKey: 'userId', as: 'organizationalScopes', onDelete: 'CASCADE' });
+UserOrganizationalScope.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+FormDefinition.hasMany(FormField, { foreignKey: 'formId', as: 'fields', onDelete: 'CASCADE' });
+FormField.belongsTo(FormDefinition, { foreignKey: 'formId', as: 'form' });
+
 module.exports = {
   User,
   Achievement,
@@ -171,6 +205,8 @@ module.exports = {
   Document,
   Patent,
   PatentProof,
+  Copyright,
+  CopyrightFaculty,
   Placement,
   StrategicPlan,
   EditRequest,
@@ -192,6 +228,16 @@ module.exports = {
   School,
   ProgramLevel,
   Course,
-  DepartmentalActivity
+  DepartmentalActivity,
+  // System Administration V2.0 models
+  Role,
+  UserPermissionOverride,
+  UserOrganizationalScope,
+  FormDefinition,
+  FormField,
+  SystemConfiguration,
+  ModuleConfig,
+  ConfigurationVersion,
+  ConfigurationBackup
 };
 

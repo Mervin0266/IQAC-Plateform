@@ -124,6 +124,16 @@ exports.login = async (req, res) => {
     // Generate token with tokenVersion
     const token = generateToken(user);
 
+    let authCtx = null;
+    try {
+      const { resolveUserAuthorizationContext } = require('../services/configPropagationService');
+      authCtx = await resolveUserAuthorizationContext(user);
+    } catch (e) {
+      authCtx = null;
+    }
+
+    const isSystemAdmin = authCtx ? authCtx.isSystemAdmin : (user.role === 'admin' || user.role === 'system_admin');
+
     res.json({
       success: true,
       data: {
@@ -133,9 +143,14 @@ exports.login = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          isSystemAdmin,
           department: user.department,
+          campus: user.campus || null,
+          school: user.school || null,
           employeeId: user.employeeId,
-          mustChangePassword: !!user.mustChangePassword
+          mustChangePassword: !!user.mustChangePassword,
+          effectivePermissions: authCtx?.effectivePermissions || null,
+          assignedScopes: authCtx?.scopes || []
         }
       }
     });
@@ -157,9 +172,16 @@ exports.getMe = async (req, res) => {
       attributes: { exclude: ['password'] }
     });
 
+    const plain = user ? (typeof user.toJSON === 'function' ? user.toJSON() : user) : null;
+    if (plain) {
+      plain.isSystemAdmin = Boolean(req.user.isSystemAdmin);
+      plain.effectivePermissions = req.user.effectivePermissions || null;
+      plain.assignedScopes = req.user.assignedScopes || [];
+    }
+
     res.json({
       success: true,
-      data: user
+      data: plain
     });
   } catch (error) {
     console.error('Get me error:', error);

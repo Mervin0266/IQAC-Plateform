@@ -89,6 +89,11 @@ const Achievement = sequelize.define('Achievement', {
     ),
     defaultValue: 'draft'
   },
+  customFields: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: {}
+  },
   createdBy: {
     type: DataTypes.UUID,
     allowNull: false

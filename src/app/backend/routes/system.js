@@ -13,4 +13,9 @@ router.post('/clear-database', auth, authorize('admin'), systemController.clearD
 // @access  Private
 router.get('/dashboard-stats', auth, systemController.getDashboardStats);
 
+// @route   GET /api/system/runtime-config
+// @desc    Get centralized runtime configuration for authenticated user
+// @access  Private
+router.get('/runtime-config', auth, systemController.getRuntimeConfig);
+
 module.exports = router;

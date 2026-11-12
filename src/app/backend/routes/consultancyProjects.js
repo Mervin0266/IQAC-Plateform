@@ -15,6 +15,7 @@ const {
   deleteConsultancyDocument
 } = require('../controllers/consultancyProjectController');
 const { auth, authorize } = require('../middleware/auth');
+const { requireModuleEnabled, validateFormSubmission } = require('../middleware/configEnforcement');
 
 // Multer memory storage configuration for Direct Google Drive upload (Max 10MB per file)
 const upload = multer({
@@ -28,8 +29,8 @@ const upload = multer({
 router.use(auth);
 
 router.get('/stats', getConsultancyStats);
-router.post('/bulk', authorize('admin', 'coordinator', 'hod', 'faculty'), bulkCreateConsultancyProjects);
-router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), clearAllConsultancyProjects);
+router.post('/bulk', authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('consultancy-projects'), bulkCreateConsultancyProjects);
+router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('consultancy-projects'), clearAllConsultancyProjects);
 
 // Document attachments (Agreement / Work Order, Invoice, Payment Receipt)
 router.post(
@@ -68,11 +69,11 @@ router.delete(
 
 router.route('/')
   .get(getConsultancyProjects)
-  .post(authorize('admin', 'coordinator', 'hod', 'faculty'), createConsultancyProject);
+  .post(authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('consultancy-projects'), validateFormSubmission('consultancy-project-form', true), createConsultancyProject);
 
 router.route('/:id')
   .get(getConsultancyProject)
-  .put(authorize('admin', 'coordinator', 'hod', 'faculty'), updateConsultancyProject)
-  .delete(authorize('admin', 'coordinator', 'hod'), deleteConsultancyProject);
+  .put(authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('consultancy-projects'), validateFormSubmission('consultancy-project-form', false), updateConsultancyProject)
+  .delete(authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('consultancy-projects'), deleteConsultancyProject);
 
 module.exports = router;

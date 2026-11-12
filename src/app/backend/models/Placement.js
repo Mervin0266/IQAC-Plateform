@@ -72,6 +72,11 @@ const Placement = sequelize.define('Placement', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  customFields: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: {}
+  },
   createdBy: {
     type: DataTypes.UUID,
     allowNull: false

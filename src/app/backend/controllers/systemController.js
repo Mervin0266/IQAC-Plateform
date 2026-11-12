@@ -339,3 +339,23 @@ exports.getDashboardStats = async (req, res) => {
     });
   }
 };
+
+// @desc    Get centralized runtime configuration for authenticated user (propagation source of truth)
+// @route   GET /api/system/runtime-config
+// @access  Private
+exports.getRuntimeConfig = async (req, res) => {
+  try {
+    const { getRuntimeConfigForUser } = require('../services/configPropagationService');
+    const data = await getRuntimeConfigForUser(req.user);
+    res.json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error fetching runtime config:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve runtime configuration.'
+    });
+  }
+};

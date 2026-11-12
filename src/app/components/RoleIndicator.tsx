@@ -9,13 +9,26 @@ export function RoleIndicator() {
 
   if (!user) return null;
 
-  const roleConfig = {
+  const roleConfig: Record<string, {
+    icon: React.ComponentType<{ className?: string }>;
+    bg: string;
+    iconColor: string;
+    badge: string;
+    description: string;
+  }> = {
     admin: {
       icon: Shield,
       bg: 'bg-blue-50/70 border-blue-200/60 text-slate-700',
       iconColor: 'text-[#2F4692]',
       badge: 'Full Access',
       description: 'System Administration & Institutional Controls',
+    },
+    iqac_admin: {
+      icon: Shield,
+      bg: 'bg-sky-50/70 border-sky-200/60 text-slate-700',
+      iconColor: 'text-sky-700',
+      badge: 'IQAC Admin',
+      description: 'IQAC Operational Administration & Institutional Governance',
     },
     authority: {
       icon: Shield,
@@ -47,7 +60,7 @@ export function RoleIndicator() {
     },
   };
 
-  const config = roleConfig[user.role] || roleConfig.admin;
+  const config = roleConfig[user.role] || roleConfig.faculty;
   const Icon = config.icon;
 
   return (

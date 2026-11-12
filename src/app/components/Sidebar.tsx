@@ -18,6 +18,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSystemConfig } from '../contexts/SystemConfigContext';
 import { getRoleDisplayName } from '../config/permissions';
 import { SearchBar } from './SearchBar';
 import { NotificationDropdown } from './NotificationDropdown';
@@ -41,6 +42,7 @@ export function Sidebar({
   onNavigate,
 }: SidebarProps) {
   const { user, logout } = useAuth();
+  const { isSystemAdmin, isModuleEnabled } = useSystemConfig();
   const {
     sidebarWidth,
     isResizing,
@@ -73,10 +75,17 @@ export function Sidebar({
                 icon: FlaskConical,
                 children: [
                   { label: 'Research Metrics Grid', key: 'research-metrics' },
-                  { label: 'Publications', key: 'publications' },
-                  { label: 'Patents & IP', key: 'research-innovation' },
                   { label: 'Sponsored Research', key: 'sponsored-research' },
                   { label: 'Consultancy Projects', key: 'consultancy-projects' },
+                  {
+                    label: 'IPRs',
+                    key: 'iprs',
+                    children: [
+                      { label: 'Patents', key: 'research-innovation' },
+                      { label: 'Copyrights', key: 'copyrights' },
+                    ],
+                  },
+                  { label: 'Publications', key: 'publications' },
                 ],
               },
               { label: 'Placements & Internships', key: 'placements-internships', icon: Briefcase },
@@ -125,6 +134,7 @@ export function Sidebar({
 
   const adminSystemItems = useMemo(
     () => [
+      { icon: Settings, label: 'System Administration V2.0', key: 'system-admin' },
       { icon: Users, label: 'User Roles & Permissions', key: 'user-roles' },
       { icon: Shield, label: 'User Management', key: 'user-management' },
     ],
@@ -149,7 +159,9 @@ export function Sidebar({
   };
 
   const renderSubItems = (items: any[], depth = 1) => {
-    return items.map((sub) => {
+    return items
+      .filter((sub) => isModuleEnabled(sub.key))
+      .map((sub) => {
       if (sub.children && sub.children.length > 0) {
         const isSubChildActive = isKeyActive(sub);
         const isSubOpen = openSubmenus[sub.key] ?? isSubChildActive;
@@ -180,7 +192,7 @@ export function Sidebar({
             {/* Nested Submenu Dropdown */}
             <div
               className={`w-full overflow-hidden transition-all duration-200 ease-in-out ${
-                isSubOpen ? 'max-h-96 opacity-100 mt-1' : 'max-h-0 opacity-0'
+                isSubOpen ? 'max-h-[600px] opacity-100 mt-1' : 'max-h-0 opacity-0'
               }`}
             >
               <div className="pl-2 pr-1 py-0.5 space-y-0.5 border-l border-white/15 ml-2">
@@ -307,7 +319,9 @@ export function Sidebar({
               {section.groupTitle}
             </p>
             <div className="space-y-0.5">
-              {section.items.map((item) => {
+              {section.items
+                .filter((item) => isModuleEnabled(item.key))
+                .map((item) => {
                 const Icon = item.icon;
 
                 // Expandable items with children
@@ -372,8 +386,8 @@ export function Sidebar({
           </div>
         ))}
 
-        {/* 5. System Controls (Admins only) */}
-        {user?.role === 'admin' && (
+        {/* 5. System Controls (Exclusive to System Administrators) */}
+        {isSystemAdmin && (
           <div className="space-y-1 pt-1.5 border-t border-white/10">
             <p className="px-2.5 text-[10px] font-semibold text-slate-300/80 uppercase tracking-wider">
               ADMINISTRATION
@@ -417,12 +431,12 @@ export function Sidebar({
             <Home className="w-4 h-4" />
           </button>
 
-          {user?.role === 'admin' && (
+          {isSystemAdmin && (
             <button
               type="button"
-              onClick={() => onNavigate?.('user-management')}
+              onClick={() => onNavigate?.('system-admin')}
               className="p-1.5 hover:bg-[#294768] rounded-md transition-colors text-slate-300 hover:text-white"
-              title="User Management"
+              title="System Administration V2.0"
             >
               <Settings className="w-4 h-4" />
             </button>
