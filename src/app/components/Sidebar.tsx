@@ -77,6 +77,7 @@ export function Sidebar({
                   { label: 'Research Metrics Grid', key: 'research-metrics' },
                   { label: 'Sponsored Research', key: 'sponsored-research' },
                   { label: 'Consultancy Projects', key: 'consultancy-projects' },
+                  { label: 'Publications', key: 'publications' },
                   {
                     label: 'IPRs',
                     key: 'iprs',
@@ -85,7 +86,6 @@ export function Sidebar({
                       { label: 'Copyrights', key: 'copyrights' },
                     ],
                   },
-                  { label: 'Publications', key: 'publications' },
                 ],
               },
               { label: 'Placements & Internships', key: 'placements-internships', icon: Briefcase },

@@ -1,5 +1,6 @@
 const { Publication, PublicationFaculty, Faculty, User, CitationImportBatch, PublicationCitationSnapshot, CitationYearlyDetail } = require('../models');
 const { parseCitationBuffer, normalizeTitle: normTitleFn, normalizeIssn: normIssnFn, normalizeYear: normYearFn, calculateTitleSimilarity, findMatchingCitationRecord } = require('../utils/citationParser');
+const { validateBulkFilename } = require('../utils/publicationFilenameValidator');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const crypto = require('crypto');
@@ -27,7 +28,7 @@ const extractEmployeeIdFromFilename = (filename) => {
   const matchAlphaNum = base.match(/^([A-Za-z]*\d+)(?:[_\-\s]|$)/);
   if (matchAlphaNum) {
     const token = matchAlphaNum[1].trim();
-    if (!['publications', 'publication', 'scopus', 'wos', 'template', 'data', 'export', 'file', 'iqac'].includes(token.toLowerCase())) {
+    if (!['publications', 'publication', 'citations', 'citation', 'overview', 'scopus', 'wos', 'template', 'data', 'export', 'file', 'iqac'].includes(token.toLowerCase())) {
       return token;
     }
   }
@@ -35,7 +36,7 @@ const extractEmployeeIdFromFilename = (filename) => {
   const matchFirst = base.match(/^([A-Za-z0-9]+)(?:[_\-\s]|$)/);
   if (matchFirst) {
     const token = matchFirst[1].trim();
-    if (!['publications', 'publication', 'scopus', 'wos', 'template', 'data', 'export', 'file', 'iqac'].includes(token.toLowerCase())) {
+    if (!['publications', 'publication', 'citations', 'citation', 'overview', 'scopus', 'wos', 'template', 'data', 'export', 'file', 'iqac'].includes(token.toLowerCase())) {
       return token;
     }
   }
@@ -769,7 +770,7 @@ exports.deletePublication = async (req, res) => {
 exports.bulkUploadPublications = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { items, defaultDepartment, defaultIndexing, isFacultyWiseBatch } = req.body;
+    const { items, defaultDepartment, defaultIndexing, isFacultyWiseBatch, enforceStrictModuleFilename } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
       await t.rollback();
@@ -882,15 +883,47 @@ exports.bulkUploadPublications = async (req, res) => {
       items.some(it => it.sourceFile && extractEmployeeIdFromFilename(it.sourceFile))
     );
 
+    const lookupFacultyByEmpId = (empId) => {
+      if (!empId) return null;
+      const direct = canonicalFacultyMap[empId];
+      if (direct) return direct;
+      const lower = String(empId).trim().toLowerCase();
+      return Object.values(canonicalFacultyMap).find(
+        (f) => String(f.employeeId).trim().toLowerCase() === lower
+      ) || null;
+    };
+
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
       const rowNum = item.row || (index + 1);
       const sourceFile = item.sourceFile || '';
 
+      // Enforce standardized module filename rules when sourceFile is present
+      if (sourceFile) {
+        const filenameCheck = validateBulkFilename(sourceFile, 'publications');
+        if (!filenameCheck.valid) {
+          const isAlwaysBlocked =
+            filenameCheck.reasonCode === 'wrong_module' ||
+            filenameCheck.reasonCode === 'invalid_extension' ||
+            Boolean(enforceStrictModuleFilename);
+          if (isAlwaysBlocked) {
+            errors.push({
+              row: rowNum,
+              sourceFile,
+              title: item.title || item['Title'] || 'Untitled',
+              status: 'needs_review',
+              issues: filenameCheck.error
+            });
+            continue;
+          }
+        }
+      }
+
       // 1. Resolve and verify faculty identity from Employee ID
       let rawEmpId = item.employeeId || item['Employee ID'] || item['Emp ID'];
       if (!rawEmpId && sourceFile) {
-        rawEmpId = extractEmployeeIdFromFilename(sourceFile);
+        const filenameCheck = validateBulkFilename(sourceFile, 'publications');
+        rawEmpId = filenameCheck.employeeId || extractEmployeeIdFromFilename(sourceFile);
       }
 
       const cleanEmpId = rawEmpId ? String(rawEmpId).trim() : null;
@@ -899,7 +932,7 @@ exports.bulkUploadPublications = async (req, res) => {
       let verifiedFacultyId = null;
 
       if (cleanEmpId) {
-        const matchedFaculty = canonicalFacultyMap[cleanEmpId];
+        const matchedFaculty = lookupFacultyByEmpId(cleanEmpId);
         if (!matchedFaculty) {
           errors.push({
             row: rowNum,
@@ -1430,15 +1463,41 @@ exports.validateAndPreviewCitations = async (req, res) => {
     for (let fIdx = 0; fIdx < files.length; fIdx++) {
       const file = files[fIdx];
       const filename = String(file.filename || `citation_file_${fIdx + 1}.csv`).trim();
-      const employeeId = extractEmployeeIdFromFilename(filename);
+      const filenameCheck = validateBulkFilename(filename, 'citations');
 
+      if (!filenameCheck.valid) {
+        processedFiles.push({
+          fileIndex: fIdx,
+          filename,
+          employeeId: filenameCheck.employeeId || null,
+          verifiedFaculty: null,
+          status: 'error',
+          reasonCode: filenameCheck.reasonCode,
+          error: filenameCheck.error,
+          warning: filenameCheck.error,
+          recordCount: 0,
+          matchedCount: 0,
+          needsReviewCount: 0,
+          notFoundCount: 0,
+          detectedPeriods: []
+        });
+        continue;
+      }
+
+      const employeeId = filenameCheck.employeeId;
       let verifiedFaculty = null;
       let facultyError = null;
 
-      if (!employeeId) {
-        facultyError = 'Filename does not follow required convention (EmpID_Name.csv or EmpID_Name.xlsx). Missing Employee ID.';
-      } else if (canonicalFacultyMap[employeeId]) {
-        verifiedFaculty = canonicalFacultyMap[employeeId];
+      const directFaculty = employeeId ? canonicalFacultyMap[employeeId] : null;
+      const caseInsensitiveFaculty = (!directFaculty && employeeId)
+        ? Object.values(canonicalFacultyMap).find(
+            (f) => String(f.employeeId).trim().toLowerCase() === String(employeeId).trim().toLowerCase()
+          ) || null
+        : null;
+      const matchedFaculty = directFaculty || caseInsensitiveFaculty;
+
+      if (matchedFaculty) {
+        verifiedFaculty = matchedFaculty;
       } else {
         facultyError = `Employee ID "${employeeId}" not found in Faculty Management directory.`;
       }
@@ -2375,6 +2434,7 @@ exports.applyAuditedCitationCorrection = async (req, res) => {
 
 // Export internal helpers for unit testing & external validation
 exports.extractEmployeeIdFromFilename = extractEmployeeIdFromFilename;
+exports.validateBulkFilename = validateBulkFilename;
 exports.normalizeDoi = normalizeDoi;
 exports.normalizeTitle = normalizeTitle;
 exports.normalizePublicationYear = normalizePublicationYear;

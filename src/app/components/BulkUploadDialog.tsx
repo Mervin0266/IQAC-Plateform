@@ -9,6 +9,7 @@ import { FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info, Downloa
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName, normalizeDesignationName } from './FacultyDetailsPage';
 import { CitationsBulkUploadFlow } from './CitationsBulkUploadFlow';
+import { validateBulkFilename } from '../utils/publicationFilenameValidator';
 
 const formatDateToISO = (dateStr: string): string | null => {
   if (!dateStr) return null;
@@ -1017,15 +1018,25 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     });
   };
 
+  const findFacultyMember = (empId: string | null): FacultyDirectoryMember | null => {
+    if (!empId) return null;
+    if (facultyLookup[empId]) return facultyLookup[empId];
+    const lower = empId.trim().toLowerCase();
+    for (const [k, v] of Object.entries(facultyLookup)) {
+      if (k.trim().toLowerCase() === lower) return v;
+    }
+    return null;
+  };
+
   const handleProcessPublicationFiles = async (fileList: FileList | File[]) => {
     const rawFiles = Array.from(fileList);
-    const validSpreadsheetFiles = rawFiles.filter(f => {
-      const n = f.name.toLowerCase();
-      return (n.endsWith('.csv') || n.endsWith('.xlsx') || n.endsWith('.xls')) && !n.startsWith('~$') && !n.startsWith('.');
+    const candidateFiles = rawFiles.filter(f => {
+      const base = (f.name.split(/[\\/]/).pop() || f.name).toLowerCase();
+      return !base.startsWith('~$') && !base.startsWith('.');
     });
 
-    if (validSpreadsheetFiles.length === 0) {
-      setParseError('No supported CSV or Excel spreadsheets (.csv, .xlsx, .xls) found in the selection.');
+    if (candidateFiles.length === 0) {
+      setParseError('No files found in the selection.');
       return;
     }
 
@@ -1036,18 +1047,35 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     const newPublicationFiles: PublicationFileItem[] = [];
     const newRecordsBatch: any[] = [];
 
-    for (const file of validSpreadsheetFiles) {
-      const empId = extractEmployeeIdFromFilename(file.name);
-      let matchedFaculty = empId && facultyLookup[empId] ? facultyLookup[empId] : null;
+    for (const file of candidateFiles) {
+      const filenameCheck = validateBulkFilename(file.name, 'publications');
+      const empId = filenameCheck.employeeId;
+      let matchedFaculty = filenameCheck.valid ? findFacultyMember(empId) : null;
       let facultyName = matchedFaculty ? matchedFaculty.name : null;
       let department = matchedFaculty ? matchedFaculty.department : null;
       let status: 'ready' | 'needs_review' | 'error' = 'ready';
       let errorMessage: string | undefined = undefined;
 
-      if (!empId) {
-        status = 'needs_review';
-        errorMessage = 'Filename missing Employee ID prefix (e.g. 2043_Name.xlsx)';
-      } else if (!matchedFaculty) {
+      if (!filenameCheck.valid) {
+        status = 'error';
+        errorMessage = filenameCheck.error || 'Filename must follow EmpID_FacultyName_Publications.xlsx';
+        newPublicationFiles.push({
+          id: `${file.name}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          file,
+          name: file.name,
+          size: file.size,
+          employeeId: empId,
+          facultyName: null,
+          department: null,
+          indexing: 'Scopus',
+          status,
+          errorMessage,
+          records: []
+        });
+        continue;
+      }
+
+      if (!matchedFaculty) {
         status = 'needs_review';
         errorMessage = `Employee ID "${empId}" not found in Faculty Directory`;
       } else if (matchedFaculty.hasConflict) {
@@ -1064,7 +1092,23 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         defaultIndexing
       );
 
-      newRecordsBatch.push(...parsedRows);
+      // Ensure rows from unverified or conflicting faculty cannot be marked ready
+      const normalizedRows = parsedRows.map(row => {
+        if (status !== 'ready') {
+          const updatedIssues = Array.isArray(row._issues) ? [...row._issues] : [];
+          if (errorMessage && !updatedIssues.includes(errorMessage)) {
+            updatedIssues.unshift(errorMessage);
+          }
+          return {
+            ...row,
+            _issues: updatedIssues,
+            _rowStatus: 'needs_review'
+          };
+        }
+        return row;
+      });
+
+      newRecordsBatch.push(...normalizedRows);
 
       newPublicationFiles.push({
         id: `${file.name}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -1077,11 +1121,12 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         indexing: defaultIndexing,
         status,
         errorMessage,
-        records: parsedRows
+        records: normalizedRows
       });
     }
 
-    setFile(validSpreadsheetFiles[0]);
+    const firstValidSpreadsheet = newPublicationFiles.find(f => f.status !== 'error')?.file || null;
+    setFile(firstValidSpreadsheet);
 
     setPublicationFiles(prev => {
       const map = new Map<string, PublicationFileItem>();
@@ -2076,6 +2121,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         ? {
             items: readyRecords,
             isFacultyWiseBatch: publicationFiles.length > 0,
+            enforceStrictModuleFilename: true,
             defaultDepartment: selectedDepartment || undefined,
             defaultIndexing: selectedPublicationIndexing
           }
@@ -2412,7 +2458,11 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                       Faculty-Wise Multi-File & Folder Bulk Upload
                     </h4>
                     <p className="text-[11px] text-slate-600 mt-0.5">
-                      Select multiple publication files or an entire folder. Filename must start with Employee ID (e.g., <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-900">2043_Adarsh_S_V.xlsx</code>).
+                      Select multiple publication files or an entire folder. Required filename format:{' '}
+                      <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-900 font-semibold">
+                        EmpID_FacultyName_Publications.xlsx
+                      </code>{' '}
+                      (e.g., <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-900">2043_Adarsh_S_V_Publications.xlsx</code>).
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -2500,17 +2550,20 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
                     {publicationFiles.map((item) => {
                       const isReady = item.status === 'ready';
+                      const isError = item.status === 'error';
                       return (
                         <div
                           key={item.id}
                           className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs transition-colors ${
                             isReady
                               ? 'bg-white border-slate-200 hover:border-blue-300'
-                              : 'bg-amber-50/60 border-amber-200'
+                              : isError
+                                ? 'bg-red-50/70 border-red-200'
+                                : 'bg-amber-50/60 border-amber-200'
                           }`}
                         >
                           <div className="flex items-start gap-2.5 min-w-0">
-                            <FileSpreadsheet className={`w-4 h-4 mt-0.5 shrink-0 ${isReady ? 'text-[#2855B9]' : 'text-amber-600'}`} />
+                            <FileSpreadsheet className={`w-4 h-4 mt-0.5 shrink-0 ${isReady ? 'text-[#2855B9]' : isError ? 'text-red-600' : 'text-amber-600'}`} />
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-semibold text-slate-900 truncate max-w-[200px]" title={item.name}>
@@ -2519,9 +2572,14 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                                 <span className="text-[10px] text-slate-400 font-mono">
                                   ({(item.size / 1024).toFixed(1)} KB)
                                 </span>
-                                {item.records && (
+                                {!isError && item.records && (
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-50 text-[#2855B9] border border-blue-200">
                                     {item.records.length} records
+                                  </span>
+                                )}
+                                {isError && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">
+                                    Rejected Filename
                                   </span>
                                 )}
                               </div>
@@ -2540,9 +2598,14 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                                       </span>
                                     )}
                                   </>
+                                ) : isError ? (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-800 bg-red-100/80 px-2 py-0.5 rounded-md border border-red-200">
+                                    <AlertCircle className="w-3 h-3 text-red-600 shrink-0" />
+                                    {item.errorMessage || 'Invalid filename convention'}
+                                  </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-md border border-amber-300">
-                                    <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                    <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
                                     {item.errorMessage || 'Needs Review: Unknown Faculty'}
                                   </span>
                                 )}
@@ -2551,21 +2614,22 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                            {/* Per-File Indexing classification dropdown */}
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-slate-500 font-medium hidden sm:inline">Indexing:</span>
-                              <select
-                                value={item.indexing}
-                                onChange={(e) => handleFileIndexingChange(item.name, e.target.value)}
-                                className="h-7 px-2 border border-slate-300 rounded-md bg-white text-[11px] font-medium text-slate-800 focus:ring-1 focus:ring-blue-500"
-                              >
-                                <option value="Scopus">Scopus</option>
-                                <option value="WoS (Web of Science)">WoS (Web of Science)</option>
-                                <option value="Scopus & WoS">Scopus & WoS</option>
-                                <option value="UGC-CARE">UGC-CARE</option>
-                                <option value="Peer-Reviewed / Other">Peer-Reviewed / Other</option>
-                              </select>
-                            </div>
+                            {!isError && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-slate-500 font-medium hidden sm:inline">Indexing:</span>
+                                <select
+                                  value={item.indexing}
+                                  onChange={(e) => handleFileIndexingChange(item.name, e.target.value)}
+                                  className="h-7 px-2 border border-slate-300 rounded-md bg-white text-[11px] font-medium text-slate-800 focus:ring-1 focus:ring-blue-500"
+                                >
+                                  <option value="Scopus">Scopus</option>
+                                  <option value="WoS (Web of Science)">WoS (Web of Science)</option>
+                                  <option value="Scopus & WoS">Scopus & WoS</option>
+                                  <option value="UGC-CARE">UGC-CARE</option>
+                                  <option value="Peer-Reviewed / Other">Peer-Reviewed / Other</option>
+                                </select>
+                              </div>
+                            )}
 
                             <button
                               type="button"
@@ -2588,9 +2652,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                     <span>Faculty-Wise Publication File Naming Protocol</span>
                   </div>
                   <ul className="list-disc pl-5 space-y-1 text-[11px] text-slate-600">
-                    <li>Each file represents publications belonging to one faculty member (e.g. <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">2043_Adarsh_S_V.xlsx</code> or <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">00123_Faculty_Name.csv</code>).</li>
-                    <li>The Employee ID at the start of the filename is verified against the Faculty Directory, and the department is automatically assigned from their profile.</li>
-                    <li>If a paper is co-authored by multiple faculty across files, exactly one unique publication record is created and all co-authors are linked.</li>
+                    <li>
+                      Required filename format:{' '}
+                      <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200 font-semibold text-blue-900">EmpID_FacultyName_Publications.xlsx</code>{' '}
+                      (supports <span className="font-mono">.xlsx</span>, <span className="font-mono">.xls</span>, <span className="font-mono">.csv</span>; e.g.{' '}
+                      <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">2043_Adarsh_S_V_Publications.xlsx</code> or{' '}
+                      <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">00123_Faculty_Name_Publications.csv</code>).
+                    </li>
+                    <li>The Employee ID at the start of the filename is verified against Faculty Management, and the department is automatically assigned from their profile.</li>
+                    <li>Files missing <code className="font-mono">_Publications</code> or uploaded with another module suffix (e.g., <code className="font-mono">_Citations</code>) are rejected at validation without blocking valid files.</li>
+                    <li>If a paper is co-authored by multiple faculty across valid files, exactly one unique publication record is created and all co-authors are linked.</li>
                   </ul>
                 </div>
               )}

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   FileSpreadsheet, AlertTriangle, CheckCircle, UploadCloud, Info,
   RefreshCw, X, AlertCircle, FolderUp, FilePlus, Eye, Check, Award
@@ -6,6 +6,7 @@ import {
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
+import { validateBulkFilename } from '../utils/publicationFilenameValidator';
 
 export type CitationUploadStage = 'upload' | 'validation' | 'preview' | 'confirm' | 'summary';
 
@@ -23,9 +24,28 @@ interface CitationsBulkUploadFlowProps {
   onClose: () => void;
 }
 
+interface CitationQueueFile {
+  file: File;
+  employeeId: string | null;
+  facultyName?: string | null;
+  department?: string | null;
+  status: 'valid' | 'error';
+  warning?: string;
+}
+
+interface CitationFacultyDirectoryEntry {
+  id: string;
+  employeeId: string;
+  name: string;
+  department: string;
+  hasConflict?: boolean;
+}
+
 export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: CitationsBulkUploadFlowProps) {
   const [currentStage, setCurrentStage] = useState<CitationUploadStage>('upload');
-  const [citationFiles, setCitationFiles] = useState<{ file: File; employeeId: string | null; warning?: string }[]>([]);
+  const [citationFiles, setCitationFiles] = useState<CitationQueueFile[]>([]);
+  const [facultyDirectory, setFacultyDirectory] = useState<Record<string, CitationFacultyDirectoryEntry>>({});
+  const [facultyDirectoryLoaded, setFacultyDirectoryLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   
@@ -46,37 +66,92 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  // Extract Employee ID before first underscore
-  const extractEmpId = (name: string): string | null => {
-    if (!name) return null;
-    const base = name.replace(/\.[^/.]+$/, '').trim();
-    const match = base.match(/^([A-Za-z0-9]+)(?:[_\-\s]|$)/);
-    if (match) {
-      const token = match[1].trim();
-      if (!['citation', 'citations', 'overview', 'scopus', 'export', 'data'].includes(token.toLowerCase())) {
-        return token;
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    const loadDirectory = async () => {
+      try {
+        const rawApi = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const baseUrl = rawApi.replace(/\/+$/, '');
+        const res = await fetch(`${baseUrl}/api/publications/faculty-directory`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (!cancelled && data.success && data.data) {
+          setFacultyDirectory(data.data);
+          setFacultyDirectoryLoaded(true);
+        }
+      } catch (err) {
+        console.error('Failed to load faculty directory for citations upload:', err);
       }
+    };
+    loadDirectory();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const findFacultyEntry = (empId: string | null): CitationFacultyDirectoryEntry | null => {
+    if (!empId) return null;
+    if (facultyDirectory[empId]) return facultyDirectory[empId];
+    const lower = empId.trim().toLowerCase();
+    for (const [k, v] of Object.entries(facultyDirectory)) {
+      if (k.trim().toLowerCase() === lower) return v;
     }
     return null;
   };
 
   const handleProcessFiles = (fileList: FileList | File[]) => {
     const list = Array.from(fileList);
-    const newItems: { file: File; employeeId: string | null; warning?: string }[] = [];
+    const newItems: CitationQueueFile[] = [];
 
     for (const f of list) {
-      const ext = f.name.split('.').pop()?.toLowerCase();
-      if (ext !== 'csv' && ext !== 'xlsx') {
+      const base = (f.name.split(/[\\/]/).pop() || f.name).toLowerCase();
+      if (base.startsWith('~$') || base.startsWith('.')) {
         continue;
       }
 
-      const empId = extractEmpId(f.name);
-      let warning: string | undefined;
-      if (!empId) {
-        warning = 'Missing or invalid Employee ID in filename. Expected: EmpID_Name.csv or EmpID_Name.xlsx';
+      const check = validateBulkFilename(f.name, 'citations');
+      if (!check.valid) {
+        newItems.push({
+          file: f,
+          employeeId: check.employeeId,
+          facultyName: null,
+          department: null,
+          status: 'error',
+          warning: check.error || 'Filename must follow EmpID_FacultyName_Citations.csv or .xlsx'
+        });
+        continue;
       }
 
-      newItems.push({ file: f, employeeId: empId, warning });
+      const empId = check.employeeId;
+      let warning: string | undefined;
+      let status: 'valid' | 'error' = 'valid';
+      let facultyName: string | null = null;
+      let department: string | null = null;
+
+      if (facultyDirectoryLoaded) {
+        const matched = findFacultyEntry(empId);
+        if (!matched) {
+          status = 'error';
+          warning = `Employee ID "${empId}" not found in Faculty Management directory.`;
+        } else if (matched.hasConflict) {
+          status = 'error';
+          warning = `Employee ID "${empId}" has conflicting identities in Faculty Management directory.`;
+        } else {
+          facultyName = matched.name;
+          department = matched.department;
+        }
+      }
+
+      newItems.push({
+        file: f,
+        employeeId: empId,
+        facultyName,
+        department,
+        status,
+        warning
+      });
     }
 
     setCitationFiles(prev => {
@@ -87,8 +162,13 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
     setErrorMsg('');
   };
 
+  const validCitationFiles = citationFiles.filter(cf => cf.status === 'valid');
+
   const handleValidateFiles = async () => {
-    if (citationFiles.length === 0) return;
+    if (validCitationFiles.length === 0) {
+      setErrorMsg('No valid citation files to validate. Files must follow EmpID_FacultyName_Citations.csv or EmpID_FacultyName_Citations.xlsx.');
+      return;
+    }
     setLoading(true);
     setErrorMsg('');
 
@@ -97,7 +177,7 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
       const baseUrl = rawApi.replace(/\/+$/, '');
 
       const filePayloads = await Promise.all(
-        citationFiles.map(async cf => {
+        validCitationFiles.map(async cf => {
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
@@ -125,7 +205,24 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
         throw new Error(data.message || 'Validation failed.');
       }
 
-      setParsedFiles(data.files || []);
+      const rejectedClientFiles = citationFiles
+        .filter(cf => cf.status === 'error')
+        .map((cf, idx) => ({
+          fileIndex: `rejected-${idx}`,
+          filename: cf.file.name,
+          employeeId: cf.employeeId || null,
+          verifiedFaculty: null,
+          status: 'error',
+          error: cf.warning || 'Invalid citation filename.',
+          warning: cf.warning || 'Invalid citation filename.',
+          recordCount: 0,
+          matchedCount: 0,
+          needsReviewCount: 0,
+          notFoundCount: 0,
+          detectedPeriods: []
+        }));
+
+      setParsedFiles([...(data.files || []), ...rejectedClientFiles]);
       setCitationRecords(data.records || []);
       setCitationSummary(data.summary || null);
       setCurrentStage('validation');
@@ -204,36 +301,53 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* 5-Stage Stepper Progress Bar */}
-      <div className="bg-slate-50 border-y border-slate-200/80 -mx-6 px-6 py-2.5 flex items-center justify-between gap-1 overflow-x-auto shrink-0">
-        {STAGES.map((s, idx) => {
-          const isCurrent = currentStage === s.id;
-          const isPassed = STAGES.findIndex(item => item.id === currentStage) > idx;
-          return (
-            <div key={s.id} className="flex items-center gap-1.5 shrink-0">
-              <span
-                className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
-                  isCurrent
-                    ? 'bg-[#2855B9] text-white shadow-xs ring-2 ring-[#2855B9]/20'
-                    : isPassed
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-200 text-slate-500'
-                }`}
+      <div className="bg-slate-50 border-y border-slate-200/80 px-4 sm:px-6 py-3 shrink-0 overflow-x-auto">
+        <div
+          className="grid grid-cols-5 min-w-[440px] w-full items-start"
+          role="list"
+          aria-label="Citations bulk upload steps"
+        >
+          {STAGES.map((s, idx) => {
+            const currentIdx = STAGES.findIndex(item => item.id === currentStage);
+            const isCurrent = currentStage === s.id;
+            const isPassed = currentIdx > idx;
+            return (
+              <div
+                key={s.id}
+                role="listitem"
+                aria-current={isCurrent ? 'step' : undefined}
+                className="relative flex flex-col items-center min-w-0 px-1"
               >
-                {isPassed ? '✓' : s.number}
-              </span>
-              <span
-                className={`text-xs font-semibold ${
-                  isCurrent ? 'text-slate-900 font-bold' : isPassed ? 'text-emerald-700' : 'text-slate-400'
-                }`}
-              >
-                {s.label.replace(/^\d+\.\s*/, '')}
-              </span>
-              {idx < STAGES.length - 1 && (
-                <div className="w-4 sm:w-8 h-0.5 bg-slate-200 mx-1 hidden sm:block" />
-              )}
-            </div>
-          );
-        })}
+                {idx < STAGES.length - 1 && (
+                  <div
+                    aria-hidden="true"
+                    className={`absolute top-3 left-[calc(50%+14px)] right-[calc(-50%+14px)] h-0.5 transition-colors ${
+                      isPassed ? 'bg-emerald-500' : 'bg-slate-200'
+                    }`}
+                  />
+                )}
+                <span
+                  className={`relative z-10 inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold transition-all ${
+                    isCurrent
+                      ? 'bg-[#2855B9] text-white shadow-xs ring-2 ring-[#2855B9]/25'
+                      : isPassed
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-200 text-slate-500'
+                  }`}
+                >
+                  {isPassed ? '✓' : s.number}
+                </span>
+                <span
+                  className={`mt-1.5 text-[11px] font-semibold text-center leading-tight whitespace-nowrap ${
+                    isCurrent ? 'text-slate-900 font-bold' : isPassed ? 'text-emerald-700' : 'text-slate-400'
+                  }`}
+                >
+                  {s.label.replace(/^\d+\.\s*/, '')}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Scrollable Stage Content Body */}
@@ -256,14 +370,14 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
                   <p className="font-semibold text-slate-800">
                     • <strong>Required Filename Convention:</strong>{' '}
                     <code className="font-mono bg-blue-50 text-blue-900 px-1.5 py-0.5 rounded border border-blue-200 font-bold">
-                      EmpID_Name.csv
+                      EmpID_FacultyName_Citations.csv
                     </code>{' '}
                     or{' '}
                     <code className="font-mono bg-blue-50 text-blue-900 px-1.5 py-0.5 rounded border border-blue-200 font-bold">
-                      EmpID_Name.xlsx
+                      EmpID_FacultyName_Citations.xlsx
                     </code>{' '}
-                    (e.g., <span className="font-mono text-slate-900">3489_Suresh_K.csv</span>,{' '}
-                    <span className="font-mono text-slate-900">2043_Adarsh_S_V.xlsx</span>)
+                    (e.g., <span className="font-mono text-slate-900">3489_Suresh_K_Citations.csv</span>,{' '}
+                    <span className="font-mono text-slate-900">2043_Adarsh_S_V_Citations.xlsx</span>)
                   </p>
                   <p className="text-slate-600">
                     • <strong>Dynamic Years:</strong> Handles variable citation periods (&lt;2001, 2001–2026, &gt;2026, Total) dynamically without hardcoding.
@@ -366,22 +480,28 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
                 </div>
 
                 <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                  {citationFiles.map((item, idx) => (
+                  {citationFiles.map((item, idx) => {
+                    const isError = item.status === 'error';
+                    return (
                     <div
                       key={idx}
                       className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all ${
-                        item.warning ? 'bg-amber-50/60 border-amber-200' : 'bg-white border-slate-200'
+                        isError ? 'bg-red-50/70 border-red-200' : item.warning ? 'bg-amber-50/60 border-amber-200' : 'bg-white border-slate-200'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <FileSpreadsheet className={`w-4 h-4 shrink-0 ${item.warning ? 'text-amber-600' : 'text-[#2855B9]'}`} />
+                        <FileSpreadsheet className={`w-4 h-4 shrink-0 ${isError ? 'text-red-600' : item.warning ? 'text-amber-600' : 'text-[#2855B9]'}`} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-semibold text-slate-800 truncate text-[11px]">{item.file.name}</span>
                             <Badge variant="secondary" className="text-[9px] uppercase font-mono px-1.5 py-0">
                               {item.file.name.split('.').pop()}
                             </Badge>
-                            {item.employeeId ? (
+                            {!isError && item.facultyName ? (
+                              <Badge className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                                {item.facultyName} (Emp ID: {item.employeeId})
+                              </Badge>
+                            ) : item.employeeId ? (
                               <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-200 font-mono">
                                 Emp ID: {item.employeeId}
                               </Badge>
@@ -390,10 +510,19 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
                                 Missing Emp ID
                               </Badge>
                             )}
+                            {isError && (
+                              <Badge variant="destructive" className="text-[9px]">
+                                Rejected
+                              </Badge>
+                            )}
                           </div>
                           {item.warning && (
-                            <p className="text-[10px] text-amber-700 mt-0.5 flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                            <p className={`text-[10px] mt-0.5 flex items-center gap-1 ${isError ? 'text-red-700 font-medium' : 'text-amber-700'}`}>
+                              {isError ? (
+                                <AlertCircle className="w-3 h-3 text-red-600 shrink-0" />
+                              ) : (
+                                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                              )}
                               <span>{item.warning}</span>
                             </p>
                           )}
@@ -413,7 +542,7 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
                         </button>
                       </div>
                     </div>
-                  ))}
+                  );})}
                 </div>
               </div>
             )}
@@ -456,11 +585,18 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
             <div className="space-y-2">
               <span className="text-xs font-semibold text-slate-700 block">Faculty Citation File Summaries:</span>
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {parsedFiles.map((pf, i) => (
-                  <div key={i} className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                {parsedFiles.map((pf, i) => {
+                  const isFileError = pf.status === 'error';
+                  return (
+                  <div
+                    key={i}
+                    className={`p-3 rounded-xl border space-y-2 ${
+                      isFileError ? 'bg-red-50/60 border-red-200' : 'bg-white border-slate-200'
+                    }`}
+                  >
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
-                        <FileSpreadsheet className="w-4 h-4 text-[#2855B9]" />
+                        <FileSpreadsheet className={`w-4 h-4 ${isFileError ? 'text-red-600' : 'text-[#2855B9]'}`} />
                         <span className="font-semibold text-slate-900 text-xs">{pf.filename}</span>
                         {pf.employeeId && (
                           <Badge variant="outline" className="text-[10px] font-mono bg-blue-50 text-blue-700 border-blue-200">
@@ -475,11 +611,18 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
                           </Badge>
                         ) : (
                           <Badge variant="destructive" className="text-[10px]">
-                            {pf.warning || 'Unverified Faculty'}
+                            {isFileError ? 'Rejected File' : 'Unverified Faculty'}
                           </Badge>
                         )}
                       </div>
                     </div>
+
+                    {!pf.verifiedFaculty && (pf.error || pf.warning) && (
+                      <p className="text-[11px] text-red-700 flex items-start gap-1.5 leading-snug">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
+                        <span>{pf.error || pf.warning}</span>
+                      </p>
+                    )}
 
                     {/* Detected citation years */}
                     {pf.detectedPeriods && pf.detectedPeriods.length > 0 && (
@@ -495,7 +638,7 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
                       </div>
                     )}
                   </div>
-                ))}
+                ); })}
               </div>
             </div>
           </div>
@@ -819,7 +962,7 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
                 <Button
                   type="button"
                   size="sm"
-                  disabled={citationFiles.length === 0 || loading}
+                  disabled={validCitationFiles.length === 0 || loading}
                   onClick={handleValidateFiles}
                   className="bg-[#2855B9] hover:bg-[#1C355B] text-white text-xs px-4 shadow-2xs font-semibold"
                 >
@@ -829,7 +972,7 @@ export function CitationsBulkUploadFlow({ token, onSuccess, onClose }: Citations
                       Validating...
                     </>
                   ) : (
-                    `Validate Citation Files (${citationFiles.length}) →`
+                    `Validate Citation Files (${validCitationFiles.length}) →`
                   )}
                 </Button>
               )}
