@@ -58,6 +58,8 @@ import {
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
+import { Checkbox } from './ui/checkbox';
 import { InstitutionalReportGeneratorDialog } from './InstitutionalReportGeneratorDialog';
 
 interface DashboardPageProps {
@@ -77,6 +79,183 @@ const COLORS = {
 };
 
 const PIE_COLORS = ['#2855B9', '#0F766E', '#7C3AED', '#D97706', '#0284C7', '#64748B'];
+
+/**
+ * Shared Light-Themed Chart Tooltip Component
+ * Provides clean white background, high contrast dark slate text, series color dots,
+ * and context-aware headers (full department names, NAAC criteria details, formatted numbers).
+ */
+interface DashboardChartTooltipProps {
+  active?: boolean;
+  payload?: any[];
+  label?: string | number;
+  valuePrefix?: string;
+  valueSuffix?: string;
+  isNaac?: boolean;
+}
+
+function DashboardChartTooltip({
+  active,
+  payload,
+  label,
+  valuePrefix = '',
+  valueSuffix = '',
+  isNaac = false
+}: DashboardChartTooltipProps) {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+
+  const firstItem = payload[0];
+  const itemData = firstItem?.payload;
+
+  let title: React.ReactNode = label;
+  let subtitle: string | null = null;
+
+  if (isNaac && itemData?.criterion) {
+    title = itemData.criterion;
+  } else if (itemData?.departmentName) {
+    title = itemData.departmentName;
+    if (itemData.shortName && itemData.shortName !== itemData.departmentName) {
+      subtitle = itemData.shortName;
+    }
+  } else if (itemData?.name && !label) {
+    title = itemData.name;
+  }
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-lg text-xs min-w-[190px] max-w-[300px]">
+      <div className="border-b border-slate-100 pb-2 mb-2">
+        <p className="font-semibold text-slate-900 leading-tight">{title}</p>
+        {subtitle && (
+          <p className="text-[10px] text-slate-500 font-medium mt-0.5">{subtitle}</p>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        {payload.map((entry: any, idx: number) => {
+          const color = entry.color || entry.fill || COLORS.primary;
+          const name = entry.name || entry.dataKey;
+          const val = entry.value;
+          const formattedVal = typeof val === 'number'
+            ? `${valuePrefix}${val.toLocaleString('en-IN')}${valueSuffix}`
+            : `${valuePrefix}${val ?? '—'}${valueSuffix}`;
+
+          return (
+            <div key={`tooltip-${idx}`} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: color }}
+                />
+                <span className="text-[11px] text-slate-600 truncate">{name}</span>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-900 tabular-nums shrink-0">
+                {formattedVal}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {isNaac && itemData?.score !== undefined && itemData?.target !== undefined && (
+        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+          <span className="text-slate-500 font-medium">Attainment Status</span>
+          <span
+            className={`font-semibold px-1.5 py-0.5 rounded ${
+              Number(itemData.score) >= Number(itemData.target)
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-amber-50 text-amber-700 border border-amber-200'
+            }`}
+          >
+            {Number(itemData.score) >= Number(itemData.target) ? 'Target Met' : 'In Progress'}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Shared Proportioned Donut Chart Component
+ * Standardizes innerRadius=46, outerRadius=74, custom legends with counts & percentages,
+ * and robustly handles single-category distributions without distortion.
+ */
+interface DashboardDonutChartProps {
+  data: Array<{ name: string; count: number }>;
+  colors?: string[];
+  emptyMessage?: string;
+  height?: number;
+}
+
+function DashboardDonutChart({
+  data = [],
+  colors = PIE_COLORS,
+  emptyMessage = 'No distribution records available',
+  height = 180
+}: DashboardDonutChartProps) {
+  const total = useMemo(() => {
+    return data.reduce((acc, curr) => acc + (Number(curr.count) || 0), 0);
+  }, [data]);
+
+  const activeData = useMemo(() => {
+    return data.filter(d => (Number(d.count) || 0) > 0);
+  }, [data]);
+
+  if (total === 0 || data.length === 0) {
+    return (
+      <div className="h-52 flex items-center justify-center text-xs text-slate-400">
+        {emptyMessage}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center">
+      <div style={{ width: '100%', height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={activeData}
+              dataKey="count"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={74}
+              innerRadius={46}
+              paddingAngle={activeData.length > 1 ? 3 : 0}
+            >
+              {activeData.map((entry, idx) => {
+                const originalIndex = data.findIndex(d => d.name === entry.name);
+                const color = colors[(originalIndex >= 0 ? originalIndex : idx) % colors.length];
+                return <Cell key={`cell-${idx}`} fill={color} />;
+              })}
+            </Pie>
+            <Tooltip content={<DashboardChartTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-center gap-x-3.5 gap-y-1.5 mt-2 pt-2 border-t border-slate-100 w-full text-xs">
+        {data.map((item, idx) => {
+          const count = Number(item.count) || 0;
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+          const color = colors[idx % colors.length];
+          return (
+            <div key={idx} className="flex items-center gap-1.5">
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: color }}
+              />
+              <span className="text-[11px] text-slate-600">{item.name}:</span>
+              <span className="text-[11px] font-semibold text-slate-900 tabular-nums">
+                {count.toLocaleString('en-IN')} ({pct}%)
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const { user } = useAuth();
@@ -242,6 +421,25 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const totalGrantsCrores = resData.totalSponsoredAmountCrores ?? '0.00';
   const totalGrantsLakhs = resData.totalSponsoredAmountLakhs ?? 0;
   const consultancyLakhs = resData.totalConsultancyAmountLakhs ?? 0;
+
+  // Memoize chronological annual trend data (AY 2020–21 -> AY 2026–27 ascending for charts)
+  const chronologicalYearlyOverview = useMemo(() => {
+    if (!exec.yearlyOverview || !Array.isArray(exec.yearlyOverview)) return [];
+    return [...exec.yearlyOverview].sort((a, b) => {
+      const yearA = parseInt(a.academicYear?.match(/\d{4}/)?.[0] || '0', 10);
+      const yearB = parseInt(b.academicYear?.match(/\d{4}/)?.[0] || '0', 10);
+      return yearA - yearB;
+    });
+  }, [exec.yearlyOverview]);
+
+  const chronologicalYearlyResearch = useMemo(() => {
+    if (!resData.yearlyResearch || !Array.isArray(resData.yearlyResearch)) return [];
+    return [...resData.yearlyResearch].sort((a, b) => {
+      const yearA = parseInt(a.academicYear?.match(/\d{4}/)?.[0] || '0', 10);
+      const yearB = parseInt(b.academicYear?.match(/\d{4}/)?.[0] || '0', 10);
+      return yearA - yearB;
+    });
+  }, [resData.yearlyResearch]);
 
   // Quick modules navigation directory
   const quickModules = [
@@ -410,30 +608,59 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             </Select>
           </div>
 
-          {/* Academic Years Selector (Multi-Pill) */}
+          {/* Academic Years Selector (Aligned Popover Multi-Select) */}
           <div>
             <label className="block text-[11px] font-medium text-slate-600 mb-1">
               Academic Years ({filterYears.length})
             </label>
-            <div className="flex flex-wrap gap-1">
-              {availableYears.map(yr => {
-                const isSelected = filterYears.includes(yr);
-                return (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="w-full bg-slate-50 h-8 text-xs border border-slate-200 rounded-md px-2.5 flex items-center justify-between text-slate-700 hover:bg-slate-100 transition-colors focus:outline-hidden"
+                >
+                  <span className="truncate">
+                    {filterYears.length === availableYears.length
+                      ? 'All Academic Years (7)'
+                      : filterYears.length === 1
+                      ? filterYears[0]
+                      : `${filterYears.length} Years Selected`}
+                  </span>
+                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 p-3 bg-white border border-slate-200 shadow-lg rounded-xl z-50">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                  <span className="text-xs font-semibold text-slate-800">Select Academic Years</span>
                   <button
-                    key={yr}
                     type="button"
-                    onClick={() => handleToggleYear(yr)}
-                    className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
-                      isSelected
-                        ? 'bg-slate-800 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
+                    onClick={handleSelectAllYears}
+                    className="text-[11px] text-blue-600 hover:text-blue-800 font-medium"
                   >
-                    {yr.replace('AY ', '')}
+                    {filterYears.length === availableYears.length ? 'Reset Default' : 'Select All'}
                   </button>
-                );
-              })}
-            </div>
+                </div>
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {availableYears.map(yr => {
+                    const isChecked = filterYears.includes(yr);
+                    return (
+                      <label
+                        key={yr}
+                        className="flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs"
+                      >
+                        <span className={`font-medium ${isChecked ? 'text-slate-900' : 'text-slate-500'}`}>
+                          {yr}
+                        </span>
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={() => handleToggleYear(yr)}
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -478,10 +705,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs transition-colors ${
                   isActive
-                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200 font-semibold ring-1 ring-slate-200/50'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
                 }`}
               >
                 <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
@@ -510,6 +737,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={totalStudents.toLocaleString('en-IN')}
               subtitle="Distinct Register Numbers"
               icon={GraduationCap}
+              className="border-t-2 border-t-blue-600"
               onClick={() => onNavigate('student-details')}
             />
             <StatCard
@@ -517,6 +745,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={totalFaculty.toLocaleString('en-IN')}
               subtitle={`SFR ${sfr}:1 Average`}
               icon={Users}
+              className="border-t-2 border-t-teal-600"
               onClick={() => onNavigate('faculty-details')}
             />
             <StatCard
@@ -524,6 +753,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={totalPubs.toLocaleString('en-IN')}
               subtitle="Scopus / WoS Indexed"
               icon={BookOpen}
+              className="border-t-2 border-t-indigo-600"
               onClick={() => onNavigate('publications')}
             />
             <StatCard
@@ -531,6 +761,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={totalCitations.toLocaleString('en-IN')}
               subtitle="Approved Citations"
               icon={TrendingUp}
+              className="border-t-2 border-t-sky-600"
               onClick={() => onNavigate('publications')}
             />
             <StatCard
@@ -538,6 +769,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`₹ ${totalGrantsCrores} Cr`}
               subtitle={`₹ ${Number(totalGrantsLakhs).toFixed(2)} Lakhs`}
               icon={Sparkles}
+              className="border-t-2 border-t-amber-500"
               onClick={() => onNavigate('sponsored-research')}
             />
             <StatCard
@@ -545,6 +777,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${placementRate}%`}
               subtitle={placeData.totalOffers > 0 ? avgSalaryLpa : 'No placement records'}
               icon={Briefcase}
+              className="border-t-2 border-t-emerald-600"
               onClick={() => onNavigate('placements-internships')}
             />
           </div>
@@ -568,23 +801,39 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               </div>
 
               <div className="h-64">
-                {(!exec.yearlyOverview || exec.yearlyOverview.length === 0) ? (
+                {(!chronologicalYearlyOverview || chronologicalYearlyOverview.length === 0) ? (
                   <div className="h-full flex items-center justify-center text-xs text-slate-400">
                     No progression data available for selected scope
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
-                      data={exec.yearlyOverview}
+                      data={chronologicalYearlyOverview}
                       margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <XAxis dataKey="academicYear" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <YAxis yAxisId="left" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <YAxis yAxisId="right" orientation="right" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                      <XAxis
+                        dataKey="academicYear"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
                       />
+                      <YAxis
+                        yAxisId="left"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
+                        tickFormatter={(v) => v.toLocaleString('en-IN')}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
+                        tickFormatter={(v) => v.toLocaleString('en-IN')}
+                      />
+                      <Tooltip content={<DashboardChartTooltip />} />
                       <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                       <Bar yAxisId="left" dataKey="students" name="Students (Left)" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
                       <Bar yAxisId="right" dataKey="publications" name="Publications (Right)" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
@@ -622,16 +871,32 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                       data={acad.departmentBreakdown}
                       margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <XAxis dataKey="shortName" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <YAxis yAxisId="left" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <YAxis yAxisId="right" orientation="right" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                      <XAxis
+                        dataKey="shortName"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
                       />
+                      <YAxis
+                        yAxisId="left"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
+                        tickFormatter={(v) => v.toLocaleString('en-IN')}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
+                        tickFormatter={(v) => v.toLocaleString('en-IN')}
+                      />
+                      <Tooltip content={<DashboardChartTooltip />} />
                       <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                      <Bar yAxisId="left" dataKey="students" name="Students (Left)" fill={COLORS.slate} radius={[4, 4, 0, 0]} />
-                      <Bar yAxisId="right" dataKey="faculty" name="Faculty (Right)" fill={COLORS.sky} radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="left" dataKey="students" name="Students (Left)" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="right" dataKey="faculty" name="Faculty (Right)" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -640,52 +905,56 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           </div>
 
           {/* Structural Hierarchy Banner */}
-          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-xl p-5 text-white shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+          <div className="rounded-xl overflow-hidden border border-slate-200 shadow-xs">
+            {/* Prestigious Dark Header Band */}
+            <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-800 px-5 py-3 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800">
               <div className="flex items-center space-x-2.5">
-                <Building2 className="w-5 h-5 text-blue-300" />
-                <h3 className="text-sm font-bold text-white tracking-tight">
+                <Building2 className="w-4 h-4 text-blue-400" />
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
                   University Structural Hierarchy & Academic Organization
                 </h3>
               </div>
-              <span className="text-xs text-slate-300">Bangalore Kengeri Campus</span>
+              <span className="text-xs text-slate-300 font-medium">Bangalore Kengeri Campus</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-4">
-              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <span className="text-[11px] text-slate-300 uppercase">Campuses</span>
-                <p className="text-xl font-bold text-white mt-1">
-                  {exec.structuralHierarchy?.totalCampuses || campuses.length || 1}
-                </p>
-                <span className="text-[10px] text-slate-400">Institutional Hubs</span>
-              </div>
-              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <span className="text-[11px] text-slate-300 uppercase">Schools</span>
-                <p className="text-xl font-bold text-white mt-1">
-                  {exec.structuralHierarchy?.totalSchools || schools.length || 1}
-                </p>
-                <span className="text-[10px] text-slate-400">Engineering & Tech</span>
-              </div>
-              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <span className="text-[11px] text-slate-300 uppercase">Departments</span>
-                <p className="text-xl font-bold text-white mt-1">
-                  {exec.structuralHierarchy?.totalDepartments || departments.length || 8}
-                </p>
-                <span className="text-[10px] text-slate-400">Active Academic Units</span>
-              </div>
-              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <span className="text-[11px] text-slate-300 uppercase">Programs</span>
-                <p className="text-xl font-bold text-white mt-1">
-                  {exec.structuralHierarchy?.totalCourses || 31}
-                </p>
-                <span className="text-[10px] text-slate-400">UG, PG, PhD Degrees</span>
-              </div>
-              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <span className="text-[11px] text-slate-300 uppercase">Levels</span>
-                <p className="text-xl font-bold text-white mt-1">
-                  {exec.structuralHierarchy?.totalProgramLevels || 3}
-                </p>
-                <span className="text-[10px] text-slate-400">UG / PG / Doctoral</span>
+            {/* Crisp Light-Themed Metric Cards Body */}
+            <div className="bg-slate-50/70 p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs hover:border-slate-300 transition-colors">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Campuses</span>
+                  <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                    {exec.structuralHierarchy?.totalCampuses || campuses.length || 1}
+                  </p>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Institutional Hubs</span>
+                </div>
+                <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs hover:border-slate-300 transition-colors">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Schools</span>
+                  <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                    {exec.structuralHierarchy?.totalSchools || schools.length || 1}
+                  </p>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Engineering & Tech</span>
+                </div>
+                <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs hover:border-slate-300 transition-colors">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Departments</span>
+                  <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                    {exec.structuralHierarchy?.totalDepartments || departments.length || 8}
+                  </p>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Active Academic Units</span>
+                </div>
+                <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs hover:border-slate-300 transition-colors">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Programs</span>
+                  <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                    {exec.structuralHierarchy?.totalCourses || 31}
+                  </p>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">UG, PG, PhD Degrees</span>
+                </div>
+                <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs hover:border-slate-300 transition-colors">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Levels</span>
+                  <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                    {exec.structuralHierarchy?.totalProgramLevels || 3}
+                  </p>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">UG / PG / Doctoral</span>
+                </div>
               </div>
             </div>
           </div>
@@ -767,6 +1036,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${acad.phdFacultyCount || 0}`}
               subtitle={`${acad.phdPercentage || 0}% of Total Cadre`}
               icon={Award}
+              className="border-t-2 border-t-teal-600"
               onClick={() => onNavigate('faculty-details')}
             />
             <StatCard
@@ -774,6 +1044,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${acad.seniorFacultyCount || 0}`}
               subtitle="Professors & Assoc. Prof"
               icon={Users}
+              className="border-t-2 border-t-blue-600"
               onClick={() => onNavigate('faculty-details')}
             />
             <StatCard
@@ -781,6 +1052,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${acad.assistantProfCount || 0}`}
               subtitle="Active Teaching Cadre"
               icon={GraduationCap}
+              className="border-t-2 border-t-indigo-600"
               onClick={() => onNavigate('faculty-details')}
             />
             <StatCard
@@ -788,6 +1060,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${acad.ugPgRatio || '—'}`}
               subtitle="Program Level Ratio"
               icon={BookOpen}
+              className="border-t-2 border-t-violet-600"
               onClick={() => onNavigate('student-details')}
             />
             <StatCard
@@ -795,6 +1068,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${acad.researchScholarsCount || 0}`}
               subtitle="Doctoral Candidates"
               icon={Star}
+              className="border-t-2 border-t-amber-500"
               onClick={() => onNavigate('student-details')}
             />
           </div>
@@ -804,30 +1078,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             {/* Chart: Designation Distribution */}
             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
               <h3 className="text-sm font-semibold text-slate-900 mb-2">Faculty Cadre Distribution</h3>
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={acad.designationDistribution || []}
-                      dataKey="count"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={75}
-                      innerRadius={45}
-                      paddingAngle={3}
-                    >
-                      {PIE_COLORS.map((col, idx) => (
-                        <Cell key={`cell-${idx}`} fill={col} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '10px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              <DashboardDonutChart
+                data={acad.designationDistribution || []}
+                emptyMessage="No cadre distribution records available"
+              />
             </div>
 
             {/* Chart: Program Level Distribution */}
@@ -839,12 +1093,20 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     data={acad.programLevelDistribution || []}
                     margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                    <XAxis dataKey="name" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      stroke="#CBD5E1"
+                      tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                      tickLine={false}
                     />
+                    <YAxis
+                      stroke="#CBD5E1"
+                      tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                      tickLine={false}
+                      tickFormatter={(v) => v.toLocaleString('en-IN')}
+                    />
+                    <Tooltip content={<DashboardChartTooltip />} />
                     <Bar dataKey="count" name="Students" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -854,29 +1116,11 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             {/* Chart: Gender Diversity */}
             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
               <h3 className="text-sm font-semibold text-slate-900 mb-2">Faculty Gender Ratio</h3>
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={acad.genderDistribution || []}
-                      dataKey="count"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={75}
-                      innerRadius={45}
-                      paddingAngle={4}
-                    >
-                      <Cell fill={COLORS.primary} />
-                      <Cell fill={COLORS.teal} />
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              <DashboardDonutChart
+                data={acad.genderDistribution || []}
+                colors={[COLORS.primary, COLORS.teal]}
+                emptyMessage="No gender ratio records available"
+              />
             </div>
           </div>
 
@@ -891,25 +1135,37 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 text-slate-700 uppercase font-semibold border-b border-slate-200">
+                <thead className="bg-slate-50/80 text-slate-500 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200">
                   <tr>
-                    <th className="py-2.5 px-3">Department</th>
-                    <th className="py-2.5 px-3 text-right">Students</th>
-                    <th className="py-2.5 px-3 text-right">Faculty</th>
-                    <th className="py-2.5 px-3 text-right">SFR</th>
-                    <th className="py-2.5 px-3 text-right">PhD Holders</th>
-                    <th className="py-2.5 px-3 text-right">Avg Experience</th>
+                    <th className="py-3 px-3.5">Department</th>
+                    <th className="py-3 px-3.5 text-right">Students</th>
+                    <th className="py-3 px-3.5 text-right">Faculty</th>
+                    <th className="py-3 px-3.5 text-right">SFR</th>
+                    <th className="py-3 px-3.5 text-right">PhD Holders</th>
+                    <th className="py-3 px-3.5 text-right">Avg Experience</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {(acad.departmentBreakdown || []).map((d: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-slate-50/50">
-                      <td className="py-2.5 px-3 font-medium text-slate-900">{d.departmentName}</td>
-                      <td className="py-2.5 px-3 text-right">{d.students.toLocaleString('en-IN')}</td>
-                      <td className="py-2.5 px-3 text-right">{d.faculty}</td>
-                      <td className="py-2.5 px-3 text-right font-medium text-blue-600">{d.sfr}:1</td>
-                      <td className="py-2.5 px-3 text-right">{d.phdCount}</td>
-                      <td className="py-2.5 px-3 text-right">{d.avgExperience ? `${d.avgExperience} yrs` : '—'}</td>
+                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-3.5 font-medium text-slate-900">{d.departmentName}</td>
+                      <td className="py-3 px-3.5 text-right font-medium text-slate-800 tabular-nums">
+                        {d.students.toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-3 px-3.5 text-right font-medium text-slate-800 tabular-nums">
+                        {d.faculty}
+                      </td>
+                      <td className="py-3 px-3.5 text-right">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60 tabular-nums">
+                          {d.sfr}:1
+                        </span>
+                      </td>
+                      <td className="py-3 px-3.5 text-right font-medium text-slate-800 tabular-nums">
+                        {d.phdCount}
+                      </td>
+                      <td className="py-3 px-3.5 text-right font-medium text-slate-800 tabular-nums">
+                        {d.avgExperience ? `${d.avgExperience} yrs` : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -949,6 +1205,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={totalPubs.toLocaleString('en-IN')}
               subtitle="Scopus / WoS Indexed"
               icon={BookOpen}
+              className="border-t-2 border-t-blue-600"
               onClick={() => onNavigate('publications')}
             />
             <StatCard
@@ -956,6 +1213,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={totalCitations.toLocaleString('en-IN')}
               subtitle="Verified Total Count"
               icon={TrendingUp}
+              className="border-t-2 border-t-teal-600"
               onClick={() => onNavigate('publications')}
             />
             <StatCard
@@ -963,6 +1221,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`₹ ${totalGrantsCrores} Cr`}
               subtitle={`₹ ${Number(totalGrantsLakhs).toFixed(2)} Lakhs`}
               icon={Sparkles}
+              className="border-t-2 border-t-amber-500"
               onClick={() => onNavigate('sponsored-research')}
             />
             <StatCard
@@ -970,6 +1229,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`₹ ${consultancyLakhs} L`}
               subtitle={`${resData.consultancyCount || 0} Projects Completed`}
               icon={Briefcase}
+              className="border-t-2 border-t-indigo-600"
               onClick={() => onNavigate('consultancy-projects')}
             />
             <StatCard
@@ -977,6 +1237,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${resData.distinctFundingAgenciesCount || 0}`}
               subtitle="Distinct Sanctioning Bodies"
               icon={Building2}
+              className="border-t-2 border-t-sky-600"
               onClick={() => onNavigate('sponsored-research')}
             />
             <StatCard
@@ -984,6 +1245,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${resData.patentsPublished || 0} / ${resData.patentsGranted || 0}`}
               subtitle="Intellectual Property"
               icon={Award}
+              className="border-t-2 border-t-violet-600"
               onClick={() => onNavigate('patents')}
             />
           </div>
@@ -995,23 +1257,45 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               <h3 className="text-sm font-semibold text-slate-900 mb-1">Annual Publications & Citations Trend</h3>
               <p className="text-xs text-slate-500 mb-4">Publications (left axis) vs Approved Citations (right axis)</p>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={resData.yearlyResearch || []}
-                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                    <XAxis dataKey="academicYear" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <YAxis yAxisId="left" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                    <Bar yAxisId="left" dataKey="publications" name="Publications (Left)" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
-                    <Bar yAxisId="right" dataKey="citations" name="Citations (Right)" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {(!chronologicalYearlyResearch || chronologicalYearlyResearch.length === 0) ? (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                    No research trend data available for selected scope
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={chronologicalYearlyResearch}
+                      margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                      <XAxis
+                        dataKey="academicYear"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        yAxisId="left"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
+                        tickFormatter={(v) => v.toLocaleString('en-IN')}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
+                        tickFormatter={(v) => v.toLocaleString('en-IN')}
+                      />
+                      <Tooltip content={<DashboardChartTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      <Bar yAxisId="left" dataKey="publications" name="Publications (Left)" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="right" dataKey="citations" name="Citations (Right)" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
@@ -1019,30 +1303,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
               <h3 className="text-sm font-semibold text-slate-900 mb-1">Journal Indexing Classification</h3>
               <p className="text-xs text-slate-500 mb-4">Distribution by primary index tier</p>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={resData.indexingDistribution || []}
-                      dataKey="count"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      innerRadius={45}
-                      paddingAngle={3}
-                    >
-                      {PIE_COLORS.map((col, idx) => (
-                        <Cell key={`cell-${idx}`} fill={col} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              <DashboardDonutChart
+                data={resData.indexingDistribution || []}
+                emptyMessage="No journal indexing distribution available"
+              />
             </div>
           </div>
         </div>
@@ -1092,6 +1356,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${placeData.uniquePlaced || 0}`}
               subtitle="Distinct Student Offers"
               icon={Users}
+              className="border-t-2 border-t-blue-600"
               onClick={() => onNavigate('placements-internships')}
             />
             <StatCard
@@ -1099,6 +1364,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${placeData.totalOffers || 0}`}
               subtitle="Including Multiple Offers"
               icon={Briefcase}
+              className="border-t-2 border-t-teal-600"
               onClick={() => onNavigate('placements-internships')}
             />
             <StatCard
@@ -1106,6 +1372,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${placementRate}%`}
               subtitle="Eligible Cohort Ratio"
               icon={TrendingUp}
+              className="border-t-2 border-t-emerald-600"
               onClick={() => onNavigate('placements-internships')}
             />
             <StatCard
@@ -1113,6 +1380,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={avgSalaryLpa}
               subtitle="Placements LPA CTC"
               icon={Sparkles}
+              className="border-t-2 border-t-amber-500"
               onClick={() => onNavigate('placements-internships')}
             />
             <StatCard
@@ -1120,6 +1388,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={highestSalaryLpa}
               subtitle="Institutional Peak"
               icon={Star}
+              className="border-t-2 border-t-violet-600"
               onClick={() => onNavigate('placements-internships')}
             />
             <StatCard
@@ -1127,6 +1396,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={`${placeData.totalInternships || 0}`}
               subtitle={`Avg ₹ ${placeData.avgInternshipStipend || 0}/mo`}
               icon={GraduationCap}
+              className="border-t-2 border-t-sky-600"
               onClick={() => onNavigate('placements-internships')}
             />
           </div>
@@ -1148,12 +1418,20 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                       data={placeData.salaryRanges || []}
                       margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <XAxis dataKey="range" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                      <XAxis
+                        dataKey="range"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
                       />
+                      <YAxis
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
+                        tickFormatter={(v) => v.toLocaleString('en-IN')}
+                      />
+                      <Tooltip content={<DashboardChartTooltip />} />
                       <Bar dataKey="count" name="Offers" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -1177,12 +1455,23 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                       layout="vertical"
                       margin={{ top: 10, right: 10, left: 20, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <XAxis type="number" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <YAxis dataKey="company" type="category" stroke="#94A3B8" fontSize={11} tickLine={false} width={80} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                      <XAxis
+                        type="number"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
+                        tickFormatter={(v) => v.toLocaleString('en-IN')}
                       />
+                      <YAxis
+                        dataKey="company"
+                        type="category"
+                        stroke="#CBD5E1"
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                        tickLine={false}
+                        width={90}
+                      />
+                      <Tooltip content={<DashboardChartTooltip />} />
                       <Bar dataKey="offers" name="Job Offers" fill={COLORS.primary} radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -1213,7 +1502,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div
               onClick={() => onNavigate('naac-accreditation')}
-              className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs cursor-pointer hover:border-slate-300 transition-colors"
+              className="bg-white border border-slate-200 border-t-2 border-t-amber-500 rounded-xl p-5 shadow-xs cursor-pointer hover:border-slate-300 transition-colors"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-slate-500 uppercase">NAAC SSR Grade</span>
@@ -1225,7 +1514,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
             <div
               onClick={() => onNavigate('nirf-ranking')}
-              className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs cursor-pointer hover:border-slate-300 transition-colors"
+              className="bg-white border border-slate-200 border-t-2 border-t-blue-600 rounded-xl p-5 shadow-xs cursor-pointer hover:border-slate-300 transition-colors"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-slate-500 uppercase">NIRF Overall University</span>
@@ -1237,7 +1526,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
             <div
               onClick={() => onNavigate('nirf-ranking')}
-              className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs cursor-pointer hover:border-slate-300 transition-colors"
+              className="bg-white border border-slate-200 border-t-2 border-t-indigo-600 rounded-xl p-5 shadow-xs cursor-pointer hover:border-slate-300 transition-colors"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-slate-500 uppercase">NIRF Disciplines</span>
@@ -1249,7 +1538,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
             <div
               onClick={() => onNavigate('strategic-plan')}
-              className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs cursor-pointer hover:border-slate-300 transition-colors"
+              className="bg-white border border-slate-200 border-t-2 border-t-emerald-600 rounded-xl p-5 shadow-xs cursor-pointer hover:border-slate-300 transition-colors"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-slate-500 uppercase">Strategic Plan 2025–30</span>
@@ -1264,8 +1553,19 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
           {/* NAAC 7-Criteria Chart */}
           <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-            <h3 className="text-sm font-semibold text-slate-900 mb-1">NAAC 7-Criteria Institutional Standing</h3>
-            <p className="text-xs text-slate-500 mb-4">Criterion scores and weighted benchmarks</p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 tracking-tight">
+                  NAAC 7-Criteria Institutional Standing
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Criterion scores and weighted benchmarks (Scale: 3.0 to 4.0 GPA)
+                </p>
+              </div>
+              <Badge variant="outline" className="text-xs bg-slate-50">
+                Scale: 3.0 – 4.0
+              </Badge>
+            </div>
 
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -1273,12 +1573,22 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                   data={accData.criteriaBreakdown || []}
                   margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                  <XAxis dataKey="criterion" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                  <YAxis domain={[3.0, 4.0]} stroke="#94A3B8" fontSize={11} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1E293B', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                  <XAxis
+                    dataKey="criterion"
+                    stroke="#CBD5E1"
+                    tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                    tickLine={false}
+                    tickFormatter={(val: string) => val ? val.split(':')[0] : ''}
                   />
+                  <YAxis
+                    domain={[3.0, 4.0]}
+                    stroke="#CBD5E1"
+                    tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                    tickLine={false}
+                    tickFormatter={(v) => v.toFixed(1)}
+                  />
+                  <Tooltip content={<DashboardChartTooltip isNaac />} />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                   <Bar dataKey="score" name="Assessed Standing (out of 4.0)" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
                   <Bar dataKey="target" name="Institutional Target" fill={COLORS.teal} radius={[4, 4, 0, 0]} />

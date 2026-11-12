@@ -443,21 +443,60 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
   // ==========================================
   // SECTION 1 CALCULATIONS: EXECUTIVE OVERVIEW
   // ==========================================
-  // Student distinct register numbers
-  const studentRegSet = new Set();
-  rawStudents.forEach(s => {
-    if (s.registerNumber) studentRegSet.add(String(s.registerNumber).trim());
-    else if (s.id) studentRegSet.add(String(s.id).trim());
-  });
-  const totalStudents = studentRegSet.size || rawStudents.length;
+  // Helper to extract numeric start year of an academic year for chronological sorting
+  function getAyStartYear(ay) {
+    if (!ay) return 0;
+    const m = String(ay).match(/(\d{4})/);
+    return m ? parseInt(m[1], 10) : 0;
+  }
 
-  // Faculty distinct employee IDs
-  const facultyEmpSet = new Set();
-  rawFaculty.forEach(f => {
-    if (f.employeeId) facultyEmpSet.add(String(f.employeeId).trim());
-    else if (f.id) facultyEmpSet.add(String(f.id).trim());
+  // Deduplicate students across multiple selected academic years to single canonical individual
+  const distinctStudentMap = new Map();
+  rawStudents.forEach(s => {
+    const regId = (s.registerNumber || s.id || '').trim();
+    if (!regId) return;
+
+    if (!distinctStudentMap.has(regId)) {
+      distinctStudentMap.set(regId, s);
+    } else {
+      const existing = distinctStudentMap.get(regId);
+      const existingYr = getAyStartYear(existing.academicYear);
+      const currentYr = getAyStartYear(s.academicYear);
+      if (currentYr > existingYr || (currentYr === existingYr && new Date(s.createdAt || 0) > new Date(existing.createdAt || 0))) {
+        distinctStudentMap.set(regId, s);
+      }
+    }
   });
-  const totalFaculty = facultyEmpSet.size || rawFaculty.length;
+  const distinctStudentList = Array.from(distinctStudentMap.values());
+  const totalStudents = distinctStudentList.length || rawStudents.length;
+
+  // Deduplicate faculty across multiple selected academic years to single canonical individual
+  const distinctFacultyMap = new Map();
+  const phdEmpSet = new Set();
+
+  rawFaculty.forEach(f => {
+    const empId = (f.employeeId || f.id || '').trim();
+    if (!empId) return;
+
+    // Track verified PhD status across any record within the selected scope
+    const qual = (f.highestQualification || f.qualificationLevel || '').toLowerCase();
+    if (qual.includes('phd') || qual.includes('ph.d') || qual.includes('doctor')) {
+      phdEmpSet.add(empId);
+    }
+
+    if (!distinctFacultyMap.has(empId)) {
+      distinctFacultyMap.set(empId, f);
+    } else {
+      const existing = distinctFacultyMap.get(empId);
+      const existingYr = getAyStartYear(existing.academicYear);
+      const currentYr = getAyStartYear(f.academicYear);
+      if (currentYr > existingYr || (currentYr === existingYr && new Date(f.createdAt || 0) > new Date(existing.createdAt || 0))) {
+        distinctFacultyMap.set(empId, f);
+      }
+    }
+  });
+  const distinctFacultyList = Array.from(distinctFacultyMap.values());
+  const totalFaculty = distinctFacultyList.length || rawFaculty.length;
 
   const sfr = totalFaculty > 0 ? (totalStudents / totalFaculty).toFixed(1) : '—';
 
@@ -547,8 +586,11 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
       endYr4
     ]);
 
-    const yStudents = rawStudents.filter(s => matchVariants.has(s.academicYear) || normalizeAY(s.academicYear) === norm).length;
-    const yFaculty = rawFaculty.filter(f => matchVariants.has(f.academicYear) || normalizeAY(f.academicYear) === norm).length;
+    const matchingStudents = rawStudents.filter(s => matchVariants.has(s.academicYear) || normalizeAY(s.academicYear) === norm);
+    const yStudents = new Set(matchingStudents.map(s => (s.registerNumber || s.id || '').trim())).size;
+
+    const matchingFaculty = rawFaculty.filter(f => matchVariants.has(f.academicYear) || normalizeAY(f.academicYear) === norm);
+    const yFaculty = new Set(matchingFaculty.map(f => (f.employeeId || f.id || '').trim())).size;
 
     const yPubs = rawPublications.filter(p => {
       const ayMatch = p.academicYear && (matchVariants.has(p.academicYear) || normalizeAY(p.academicYear) === norm);
@@ -591,19 +633,15 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
   // ==========================================
   // SECTION 2: ACADEMIC & FACULTY INTELLIGENCE
   // ==========================================
-  let phdFacultyCount = 0;
+  // Compute metrics strictly from distinct faculty members to prevent historical AY double-counting
+  let phdFacultyCount = phdEmpSet.size;
   let seniorFacultyCount = 0;
   let assistantProfCount = 0;
   let otherFacultyCount = 0;
   let maleFacultyCount = 0;
   let femaleFacultyCount = 0;
 
-  rawFaculty.forEach(f => {
-    const qual = (f.highestQualification || f.qualificationLevel || '').toLowerCase();
-    if (qual.includes('phd') || qual.includes('ph.d') || qual.includes('doctor')) {
-      phdFacultyCount++;
-    }
-
+  distinctFacultyList.forEach(f => {
     const des = (f.designation || '').toLowerCase();
     if (des.includes('assoc') || (des.includes('professor') && !des.includes('assistant'))) {
       seniorFacultyCount++;
@@ -620,11 +658,11 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
 
   const phdPercentage = totalFaculty > 0 ? ((phdFacultyCount / totalFaculty) * 100).toFixed(1) : '0.0';
 
-  // Program Level Student Distribution
+  // Program Level Student Distribution from distinct students
   let ugCount = 0;
   let pgCount = 0;
   let phdStudentCount = 0;
-  rawStudents.forEach(s => {
+  distinctStudentList.forEach(s => {
     const lvl = (s.programLevel || s.course || '').toLowerCase();
     if (lvl.includes('pg') || lvl.includes('post') || lvl.includes('m.') || lvl.includes('master') || lvl.includes('mba') || lvl.includes('mca') || lvl.includes('m.tech')) {
       pgCount++;
@@ -637,7 +675,7 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
 
   const ugPgRatio = pgCount > 0 ? `${(ugCount / pgCount).toFixed(1)}:1` : `${ugCount}:0`;
 
-  // Department-wise breakdown for Section 2 and Comparative Chart
+  // Department-wise breakdown using verified distinct student and faculty allocations
   const deptMap = {};
   departments.forEach(d => {
     deptMap[d.name] = {
@@ -651,19 +689,18 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
     };
   });
 
-  rawStudents.forEach(s => {
+  distinctStudentList.forEach(s => {
     const canonicalDept = deptAliases[s.department] || s.department;
     if (canonicalDept && deptMap[canonicalDept]) {
       deptMap[canonicalDept].students++;
     }
   });
 
-  rawFaculty.forEach(f => {
+  distinctFacultyList.forEach(f => {
     const canonicalDept = deptAliases[f.department] || f.department;
     if (canonicalDept && deptMap[canonicalDept]) {
       deptMap[canonicalDept].faculty++;
-      const qual = (f.highestQualification || '').toLowerCase();
-      if (qual.includes('phd') || qual.includes('ph.d')) {
+      if (phdEmpSet.has(f.employeeId)) {
         deptMap[canonicalDept].phdCount++;
       }
       const exp = Number(f.prevTeachingExpYears || 0) + Number(f.cuExpYears || 0);
@@ -843,13 +880,13 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
 
   const departmentPlacements = Object.values(deptPlacementMap).map(d => {
     const placed = d.placedSet.size || d.offers;
-    const eligible = d.eligible || Math.max(placed, 1);
+    const eligible = deptMap[d.departmentName]?.students || d.eligible || Math.max(placed, 1);
     return {
       departmentName: d.departmentName,
       eligible,
       placed,
       offers: d.offers,
-      rate: ((placed / eligible) * 100).toFixed(1),
+      rate: eligible > 0 ? ((placed / eligible) * 100).toFixed(1) : '0.0',
       avgLpa: d.salaryCount > 0 ? (d.salarySum / d.salaryCount).toFixed(2) : null,
       highestLpa: d.highestLpa > 0 ? d.highestLpa.toFixed(2) : null
     };

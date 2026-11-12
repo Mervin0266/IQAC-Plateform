@@ -93,10 +93,28 @@ async function runTests() {
     assert.strictEqual(typeof data.executiveOverview.totalFaculty, 'number');
     assert.ok(Array.isArray(data.executiveOverview.yearlyOverview));
 
-    // Section 2 Verification
+    // Section 2 Verification (Strict Cross-Tab Consistency & Denominator Compatibility)
     assert.strictEqual(typeof data.academicFaculty.phdFacultyCount, 'number');
+    assert.strictEqual(data.academicFaculty.totalFaculty, data.executiveOverview.totalFaculty, 'Total faculty must match between Executive and Academic tabs');
+    assert.strictEqual(data.academicFaculty.totalStudents, data.executiveOverview.totalStudents, 'Total students must match between Executive and Academic tabs');
+    assert.ok(data.academicFaculty.phdFacultyCount <= data.academicFaculty.totalFaculty, 'PhD faculty count must not exceed total distinct faculty');
+    assert.ok(Number(data.academicFaculty.phdPercentage) <= 100, 'PhD percentage must never exceed 100%');
     assert.ok(Array.isArray(data.academicFaculty.designationDistribution));
     assert.ok(Array.isArray(data.academicFaculty.departmentBreakdown));
+
+    const sumDesignations = (data.academicFaculty.seniorFacultyCount || 0) +
+      (data.academicFaculty.assistantProfCount || 0) +
+      (data.academicFaculty.otherFacultyCount || 0);
+    assert.strictEqual(sumDesignations, data.academicFaculty.totalFaculty, 'Sum of cadre designations must match total faculty');
+
+    const sumGender = data.academicFaculty.genderDistribution.reduce((acc, g) => acc + g.count, 0);
+    assert.strictEqual(sumGender, data.academicFaculty.totalFaculty, 'Sum of gender distribution must match total faculty');
+
+    const sumDeptFaculty = data.academicFaculty.departmentBreakdown.reduce((acc, d) => acc + d.faculty, 0);
+    assert.strictEqual(sumDeptFaculty, data.academicFaculty.totalFaculty, 'Sum of departmental faculty must match total distinct faculty');
+
+    const sumDeptStudents = data.academicFaculty.departmentBreakdown.reduce((acc, d) => acc + d.students, 0);
+    assert.strictEqual(sumDeptStudents, data.academicFaculty.totalStudents, 'Sum of departmental students must match total distinct students');
 
     // Section 3 Verification
     assert.strictEqual(typeof data.researchInnovation.totalPublications, 'number');
