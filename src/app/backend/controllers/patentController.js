@@ -703,10 +703,18 @@ async function fetchFilteredPatentsForRequest(req) {
       where.publicationYear = null;
     } else if (yrTrim === 'Pending Grant') {
       where.grantYear = null;
-    } else if (/^d{4}$/.test(yrTrim)) {
+    } else if (/^\d{4}$/.test(yrTrim)) {
       const yrInt = parseInt(yrTrim, 10);
       where[Op.or] = [
         { publicationYear: yrInt },
+        { academicYear: { [Op.iLike]: `%${yrTrim}%` } }
+      ];
+    } else if (/^(\d{4})\s*[-–/]\s*(\d{2,4})$/.test(yrTrim)) {
+      const match = yrTrim.match(/^(\d{4})\s*[-–/]\s*(\d{2,4})$/);
+      const startYr = parseInt(match[1], 10);
+      const endYr = match[2].length === 2 ? parseInt(match[1].slice(0, 2) + match[2], 10) : parseInt(match[2], 10);
+      where[Op.or] = [
+        { publicationYear: { [Op.between]: [startYr, endYr] } },
         { academicYear: { [Op.iLike]: `%${yrTrim}%` } }
       ];
     } else {

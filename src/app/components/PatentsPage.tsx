@@ -347,7 +347,10 @@ export function PatentsPage({
       const params = new URLSearchParams();
       params.append('page', String(page));
       params.append('limit', String(pageSize));
-      if (selectedYear !== 'all') params.append('publicationYear', selectedYear);
+      if (selectedYear !== 'all') {
+        params.append('year', selectedYear);
+        params.append('publicationYear', selectedYear);
+      }
       if (selectedDepts.length > 0) params.append('department', selectedDepts.join(','));
       if (selectedStatus !== 'all') params.append('status', selectedStatus);
       if (selectedType !== 'all') params.append('patentType', selectedType);
@@ -1004,14 +1007,14 @@ export function PatentsPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto justify-start sm:justify-end">
-            {/* Publication Calendar Year */}
+            {/* Year Filter */}
             <div className="w-32">
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                  <SelectValue placeholder="Pub Year" />
+                  <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
-                  <SelectItem value="all">All Pub Years</SelectItem>
+                  <SelectItem value="all">All Years</SelectItem>
                   {publicationYears.map(yr => (
                     <SelectItem key={yr} value={String(yr)}>{yr}</SelectItem>
                   ))}
