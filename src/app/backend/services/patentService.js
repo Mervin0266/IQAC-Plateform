@@ -667,12 +667,50 @@ function generatePatentTemplateBuffer() {
 }
 
 /**
+ * Parses uploaded spreadsheet buffer (.xlsx, .xls, .csv) into headers and row objects.
+ */
+function parsePatentSpreadsheetBuffer(fileBuffer) {
+  const XLSX = require('xlsx');
+  const wb = XLSX.read(fileBuffer, { type: 'buffer', raw: true });
+  const sheetName = wb.SheetNames[0];
+  if (!sheetName) return { headers: [], rows: [] };
+  const sheet = wb.Sheets[sheetName];
+  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+  if (!aoa || aoa.length === 0) return { headers: [], rows: [] };
+
+  // Find header row (first row with at least 2 non-empty cells)
+  let headerRowIndex = 0;
+  for (let i = 0; i < Math.min(5, aoa.length); i++) {
+    const nonEmpty = (aoa[i] || []).filter(c => String(c ?? '').trim() !== '');
+    if (nonEmpty.length >= 2) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  const headers = (aoa[headerRowIndex] || []).map(h => String(h ?? '').trim());
+  const rows = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex, defval: '', raw: true });
+  return { headers, rows };
+}
+
+/**
  * Core Bulk Preview / Validation Engine for Patents.
  */
 async function evaluateBulkPatentRows(rawRows = [], options = {}) {
+  let rowsToProcess = rawRows;
+  let headersToUse = options.headers || null;
+
+  if (Buffer.isBuffer(rawRows)) {
+    const parsed = parsePatentSpreadsheetBuffer(rawRows);
+    rowsToProcess = parsed.rows;
+    if (!headersToUse) {
+      headersToUse = parsed.headers;
+    }
+  }
+
   const {
     user = null,
-    headers = null,
+    headers = headersToUse,
     mockExistingPatents = null,
     mockFacultyRows = null,
     verifyDriveLinks = false,
@@ -681,12 +719,15 @@ async function evaluateBulkPatentRows(rawRows = [], options = {}) {
     Faculty = null
   } = options;
 
-  if (Array.isArray(headers) && headers.length > 0) {
-    const missingColumns = validatePatentHeaderColumns(headers);
+  const actualHeaders = headers || headersToUse;
+  if (Array.isArray(actualHeaders) && actualHeaders.length > 0) {
+    const missingColumns = validatePatentHeaderColumns(actualHeaders);
     if (missingColumns.length > 0) {
       return {
         validColumns: false,
         missingColumns,
+        error: `Uploaded spreadsheet is missing required columns: ${missingColumns.join(', ')}`,
+        foundHeaders: actualHeaders,
         summary: {
           totalRows: 0,
           eligibleCount: 0,
@@ -756,8 +797,8 @@ async function evaluateBulkPatentRows(rawRows = [], options = {}) {
   let duplicateCount = 0;
   let invalidErrorCount = 0;
 
-  for (let i = 0; i < rawRows.length; i++) {
-    const raw = rawRows[i];
+  for (let i = 0; i < rowsToProcess.length; i++) {
+    const raw = rowsToProcess[i];
     const rowNumber = raw._rowNumber || (i + 2);
     const mapped = mapPatentSpreadsheetRow(raw);
 
@@ -1000,6 +1041,7 @@ module.exports = {
   mapPatentSpreadsheetRow,
   validatePatentHeaderColumns,
   generatePatentTemplateBuffer,
+  parsePatentSpreadsheetBuffer,
   evaluateBulkPatentRows
 };
 

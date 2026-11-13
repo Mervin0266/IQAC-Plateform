@@ -50,11 +50,13 @@ const excelUpload = multer({
 // Direct proof file streaming endpoint (accessible by secure proof UUID so browser <a> links can view/download)
 router.get('/proofs/file/:proofId', getPatentProofFile);
 
+// Public / direct download for template
+router.get('/template', downloadPatentTemplate);
+
 // All subsequent routes require authentication
 router.use(auth);
 
 router.get('/faculty-search', searchFacultyDirectory);
-router.get('/template', downloadPatentTemplate);
 router.get('/stats', getPatentStats);
 router.post('/bulk', authorize('admin', 'iqac_admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('patents'), bulkUploadPatents);
 router.post('/bulk/preview', authorize('admin', 'iqac_admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('patents'), excelUpload.single('file'), previewBulkUploadPatents);

@@ -712,8 +712,27 @@ export function PatentsPage({
   };
 
   // 5-Step Bulk Upload Handlers
-  const handleDownloadTemplate = () => {
-    window.open(`${API_BASE}/api/patents/template`, '_blank');
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/patents/template`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        alert('Failed to download official template.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'CHRIST_IQAC_Patents_Template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (_) {
+      alert('Failed to download template.');
+    }
   };
 
   const handleBulkFileSelect = async (file: File) => {
@@ -736,7 +755,8 @@ export function PatentsPage({
         setBulkError(json.message || 'Failed to parse and evaluate patent spreadsheet.');
         return;
       }
-      setBulkPreview(json);
+      const previewData = json.data || json;
+      setBulkPreview(previewData);
     } catch (err: any) {
       setBulkError(err.message || 'Error uploading file for preview.');
     } finally {

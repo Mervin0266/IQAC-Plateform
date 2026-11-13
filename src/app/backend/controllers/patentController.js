@@ -20,6 +20,7 @@ const {
   resolveFacultyAssociationsForEmpIds,
   enrichPatentRecord,
   generatePatentTemplateBuffer,
+  parsePatentSpreadsheetBuffer,
   evaluateBulkPatentRows
 } = require('../services/patentService');
 
@@ -2411,7 +2412,16 @@ exports.previewBulkUploadPatents = async (req, res) => {
       });
     }
 
-    const result = await evaluateBulkPatentRows(req.file.buffer, {
+    const { headers, rows } = parsePatentSpreadsheetBuffer(req.file.buffer);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'The uploaded spreadsheet is empty or contains no readable data rows.'
+      });
+    }
+
+    const result = await evaluateBulkPatentRows(rows, {
+      headers,
       Patent,
       Faculty,
       PatentFaculty
@@ -2420,7 +2430,7 @@ exports.previewBulkUploadPatents = async (req, res) => {
     if (!result.validColumns) {
       return res.status(400).json({
         success: false,
-        message: result.error,
+        message: result.error || `Missing required columns: ${(result.missingColumns || []).join(', ')}`,
         missingColumns: result.missingColumns,
         foundHeaders: result.foundHeaders
       });
@@ -2429,7 +2439,8 @@ exports.previewBulkUploadPatents = async (req, res) => {
     res.json({
       success: true,
       summary: result.summary,
-      rows: result.rows
+      rows: result.rows,
+      data: result
     });
   } catch (error) {
     console.error('Preview bulk upload patents error:', error);
@@ -2451,7 +2462,17 @@ exports.importBulkUploadPatents = async (req, res) => {
       });
     }
 
-    const evaluation = await evaluateBulkPatentRows(req.file.buffer, {
+    const { headers, rows } = parsePatentSpreadsheetBuffer(req.file.buffer);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'The uploaded spreadsheet is empty or contains no readable data rows.'
+      });
+    }
+
+    const evaluation = await evaluateBulkPatentRows(rows, {
+      headers,
       Patent,
       Faculty,
       PatentFaculty
@@ -2461,7 +2482,7 @@ exports.importBulkUploadPatents = async (req, res) => {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: evaluation.error,
+        message: evaluation.error || `Missing required columns: ${(evaluation.missingColumns || []).join(', ')}`,
         missingColumns: evaluation.missingColumns
       });
     }
