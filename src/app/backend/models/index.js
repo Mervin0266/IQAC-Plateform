@@ -3,6 +3,7 @@ const Achievement = require('./Achievement');
 const Document = require('./Document');
 const Patent = require('./Patent');
 const PatentProof = require('./PatentProof');
+const PatentFaculty = require('./PatentFaculty');
 const Copyright = require('./Copyright');
 const CopyrightFaculty = require('./CopyrightFaculty');
 const Placement = require('./Placement');
@@ -75,6 +76,12 @@ Patent.hasMany(PatentProof, { foreignKey: 'patentId', as: 'proofs', onDelete: 'C
 PatentProof.belongsTo(Patent, { foreignKey: 'patentId', as: 'patent' });
 User.hasMany(PatentProof, { foreignKey: 'uploadedBy', as: 'uploadedPatentProofs' });
 PatentProof.belongsTo(User, { foreignKey: 'uploadedBy', as: 'uploader' });
+
+// Patent & Faculty Associations
+Patent.hasMany(PatentFaculty, { foreignKey: 'patentId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+PatentFaculty.belongsTo(Patent, { foreignKey: 'patentId', as: 'patent' });
+Faculty.hasMany(PatentFaculty, { foreignKey: 'facultyId', as: 'patentAssociations' });
+PatentFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
 
 // Copyrights & Faculty Associations
 User.hasMany(Copyright, { foreignKey: 'createdBy', as: 'copyrights' });
@@ -205,6 +212,7 @@ module.exports = {
   Document,
   Patent,
   PatentProof,
+  PatentFaculty,
   Copyright,
   CopyrightFaculty,
   Placement,

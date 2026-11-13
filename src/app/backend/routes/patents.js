@@ -1,3 +1,5 @@
+'use strict';
+
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -14,7 +16,11 @@ const {
   addPatentProofLinks,
   getPatentProofs,
   deletePatentProof,
-  getPatentProofFile
+  getPatentProofFile,
+  searchFacultyDirectory,
+  downloadPatentTemplate,
+  previewBulkUploadPatents,
+  importBulkUploadPatents
 } = require('../controllers/patentController');
 const { auth, authorize } = require('../middleware/auth');
 const { requireModuleEnabled, validateFormSubmission } = require('../middleware/configEnforcement');
@@ -35,14 +41,24 @@ const upload = multer({
   }
 });
 
+// Multer memory storage configuration for Excel spreadsheet preview and import (Max 15MB)
+const excelUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 }
+});
+
 // Direct proof file streaming endpoint (accessible by secure proof UUID so browser <a> links can view/download)
 router.get('/proofs/file/:proofId', getPatentProofFile);
 
 // All subsequent routes require authentication
 router.use(auth);
 
+router.get('/faculty-search', searchFacultyDirectory);
+router.get('/template', downloadPatentTemplate);
 router.get('/stats', getPatentStats);
-router.post('/bulk', authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('patents'), bulkUploadPatents);
+router.post('/bulk', authorize('admin', 'iqac_admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('patents'), bulkUploadPatents);
+router.post('/bulk/preview', authorize('admin', 'iqac_admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('patents'), excelUpload.single('file'), previewBulkUploadPatents);
+router.post('/bulk/import', authorize('admin', 'iqac_admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('patents'), excelUpload.single('file'), importBulkUploadPatents);
 router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('patents'), clearAllPatents);
 
 // Proof endpoints

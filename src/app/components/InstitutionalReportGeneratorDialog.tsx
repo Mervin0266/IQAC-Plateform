@@ -759,8 +759,10 @@ export function InstitutionalReportGeneratorDialog({
                           <strong className="text-slate-900">{previewData.researchInnovation.distinctFundingAgenciesCount} Distinct</strong>
                         </div>
                         <div>
-                          <span className="text-slate-500">Patents Published/Granted:</span>{' '}
-                          <strong className="text-slate-900">{previewData.researchInnovation.patentsPublished} / {previewData.researchInnovation.patentsGranted}</strong>
+                          <span className="text-slate-500">Total IPRs (Pat / Copy):</span>{' '}
+                          <strong className="text-slate-900">
+                            {previewData.researchInnovation.totalIprs ?? ((previewData.researchInnovation.patentsCount || 0) + (previewData.researchInnovation.copyrightsCount || 0))} ({previewData.researchInnovation.patentsCount || 0} / {previewData.researchInnovation.copyrightsCount || 0})
+                          </strong>
                         </div>
                       </div>
                     </div>

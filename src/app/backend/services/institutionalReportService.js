@@ -22,6 +22,8 @@ const {
   Faculty,
   Publication,
   Patent,
+  Copyright,
+  CopyrightFaculty,
   SponsoredProject,
   ConsultancyProject,
   Placement,
@@ -392,10 +394,68 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
   // 4. Fetch Patents
   let rawPatents = [];
   try {
-    const patentWhere = makeWhere('department', 'academicYear');
+    const patentWhere = {};
+    if (activeDeptNames.length === 1) {
+      const deptObj = departments.find(d => d.name === activeDeptNames[0] || d.shortName === activeDeptNames[0]);
+      patentWhere.department = deptObj ? { [Op.or]: [deptObj.name, deptObj.shortName] } : activeDeptNames[0];
+    } else if (activeDeptNames.length > 1) {
+      const expD = new Set();
+      activeDeptNames.forEach(d => {
+        expD.add(d);
+        const deptObj = departments.find(dept => dept.name === d || dept.shortName === d);
+        if (deptObj && deptObj.shortName) expD.add(deptObj.shortName);
+      });
+      patentWhere.department = { [Op.in]: Array.from(expD) };
+    }
+
+    if (expandedAys.length > 0) {
+      const yrNums = expandedAys.map(y => parseInt(String(y).match(/\d{4}/)?.[0] || '0', 10)).filter(Boolean);
+      patentWhere[Op.or] = [
+        { academicYear: { [Op.in]: expandedAys } },
+        { publicationYear: { [Op.in]: yrNums } }
+      ];
+    }
+
     rawPatents = Patent ? await Patent.findAll({ where: patentWhere, raw: true }) : [];
   } catch (err) {
     console.error('Error querying Patent model:', err.message);
+  }
+
+  // 4b. Fetch Copyrights
+  let rawCopyrights = [];
+  try {
+    const copyrightWhere = {};
+    if (expandedAys.length > 0) {
+      const yrNums = expandedAys.map(y => parseInt(String(y).match(/\d{4}/)?.[0] || '0', 10)).filter(Boolean);
+      copyrightWhere.calendarYear = { [Op.in]: yrNums };
+    }
+
+    const allCops = Copyright ? await Copyright.findAll({
+      where: copyrightWhere,
+      include: [
+        {
+          model: CopyrightFaculty,
+          as: 'facultyAssociations',
+          include: [{ model: Faculty, as: 'faculty', attributes: ['department'] }]
+        }
+      ]
+    }) : [];
+
+    if (activeDeptNames.length > 0) {
+      const allowedDeptsSet = new Set(activeDeptNames.map(d => d.toLowerCase()));
+      rawCopyrights = allCops.filter(c => {
+        const assocs = c.facultyAssociations || [];
+        return assocs.some(fa => {
+          const orig = (fa.originalDepartment || '').toLowerCase();
+          const curr = (fa.faculty && fa.faculty.department || '').toLowerCase();
+          return allowedDeptsSet.has(orig) || allowedDeptsSet.has(curr);
+        });
+      }).map(c => c.toJSON());
+    } else {
+      rawCopyrights = allCops.map(c => c.toJSON());
+    }
+  } catch (err) {
+    console.error('Error querying Copyright model:', err.message);
   }
 
   // 5. Fetch Sponsored Projects
@@ -553,16 +613,35 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
   });
   consultancyAmountLakhs = Number(consultancyAmountLakhs.toFixed(2));
 
-  // Patents breakdown
+  // Patents & Copyrights breakdown
   let patentsPublished = 0;
   let patentsGranted = 0;
+  let patentsLicensed = 0;
   let patentsFiled = 0;
+  let totalPatentRevenue = 0;
   rawPatents.forEach(pt => {
     const st = (pt.status || '').toLowerCase();
     if (st.includes('grant')) patentsGranted++;
+    else if (st.includes('commercial') || st.includes('license')) patentsLicensed++;
     else if (st.includes('publish')) patentsPublished++;
     else patentsFiled++;
+    totalPatentRevenue += (Number(pt.revenue) || 0);
   });
+
+  let copyrightsRegistered = 0;
+  let copyrightsPending = 0;
+  let copyrightsFiled = 0;
+  rawCopyrights.forEach(cp => {
+    if (cp.status !== 'draft') {
+      copyrightsFiled++;
+      if (cp.registrationNo && String(cp.registrationNo).trim() !== '') {
+        copyrightsRegistered++;
+      } else {
+        copyrightsPending++;
+      }
+    }
+  });
+  const totalIprsCount = rawPatents.length + rawCopyrights.length;
 
   // Determine multi-year progression target academic years
   const targetAys = cond.ayList.length > 0
@@ -777,7 +856,16 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
     let yConsAmt = 0;
     yCons.forEach(cp => { yConsAmt += Number(cp.revenueInLakhs || cp.contractValueInLakhs || 0); });
 
-    const yPat = rawPatents.filter(pt => matchVariants.has(pt.academicYear) || normalizeAY(pt.academicYear) === norm).length;
+    const yPat = rawPatents.filter(pt => {
+      const ayMatch = pt.academicYear && (matchVariants.has(pt.academicYear) || normalizeAY(pt.academicYear) === norm);
+      const pyMatch = pt.publicationYear && (matchVariants.has(String(pt.publicationYear)) || String(pt.publicationYear) === String(startYr) || String(pt.publicationYear) === endYr4);
+      return ayMatch || pyMatch;
+    }).length;
+
+    const yCop = rawCopyrights.filter(cp => {
+      const cyMatch = cp.calendarYear && (matchVariants.has(String(cp.calendarYear)) || String(cp.calendarYear) === String(startYr) || String(cp.calendarYear) === endYr4);
+      return cyMatch;
+    }).length;
 
     return {
       academicYear: `AY ${norm.replace('-', '–')}`,
@@ -786,7 +874,9 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
       citations: yCit,
       sponsoredAmountLakhs: ySponAmt > 0 ? Number((ySponAmt / 100000).toFixed(2)) : 0,
       consultancyAmountLakhs: Number(yConsAmt.toFixed(2)),
-      patents: yPat
+      patents: yPat,
+      copyrights: yCop,
+      totalIprs: yPat + yCop
     };
   });
 
@@ -940,9 +1030,21 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
       category: 'Patent',
       title: pt.title,
       department: pt.department,
-      academicYear: pt.academicYear,
+      academicYear: pt.publicationYear ? `CY ${pt.publicationYear}` : (pt.academicYear || '—'),
       valueDisplay: pt.status || 'Filed',
       status: pt.approvalStatus || 'Verified'
+    });
+  });
+  rawCopyrights.slice(0, 40).forEach(cp => {
+    const assocs = cp.facultyAssociations || [];
+    const dept = (assocs[0]?.originalDepartment) || 'General';
+    sourceRecords.push({
+      category: 'Copyright',
+      title: cp.title,
+      department: dept,
+      academicYear: cp.calendarYear ? `CY ${cp.calendarYear}` : '—',
+      valueDisplay: cp.registrationNo ? `Reg: ${cp.registrationNo}` : (cp.diaryNumber ? `Diary: ${cp.diaryNumber}` : 'Pending'),
+      status: cp.registrationNo ? 'Registered' : 'Pending Registration'
     });
   });
   placementOffers.slice(0, 40).forEach(pl => {
@@ -970,7 +1072,9 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
     citations: { status: totalCitations > 0 ? 'verified' : 'zero_records', count: totalCitations },
     grants: { status: rawSponsored.length > 0 ? 'verified' : 'zero_records', count: rawSponsored.length },
     placements: { status: rawPlacements.length > 0 ? 'verified' : 'no_records_uploaded', count: rawPlacements.length },
-    consultancy: { status: rawConsultancy.length > 0 ? 'verified' : 'no_records_uploaded', count: rawConsultancy.length }
+    consultancy: { status: rawConsultancy.length > 0 ? 'verified' : 'no_records_uploaded', count: rawConsultancy.length },
+    patents: { status: rawPatents.length > 0 ? 'verified' : 'zero_records', count: rawPatents.length },
+    copyrights: { status: rawCopyrights.length > 0 ? 'verified' : 'zero_records', count: rawCopyrights.length }
   };
 
   return {
@@ -993,7 +1097,9 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
       totalGrantsAmountLakhs: totalSponsoredAmountLakhs,
       totalGrantsCrores: totalSponsoredAmountCrores,
       consultancyAmountLakhs,
+      totalIprs: totalIprsCount,
       patentsCount: rawPatents.length,
+      copyrightsCount: rawCopyrights.length,
       yearlyOverview,
       structuralHierarchy: {
         totalCampuses: campuses.length || 1,
@@ -1055,10 +1161,30 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
       distinctFundingAgenciesCount: distinctFundingAgenciesCount || (rawSponsored.length > 0 ? rawSponsored.length : 0),
       consultancyCount: rawConsultancy.length,
       totalConsultancyAmountLakhs: consultancyAmountLakhs,
+      totalIprs: totalIprsCount,
       patentsCount: rawPatents.length,
       patentsPublished,
       patentsGranted,
+      patentsLicensed,
       patentsFiled,
+      totalPatentRevenue,
+      copyrightsCount: rawCopyrights.length,
+      copyrightsRegistered,
+      copyrightsPending,
+      copyrightsFiled,
+      ipr: {
+        totalIprs: totalIprsCount,
+        patentsCount: rawPatents.length,
+        copyrightsCount: rawCopyrights.length,
+        patentsGranted,
+        patentsLicensed,
+        patentsPublished,
+        patentsFiled,
+        totalPatentRevenue,
+        copyrightsRegistered,
+        copyrightsPending,
+        copyrightsFiled
+      },
       yearlyResearch,
       departmentFunding
     },

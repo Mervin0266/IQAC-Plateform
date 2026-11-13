@@ -95,6 +95,31 @@ const Patent = sequelize.define('Patent', {
     type: DataTypes.STRING(50),
     defaultValue: 'approved'
   },
+  empIdsRaw: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Normalized comma-separated Employee IDs preserved for traceability'
+  },
+  hasInvalidEmpIds: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  invalidEmpIds: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: []
+  },
+  duplicateEmpIds: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: []
+  },
+  externalInventors: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: []
+  },
   customFields: {
     type: DataTypes.JSONB,
     allowNull: false,

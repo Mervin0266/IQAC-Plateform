@@ -11,6 +11,10 @@ const {
   generateInstitutionalPdfReport,
   generateInstitutionalWordReport
 } = require('../services/institutionalReportService');
+const {
+  getIprDashboardAnalytics,
+  getIprDrilldownRecords
+} = require('../services/iprAnalyticsService');
 const { resolveDepartmentScope } = require('../utils/scopeHelper');
 const { Campus, School, Department, ProgramLevel } = require('../models');
 
@@ -246,6 +250,40 @@ exports.exportReport = async (req, res) => {
     return res.status(error.status || 500).json({
       success: false,
       message: error.message || 'Failed to export report document.'
+    });
+  }
+};
+
+/**
+ * GET /api/institutional-analytics/ipr
+ * Authoritative server-side IPR (Patents & Copyrights) Analytics
+ */
+exports.getIprAnalytics = async (req, res) => {
+  try {
+    const data = await getIprDashboardAnalytics(req.query, req.user);
+    return res.json(data);
+  } catch (error) {
+    console.error('Error fetching IPR analytics:', error);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve IPR analytics.'
+    });
+  }
+};
+
+/**
+ * GET /api/institutional-analytics/ipr/drilldown
+ * Interactive IPR Drill-down source records
+ */
+exports.getIprDrilldown = async (req, res) => {
+  try {
+    const data = await getIprDrilldownRecords(req.query, req.user);
+    return res.json(data);
+  } catch (error) {
+    console.error('Error fetching IPR drilldown records:', error);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve IPR drill-down records.'
     });
   }
 };

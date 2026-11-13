@@ -311,7 +311,7 @@ function buildInstitutionalReportPdf({
     { label: 'H-Index (Scopus)', value: res.hIndex || '—', subtext: 'Institutional Benchmark' },
     { label: 'Sponsored Research', value: `Rs. ${(res.totalSponsoredAmountLakhs || 0).toFixed(2)} L`, subtext: `${res.sponsoredCount || 0} Projects Approved` },
     { label: 'Consultancy Inflow', value: `Rs. ${(res.totalConsultancyAmountLakhs || 0).toFixed(2)} L`, subtext: `${res.consultancyCount || 0} Projects Completed` },
-    { label: 'Patents Published/Granted', value: `${res.patentsPublished || 0} / ${res.patentsGranted || 0}`, subtext: 'IPR Portfolio' }
+    { label: 'Total IPRs (Pat/Copy)', value: `${res.totalIprs || ((res.patentsCount || 0) + (res.copyrightsCount || 0))} (${res.patentsCount || 0}/${res.copyrightsCount || 0})`, subtext: `Pat. Pub/Grant: ${res.patentsPublished || 0}/${res.patentsGranted || 0} | Copy: ${res.copyrightsRegistered || 0}` }
   ]);
 
   if ((reportLevel === 'analytical' || reportLevel === 'detailed') && res.yearlyResearch && res.yearlyResearch.length > 0) {

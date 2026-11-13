@@ -54,13 +54,15 @@ import {
   Sparkles,
   RotateCcw,
   Info,
-  AlertCircle
+  AlertCircle,
+  Scale
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Checkbox } from './ui/checkbox';
 import { InstitutionalReportGeneratorDialog } from './InstitutionalReportGeneratorDialog';
+import { IprDashboardSection } from './dashboard/IprDashboardSection';
 
 interface DashboardPageProps {
   onNavigate: (page: string) => void;
@@ -264,6 +266,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
   // Active Tab state
   const [activeTab, setActiveTab] = useState<'overview' | 'academic' | 'research' | 'placements' | 'accreditation'>('overview');
+  const [researchSubSection, setResearchSubSection] = useState<'analytics' | 'iprs'>('analytics');
 
   // Complete Institutional Report Dialog Modal state
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
@@ -1180,135 +1183,185 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       {/* ======================================================== */}
       {activeTab === 'research' && (
         <div className="space-y-6">
-          {/* Sub-Filters */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl">
-            <span className="text-xs font-semibold text-slate-800">Research & Innovation Sub-Filters:</span>
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={filterIndexing} onValueChange={setFilterIndexing}>
-                <SelectTrigger className="w-40 h-8 text-xs bg-slate-50">
-                  <SelectValue placeholder="Journal Indexing" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Indexing Types</SelectItem>
-                  <SelectItem value="Scopus">Scopus</SelectItem>
-                  <SelectItem value="Web of Science">Web of Science</SelectItem>
-                  <SelectItem value="UGC-CARE">UGC-CARE</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
-            <StatCard
-              title="Publications"
-              value={totalPubs.toLocaleString('en-IN')}
-              subtitle="Scopus / WoS Indexed"
-              icon={BookOpen}
-              className="border-t-2 border-t-blue-600"
-              onClick={() => onNavigate('publications')}
-            />
-            <StatCard
-              title="Approved Citations"
-              value={totalCitations.toLocaleString('en-IN')}
-              subtitle="Verified Total Count"
-              icon={TrendingUp}
-              className="border-t-2 border-t-teal-600"
-              onClick={() => onNavigate('publications')}
-            />
-            <StatCard
-              title="Extramural Grants"
-              value={`₹ ${totalGrantsCrores} Cr`}
-              subtitle={`₹ ${Number(totalGrantsLakhs).toFixed(2)} Lakhs`}
-              icon={Sparkles}
-              className="border-t-2 border-t-amber-500"
-              onClick={() => onNavigate('sponsored-research')}
-            />
-            <StatCard
-              title="Consultancy Inflow"
-              value={`₹ ${consultancyLakhs} L`}
-              subtitle={`${resData.consultancyCount || 0} Projects Completed`}
-              icon={Briefcase}
-              className="border-t-2 border-t-indigo-600"
-              onClick={() => onNavigate('consultancy-projects')}
-            />
-            <StatCard
-              title="Funding Agencies"
-              value={`${resData.distinctFundingAgenciesCount || 0}`}
-              subtitle="Distinct Sanctioning Bodies"
-              icon={Building2}
-              className="border-t-2 border-t-sky-600"
-              onClick={() => onNavigate('sponsored-research')}
-            />
-            <StatCard
-              title="Patents (Pub / Grant)"
-              value={`${resData.patentsPublished || 0} / ${resData.patentsGranted || 0}`}
-              subtitle="Intellectual Property"
-              icon={Award}
-              className="border-t-2 border-t-violet-600"
-              onClick={() => onNavigate('patents')}
-            />
-          </div>
-
-          {/* Charts Row (Dual-Axis Scaled) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Chart: Annual Pubs & Citations */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-              <h3 className="text-sm font-semibold text-slate-900 mb-1">Annual Publications & Citations Trend</h3>
-              <p className="text-xs text-slate-500 mb-4">Publications (left axis) vs Approved Citations (right axis)</p>
-              <div className="h-64">
-                {(!chronologicalYearlyResearch || chronologicalYearlyResearch.length === 0) ? (
-                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                    No research trend data available for selected scope
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={chronologicalYearlyResearch}
-                      margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                      <XAxis
-                        dataKey="academicYear"
-                        stroke="#CBD5E1"
-                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        yAxisId="left"
-                        stroke="#CBD5E1"
-                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
-                        tickLine={false}
-                        tickFormatter={(v) => v.toLocaleString('en-IN')}
-                      />
-                      <YAxis
-                        yAxisId="right"
-                        orientation="right"
-                        stroke="#CBD5E1"
-                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
-                        tickLine={false}
-                        tickFormatter={(v) => v.toLocaleString('en-IN')}
-                      />
-                      <Tooltip content={<DashboardChartTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                      <Bar yAxisId="left" dataKey="publications" name="Publications (Left)" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
-                      <Bar yAxisId="right" dataKey="citations" name="Citations (Right)" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+          {/* Research & Innovation Sub-Section Switcher: Research Analytics vs IPRs */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 bg-slate-100 border border-slate-200/80 rounded-xl">
+            <nav className="flex flex-wrap items-center gap-1" aria-label="Research sub-navigation">
+              <button
+                type="button"
+                onClick={() => setResearchSubSection('analytics')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs transition-colors ${
+                  researchSubSection === 'analytics'
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200 font-semibold ring-1 ring-slate-200/50'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
+                }`}
+              >
+                <BookOpen className={`w-3.5 h-3.5 ${researchSubSection === 'analytics' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <span>Research Analytics</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setResearchSubSection('iprs')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs transition-colors ${
+                  researchSubSection === 'iprs'
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200 font-semibold ring-1 ring-slate-200/50'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
+                }`}
+              >
+                <Scale className={`w-3.5 h-3.5 ${researchSubSection === 'iprs' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <span>IPRs (Patents & Copyrights)</span>
+                {resData.ipr?.totalIprs !== undefined && (
+                  <Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-800 font-semibold px-1.5 py-0">
+                    {resData.ipr.totalIprs}
+                  </Badge>
                 )}
+              </button>
+            </nav>
+            <span className="text-[11px] text-slate-400 font-medium px-2 hidden sm:inline">
+              {researchSubSection === 'analytics' ? 'Scholarly Publications, Citations, Grants & Inflow' : 'Institutional Intellectual Property Rights Intelligence'}
+            </span>
+          </div>
+
+          {researchSubSection === 'analytics' ? (
+            <div className="space-y-6">
+              {/* Sub-Filters */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl">
+                <span className="text-xs font-semibold text-slate-800">Research & Innovation Sub-Filters:</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select value={filterIndexing} onValueChange={setFilterIndexing}>
+                    <SelectTrigger className="w-40 h-8 text-xs bg-slate-50">
+                      <SelectValue placeholder="Journal Indexing" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All Indexing Types</SelectItem>
+                      <SelectItem value="Scopus">Scopus</SelectItem>
+                      <SelectItem value="Web of Science">Web of Science</SelectItem>
+                      <SelectItem value="UGC-CARE">UGC-CARE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
+                <StatCard
+                  title="Publications"
+                  value={totalPubs.toLocaleString('en-IN')}
+                  subtitle="Scopus / WoS Indexed"
+                  icon={BookOpen}
+                  className="border-t-2 border-t-blue-600"
+                  onClick={() => onNavigate('publications')}
+                />
+                <StatCard
+                  title="Approved Citations"
+                  value={totalCitations.toLocaleString('en-IN')}
+                  subtitle="Verified Total Count"
+                  icon={TrendingUp}
+                  className="border-t-2 border-t-teal-600"
+                  onClick={() => onNavigate('publications')}
+                />
+                <StatCard
+                  title="Extramural Grants"
+                  value={`₹ ${totalGrantsCrores} Cr`}
+                  subtitle={`₹ ${Number(totalGrantsLakhs).toFixed(2)} Lakhs`}
+                  icon={Sparkles}
+                  className="border-t-2 border-t-amber-500"
+                  onClick={() => onNavigate('sponsored-research')}
+                />
+                <StatCard
+                  title="Consultancy Inflow"
+                  value={`₹ ${consultancyLakhs} L`}
+                  subtitle={`${resData.consultancyCount || 0} Projects Completed`}
+                  icon={Briefcase}
+                  className="border-t-2 border-t-indigo-600"
+                  onClick={() => onNavigate('consultancy-projects')}
+                />
+                <StatCard
+                  title="Funding Agencies"
+                  value={`${resData.distinctFundingAgenciesCount || 0}`}
+                  subtitle="Distinct Sanctioning Bodies"
+                  icon={Building2}
+                  className="border-t-2 border-t-sky-600"
+                  onClick={() => onNavigate('sponsored-research')}
+                />
+                <StatCard
+                  title="Patents (Pub / Grant)"
+                  value={`${resData.patentsPublished || 0} / ${resData.patentsGranted || 0}`}
+                  subtitle="Intellectual Property"
+                  icon={Award}
+                  className="border-t-2 border-t-violet-600"
+                  onClick={() => setResearchSubSection('iprs')}
+                />
+              </div>
+
+              {/* Charts Row (Dual-Axis Scaled) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Chart: Annual Pubs & Citations */}
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1">Annual Publications & Citations Trend</h3>
+                  <p className="text-xs text-slate-500 mb-4">Publications (left axis) vs Approved Citations (right axis)</p>
+                  <div className="h-64">
+                    {(!chronologicalYearlyResearch || chronologicalYearlyResearch.length === 0) ? (
+                      <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                        No research trend data available for selected scope
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={chronologicalYearlyResearch}
+                          margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                          <XAxis
+                            dataKey="academicYear"
+                            stroke="#CBD5E1"
+                            tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            yAxisId="left"
+                            stroke="#CBD5E1"
+                            tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                            tickLine={false}
+                            tickFormatter={(v) => v.toLocaleString('en-IN')}
+                          />
+                          <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            stroke="#CBD5E1"
+                            tick={{ fill: '#475569', fontSize: 11, fontWeight: 500 }}
+                            tickLine={false}
+                            tickFormatter={(v) => v.toLocaleString('en-IN')}
+                          />
+                          <Tooltip content={<DashboardChartTooltip />} />
+                          <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                          <Bar yAxisId="left" dataKey="publications" name="Publications (Left)" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
+                          <Bar yAxisId="right" dataKey="citations" name="Citations (Right)" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                {/* Chart: Indexing Breakdown */}
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1">Journal Indexing Classification</h3>
+                  <p className="text-xs text-slate-500 mb-4">Distribution by primary index tier</p>
+                  <DashboardDonutChart
+                    data={resData.indexingDistribution || []}
+                    emptyMessage="No journal indexing distribution available"
+                  />
+                </div>
               </div>
             </div>
-
-            {/* Chart: Indexing Breakdown */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-              <h3 className="text-sm font-semibold text-slate-900 mb-1">Journal Indexing Classification</h3>
-              <p className="text-xs text-slate-500 mb-4">Distribution by primary index tier</p>
-              <DashboardDonutChart
-                data={resData.indexingDistribution || []}
-                emptyMessage="No journal indexing distribution available"
-              />
-            </div>
-          </div>
+          ) : (
+            <IprDashboardSection
+              filterCampus={filterCampus}
+              filterSchool={filterSchool}
+              filterDepartment={filterDepartment}
+              availableDepartments={departments.map(d => d.name)}
+              onNavigate={onNavigate}
+            />
+          )}
         </div>
       )}
 

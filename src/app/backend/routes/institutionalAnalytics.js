@@ -12,7 +12,9 @@ const {
   getDashboardAnalytics,
   getReportConfig,
   previewReport,
-  exportReport
+  exportReport,
+  getIprAnalytics,
+  getIprDrilldown
 } = require('../controllers/institutionalAnalyticsController');
 
 // All endpoints require authentication
@@ -20,6 +22,10 @@ router.use(auth);
 
 // Dashboard live analytics
 router.get('/dashboard', getDashboardAnalytics);
+
+// IPR (Patents & Copyrights) Analytics & Drill-Down
+router.get('/ipr', getIprAnalytics);
+router.get('/ipr/drilldown', getIprDrilldown);
 
 // Report configuration metadata
 router.get('/report-config', getReportConfig);

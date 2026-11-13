@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { Patent, PatentProof, User } = require('../models');
+const { Patent, PatentProof, PatentFaculty, Faculty, User } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { logAction, logActionSafe } = require('../middleware/auditLogger');
@@ -11,6 +11,17 @@ const { sendNotification } = require('../middleware/notificationHelper');
 const { resolveDepartmentScope } = require('../utils/scopeHelper');
 const { parsePagination, formatPaginationResponse } = require('../utils/paginationHelper');
 const googleDriveService = require('../services/googleDriveService');
+const {
+  PATENT_TEMPLATE_COLUMNS,
+  normalizeDeptKey,
+  normalizeEmpIdKey,
+  parseAndNormalizeEmpIds,
+  generatePatentDuplicateKeys,
+  resolveFacultyAssociationsForEmpIds,
+  enrichPatentRecord,
+  generatePatentTemplateBuffer,
+  evaluateBulkPatentRows
+} = require('../services/patentService');
 
 /**
  * Validates calendar year / month / day bounds strictly in UTC to eliminate timezone shifts.
@@ -507,22 +518,142 @@ const validateYearAndStatus = (status, grantDate, rawYear) => {
 /**
  * Enforce role & department permissions on patent records.
  */
+/**
+ * Loads live faculty directory indexed by ID and normalized Employee ID key.
+ */
+async function loadLiveFacultyMaps() {
+  const rows = await Faculty.findAll({
+    attributes: ['id', 'employeeId', 'name', 'department', 'designation', 'email', 'academicYear', 'createdAt'],
+    order: [
+      ['academicYear', 'DESC NULLS LAST'],
+      ['createdAt', 'DESC NULLS LAST']
+    ],
+    raw: true
+  });
+
+  const byId = new Map();
+  const byNormEmpKey = new Map();
+
+  for (const row of rows) {
+    byId.set(row.id, row);
+    const key = normalizeEmpIdKey(row.employeeId);
+    if (key && !byNormEmpKey.has(key)) {
+      byNormEmpKey.set(key, row);
+    }
+  }
+
+  return { byId, byNormEmpKey, allRows: rows };
+}
+
+/**
+ * Computes aggregated summary metrics for Patent records.
+ */
+function computePatentMetrics(patentsList = []) {
+  let totalPatents = patentsList.length;
+  let applicationsFiled = 0;
+  let grantedPatents = 0;
+  let licensedPatents = 0;
+  let publishedPatents = 0;
+  let totalRevenue = 0;
+  let nationalCount = 0;
+  let internationalCount = 0;
+  let withProofCount = 0;
+  let missingProofCount = 0;
+  let recordsWithInvalidEmpIds = 0;
+  const departmentBreakdown = {};
+  const publicationYearBreakdown = {};
+
+  for (const p of patentsList) {
+    const s = String(p.status || '').toLowerCase();
+    if (s.includes('grant')) {
+      grantedPatents++;
+    } else if (s.includes('commercial') || s.includes('licens') || p.licenseDate) {
+      licensedPatents++;
+    } else if (s.includes('publish') || p.publishedDate) {
+      publishedPatents++;
+    } else {
+      applicationsFiled++;
+    }
+
+    const pType = String(p.patentType || '').toLowerCase();
+    if (pType.includes('international') || pType.includes('pct') || pType.includes('uspto') || pType.includes('epo')) {
+      internationalCount++;
+    } else {
+      nationalCount++;
+    }
+
+    const rev = Number(p.revenue || 0);
+    if (!Number.isNaN(rev) && rev > 0) {
+      totalRevenue += rev;
+    }
+
+    const hasProof = (p.proofs && p.proofs.length > 0) || Boolean(p.patentUrl);
+    if (hasProof) {
+      withProofCount++;
+    } else {
+      missingProofCount++;
+    }
+
+    if (p.hasInvalidEmpIds) {
+      recordsWithInvalidEmpIds++;
+    }
+
+    const dept = p.department || 'Unassigned';
+    departmentBreakdown[dept] = (departmentBreakdown[dept] || 0) + 1;
+
+    const yrKey = p.publicationYear ? String(p.publicationYear) : (p.publishedDate ? String(p.publishedDate).slice(0, 4) : 'Missing / Not Available');
+    publicationYearBreakdown[yrKey] = (publicationYearBreakdown[yrKey] || 0) + 1;
+  }
+
+  return {
+    total: totalPatents,
+    totalPatents,
+    filed: applicationsFiled,
+    applicationsFiled,
+    published: publishedPatents,
+    publishedPatents,
+    granted: grantedPatents,
+    grantedPatents,
+    commercialized: licensedPatents,
+    licensedPatents,
+    national: nationalCount,
+    international: internationalCount,
+    totalRevenue,
+    withProofCount,
+    missingProofCount,
+    recordsWithInvalidEmpIds,
+    departmentBreakdown,
+    publicationYearBreakdown,
+    yearBreakdown: publicationYearBreakdown
+  };
+}
+
+/**
+ * Enforce role & department permissions on patent records.
+ */
 const checkPatentAccess = (patent, user, action = 'view') => {
   if (!user) return { allowed: false, message: 'Authentication required' };
-  if (user.role === 'admin') return { allowed: true };
+  if (user.role === 'admin' || user.role === 'iqac_admin') return { allowed: true };
+
+  const deptMatches = (dept) => {
+    if (!user.department || user.department === 'All') return true;
+    const uKey = normalizeDeptKey(user.department);
+    if (!dept) return false;
+    return normalizeDeptKey(dept) === uKey;
+  };
+
+  const associations = patent.facultyAssociations || [];
+  const matchesAnyDept = deptMatches(patent.department) ||
+    associations.some(a => deptMatches(a.currentDepartment) || deptMatches(a.originalDepartment));
 
   if (action === 'view') {
     if (user.role === 'authority') return { allowed: true };
     if (['coordinator', 'hod'].includes(user.role)) {
-      if (!user.department || user.department === 'All' || patent.department === user.department) {
-        return { allowed: true };
-      }
+      if (matchesAnyDept) return { allowed: true };
       return { allowed: false, message: 'Access denied: Patent belongs to another department' };
     }
     if (user.role === 'faculty') {
-      if (!user.department || patent.department === user.department || patent.createdBy === user.id) {
-        return { allowed: true };
-      }
+      if (matchesAnyDept || patent.createdBy === user.id) return { allowed: true };
       return { allowed: false, message: 'Access denied: Patent belongs to another department' };
     }
   }
@@ -533,15 +664,11 @@ const checkPatentAccess = (patent, user, action = 'view') => {
       return { allowed: false, message: 'Authority role has read-only inspection access.' };
     }
     if (['coordinator', 'hod'].includes(user.role)) {
-      if (!user.department || user.department === 'All' || patent.department === user.department) {
-        return { allowed: true };
-      }
+      if (matchesAnyDept) return { allowed: true };
       return { allowed: false, message: 'Access denied: Cannot modify patents outside your department.' };
     }
     if (user.role === 'faculty') {
-      if (patent.createdBy === user.id) {
-        return { allowed: true };
-      }
+      if (patent.createdBy === user.id) return { allowed: true };
       return { allowed: false, message: 'Access denied: Faculty can only modify their own patent records.' };
     }
   }
@@ -549,269 +676,278 @@ const checkPatentAccess = (patent, user, action = 'view') => {
   return { allowed: false, message: 'Unauthorized action' };
 };
 
-// @desc    Get all patents with filtering, searching, proofs, and role isolation
-// @route   GET /api/patents
-// @access  Private
-exports.getPatents = async (req, res) => {
-  try {
-    const {
-      status,
-      patentType,
-      year,
-      publicationYear,
-      grantYear,
-      academicYear,
-      department,
-      proofStatus,
-      search
-    } = req.query;
+/**
+ * Common query filtering helper for Patents.
+ */
+async function fetchFilteredPatentsForRequest(req) {
+  const {
+    status,
+    patentType,
+    year,
+    publicationYear,
+    grantYear,
+    academicYear,
+    department,
+    proofStatus,
+    validationStatus,
+    search
+  } = req.query;
 
-    const where = {};
-    const selectedYear = publicationYear || year || academicYear;
+  const where = {};
+  const selectedYear = publicationYear || year || academicYear;
 
-    if (status && status !== 'all') {
-      where.status = {
-        [Op.iLike]: `%${status.trim()}%`
-      };
-    }
-
-    if (patentType && patentType !== 'all') {
-      where.patentType = {
-        [Op.iLike]: `%${patentType.trim()}%`
-      };
-    }
-
-    if (selectedYear && selectedYear !== 'all') {
-      const yrTrim = String(selectedYear).trim();
-      if (['missing', 'not_available', 'unassigned', 'blank', 'none', 'null'].includes(yrTrim.toLowerCase())) {
-        where.publicationYear = null;
-      } else if (yrTrim === 'Pending Grant') {
-        where.grantYear = null;
-      } else if (/^\d{4}$/.test(yrTrim)) {
-        const yrInt = parseInt(yrTrim, 10);
-        where[Op.or] = [
-          { publicationYear: yrInt },
-          { academicYear: { [Op.iLike]: `%${yrTrim}%` } }
-        ];
-      } else {
-        where.academicYear = yrTrim;
-      }
-    }
-
-    // Role-based data isolation
-    if (req.user) {
-      if (req.user.role === 'coordinator' || req.user.role === 'hod') {
-        if (req.user.department && req.user.department !== 'All') {
-          where.department = {
-            [Op.iLike]: `%${req.user.department}%`
-          };
-        }
-      } else if (req.user.role === 'authority') {
-        where.approvalStatus = 'finalized';
-      }
-    }
-
-    // Explicit department filter
-    if (department && department !== 'all') {
-      where.department = {
-        [Op.iLike]: `%${department.replace(/-/g, '%')}%`
-      };
-    }
-
-    if (search && search.trim()) {
-      const q = `%${search.trim()}%`;
+  if (selectedYear && selectedYear !== 'all') {
+    const yrTrim = String(selectedYear).trim();
+    if (['missing', 'not_available', 'unassigned', 'blank', 'none', 'null'].includes(yrTrim.toLowerCase())) {
+      where.publicationYear = null;
+    } else if (yrTrim === 'Pending Grant') {
+      where.grantYear = null;
+    } else if (/^d{4}$/.test(yrTrim)) {
+      const yrInt = parseInt(yrTrim, 10);
       where[Op.or] = [
-        { title: { [Op.iLike]: q } },
-        { inventors: { [Op.iLike]: q } },
-        { applicationNo: { [Op.iLike]: q } },
-        { patentNo: { [Op.iLike]: q } },
-        { department: { [Op.iLike]: q } },
-        { partner: { [Op.iLike]: q } },
-        { patentType: { [Op.iLike]: q } }
+        { publicationYear: yrInt },
+        { academicYear: { [Op.iLike]: `%${yrTrim}%` } }
       ];
+    } else {
+      where.academicYear = yrTrim;
     }
-
-    const { page, limit, offset, isExport } = parsePagination(req.query);
-
-    const { count, rows: patents } = await Patent.findAndCountAll({
-      where,
-      include: [
-        {
-          model: User,
-          as: 'creator',
-          attributes: ['id', 'name', 'email', 'department']
-        },
-        {
-          model: PatentProof,
-          as: 'proofs',
-          where: { isActive: true },
-          required: false,
-          attributes: [
-            'id', 'sourceType', 'driveFileId', 'driveFolderId',
-            'driveUrl', 'fileName', 'mimeType', 'fileSize',
-            'uploadedAt', 'accessStatus', 'accessRemarks'
-          ]
-        }
-      ],
-      order: [
-        ['publicationYear', 'DESC NULLS LAST'],
-        ['publishedDate', 'DESC NULLS LAST'],
-        ['grantYear', 'DESC NULLS LAST'],
-        ['filedDate', 'DESC NULLS LAST'],
-        ['id', 'ASC']
-      ],
-      limit: isExport ? undefined : limit,
-      offset: isExport ? undefined : offset,
-      distinct: true
-    });
-
-    // Optional Proof Status filter in memory if specified
-    let filteredRows = patents;
-    if (proofStatus && proofStatus !== 'all') {
-      filteredRows = patents.filter(p => {
-        const proofs = p.proofs || [];
-        if (proofStatus === 'missing') return proofs.length === 0;
-        if (proofStatus === 'verified') return proofs.some(pr => pr.accessStatus === 'verified');
-        if (proofStatus === 'issue') return proofs.some(pr => pr.accessStatus === 'access_issue');
-        if (proofStatus === 'has_proof') return proofs.length > 0;
-        return true;
-      });
-    }
-
-    res.json(formatPaginationResponse({
-      count: proofStatus && proofStatus !== 'all' ? filteredRows.length : count,
-      rows: filteredRows,
-      page,
-      limit
-    }));
-  } catch (error) {
-    console.error('Get patents error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to retrieve patent records',
-      error: error.message
-    });
   }
-};
 
-// @desc    Get aggregate patent statistics (including Proof & Publication Year breakdowns)
-// @route   GET /api/patents/stats
-// @access  Private / Public
-exports.getPatentStats = async (req, res) => {
-  try {
-    const { year, publicationYear, department } = req.query;
-    const where = {};
-    const selectedYear = publicationYear || year;
-
-    if (selectedYear && selectedYear !== 'all') {
-      const yrTrim = String(selectedYear).trim();
-      if (['missing', 'not_available', 'unassigned', 'blank', 'none', 'null'].includes(yrTrim.toLowerCase())) {
-        where.publicationYear = null;
-      } else if (/^\d{4}$/.test(yrTrim)) {
-        where[Op.or] = [
-          { publicationYear: parseInt(yrTrim, 10) },
-          { academicYear: { [Op.iLike]: `%${yrTrim}%` } }
-        ];
-      } else {
-        where.academicYear = yrTrim;
-      }
+  if (grantYear && grantYear !== 'all') {
+    const gyInt = parseInt(String(grantYear).trim(), 10);
+    if (!Number.isNaN(gyInt)) {
+      where.grantYear = gyInt;
     }
+  }
 
-    if (department && department !== 'all') {
-      where.department = { [Op.iLike]: `%${department}%` };
-    }
+  if (status && status !== 'all') {
+    where.status = { [Op.iLike]: `%${status.trim()}%` };
+  }
 
-    const allPatents = await Patent.findAll({
-      where,
-      include: [{
+  if (patentType && patentType !== 'all') {
+    where.patentType = { [Op.iLike]: `%${patentType.trim()}%` };
+  }
+
+  if (req.user && req.user.role === 'authority') {
+    where.approvalStatus = 'finalized';
+  }
+
+  const allRecords = await Patent.findAll({
+    where,
+    include: [
+      {
+        model: User,
+        as: 'creator',
+        attributes: ['id', 'name', 'email', 'department']
+      },
+      {
         model: PatentProof,
         as: 'proofs',
         where: { isActive: true },
         required: false,
-        attributes: ['id', 'accessStatus']
-      }]
-    });
-
-    let filedCount = 0;
-    let publishedCount = 0;
-    let grantedCount = 0;
-    let commercializedCount = 0;
-    let totalRevenue = 0;
-    let nationalCount = 0;
-    let internationalCount = 0;
-    let withProofCount = 0;
-    let missingProofCount = 0;
-
-    const departmentBreakdown = {};
-    const publicationYearBreakdown = {};
-
-    allPatents.forEach(p => {
-      const s = (p.status || '').toLowerCase();
-      if (s.includes('commercial') || s.includes('licens')) {
-        commercializedCount++;
-      } else if (s.includes('grant')) {
-        grantedCount++;
-      } else if (s.includes('publish')) {
-        publishedCount++;
-      } else {
-        filedCount++;
+        attributes: [
+          'id', 'sourceType', 'driveFileId', 'driveFolderId',
+          'driveUrl', 'fileName', 'mimeType', 'fileSize',
+          'uploadedAt', 'accessStatus', 'accessRemarks'
+        ]
+      },
+      {
+        model: PatentFaculty,
+        as: 'facultyAssociations',
+        required: false
       }
+    ],
+    order: [
+      ['publicationYear', 'DESC NULLS LAST'],
+      ['publishedDate', 'DESC NULLS LAST'],
+      ['grantYear', 'DESC NULLS LAST'],
+      ['filedDate', 'DESC NULLS LAST'],
+      ['id', 'ASC']
+    ]
+  });
 
-      const pType = (p.patentType || '').toLowerCase();
-      if (pType.includes('international') || pType.includes('pct') || pType.includes('uspto') || pType.includes('epo')) {
-        internationalCount++;
-      } else {
-        nationalCount++;
-      }
+  const { byId, byNormEmpKey } = await loadLiveFacultyMaps();
 
-      totalRevenue += Number(p.revenue) || 0;
+  // Deduplicate by unique patent ID (guarantees multi-faculty joins never produce duplicate rows)
+  const uniqueMap = new Map();
+  for (const row of allRecords) {
+    if (!uniqueMap.has(row.id)) {
+      uniqueMap.set(row.id, enrichPatentRecord(row, byId, byNormEmpKey));
+    }
+  }
+  let enrichedList = Array.from(uniqueMap.values());
 
-      const dept = p.department || 'Unassigned';
-      departmentBreakdown[dept] = (departmentBreakdown[dept] || 0) + 1;
+  // Enforce coordinator/HOD role scope on backend
+  if (req.user && ['coordinator', 'hod'].includes(req.user.role)) {
+    if (req.user.department && req.user.department !== 'All') {
+      const uDeptKey = normalizeDeptKey(req.user.department);
+      enrichedList = enrichedList.filter(p => {
+        if (p.createdBy === req.user.id) return true;
+        if (normalizeDeptKey(p.department) === uDeptKey) return true;
+        return (p.facultyAssociations || []).some(f =>
+          normalizeDeptKey(f.currentDepartment) === uDeptKey ||
+          normalizeDeptKey(f.originalDepartment) === uDeptKey
+        );
+      });
+    }
+  }
 
-      // Publication Year breakdown (4-digit calendar year strictly derived from publishedDate)
-      const yrKey = p.publicationYear ? String(p.publicationYear) : (p.publishedDate ? String(p.publishedDate).slice(0, 4) : 'Missing / Not Available');
-      publicationYearBreakdown[yrKey] = (publicationYearBreakdown[yrKey] || 0) + 1;
+  // Department filter (supports single or comma-separated departments)
+  if (department && department !== 'all') {
+    const rawDepts = Array.isArray(department) ? department.join(',') : String(department);
+    const requestedKeys = rawDepts
+      .split(',')
+      .map(d => normalizeDeptKey(d.trim().replace(/-/g, ' ')))
+      .filter(Boolean);
 
+    if (requestedKeys.length > 0) {
+      enrichedList = enrichedList.filter(p => {
+        const pDeptKey = normalizeDeptKey(p.department);
+        if (requestedKeys.includes(pDeptKey)) return true;
+        return (p.facultyAssociations || []).some(f =>
+          requestedKeys.includes(normalizeDeptKey(f.currentDepartment)) ||
+          requestedKeys.includes(normalizeDeptKey(f.originalDepartment))
+        );
+      });
+    }
+  }
+
+  // Filter by Proof status
+  if (proofStatus && proofStatus !== 'all') {
+    enrichedList = enrichedList.filter(p => {
       const proofs = p.proofs || [];
-      if (proofs.length > 0) {
-        withProofCount++;
-      } else {
-        missingProofCount++;
-      }
+      const hasProof = proofs.length > 0 || Boolean(p.patentUrl);
+      if (proofStatus === 'missing') return !hasProof;
+      if (proofStatus === 'has_proof') return hasProof;
+      if (proofStatus === 'verified') return proofs.some(pr => pr.accessStatus === 'verified');
+      if (proofStatus === 'issue') return proofs.some(pr => pr.accessStatus === 'access_issue');
+      return true;
+    });
+  }
+
+  // Filter by EmpId validation status
+  if (validationStatus && validationStatus !== 'all') {
+    if (validationStatus === 'invalid_empids') {
+      enrichedList = enrichedList.filter(p => p.hasInvalidEmpIds);
+    } else if (validationStatus === 'valid') {
+      enrichedList = enrichedList.filter(p => !p.hasInvalidEmpIds);
+    }
+  }
+
+  // Search filter
+  if (search && String(search).trim()) {
+    const q = String(search).trim().toLowerCase();
+    enrichedList = enrichedList.filter(p => {
+      if ((p.title || '').toLowerCase().includes(q)) return true;
+      if ((p.applicationNo || '').toLowerCase().includes(q)) return true;
+      if ((p.patentNo || '').toLowerCase().includes(q)) return true;
+      if ((p.partner || '').toLowerCase().includes(q)) return true;
+      if ((p.patentType || '').toLowerCase().includes(q)) return true;
+      if ((p.empIdsRaw || '').toLowerCase().includes(q)) return true;
+      if ((p.inventors || '').toLowerCase().includes(q)) return true;
+      if ((p.externalInventors || []).some(ext => (ext.name || '').toLowerCase().includes(q) || (ext.institution || '').toLowerCase().includes(q))) return true;
+      return (p.facultyAssociations || []).some(f =>
+        (f.employeeId || '').toLowerCase().includes(q) ||
+        (f.facultyName || '').toLowerCase().includes(q) ||
+        (f.currentDepartment || '').toLowerCase().includes(q) ||
+        (f.originalDepartment || '').toLowerCase().includes(q)
+      );
+    });
+  }
+
+  return enrichedList;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 1. SEARCH FACULTY DIRECTORY (For Patent Multi-Faculty Selector)
+// ──────────────────────────────────────────────────────────────────────────────
+exports.searchFacultyDirectory = async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10) || 50, 1), 200);
+
+    const { byNormEmpKey } = await loadLiveFacultyMaps();
+    let list = Array.from(byNormEmpKey.values());
+
+    if (q) {
+      list = list.filter(f =>
+        String(f.employeeId || '').toLowerCase().includes(q) ||
+        String(f.name || '').toLowerCase().includes(q) ||
+        String(f.department || '').toLowerCase().includes(q) ||
+        String(f.designation || '').toLowerCase().includes(q)
+      );
+    } else {
+      list.sort((a, b) => String(a.employeeId || '').localeCompare(String(b.employeeId || ''), undefined, { numeric: true }));
+    }
+
+    const trimmed = list.slice(0, limit).map(f => ({
+      id: f.id,
+      employeeId: String(f.employeeId).trim(),
+      name: f.name,
+      designation: f.designation,
+      department: f.department,
+      email: f.email || null
+    }));
+
+    res.json({ success: true, data: trimmed, total: list.length });
+  } catch (error) {
+    console.error('Search faculty directory error:', error);
+    res.status(500).json({ success: false, message: 'Failed to search Faculty Management directory.' });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 2. LIST PATENTS & STATS (Distinct Record Filtering & Summary Metrics)
+// ──────────────────────────────────────────────────────────────────────────────
+exports.getPatents = async (req, res) => {
+  try {
+    const filteredList = await fetchFilteredPatentsForRequest(req);
+    const metrics = computePatentMetrics(filteredList);
+
+    const { page, limit, offset, isExport } = parsePagination(req.query);
+    const paginatedRows = isExport ? filteredList : filteredList.slice(offset, offset + limit);
+
+    const response = formatPaginationResponse({
+      count: filteredList.length,
+      rows: paginatedRows,
+      page,
+      limit
     });
 
     res.json({
+      ...response,
+      rows: paginatedRows,
+      metrics
+    });
+  } catch (error) {
+    console.error('Get patents error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve patent records'
+    });
+  }
+};
+
+exports.getPatentStats = async (req, res) => {
+  try {
+    const filteredList = await fetchFilteredPatentsForRequest(req);
+    const metrics = computePatentMetrics(filteredList);
+    res.json({
       success: true,
-      data: {
-        total: allPatents.length,
-        filed: filedCount,
-        published: publishedCount,
-        granted: grantedCount,
-        commercialized: commercializedCount,
-        national: nationalCount,
-        international: internationalCount,
-        totalRevenue,
-        withProofCount,
-        missingProofCount,
-        departmentBreakdown,
-        publicationYearBreakdown,
-        yearBreakdown: publicationYearBreakdown
-      }
+      data: metrics
     });
   } catch (error) {
     console.error('Get patent stats error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to generate patent statistics',
-      error: error.message
+      message: error.message || 'Failed to generate patent statistics'
     });
   }
 };
 
-// @desc    Get single patent by ID with active Proofs
-// @route   GET /api/patents/:id
-// @access  Private
+// ──────────────────────────────────────────────────────────────────────────────
+// 3. GET SINGLE PATENT BY ID
+// ──────────────────────────────────────────────────────────────────────────────
 exports.getPatent = async (req, res) => {
   try {
     const patent = await Patent.findByPk(req.params.id, {
@@ -826,6 +962,11 @@ exports.getPatent = async (req, res) => {
           as: 'proofs',
           where: { isActive: true },
           required: false
+        },
+        {
+          model: PatentFaculty,
+          as: 'facultyAssociations',
+          required: false
         }
       ]
     });
@@ -837,7 +978,10 @@ exports.getPatent = async (req, res) => {
       });
     }
 
-    const access = checkPatentAccess(patent, req.user, 'view');
+    const { byId, byNormEmpKey } = await loadLiveFacultyMaps();
+    const enriched = enrichPatentRecord(patent, byId, byNormEmpKey);
+
+    const access = checkPatentAccess(enriched, req.user, 'view');
     if (!access.allowed) {
       return res.status(403).json({
         success: false,
@@ -847,7 +991,7 @@ exports.getPatent = async (req, res) => {
 
     res.json({
       success: true,
-      data: patent
+      data: enriched
     });
   } catch (error) {
     console.error('Get patent error:', error);
@@ -859,14 +1003,18 @@ exports.getPatent = async (req, res) => {
   }
 };
 
-// @desc    Create new patent record with optional Proof attachments or links
-// @route   POST /api/patents
-// @access  Private
+// ──────────────────────────────────────────────────────────────────────────────
+// 4. CREATE PATENT RECORD
+// ──────────────────────────────────────────────────────────────────────────────
 exports.createPatent = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const {
       title,
+      empIds,
+      empIdsRaw,
       inventors,
+      externalInventors,
       applicationNo,
       patentNo,
       status,
@@ -890,9 +1038,14 @@ exports.createPatent = async (req, res) => {
     // Validation for required fields
     const missing = [];
     if (!title || !String(title).trim()) missing.push('Patent Title');
-    if (!inventors || (Array.isArray(inventors) ? inventors.length === 0 : !String(inventors).trim())) missing.push('Inventor Name(s)');
+
+    const rawEmpInput = empIdsRaw !== undefined && empIdsRaw !== null
+      ? empIdsRaw
+      : empIds;
+    const parsedEmp = parseAndNormalizeEmpIds(rawEmpInput);
 
     if (missing.length > 0) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: `Validation Error: Missing required field(s): ${missing.join(', ')}.`,
@@ -900,40 +1053,80 @@ exports.createPatent = async (req, res) => {
       });
     }
 
+    // Resolve Faculty Associations against Faculty Management
+    const dateForSnapshot = filedDate || publishedDate || new Date();
+    const resolvedFaculty = await resolveFacultyAssociationsForEmpIds(
+      parsedEmp.empIds,
+      dateForSnapshot,
+      { Faculty }
+    );
+
+    // External inventors (name, institution)
+    let parsedExternalInventors = [];
+    if (Array.isArray(externalInventors)) {
+      parsedExternalInventors = externalInventors
+        .filter(ext => ext && (String(ext.name || '').trim() || String(ext.institution || '').trim()))
+        .map(ext => ({
+          name: String(ext.name || '').trim(),
+          institution: String(ext.institution || '').trim()
+        }));
+    }
+
+    // Assemble inventors string for backward compatibility
+    let rawInventorsText = '';
+    if (inventors && (Array.isArray(inventors) ? inventors.length > 0 : String(inventors).trim())) {
+      rawInventorsText = Array.isArray(inventors) ? inventors.join(', ') : String(inventors).trim();
+    } else {
+      const names = [
+        ...resolvedFaculty.associations.map(a => a.facultyName || a.employeeId),
+        ...parsedExternalInventors.map(e => e.name).filter(Boolean)
+      ];
+      rawInventorsText = names.length > 0 ? names.join(', ') : 'Not specified';
+    }
+
     // Validate Year of Grant
     const isGranted = (status || '').toLowerCase().includes('grant') || 
                       (status || '').toLowerCase().includes('commercial') || 
                       (status || '').toLowerCase().includes('licens');
 
-    // For granted patents, validate year/grantYear (fallback to academicYear if passed);
-    // For ungranted patents (Published, Filed, Under Examination), Year of Grant must be null
     const yearToValidate = isGranted 
       ? (year !== undefined && year !== null && String(year).trim() !== '' ? year : (grantYear || academicYear))
       : (year !== undefined && year !== null && String(year).trim() !== '' ? year : (grantYear || null));
 
     const yearValidation = validateYearAndStatus(status, grantedDate, yearToValidate);
     if (!yearValidation.valid) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: yearValidation.error
       });
     }
 
-    const rawInventors = Array.isArray(inventors) ? inventors.join(', ') : String(inventors);
-    const assignedDept = req.user?.role === 'admin' ? (department || 'General') : (req.user?.department || 'General');
+    // Primary department determination
+    let assignedDept = (department || '').trim();
+    if (!assignedDept) {
+      const firstValidAssoc = resolvedFaculty.associations.find(a => a.isValid && a.originalDepartment);
+      if (firstValidAssoc) {
+        assignedDept = firstValidAssoc.originalDepartment;
+      } else {
+        assignedDept = req.user?.role === 'admin' ? 'General' : (req.user?.department || 'General');
+      }
+    }
+
     const finalApproval = (['admin', 'coordinator', 'hod'].includes(req.user?.role) && approvalStatus)
       ? approvalStatus
       : (req.user?.role === 'admin' ? 'approved' : 'submitted');
 
     let creatorId = req.user?.id;
     if (!creatorId) {
-      const admin = await User.findOne({ where: { role: 'admin' } });
+      const admin = await User.findOne({ where: { role: 'admin' }, transaction });
       creatorId = admin ? admin.id : null;
     }
 
     // Validate Publication Date and derive Publication Year
     const pubDateValidation = parseAndValidatePublicationDate(publishedDate);
     if (!pubDateValidation.valid) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: pubDateValidation.error,
@@ -943,9 +1136,9 @@ exports.createPatent = async (req, res) => {
 
     const patent = await Patent.create({
       title: title.trim(),
-      inventors: rawInventors.trim(),
-      applicationNo: applicationNo ? applicationNo.trim() : null,
-      patentNo: patentNo ? patentNo.trim() : null,
+      inventors: rawInventorsText.trim(),
+      applicationNo: applicationNo ? String(applicationNo).trim() : null,
+      patentNo: patentNo ? String(patentNo).trim() : null,
       status: status || 'published',
       patentType: patentType || 'National (Indian)',
       department: assignedDept.trim(),
@@ -956,22 +1149,46 @@ exports.createPatent = async (req, res) => {
       publishedDate: pubDateValidation.isoDate,
       grantedDate: sanitizeDate(grantedDate),
       licenseDate: sanitizeDate(licenseDate),
-      partner: partner ? partner.trim() : null,
+      partner: partner ? String(partner).trim() : null,
       revenue: sanitizeAmount(revenue),
-      patentUrl: patentUrl ? patentUrl.trim() : null,
-      description: description ? description.trim() : null,
+      patentUrl: patentUrl ? String(patentUrl).trim() : null,
+      description: description ? String(description).trim() : null,
       approvalStatus: finalApproval,
-      createdBy: creatorId
-    });
+      createdBy: creatorId,
+      empIdsRaw: parsedEmp.empIdsRaw,
+      hasInvalidEmpIds: resolvedFaculty.hasInvalidEmpIds,
+      invalidEmpIds: resolvedFaculty.invalidEmpIds,
+      duplicateEmpIds: parsedEmp.duplicateEmpIds,
+      externalInventors: parsedExternalInventors
+    }, { transaction });
 
-    // Save any initial Proof Google Drive links provided during Single Entry
+    // Insert PatentFaculty association records
+    if (resolvedFaculty.associations.length > 0) {
+      await PatentFaculty.bulkCreate(
+        resolvedFaculty.associations.map(assoc => ({
+          patentId: patent.id,
+          facultyId: assoc.facultyId,
+          employeeId: assoc.employeeId,
+          normalizedEmployeeId: assoc.normalizedEmployeeId,
+          facultyName: assoc.facultyName,
+          designation: assoc.designation,
+          originalDepartment: assoc.originalDepartment,
+          originalDepartmentSource: assoc.originalDepartmentSource,
+          isValid: assoc.isValid,
+          displayOrder: assoc.displayOrder
+        })),
+        { transaction }
+      );
+    }
+
+    // Save initial Proof Google Drive links
     if (proofLinks) {
       const linkList = Array.isArray(proofLinks)
         ? proofLinks
         : String(proofLinks).split('\n');
 
       for (const rawUrl of linkList) {
-        const u = rawUrl.trim();
+        const u = String(rawUrl || '').trim();
         if (!u) continue;
         const validation = googleDriveService.validateDriveUrl(u);
         if (validation.valid) {
@@ -988,10 +1205,12 @@ exports.createPatent = async (req, res) => {
             accessStatus: verification.status,
             accessRemarks: verification.remarks,
             isActive: true
-          });
+          }, { transaction });
         }
       }
     }
+
+    await transaction.commit();
 
     await logActionSafe({
       recordId: patent.id,
@@ -1005,21 +1224,38 @@ exports.createPatent = async (req, res) => {
     });
 
     const reloaded = await Patent.findByPk(patent.id, {
-      include: [{
-        model: PatentProof,
-        as: 'proofs',
-        where: { isActive: true },
-        required: false
-      }]
+      include: [
+        {
+          model: PatentProof,
+          as: 'proofs',
+          where: { isActive: true },
+          required: false
+        },
+        {
+          model: PatentFaculty,
+          as: 'facultyAssociations',
+          required: false
+        }
+      ]
     });
+
+    const { byId, byNormEmpKey } = await loadLiveFacultyMaps();
+    const enriched = enrichPatentRecord(reloaded || patent, byId, byNormEmpKey);
+
+    const warnings = [];
+    if (pubDateValidation.warning) warnings.push(pubDateValidation.warning);
+    if (resolvedFaculty.hasInvalidEmpIds) {
+      warnings.push(`Unrecognized Employee ID(s): ${resolvedFaculty.invalidEmpIds.join(', ')}.`);
+    }
 
     res.status(201).json({
       success: true,
       message: 'Patent record created successfully',
-      warning: pubDateValidation.warning || undefined,
-      data: reloaded || patent
+      warning: warnings.length > 0 ? warnings.join('; ') : undefined,
+      data: enriched
     });
   } catch (error) {
+    if (transaction && !transaction.finished) await transaction.rollback();
     console.error('Create patent error:', error);
     res.status(500).json({
       success: false,
@@ -1029,21 +1265,31 @@ exports.createPatent = async (req, res) => {
   }
 };
 
-// @desc    Update patent record & handle folder relocation on Grant Year change
-// @route   PUT /api/patents/:id
-// @access  Private
+// ──────────────────────────────────────────────────────────────────────────────
+// 5. UPDATE PATENT RECORD
+// ──────────────────────────────────────────────────────────────────────────────
 exports.updatePatent = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const patent = await Patent.findByPk(req.params.id, {
-      include: [{
-        model: PatentProof,
-        as: 'proofs',
-        where: { isActive: true },
-        required: false
-      }]
+      include: [
+        {
+          model: PatentProof,
+          as: 'proofs',
+          where: { isActive: true },
+          required: false
+        },
+        {
+          model: PatentFaculty,
+          as: 'facultyAssociations',
+          required: false
+        }
+      ],
+      transaction
     });
 
     if (!patent) {
+      await transaction.rollback();
       return res.status(404).json({
         success: false,
         message: 'Patent not found'
@@ -1052,6 +1298,7 @@ exports.updatePatent = async (req, res) => {
 
     const access = checkPatentAccess(patent, req.user, 'manage');
     if (!access.allowed) {
+      await transaction.rollback();
       return res.status(403).json({
         success: false,
         message: access.message
@@ -1081,6 +1328,7 @@ exports.updatePatent = async (req, res) => {
 
     const yearValidation = validateYearAndStatus(targetStatus, targetGrantDate, targetYear);
     if (!yearValidation.valid) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: yearValidation.error
@@ -1092,6 +1340,7 @@ exports.updatePatent = async (req, res) => {
     if (req.body.publishedDate !== undefined) {
       const pubDateValidation = parseAndValidatePublicationDate(req.body.publishedDate);
       if (!pubDateValidation.valid) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: pubDateValidation.error,
@@ -1103,6 +1352,63 @@ exports.updatePatent = async (req, res) => {
       if (pubDateValidation.warning) {
         pubDateWarning = pubDateValidation.warning;
       }
+    }
+
+    // Check if faculty associations should be re-resolved
+    const shouldUpdateFaculty = req.body.empIds !== undefined || req.body.empIdsRaw !== undefined || req.body.externalInventors !== undefined || req.body.inventors !== undefined;
+    let resolvedFaculty = null;
+    let parsedEmp = null;
+    let parsedExternalInventors = patent.externalInventors || [];
+
+    if (shouldUpdateFaculty) {
+      const rawEmpInput = req.body.empIdsRaw !== undefined && req.body.empIdsRaw !== null
+        ? req.body.empIdsRaw
+        : (req.body.empIds !== undefined ? req.body.empIds : patent.empIdsRaw);
+      parsedEmp = parseAndNormalizeEmpIds(rawEmpInput);
+
+      const dateForSnapshot = req.body.filedDate || patent.publishedDate || patent.filedDate || new Date();
+      resolvedFaculty = await resolveFacultyAssociationsForEmpIds(
+        parsedEmp.empIds,
+        dateForSnapshot,
+        { Faculty }
+      );
+
+      if (req.body.externalInventors !== undefined) {
+        parsedExternalInventors = Array.isArray(req.body.externalInventors)
+          ? req.body.externalInventors
+              .filter(ext => ext && (String(ext.name || '').trim() || String(ext.institution || '').trim()))
+              .map(ext => ({
+                name: String(ext.name || '').trim(),
+                institution: String(ext.institution || '').trim()
+              }))
+          : [];
+      }
+
+      // Rebuild PatentFaculty rows
+      await PatentFaculty.destroy({ where: { patentId: patent.id }, transaction });
+      if (resolvedFaculty.associations.length > 0) {
+        await PatentFaculty.bulkCreate(
+          resolvedFaculty.associations.map(assoc => ({
+            patentId: patent.id,
+            facultyId: assoc.facultyId,
+            employeeId: assoc.employeeId,
+            normalizedEmployeeId: assoc.normalizedEmployeeId,
+            facultyName: assoc.facultyName,
+            designation: assoc.designation,
+            originalDepartment: assoc.originalDepartment,
+            originalDepartmentSource: assoc.originalDepartmentSource,
+            isValid: assoc.isValid,
+            displayOrder: assoc.displayOrder
+          })),
+          { transaction }
+        );
+      }
+
+      patent.empIdsRaw = parsedEmp.empIdsRaw;
+      patent.hasInvalidEmpIds = resolvedFaculty.hasInvalidEmpIds;
+      patent.invalidEmpIds = resolvedFaculty.invalidEmpIds;
+      patent.duplicateEmpIds = parsedEmp.duplicateEmpIds;
+      patent.externalInventors = parsedExternalInventors;
     }
 
     const allowedFields = [
@@ -1125,6 +1431,17 @@ exports.updatePatent = async (req, res) => {
       }
     });
 
+    // Reassemble inventors if needed
+    if (req.body.inventors === undefined && shouldUpdateFaculty && resolvedFaculty) {
+      const names = [
+        ...resolvedFaculty.associations.map(a => a.facultyName || a.employeeId),
+        ...parsedExternalInventors.map(e => e.name).filter(Boolean)
+      ];
+      if (names.length > 0) {
+        patent.inventors = names.join(', ');
+      }
+    }
+
     patent.grantYear = isTargetGranted ? yearValidation.grantYear : null;
     patent.academicYear = null;
 
@@ -1138,7 +1455,8 @@ exports.updatePatent = async (req, res) => {
       patent.department = req.body.department;
     }
 
-    await patent.save();
+    await patent.save({ transaction });
+    await transaction.commit();
 
     // Check if institutional Drive folder needs relocation due to status change to Granted or Grant Year correction
     if (
@@ -1167,13 +1485,32 @@ exports.updatePatent = async (req, res) => {
       remarks: `Updated patent: ${patent.title}`
     });
 
+    const reloaded = await Patent.findByPk(patent.id, {
+      include: [
+        {
+          model: PatentProof,
+          as: 'proofs',
+          where: { isActive: true },
+          required: false
+        },
+        {
+          model: PatentFaculty,
+          as: 'facultyAssociations',
+          required: false
+        }
+      ]
+    });
+    const { byId, byNormEmpKey } = await loadLiveFacultyMaps();
+    const enriched = enrichPatentRecord(reloaded || patent, byId, byNormEmpKey);
+
     res.json({
       success: true,
       message: 'Patent updated successfully',
       warning: pubDateWarning,
-      data: patent
+      data: enriched
     });
   } catch (error) {
+    if (transaction && !transaction.finished) await transaction.rollback();
     console.error('Update patent error:', error);
     res.status(500).json({
       success: false,
@@ -1183,9 +1520,6 @@ exports.updatePatent = async (req, res) => {
   }
 };
 
-// @desc    Delete patent & clean up managed Drive proofs
-// @route   DELETE /api/patents/:id
-// @access  Private
 exports.deletePatent = async (req, res) => {
   try {
     const patent = await Patent.findByPk(req.params.id, {
@@ -2020,6 +2354,232 @@ exports.clearAllPatents = async (req, res) => {
 };
 
 // Export validation helper for unit testing
+// ──────────────────────────────────────────────────────────────────────────────
+// 6. DOWNLOAD OFFICIAL 15-COLUMN PATENTS EXCEL TEMPLATE
+// ──────────────────────────────────────────────────────────────────────────────
+exports.downloadPatentTemplate = async (req, res) => {
+  try {
+    const buffer = generatePatentTemplateBuffer();
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="Patents_Bulk_Upload_Template.xlsx"'
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.send(buffer);
+  } catch (error) {
+    console.error('Download patent template error:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate patent spreadsheet template.' });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 7. PREVIEW BULK UPLOAD PATENTS (Row-by-Row Evaluation)
+// ──────────────────────────────────────────────────────────────────────────────
+exports.previewBulkUploadPatents = async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file provided. Please upload an Excel (.xlsx, .xls) or CSV file.'
+      });
+    }
+
+    const result = await evaluateBulkPatentRows(req.file.buffer, {
+      Patent,
+      Faculty,
+      PatentFaculty
+    });
+
+    if (!result.validColumns) {
+      return res.status(400).json({
+        success: false,
+        message: result.error,
+        missingColumns: result.missingColumns,
+        foundHeaders: result.foundHeaders
+      });
+    }
+
+    res.json({
+      success: true,
+      summary: result.summary,
+      rows: result.rows
+    });
+  } catch (error) {
+    console.error('Preview bulk upload patents error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to parse and preview patent spreadsheet' });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 8. IMPORT BULK UPLOAD PATENTS (Atomic Transaction & Duplicate Skip)
+// ──────────────────────────────────────────────────────────────────────────────
+exports.importBulkUploadPatents = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    if (!req.file || !req.file.buffer) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'No file provided. Please upload an Excel (.xlsx, .xls) or CSV file.'
+      });
+    }
+
+    const evaluation = await evaluateBulkPatentRows(req.file.buffer, {
+      Patent,
+      Faculty,
+      PatentFaculty
+    });
+
+    if (!evaluation.validColumns) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: evaluation.error,
+        missingColumns: evaluation.missingColumns
+      });
+    }
+
+    let creatorId = req.user?.id;
+    if (!creatorId) {
+      const admin = await User.findOne({ where: { role: 'admin' }, transaction });
+      creatorId = admin ? admin.id : null;
+    }
+
+    const defaultApproval = ['admin', 'coordinator', 'hod'].includes(req.user?.role) ? 'approved' : 'submitted';
+
+    const eligibleRows = evaluation.rows.filter(r => r.rowStatus === 'valid' || r.rowStatus === 'warning');
+    const skippedDuplicatesCount = evaluation.rows.filter(r => r.rowStatus === 'duplicate').length;
+    const rejectedErrorCount = evaluation.rows.filter(r => r.rowStatus === 'error').length;
+
+    let importedCount = 0;
+    let warningInvalidEmpIdCount = 0;
+    let missingPublicationDateCount = 0;
+
+    for (const r of eligibleRows) {
+      const d = r.data;
+      if (d.hasInvalidEmpIds) warningInvalidEmpIdCount++;
+      if (!d.publicationDate) missingPublicationDateCount++;
+
+      // Primary department determination
+      let primaryDept = 'General';
+      const firstValidAssoc = (d.facultyAssociations || []).find(a => a.isValid && a.originalDepartment);
+      if (firstValidAssoc) {
+        primaryDept = firstValidAssoc.originalDepartment;
+      } else if (req.user?.department && req.user.department !== 'All') {
+        primaryDept = req.user.department;
+      }
+
+      // Assemble inventors text for backward compatibility
+      const inventorsList = (d.facultyAssociations || []).map(a => a.facultyName || a.employeeId);
+      const inventorsStr = inventorsList.length > 0 ? inventorsList.join(', ') : 'Not specified';
+
+      const patent = await Patent.create({
+        title: d.title,
+        inventors: inventorsStr,
+        applicationNo: d.applicationNo,
+        patentNo: d.patentNo,
+        status: d.status,
+        patentType: d.patentType,
+        department: primaryDept,
+        grantYear: d.status === 'granted' && d.grantDate ? parseInt(d.grantDate.slice(0, 4), 10) : null,
+        academicYear: null,
+        publicationYear: d.publicationYear,
+        filedDate: d.filingDate,
+        publishedDate: d.publicationDate,
+        grantedDate: d.grantDate,
+        licenseDate: d.licenseDate,
+        partner: d.partner,
+        revenue: d.revenue,
+        patentUrl: d.patentUrl,
+        description: d.abstract,
+        approvalStatus: defaultApproval,
+        createdBy: creatorId,
+        empIdsRaw: d.empIdsRaw,
+        hasInvalidEmpIds: d.hasInvalidEmpIds,
+        invalidEmpIds: d.invalidEmpIds,
+        duplicateEmpIds: d.duplicateEmpIds,
+        externalInventors: []
+      }, { transaction });
+
+      // Create associations in junction table
+      if (d.facultyAssociations && d.facultyAssociations.length > 0) {
+        await PatentFaculty.bulkCreate(
+          d.facultyAssociations.map(assoc => ({
+            patentId: patent.id,
+            facultyId: assoc.facultyId,
+            employeeId: assoc.employeeId,
+            normalizedEmployeeId: assoc.normalizedEmployeeId,
+            facultyName: assoc.facultyName,
+            designation: assoc.designation,
+            originalDepartment: assoc.originalDepartment,
+            originalDepartmentSource: assoc.originalDepartmentSource,
+            isValid: assoc.isValid,
+            displayOrder: assoc.displayOrder
+          })),
+          { transaction }
+        );
+      }
+
+      // Attach proof if Google Drive link provided
+      if (d.proofUrl) {
+        const validation = googleDriveService.validateDriveUrl(d.proofUrl);
+        if (validation.valid) {
+          const verification = await googleDriveService.verifyDriveLinkAccess(d.proofUrl);
+          await PatentProof.create({
+            patentId: patent.id,
+            sourceType: 'drive_link',
+            driveFileId: validation.fileId,
+            driveUrl: d.proofUrl,
+            fileName: verification.fileName || `Google Drive Document (${validation.fileId.slice(0, 8)})`,
+            mimeType: verification.mimeType || 'application/vnd.google-apps.document',
+            fileSize: verification.fileSize || null,
+            uploadedBy: creatorId,
+            accessStatus: verification.status,
+            accessRemarks: verification.remarks,
+            isActive: true
+          }, { transaction });
+        }
+      }
+
+      importedCount++;
+    }
+
+    await transaction.commit();
+
+    await logActionSafe({
+      recordId: null,
+      title: 'Bulk Patent Import',
+      user: req.user,
+      action: 'BULK_IMPORT_PATENTS',
+      previousValue: null,
+      updatedValue: { importedCount, skippedDuplicatesCount, rejectedErrorCount },
+      ipAddress: req.ip || (req.socket && req.socket.remoteAddress) || null,
+      remarks: `Bulk imported ${importedCount} patent(s) from spreadsheet. Skipped ${skippedDuplicatesCount} duplicate(s).`
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully imported ${importedCount} patent record(s). Skipped ${skippedDuplicatesCount} duplicate(s).`,
+      summary: {
+        totalRows: evaluation.rows.length,
+        importedCount,
+        importedWithInvalidEmpIdsCount: warningInvalidEmpIdCount,
+        missingPublicationDateCount,
+        skippedDuplicatesCount,
+        rejectedErrorCount
+      },
+      rows: evaluation.rows
+    });
+  } catch (error) {
+    if (transaction && !transaction.finished) await transaction.rollback();
+    console.error('Import bulk upload patents error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to import patents from spreadsheet' });
+  }
+};
+
 exports.validateYearAndStatus = validateYearAndStatus;
 exports.parseAndValidatePublicationDate = parseAndValidatePublicationDate;
 exports.buildIsoDateIfValid = buildIsoDateIfValid;
