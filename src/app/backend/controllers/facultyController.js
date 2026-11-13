@@ -435,25 +435,148 @@ exports.getFacultyStats = async (req, res) => {
   }
 };
 
+/**
+ * Sanitizes and normalizes faculty data for database persistence (single create, edit, and bulk upload)
+ * Prevents PostgreSQL date parse errors ('Invalid date'), enum violations, and whitespace issues.
+ */
+const sanitizeFacultyRecord = (raw, isNew = true) => {
+  if (!raw) return null;
+  const record = { ...raw };
+
+  if (record.employeeId !== undefined) {
+    record.employeeId = String(record.employeeId || '').trim();
+  }
+  if (record.name !== undefined) {
+    record.name = String(record.name || '').trim();
+  }
+  if (record.designation !== undefined) {
+    record.designation = String(record.designation || '').trim();
+  }
+  if (record.department !== undefined) {
+    record.department = String(record.department || '').trim();
+  }
+  if (isNew && !record.academicYear) {
+    record.academicYear = '2024-2025';
+  } else if (record.academicYear !== undefined) {
+    record.academicYear = String(record.academicYear || '').trim() || '2024-2025';
+  }
+
+  // Date fields: dateOfBirth, dateOfJoining -> null if empty, invalid, or nil
+  ['dateOfBirth', 'dateOfJoining'].forEach(df => {
+    if (record[df] !== undefined) {
+      const val = record[df];
+      if (!val || String(val).toLowerCase() === 'nil' || String(val).toLowerCase() === 'n/a' || String(val).toLowerCase() === 'invalid date' || String(val).trim() === '') {
+        record[df] = null;
+      } else {
+        const d = new Date(val);
+        if (isNaN(d.getTime())) {
+          record[df] = null;
+        } else {
+          record[df] = d.toISOString().split('T')[0];
+        }
+      }
+    } else if (isNew) {
+      record[df] = null;
+    }
+  });
+
+  // ENUM gender: 'Male', 'Female', 'Other' (or null)
+  if (record.gender !== undefined) {
+    const rawG = String(record.gender || '').trim();
+    const normalized = rawG.charAt(0).toUpperCase() + rawG.slice(1).toLowerCase();
+    if (['Male', 'Female', 'Other'].includes(normalized)) {
+      record.gender = normalized;
+    } else {
+      record.gender = null;
+    }
+  } else if (isNew) {
+    record.gender = null;
+  }
+
+  // ENUM status: 'Active', 'On Sabbatical', 'Relieved'
+  if (record.status !== undefined) {
+    const s = String(record.status || '').trim();
+    const matchedStatus = ['Active', 'On Sabbatical', 'Relieved'].find(opt => opt.toLowerCase() === s.toLowerCase());
+    record.status = matchedStatus || 'Active';
+  } else if (isNew) {
+    record.status = 'Active';
+  }
+
+  // Nullable string fields
+  ['panCardNo', 'qualificationLevel', 'highestQualification', 'specialization', 'email', 'phone'].forEach(k => {
+    if (record[k] !== undefined) {
+      const val = String(record[k] || '').trim();
+      record[k] = val && val.toLowerCase() !== 'nil' && val.toLowerCase() !== 'n/a' ? val : null;
+    }
+  });
+
+  // Experience number strings
+  ['prevTeachingExpYears', 'prevTeachingExpMonths', 'prevIndustryExpYears', 'prevIndustryExpMonths', 'cuExpYears', 'cuExpMonths'].forEach(k => {
+    if (record[k] !== undefined) {
+      const val = String(record[k] || '').trim();
+      if (!val || isNaN(Number(val))) {
+        record[k] = '0';
+      } else {
+        record[k] = String(Number(val));
+      }
+    } else if (isNew) {
+      record[k] = '0';
+    }
+  });
+
+  if (isNew && (record.customFields === undefined || record.customFields === null || typeof record.customFields !== 'object')) {
+    record.customFields = {};
+  }
+
+  return record;
+};
+
 // @desc    Create faculty
 // @route   POST /api/faculty
 // @access  Private
 exports.createFaculty = async (req, res) => {
   try {
-    const maxSNoFaculty = await Faculty.findOne({
-      order: [['sNo', 'DESC']]
-    });
-    const nextSNo = maxSNoFaculty && maxSNoFaculty.sNo ? maxSNoFaculty.sNo + 1 : 1;
+    const rawBody = req.body || {};
+    const cleanEmpId = String(rawBody.employeeId || '').trim();
+    const cleanName = String(rawBody.name || '').trim();
+    const cleanDesignation = String(rawBody.designation || '').trim();
+    let cleanDept = String(rawBody.department || '').trim();
 
-    const record = {
-      ...req.body,
-      sNo: req.body.sNo || nextSNo,
-      academicYear: req.body.academicYear || '2024-2025'
-    };
+    if (!cleanEmpId) {
+      return res.status(400).json({ success: false, message: 'Employee ID is required.' });
+    }
+    if (!cleanName) {
+      return res.status(400).json({ success: false, message: 'Faculty Name is required.' });
+    }
+    if (!cleanDesignation) {
+      return res.status(400).json({ success: false, message: 'Designation is required.' });
+    }
 
     if (req.user && req.user.role !== 'admin' && req.user.department) {
-      record.department = req.user.department;
+      cleanDept = req.user.department;
     }
+    if (!cleanDept) {
+      return res.status(400).json({ success: false, message: 'Department is required.' });
+    }
+
+    const maxSNoFaculty = await Faculty.findOne({
+      where: { sNo: { [Op.ne]: null } },
+      order: [['sNo', 'DESC']]
+    });
+    const nextSNo = maxSNoFaculty && typeof maxSNoFaculty.sNo === 'number' && !isNaN(maxSNoFaculty.sNo)
+      ? maxSNoFaculty.sNo + 1
+      : 1;
+
+    const record = sanitizeFacultyRecord({
+      ...rawBody,
+      employeeId: cleanEmpId,
+      name: cleanName,
+      designation: cleanDesignation,
+      department: cleanDept,
+      sNo: rawBody.sNo || nextSNo,
+      academicYear: rawBody.academicYear || '2024-2025'
+    }, true);
+    delete record.id;
 
     const existing = await Faculty.findOne({
       where: {
@@ -467,6 +590,14 @@ exports.createFaculty = async (req, res) => {
         return res.status(403).json({ success: false, message: 'Not authorized to update faculty in another department.' });
       }
       await existing.update(record);
+      await logActionSafe({
+        user: req.user,
+        action: 'UPDATE',
+        entityType: 'Faculty',
+        entityId: existing.id,
+        title: `Updated faculty: ${existing.name}`,
+        remarks: `Updated existing profile for Employee ID ${existing.employeeId} in AY ${existing.academicYear}`
+      });
       return res.json({
         success: true,
         data: sanitizeFacultyData(existing, req.user)
@@ -474,6 +605,15 @@ exports.createFaculty = async (req, res) => {
     }
 
     const faculty = await Faculty.create(record);
+    await logActionSafe({
+      user: req.user,
+      action: 'CREATE',
+      entityType: 'Faculty',
+      entityId: faculty.id,
+      title: `Created faculty: ${faculty.name}`,
+      remarks: `Registered new faculty profile for Employee ID ${faculty.employeeId}`
+    });
+
     res.status(201).json({
       success: true,
       data: sanitizeFacultyData(faculty, req.user)
@@ -503,11 +643,14 @@ exports.bulkCreateFaculty = async (req, res) => {
     }
 
     const maxSNoFaculty = await Faculty.findOne({
+      where: { sNo: { [Op.ne]: null } },
       order: [['sNo', 'DESC']],
       transaction: t,
       lock: t.LOCK.UPDATE
     });
-    let nextSNo = maxSNoFaculty && maxSNoFaculty.sNo ? maxSNoFaculty.sNo + 1 : 1;
+    let nextSNo = maxSNoFaculty && typeof maxSNoFaculty.sNo === 'number' && !isNaN(maxSNoFaculty.sNo)
+      ? maxSNoFaculty.sNo + 1
+      : 1;
 
     const errors = [];
     const created = [];
@@ -517,58 +660,23 @@ exports.bulkCreateFaculty = async (req, res) => {
     // Step 1: Pre-process and sanitize records in memory
     for (let i = 0; i < facultyList.length; i++) {
       const raw = facultyList[i];
-      if (!raw || !raw.employeeId) {
+      if (!raw || !raw.employeeId || !String(raw.employeeId).trim()) {
         errors.push(`Row ${i + 1}: employeeId is required.`);
         continue;
       }
 
-      const record = { ...raw };
-      if (!record.academicYear) {
-        record.academicYear = '2024-2025';
-      }
-
-      if (!record.name || String(record.name).trim() === '') {
-        errors.push(`Row ${i + 1} (${record.employeeId}): name is required.`);
+      if (!raw.name || !String(raw.name).trim()) {
+        errors.push(`Row ${i + 1} (${raw.employeeId}): name is required.`);
         continue;
       }
+
+      const record = sanitizeFacultyRecord(raw, true);
 
       if (req.user && req.user.role !== 'admin' && req.user.department) {
         record.department = req.user.department;
       }
 
-      // Sanitize Date fields: dateOfBirth, dateOfJoining
-      ['dateOfBirth', 'dateOfJoining'].forEach(df => {
-        const val = record[df];
-        if (!val || String(val).toLowerCase() === 'nil' || String(val).toLowerCase() === 'n/a' || String(val).toLowerCase() === 'invalid date' || String(val).trim() === '') {
-          record[df] = null;
-        } else {
-          const d = new Date(val);
-          if (isNaN(d.getTime())) {
-            record[df] = null;
-          } else {
-            record[df] = d.toISOString().split('T')[0];
-          }
-        }
-      });
-
-      // Sanitize ENUM fields: gender, status
-      if (!record.gender || !['Male', 'Female', 'Other'].includes(String(record.gender).trim())) {
-        record.gender = 'Male';
-      }
-      if (!record.status || !['Active', 'On Sabbatical', 'Relieved'].includes(String(record.status).trim())) {
-        record.status = 'Active';
-      }
-
-      // Fallback string fields to 'NIL'
-      Object.keys(record).forEach(k => {
-        if (!['sNo', 'dateOfBirth', 'dateOfJoining'].includes(k)) {
-          if (record[k] === undefined || record[k] === null || record[k] === '' || record[k] === 'N/A' || String(record[k]).trim() === '') {
-            record[k] = 'NIL';
-          }
-        }
-      });
-
-      const empId = String(record.employeeId).trim();
+      const empId = record.employeeId;
       empIds.add(empId);
       validRows.push({ index: i, record });
     }
@@ -689,12 +797,23 @@ exports.updateFaculty = async (req, res) => {
       });
     }
 
-    const updateData = { ...req.body };
+    const sanitizedUpdate = sanitizeFacultyRecord(req.body, false);
+    delete sanitizedUpdate.id;
+
     if (req.user && req.user.role !== 'admin' && req.user.department) {
-      updateData.department = req.user.department;
+      sanitizedUpdate.department = req.user.department;
     }
 
-    await faculty.update(updateData);
+    await faculty.update(sanitizedUpdate);
+    await logActionSafe({
+      user: req.user,
+      action: 'UPDATE',
+      entityType: 'Faculty',
+      entityId: faculty.id,
+      title: `Updated faculty: ${faculty.name}`,
+      remarks: `Updated profile for Employee ID ${faculty.employeeId}`
+    });
+
     res.json({
       success: true,
       data: sanitizeFacultyData(faculty, req.user)
@@ -703,7 +822,7 @@ exports.updateFaculty = async (req, res) => {
     console.error('Update faculty error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: error.message || 'Server error'
     });
   }
 };
@@ -777,6 +896,7 @@ exports.clearAllFaculty = async (req, res) => {
 };
 
 // Export internal helper functions for automated testing & verification
+exports.sanitizeFacultyRecord = sanitizeFacultyRecord;
 exports.parseAcademicYearStart = parseAcademicYearStart;
 exports.normalizeEmployeeId = normalizeEmployeeId;
 exports.deduplicateFacultyRecords = deduplicateFacultyRecords;

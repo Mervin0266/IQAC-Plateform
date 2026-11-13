@@ -494,32 +494,47 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     e.preventDefault();
     try {
       if (user?.token) {
+        const payload = {
+          ...formData,
+          employeeId: formData.employeeId ? formData.employeeId.trim() : '',
+          name: formData.name ? formData.name.trim() : '',
+          department: formData.department ? formData.department.trim() : '',
+          designation: formData.designation ? formData.designation.trim() : '',
+          academicYear: formData.academicYear || '2024-2025',
+          dateOfBirth: formData.dateOfBirth ? formData.dateOfBirth : undefined,
+          dateOfJoining: formData.dateOfJoining ? formData.dateOfJoining : undefined,
+          gender: formData.gender || undefined,
+          highestQualification: formData.highestQualification ? formData.highestQualification.trim() : undefined,
+          panCardNo: formData.panCardNo ? formData.panCardNo.trim() : undefined
+        };
+
         const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${user.token}`
           },
-          body: JSON.stringify(formData)
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if (data.success && data.data) {
-          setFacultyList([data.data, ...facultyList]);
+        if (res.ok && data.success && data.data) {
+          setIsAddModalOpen(false);
+          resetForm();
+          if (academicYearFilter !== 'All' && academicYearFilter !== (data.data.academicYear || formData.academicYear)) {
+            setAcademicYearFilter('All');
+          }
+          await fetchFaculty(1);
+          return;
         } else {
-          const newFaculty: Faculty = { ...formData, id: `FAC00${Date.now()}` };
-          setFacultyList([newFaculty, ...facultyList]);
+          alert(data.message || 'Failed to register faculty member in database.');
+          return;
         }
-      } else {
-        const newFaculty: Faculty = { ...formData, id: `FAC00${Date.now()}` };
-        setFacultyList([newFaculty, ...facultyList]);
       }
-    } catch (err) {
-      console.error(err);
-      const newFaculty: Faculty = { ...formData, id: `FAC00${Date.now()}` };
-      setFacultyList([newFaculty, ...facultyList]);
+    } catch (err: any) {
+      console.error('Error adding faculty:', err);
+      alert(err.message || 'An error occurred while saving faculty profile.');
+      return;
     }
-    setIsAddModalOpen(false);
-    resetForm();
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -527,36 +542,63 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     if (!editingFaculty) return;
     try {
       if (user?.token && editingFaculty.id && !editingFaculty.id.startsWith('FAC')) {
-        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty/${editingFaculty.id}`, {
+        const payload = {
+          ...editingFaculty,
+          employeeId: editingFaculty.employeeId ? editingFaculty.employeeId.trim() : '',
+          name: editingFaculty.name ? editingFaculty.name.trim() : '',
+          department: editingFaculty.department ? editingFaculty.department.trim() : '',
+          designation: editingFaculty.designation ? editingFaculty.designation.trim() : '',
+          academicYear: editingFaculty.academicYear || '2024-2025',
+          dateOfBirth: editingFaculty.dateOfBirth ? editingFaculty.dateOfBirth : undefined,
+          dateOfJoining: editingFaculty.dateOfJoining ? editingFaculty.dateOfJoining : undefined,
+          gender: editingFaculty.gender || undefined,
+          highestQualification: editingFaculty.highestQualification ? editingFaculty.highestQualification.trim() : undefined,
+          panCardNo: editingFaculty.panCardNo ? editingFaculty.panCardNo.trim() : undefined
+        };
+
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty/${editingFaculty.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${user.token}`
           },
-          body: JSON.stringify(editingFaculty)
+          body: JSON.stringify(payload)
         });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setEditingFaculty(null);
+          await fetchFaculty(currentPage);
+          return;
+        } else {
+          alert(data.message || 'Failed to update faculty profile.');
+          return;
+        }
       }
-      setFacultyList(facultyList.map(f => f.id === editingFaculty.id ? { ...editingFaculty } : f));
-    } catch (err) {
-      console.error(err);
-      setFacultyList(facultyList.map(f => f.id === editingFaculty.id ? { ...editingFaculty } : f));
+      setEditingFaculty(null);
+    } catch (err: any) {
+      console.error('Error updating faculty:', err);
+      alert(err.message || 'An error occurred while updating faculty profile.');
     }
-    setEditingFaculty(null);
   };
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to remove this faculty record?')) {
       try {
         if (user?.token && !id.startsWith('FAC')) {
-          await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty/${id}`, {
+          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/faculty/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${user.token}` }
           });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            alert(data.message || 'Failed to delete faculty record.');
+            return;
+          }
         }
-        setFacultyList(facultyList.filter(f => f.id !== id));
-      } catch (err) {
-        console.error(err);
-        setFacultyList(facultyList.filter(f => f.id !== id));
+        await fetchFaculty(currentPage);
+      } catch (err: any) {
+        console.error('Error deleting faculty:', err);
+        alert(err.message || 'An error occurred while deleting faculty record.');
       }
     }
   };
@@ -1625,9 +1667,9 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
               value={formData.academicYear || '2024-2025'} 
               onChange={e => setFormData({ ...formData, academicYear: e.target.value })} 
             >
-              <option value="2025-2026">2025-2026</option>
-              <option value="2024-2025">2024-2025</option>
-              <option value="2023-2024">2023-2024</option>
+              {availableAcademicYears.map(ay => (
+                <option key={ay} value={ay}>{ay}</option>
+              ))}
             </FormSelect>
           </FormField>
           <FormField label="Highest Qualification">
@@ -1635,6 +1677,24 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
               value={formData.highestQualification || ''} 
               onChange={e => setFormData({ ...formData, highestQualification: e.target.value })} 
               placeholder="e.g. Ph.D. in Computer Science"
+            />
+          </FormField>
+          <FormField label="Gender">
+            <FormSelect
+              value={formData.gender || ''}
+              onChange={e => setFormData({ ...formData, gender: (e.target.value as any) || undefined })}
+            >
+              <option value="">Select Gender (Optional)</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </FormSelect>
+          </FormField>
+          <FormField label="Date of Joining">
+            <FormInput
+              type="date"
+              value={formData.dateOfJoining || ''}
+              onChange={e => setFormData({ ...formData, dateOfJoining: e.target.value })}
             />
           </FormField>
         </div>
@@ -1682,10 +1742,38 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                 {departmentsList.map((d, i) => <option key={i} value={d}>{d}</option>)}
               </FormSelect>
             </FormField>
+            <FormField label="Academic Year" required>
+              <FormSelect 
+                value={editingFaculty.academicYear || '2024-2025'} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, academicYear: e.target.value })} 
+              >
+                {availableAcademicYears.map(ay => (
+                  <option key={ay} value={ay}>{ay}</option>
+                ))}
+              </FormSelect>
+            </FormField>
             <FormField label="Highest Qualification">
               <FormInput 
                 value={editingFaculty.highestQualification || ''} 
                 onChange={e => setEditingFaculty({ ...editingFaculty, highestQualification: e.target.value })} 
+              />
+            </FormField>
+            <FormField label="Gender">
+              <FormSelect
+                value={editingFaculty.gender || ''}
+                onChange={e => setEditingFaculty({ ...editingFaculty, gender: (e.target.value as any) || undefined })}
+              >
+                <option value="">Select Gender (Optional)</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </FormSelect>
+            </FormField>
+            <FormField label="Date of Joining">
+              <FormInput
+                type="date"
+                value={editingFaculty.dateOfJoining || ''}
+                onChange={e => setEditingFaculty({ ...editingFaculty, dateOfJoining: e.target.value })}
               />
             </FormField>
             <FormField label="Experience in CU (Years)">
