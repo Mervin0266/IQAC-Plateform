@@ -224,7 +224,6 @@ const PATENTS_HEADERS = [
   'Status',
   'Patent Type',
   'Department',
-  'Year',
   'Filing Date',
   'Publication Date',
   'Grant Date',
@@ -592,8 +591,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isPatent) {
       csvContent =
         PATENTS_HEADERS.join(',') + '\n' +
-        `"AI-Driven Smart Grid Energy Optimization & Load Forecasting","Dr. Rajesh Kumar, Dr. Priya Sharma","202441012345","IN-PAT-456789","Granted","National (Indian)","Computer Science and Engineering",2024,"2023-08-15","2024-02-10","2024-11-20","2025-01-15","Schneider Electric India",1500000,"https://ipindiaonline.gov.in/patentsearch","https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view","Novel AI algorithm minimizing line loss in microgrids."\n` +
-        `"Biodegradable Chitosan-Silica Nanocomposite Membrane for Effluent Treatment","Dr. Suresh Menon, Dr. Anita Rao","PCT/IN2023/050123","","Published","International (PCT)","Civil Engineering","","2023-11-05","2024-05-12","","","",0,"https://patentscope.wipo.int","","Eco-friendly membrane technology for industrial dye and heavy metal removal."`;
+        `"AI-Driven Smart Grid Energy Optimization & Load Forecasting","Dr. Rajesh Kumar, Dr. Priya Sharma","202441012345","IN-PAT-456789","Granted","National (Indian)","Computer Science and Engineering","2023-08-15","2024-02-10","2024-11-20","2025-01-15","Schneider Electric India",1500000,"https://ipindiaonline.gov.in/patentsearch","https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view","Novel AI algorithm minimizing line loss in microgrids."\n` +
+        `"Biodegradable Chitosan-Silica Nanocomposite Membrane for Effluent Treatment","Dr. Suresh Menon, Dr. Anita Rao","PCT/IN2023/050123","","Published","International (PCT)","Civil Engineering","2023-11-05","2024-05-12","","","",0,"https://patentscope.wipo.int","","Eco-friendly membrane technology for industrial dye and heavy metal removal."`;
       fileName = 'patents_bulk_template.csv';
     } else if (isConsultancy) {
       csvContent =
@@ -679,8 +678,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isPatent) {
       headers = PATENTS_HEADERS;
       sampleRows = [
-        ['AI-Driven Smart Grid Energy Optimization & Load Forecasting', 'Dr. Rajesh Kumar, Dr. Priya Sharma', '202441012345', 'IN-PAT-456789', 'Granted', 'National (Indian)', 'Computer Science and Engineering', 2024, '2023-08-15', '2024-02-10', '2024-11-20', '2025-01-15', 'Schneider Electric India', 1500000, 'https://ipindiaonline.gov.in/patentsearch', 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view', 'Novel AI algorithm minimizing line loss in microgrids.'],
-        ['Biodegradable Chitosan-Silica Nanocomposite Membrane for Effluent Treatment', 'Dr. Suresh Menon, Dr. Anita Rao', 'PCT/IN2023/050123', '', 'Published', 'International (PCT)', 'Civil Engineering', '', '2023-11-05', '2024-05-12', '', '', '', 0, 'https://patentscope.wipo.int', '', 'Eco-friendly membrane technology for industrial dye and heavy metal removal.']
+        ['AI-Driven Smart Grid Energy Optimization & Load Forecasting', 'Dr. Rajesh Kumar, Dr. Priya Sharma', '202441012345', 'IN-PAT-456789', 'Granted', 'National (Indian)', 'Computer Science and Engineering', '2023-08-15', '2024-02-10', '2024-11-20', '2025-01-15', 'Schneider Electric India', 1500000, 'https://ipindiaonline.gov.in/patentsearch', 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view', 'Novel AI algorithm minimizing line loss in microgrids.'],
+        ['Biodegradable Chitosan-Silica Nanocomposite Membrane for Effluent Treatment', 'Dr. Suresh Menon, Dr. Anita Rao', 'PCT/IN2023/050123', '', 'Published', 'International (PCT)', 'Civil Engineering', '2023-11-05', '2024-05-12', '', '', '', 0, 'https://patentscope.wipo.int', '', 'Eco-friendly membrane technology for industrial dye and heavy metal removal.']
       ];
       fileName = 'patents_bulk_template.xlsx';
     } else if (isConsultancy) {
@@ -2057,20 +2056,20 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     // Enrich preview records with common batch metadata selected in the upload dialog
     const dataWithCommonFields = previewData.map(record => {
       const item: Record<string, any> = {
-        academicYear: selectedAcademicYear,
+        ...(isPatent ? {} : { academicYear: selectedAcademicYear }),
         campus: selectedCampus,
         school: selectedSchool,
         ...record,
-        ...(record.academicYear ? {} : { academicYear: selectedAcademicYear }),
+        ...(isPatent || record.academicYear ? {} : { academicYear: selectedAcademicYear }),
         ...(record.campus ? {} : { campus: selectedCampus }),
         ...(record.school ? {} : { school: selectedSchool }),
         ...(isConsultancy || isPublication || isPatent || isSponsored ? { department: record.department || selectedDepartment } : {})
       };
 
       if (isPatent) {
+        delete item.academicYear;
         if (record.grantYear || record.year) {
           item.grantYear = record.grantYear || record.year;
-          item.year = record.grantYear || record.year;
         }
         if (record.proof || record.proofUrls) {
           item.proof = record.proof || record.proofUrls;
@@ -2126,7 +2125,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             defaultIndexing: selectedPublicationIndexing
           }
         : isPatent
-          ? { items: dataWithCommonFields, defaultDepartment: selectedDepartment, defaultYear: selectedAcademicYear }
+          ? { items: dataWithCommonFields, defaultDepartment: selectedDepartment }
           : isSponsored
             ? { items: dataWithCommonFields, defaultDepartment: selectedDepartment, defaultYear: selectedAcademicYear }
             : isConsultancy
@@ -2392,7 +2391,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                 </p>
               ) : isPatent ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
-                  Title**, Inventors**, Application No, Patent No, Status, Patent Type, Department, Academic Year, Filing Date, Publication Date, Grant Date, License Date, Commercial Partner, Revenue Generated (INR), Patent URL, Abstract
+                  Title**, Inventors**, Application No, Patent No, Status, Patent Type, Department, Filing Date, Publication Date (Publication Year auto-derived), Grant Date, License Date, Commercial Partner, Revenue Generated (INR), Patent URL, Proof, Abstract
                 </p>
               ) : isPublication ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
@@ -2725,30 +2724,32 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year <span className="text-red-500">*</span></label>
-                    <select
-                      value={selectedAcademicYear}
-                      onChange={(e) => {
-                        const newAy = e.target.value;
-                        setSelectedAcademicYear(newAy);
-                        if (isPlacement && previewData.length > 0) {
-                          verifyPlacementsBatch(previewData, { ay: newAy });
-                        }
-                      }}
-                      className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 font-medium focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="2020-2021">2020-2021</option>
-                      <option value="2021-2022">2021-2022</option>
-                      <option value="2022-2023">2022-2023</option>
-                      <option value="2023-2024">2023-2024</option>
-                      <option value="2024-2025">2024-2025</option>
-                      <option value="2025-2026">2025-2026</option>
-                      <option value="2026-2027">2026-2027</option>
-                      <option value="2027-2028">2027-2028</option>
-                    </select>
-                  </div>
+                <div className={`grid grid-cols-1 ${isPatent ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3`}>
+                  {!isPatent && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year <span className="text-red-500">*</span></label>
+                      <select
+                        value={selectedAcademicYear}
+                        onChange={(e) => {
+                          const newAy = e.target.value;
+                          setSelectedAcademicYear(newAy);
+                          if (isPlacement && previewData.length > 0) {
+                            verifyPlacementsBatch(previewData, { ay: newAy });
+                          }
+                        }}
+                        className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 font-medium focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="2020-2021">2020-2021</option>
+                        <option value="2021-2022">2021-2022</option>
+                        <option value="2022-2023">2022-2023</option>
+                        <option value="2023-2024">2023-2024</option>
+                        <option value="2024-2025">2024-2025</option>
+                        <option value="2025-2026">2025-2026</option>
+                        <option value="2026-2027">2026-2027</option>
+                        <option value="2027-2028">2027-2028</option>
+                      </select>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Campus <span className="text-red-500">*</span></label>
@@ -3261,7 +3262,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                           <th className="py-2 px-3 whitespace-nowrap">Status</th>
                           <th className="py-2 px-3 whitespace-nowrap">Type</th>
                           <th className="py-2 px-3 whitespace-nowrap">Department</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Year</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Publication Year</th>
                           <th className="py-2 px-3 whitespace-nowrap">Proof</th>
                         </tr>
                       </thead>
@@ -3280,7 +3281,11 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                             </td>
                             <td className="py-2 px-3">{row.patentType || 'National (Indian)'}</td>
                             <td className="py-2 px-3 truncate max-w-[120px]" title={row.department}>{row.department || '-'}</td>
-                            <td className="py-2 px-3 font-mono">{row.grantYear || row.year || '-'}</td>
+                            <td className="py-2 px-3 font-mono">
+                              {row.publicationYear || (row.publishedDate ? String(row.publishedDate).slice(0, 4) : null) || (
+                                <span className="text-[10px] text-amber-600 italic">Not available</span>
+                              )}
+                            </td>
                             <td className="py-2 px-3">
                               {row.proof || row.proofUrls ? (
                                 <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-medium border border-blue-200 truncate max-w-[100px]" title={row.proof || row.proofUrls}>
@@ -3502,10 +3507,10 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   </div>
                   <div className="p-3 bg-white rounded-xl border border-slate-200">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      {isPublication ? 'Department & Scope' : 'Academic Year'}
+                      {isPublication ? 'Department & Scope' : isPatent ? 'Publication Year' : 'Academic Year'}
                     </span>
                     <span className="font-bold text-[#2F4692] mt-0.5 block">
-                      {isPublication ? 'Derived from Verified Faculty Profiles' : selectedAcademicYear}
+                      {isPublication ? 'Derived from Verified Faculty Profiles' : isPatent ? 'Auto-derived from Publication Date' : selectedAcademicYear}
                     </span>
                   </div>
                 </div>

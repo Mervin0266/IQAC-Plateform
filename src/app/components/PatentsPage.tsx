@@ -44,7 +44,8 @@ export interface PatentItem {
   status: string; // 'filed' | 'published' | 'granted' | 'commercialized' | 'under_examination'
   patentType: string;
   department?: string;
-  academicYear?: string;
+  publicationYear?: number | null;
+  academicYear?: string | null;
   grantYear?: number | null;
   filedDate?: string | null;
   publishedDate?: string | null;
@@ -107,7 +108,7 @@ interface FormState {
   patentType: string;
   department: string;
   grantYear: string;
-  academicYear: string;
+  publicationYear?: number | null;
   filedDate: string;
   publishedDate: string;
   grantedDate: string;
@@ -129,7 +130,7 @@ const EMPTY_FORM: FormState = {
   patentType: 'National (Indian)',
   department: '',
   grantYear: '',
-  academicYear: '2024-2025',
+  publicationYear: null,
   filedDate: '',
   publishedDate: '',
   grantedDate: '',
@@ -219,15 +220,22 @@ export function PatentsPage({
     return Array.from(set).sort();
   }, [dbDepts]);
 
-  // Calendar Years for filter and selection
-  const calendarYears = useMemo(() => {
+  // Publication Years for filter and selection
+  const publicationYears = useMemo(() => {
+    const yearSet = new Set<number>();
+    patents.forEach(p => {
+      if (p.publicationYear) yearSet.add(p.publicationYear);
+      else if (p.publishedDate) {
+        const yr = parseInt(p.publishedDate.slice(0, 4), 10);
+        if (!isNaN(yr)) yearSet.add(yr);
+      }
+    });
     const current = new Date().getFullYear();
-    const list: number[] = [];
-    for (let y = current + 1; y >= current - 15; y--) {
-      list.push(y);
+    for (let y = current + 1; y >= current - 10; y--) {
+      yearSet.add(y);
     }
-    return list;
-  }, []);
+    return Array.from(yearSet).sort((a, b) => b - a);
+  }, [patents]);
 
   // Fetch patents from API
   const fetchPatents = useCallback(async () => {
@@ -242,11 +250,11 @@ export function PatentsPage({
       if (selectedDept !== 'all') params.append('department', selectedDept);
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
 
-      // Year filter handling
-      if (selectedYear === 'pending') {
-        params.append('year', 'pending');
+      // Publication Year filter handling
+      if (selectedYear === 'missing') {
+        params.append('publicationYear', 'missing');
       } else if (selectedYear !== 'all') {
-        params.append('year', selectedYear);
+        params.append('publicationYear', selectedYear);
       }
 
       // Proof filter handling
@@ -348,7 +356,7 @@ export function PatentsPage({
       patentType: patent.patentType || 'National (Indian)',
       department: patent.department || '',
       grantYear: patent.grantYear ? String(patent.grantYear) : '',
-      academicYear: patent.academicYear || '2024-2025',
+      publicationYear: patent.publicationYear || (patent.publishedDate ? parseInt(patent.publishedDate.slice(0, 4), 10) : null),
       filedDate: patent.filedDate ? patent.filedDate.split('T')[0] : '',
       publishedDate: patent.publishedDate ? patent.publishedDate.split('T')[0] : '',
       grantedDate: patent.grantedDate ? patent.grantedDate.split('T')[0] : '',
@@ -423,7 +431,6 @@ export function PatentsPage({
         patentType: formData.patentType,
         department: formData.department,
         grantYear: isGranted ? parsedGrantYear : null,
-        academicYear: isGranted && parsedGrantYear ? `${parsedGrantYear - 1}-${parsedGrantYear}` : (formData.academicYear || '2024-2025'),
         filedDate: formData.filedDate || null,
         publishedDate: formData.publishedDate || null,
         grantedDate: formData.grantedDate || null,
@@ -725,7 +732,7 @@ export function PatentsPage({
       'Status',
       'Patent Type',
       'Department',
-      'Year',
+      'Publication Year',
       'Filing Date',
       'Publication Date',
       'Grant Date',
@@ -741,6 +748,8 @@ export function PatentsPage({
         .filter(Boolean)
         .join(' ; ');
 
+      const pubYear = p.publicationYear ? String(p.publicationYear) : (p.publishedDate ? p.publishedDate.slice(0, 4) : 'Not available');
+
       return [
         p.title,
         p.inventors,
@@ -749,7 +758,7 @@ export function PatentsPage({
         p.status,
         p.patentType,
         p.department || '',
-        p.grantYear ? String(p.grantYear) : (p.status === 'granted' ? (p.academicYear || '') : 'Pending Grant'),
+        pubYear,
         p.filedDate || '',
         p.publishedDate || '',
         p.grantedDate || '',
@@ -998,16 +1007,16 @@ export function PatentsPage({
               </Select>
             </div>
 
-            {/* Year Filter (Calendar Year / Pending Grant) */}
-            <div className="w-36">
+            {/* Publication Year Filter */}
+            <div className="w-40">
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                  <SelectValue placeholder="Year" />
+                  <SelectValue placeholder="Publication Year" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
-                  <SelectItem value="all">All Years</SelectItem>
-                  <SelectItem value="pending">Pending Grant</SelectItem>
-                  {calendarYears.map(yr => (
+                  <SelectItem value="all">All Publication Years</SelectItem>
+                  <SelectItem value="missing">Missing / Not Available</SelectItem>
+                  {publicationYears.map(yr => (
                     <SelectItem key={yr} value={String(yr)}>{yr}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1134,7 +1143,7 @@ export function PatentsPage({
                   <th className="p-3 min-w-[130px]">Type / Jurisdiction</th>
                   <th className="p-3 min-w-[140px]">App / Patent No.</th>
                   <th className="p-3 min-w-[140px]">Department</th>
-                  <th className="p-3 text-center min-w-[80px]">Year</th>
+                  <th className="p-3 text-center min-w-[120px]">Publication Year</th>
                   <th className="p-3 text-center min-w-[110px]">Proof</th>
                   <th className="p-3 min-w-[110px]">Filing / Grant Date</th>
                   <th className="p-3 text-right pr-4 min-w-[100px]">Actions</th>
@@ -1201,18 +1210,16 @@ export function PatentsPage({
                       <span className="line-clamp-2 text-[11px] font-medium">{patent.department || 'General'}</span>
                     </td>
 
-                    {/* Year */}
-                    <td className="p-3 text-center">
-                      {patent.grantYear ? (
+                    {/* Publication Year */}
+                    <td className="p-3 text-center font-mono">
+                      {patent.publicationYear ? (
                         <Badge variant="secondary" className="text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-                          {patent.grantYear}
-                        </Badge>
-                      ) : patent.status.toLowerCase() === 'granted' && patent.academicYear ? (
-                        <Badge variant="secondary" className="text-[10px] font-medium bg-gray-100 text-gray-700">
-                          {patent.academicYear}
+                          {patent.publicationYear}
                         </Badge>
                       ) : (
-                        <span className="text-[10px] text-gray-400 italic">Pending</span>
+                        <span className="text-[11px] text-slate-400 font-medium" title="Publication Date not provided">
+                          —
+                        </span>
                       )}
                     </td>
 
@@ -1299,12 +1306,12 @@ export function PatentsPage({
                       <Badge variant="outline" className="text-[10px]">
                         {patent.patentType}
                       </Badge>
-                      {patent.grantYear ? (
+                      {patent.publicationYear ? (
                         <Badge variant="secondary" className="text-[10px] font-semibold bg-blue-50 text-blue-800">
-                          Year: {patent.grantYear}
+                          Pub Year: {patent.publicationYear}
                         </Badge>
                       ) : (
-                        <span className="text-[10px] text-gray-400 italic">Pending Grant</span>
+                        <span className="text-[10px] text-gray-400 italic">Pub Year: —</span>
                       )}
                       {renderProofBadge(patent)}
                     </div>
@@ -1563,7 +1570,7 @@ export function PatentsPage({
                 <span>Section C — Timeline & Critical Dates</span>
               </h4>
 
-              <div className={`grid grid-cols-1 ${isGrantedForm ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-3`}>
+              <div className={`grid grid-cols-1 ${isGrantedForm ? 'sm:grid-cols-2 lg:grid-cols-5' : 'sm:grid-cols-2 lg:grid-cols-4'} gap-3`}>
                 <div className="space-y-1.5">
                   <Label className="font-semibold text-gray-700">Filing Date</Label>
                   <Input
@@ -1582,6 +1589,22 @@ export function PatentsPage({
                     onChange={(e) => setFormData({ ...formData, publishedDate: e.target.value })}
                     className="h-9 text-xs border-gray-200 bg-white"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-semibold text-gray-700">Publication Year</Label>
+                    <span className="text-[10px] text-gray-400 font-normal">Auto-derived</span>
+                  </div>
+                  <div className="h-9 px-3 flex items-center bg-gray-50 border border-gray-200 rounded-md text-xs font-mono text-gray-700 select-none">
+                    {formData.publishedDate ? (
+                      <span className="font-semibold text-blue-800">
+                        {formData.publishedDate.slice(0, 4)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 italic">Not available</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -1845,12 +1868,12 @@ export function PatentsPage({
                   <Badge variant="outline" className="text-[10px]">
                     {proofViewerPatent.patentType}
                   </Badge>
-                  {proofViewerPatent.grantYear ? (
+                  {proofViewerPatent.publicationYear || (proofViewerPatent.publishedDate ? proofViewerPatent.publishedDate.slice(0, 4) : null) ? (
                     <Badge variant="secondary" className="text-[10px] font-semibold bg-blue-50 text-blue-800">
-                      Year: {proofViewerPatent.grantYear}
+                      Pub Year: {proofViewerPatent.publicationYear || proofViewerPatent.publishedDate?.slice(0, 4)}
                     </Badge>
                   ) : (
-                    <span className="text-[10px] text-gray-400 italic">Pending Grant</span>
+                    <span className="text-[10px] text-gray-400 italic">Pub Year: Not available</span>
                   )}
                 </div>
                 <DialogTitle className="text-base font-bold text-gray-900 leading-snug">
@@ -2053,10 +2076,19 @@ export function PatentsPage({
                   </Badge>
                   {viewingPatent.grantYear ? (
                     <Badge variant="secondary" className="text-[10px] font-semibold bg-blue-50 text-blue-800">
-                      Year: {viewingPatent.grantYear}
+                      Grant Year: {viewingPatent.grantYear}
                     </Badge>
                   ) : (
                     <span className="text-[10px] text-gray-400 italic">Pending Grant</span>
+                  )}
+                  {viewingPatent.publicationYear ? (
+                    <Badge variant="secondary" className="text-[10px] font-semibold bg-amber-50 text-amber-800">
+                      Pub Year: {viewingPatent.publicationYear}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] text-gray-400">
+                      Pub Year: Not available
+                    </Badge>
                   )}
                   {viewingPatent.department && (
                     <Badge variant="outline" className="text-[10px]">
@@ -2086,18 +2118,26 @@ export function PatentsPage({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 border-t border-gray-100 pt-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-gray-100 pt-3">
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Filing Date</span>
-                    <p className="font-medium text-gray-800 mt-0.5">{viewingPatent.filedDate || '-'}</p>
+                    <p className="font-medium text-gray-800 mt-0.5">{viewingPatent.filedDate || '—'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Publication Date</span>
-                    <p className="font-medium text-gray-800 mt-0.5">{viewingPatent.publishedDate || '-'}</p>
+                    <p className="font-medium text-gray-800 mt-0.5">{viewingPatent.publishedDate || 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#2855B9] uppercase tracking-wider block">Publication Year</span>
+                    <p className="font-semibold text-gray-900 mt-0.5">
+                      {viewingPatent.publicationYear || (viewingPatent.publishedDate ? viewingPatent.publishedDate.slice(0, 4) : null) || (
+                        <span className="text-gray-400 font-normal italic">Not available</span>
+                      )}
+                    </p>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Grant Date</span>
-                    <p className="font-medium text-green-800 font-semibold mt-0.5">{viewingPatent.grantedDate || '-'}</p>
+                    <p className="font-medium text-green-800 font-semibold mt-0.5">{viewingPatent.grantedDate || '—'}</p>
                   </div>
                 </div>
 

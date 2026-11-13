@@ -13,6 +13,326 @@ const { parsePagination, formatPaginationResponse } = require('../utils/paginati
 const googleDriveService = require('../services/googleDriveService');
 
 /**
+ * Validates calendar year / month / day bounds strictly in UTC to eliminate timezone shifts.
+ */
+function buildIsoDateIfValid(year, month, day) {
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null;
+  if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (
+    dt.getUTCFullYear() !== y ||
+    dt.getUTCMonth() + 1 !== m ||
+    dt.getUTCDate() !== d
+  ) {
+    return null;
+  }
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/**
+ * Flexible field extractor across diverse CSV / Excel header variants and casing.
+ */
+function extractField(obj, ...keys) {
+  if (!obj || typeof obj !== 'object') return undefined;
+  for (const k of keys) {
+    if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') {
+      return obj[k];
+    }
+  }
+  const objKeys = Object.keys(obj);
+  for (const k of keys) {
+    const normK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const foundKey = objKeys.find(ok => ok.toLowerCase().replace(/[^a-z0-9]/g, '') === normK);
+    if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null && String(obj[foundKey]).trim() !== '') {
+      return obj[foundKey];
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Authoritative Publication Date parser, validator & Publication Year derivation engine.
+ * Supports:
+ * - ISO dates (YYYY-MM-DD)
+ * - Indian formats (DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY)
+ * - Excel Date cells and numeric serial dates
+ * - Unambiguous named months (15 August 2024, 15-Aug-2024, Aug 15 2024)
+ * 
+ * Rules:
+ * - Empty / null / blank / placeholder string: valid = true, isBlank = true, publicationYear = null (warning generated).
+ * - Ambiguous date (day <= 12 and month <= 12 and day !== month without established format): valid = false, isAmbiguous = true.
+ * - Out-of-range or malformed date: valid = false, isInvalid = true.
+ * - Valid date: valid = true, isoDate = YYYY-MM-DD, publicationYear = 4-digit calendar year.
+ */
+function parseAndValidatePublicationDate(val, options = {}) {
+  if (val === null || val === undefined) {
+    return {
+      valid: true,
+      isBlank: true,
+      isoDate: null,
+      publicationYear: null,
+      warning: 'Publication Date is missing. Publication Year could not be derived.'
+    };
+  }
+
+  // Handle Date objects (e.g. from Excel date cells)
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) {
+      return {
+        valid: false,
+        isInvalid: true,
+        error: 'Invalid Publication Date. Please provide a recognizable date.'
+      };
+    }
+    const isUtcMidnight = val.getUTCHours() === 0 && val.getUTCMinutes() === 0 && val.getUTCSeconds() === 0;
+    const y = isUtcMidnight ? val.getUTCFullYear() : val.getFullYear();
+    const m = isUtcMidnight ? val.getUTCMonth() + 1 : val.getMonth() + 1;
+    const d = isUtcMidnight ? val.getUTCDate() : val.getDate();
+    const iso = buildIsoDateIfValid(y, m, d);
+    if (!iso) {
+      return {
+        valid: false,
+        isInvalid: true,
+        error: 'Invalid Publication Date. Out of supported calendar range.'
+      };
+    }
+    return {
+      valid: true,
+      isBlank: false,
+      isoDate: iso,
+      publicationYear: y
+    };
+  }
+
+  // Handle Excel numeric serial dates (e.g. 45123)
+  if (typeof val === 'number') {
+    if (!Number.isFinite(val) || val < 1) {
+      return {
+        valid: false,
+        isInvalid: true,
+        error: 'Invalid Publication Date numeric serial value.'
+      };
+    }
+    const ms = Date.UTC(1899, 11, 30) + Math.round(val) * 86400000;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) {
+      return {
+        valid: false,
+        isInvalid: true,
+        error: 'Invalid Publication Date numeric serial.'
+      };
+    }
+    const iso = buildIsoDateIfValid(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+    if (!iso) {
+      return {
+        valid: false,
+        isInvalid: true,
+        error: 'Invalid Publication Date from serial.'
+      };
+    }
+    return {
+      valid: true,
+      isBlank: false,
+      isoDate: iso,
+      publicationYear: d.getUTCFullYear()
+    };
+  }
+
+  const str = String(val).trim();
+  if (!str) {
+    return {
+      valid: true,
+      isBlank: true,
+      isoDate: null,
+      publicationYear: null,
+      warning: 'Publication Date is missing. Publication Year could not be derived.'
+    };
+  }
+
+  const lower = str.toLowerCase();
+  if (['n/a', 'na', 'nil', 'null', '-', '--', 'pending', 'under examination', 'not applicable', 'none', 'tbd', 'ongoing'].includes(lower)) {
+    return {
+      valid: true,
+      isBlank: true,
+      isoDate: null,
+      publicationYear: null,
+      warning: 'Publication Date is missing. Publication Year could not be derived.'
+    };
+  }
+
+  // Numeric string Excel serial (> 10000 to avoid plain 4-digit years)
+  if (/^\d{5,6}(\.\d+)?$/.test(str)) {
+    const num = Math.round(parseFloat(str));
+    const ms = Date.UTC(1899, 11, 30) + num * 86400000;
+    const d = new Date(ms);
+    if (!isNaN(d.getTime())) {
+      const iso = buildIsoDateIfValid(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+      if (iso) {
+        return {
+          valid: true,
+          isBlank: false,
+          isoDate: iso,
+          publicationYear: d.getUTCFullYear()
+        };
+      }
+    }
+  }
+
+  // ISO format: YYYY-MM-DD or YYYY/MM/DD
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:$|T|\s)/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10);
+    const d = parseInt(isoMatch[3], 10);
+    const iso = buildIsoDateIfValid(y, m, d);
+    if (!iso) {
+      return {
+        valid: false,
+        isInvalid: true,
+        error: `Invalid Publication Date '${str}'. Please provide a recognizable date.`
+      };
+    }
+    return {
+      valid: true,
+      isBlank: false,
+      isoDate: iso,
+      publicationYear: y
+    };
+  }
+
+  // Delimited 3-part: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2}|\d{4})$/);
+  if (dmyMatch) {
+    const p1 = parseInt(dmyMatch[1], 10);
+    const p2 = parseInt(dmyMatch[2], 10);
+    let year = parseInt(dmyMatch[3], 10);
+    if (dmyMatch[3].length === 2) year += 2000;
+
+    // Both parts > 12 or out of bounds (e.g. 35/15/2024)
+    if (p1 > 31 || p2 > 31 || (p1 > 12 && p2 > 12)) {
+      return {
+        valid: false,
+        isInvalid: true,
+        error: `Invalid Publication Date '${str}'. Please provide a recognizable date.`
+      };
+    }
+
+    // Part 1 > 12 => Unambiguously DD/MM/YYYY
+    if (p1 > 12 && p2 <= 12) {
+      const iso = buildIsoDateIfValid(year, p2, p1);
+      if (!iso) {
+        return {
+          valid: false,
+          isInvalid: true,
+          error: `Invalid Publication Date '${str}'. Please provide a recognizable date.`
+        };
+      }
+      return {
+        valid: true,
+        isBlank: false,
+        isoDate: iso,
+        publicationYear: year
+      };
+    }
+
+    // Part 1 <= 12 and Part 2 > 12 => Unambiguously MM/DD/YYYY
+    if (p1 <= 12 && p2 > 12) {
+      const iso = buildIsoDateIfValid(year, p1, p2);
+      if (!iso) {
+        return {
+          valid: false,
+          isInvalid: true,
+          error: `Invalid Publication Date '${str}'. Please provide a recognizable date.`
+        };
+      }
+      return {
+        valid: true,
+        isBlank: false,
+        isoDate: iso,
+        publicationYear: year
+      };
+    }
+
+    // Part 1 === Part 2 e.g. 05/05/2024 => Unambiguous
+    if (p1 === p2 && p1 >= 1 && p1 <= 12) {
+      const iso = buildIsoDateIfValid(year, p1, p1);
+      if (iso) {
+        return {
+          valid: true,
+          isBlank: false,
+          isoDate: iso,
+          publicationYear: year
+        };
+      }
+    }
+
+    // Both p1 <= 12 and p2 <= 12 with p1 !== p2 e.g. 04/05/2024
+    // If format is explicitly established in options:
+    if (options.format === 'DD-MM-YYYY' || options.format === 'DD/MM/YYYY') {
+      const iso = buildIsoDateIfValid(year, p2, p1);
+      if (iso) {
+        return {
+          valid: true,
+          isBlank: false,
+          isoDate: iso,
+          publicationYear: year
+        };
+      }
+    }
+
+    // Otherwise ambiguous (e.g. 04/05/2024 could represent 4 May or April 5)
+    return {
+      valid: false,
+      isAmbiguous: true,
+      error: `Ambiguous Publication Date '${str}'. Could represent day/month or month/day. Please provide an unambiguous date format (e.g. YYYY-MM-DD or DD/MM/YYYY with day > 12).`
+    };
+  }
+
+  // Named months: "15 August 2024", "15-Aug-2024", "Aug 15, 2024"
+  const monthNames = {
+    jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+    apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
+    aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10, october: 10,
+    nov: 11, november: 11, dec: 12, december: 12
+  };
+  const dMonY = str.match(/^(\d{1,2})[\s\-]+([A-Za-z]+)[\s\-,]+(\d{4})$/);
+  if (dMonY && monthNames[dMonY[2].toLowerCase()]) {
+    const iso = buildIsoDateIfValid(parseInt(dMonY[3], 10), monthNames[dMonY[2].toLowerCase()], parseInt(dMonY[1], 10));
+    if (iso) {
+      return {
+        valid: true,
+        isBlank: false,
+        isoDate: iso,
+        publicationYear: parseInt(dMonY[3], 10)
+      };
+    }
+  }
+
+  const monDY = str.match(/^([A-Za-z]+)[\s\-]+(\d{1,2}),?[\s\-]+(\d{4})$/);
+  if (monDY && monthNames[monDY[1].toLowerCase()]) {
+    const iso = buildIsoDateIfValid(parseInt(monDY[3], 10), monthNames[monDY[1].toLowerCase()], parseInt(monDY[2], 10));
+    if (iso) {
+      return {
+        valid: true,
+        isBlank: false,
+        isoDate: iso,
+        publicationYear: parseInt(monDY[3], 10)
+      };
+    }
+  }
+
+  return {
+    valid: false,
+    isInvalid: true,
+    error: `Invalid Publication Date '${str}'. Please provide a recognizable date.`
+  };
+}
+
+/**
  * Sanitize and normalize date string into ISO YYYY-MM-DD.
  */
 const sanitizeDate = (val) => {
@@ -238,6 +558,7 @@ exports.getPatents = async (req, res) => {
       status,
       patentType,
       year,
+      publicationYear,
       grantYear,
       academicYear,
       department,
@@ -246,7 +567,7 @@ exports.getPatents = async (req, res) => {
     } = req.query;
 
     const where = {};
-    const selectedYear = year || grantYear || academicYear;
+    const selectedYear = publicationYear || year || academicYear;
 
     if (status && status !== 'all') {
       where.status = {
@@ -262,12 +583,14 @@ exports.getPatents = async (req, res) => {
 
     if (selectedYear && selectedYear !== 'all') {
       const yrTrim = String(selectedYear).trim();
-      if (yrTrim === 'Pending Grant' || yrTrim.toLowerCase() === 'unassigned' || yrTrim.toLowerCase() === 'blank') {
+      if (['missing', 'not_available', 'unassigned', 'blank', 'none', 'null'].includes(yrTrim.toLowerCase())) {
+        where.publicationYear = null;
+      } else if (yrTrim === 'Pending Grant') {
         where.grantYear = null;
       } else if (/^\d{4}$/.test(yrTrim)) {
         const yrInt = parseInt(yrTrim, 10);
         where[Op.or] = [
-          { grantYear: yrInt },
+          { publicationYear: yrInt },
           { academicYear: { [Op.iLike]: `%${yrTrim}%` } }
         ];
       } else {
@@ -331,8 +654,9 @@ exports.getPatents = async (req, res) => {
         }
       ],
       order: [
+        ['publicationYear', 'DESC NULLS LAST'],
+        ['publishedDate', 'DESC NULLS LAST'],
         ['grantYear', 'DESC NULLS LAST'],
-        ['academicYear', 'DESC'],
         ['filedDate', 'DESC NULLS LAST'],
         ['id', 'ASC']
       ],
@@ -370,19 +694,22 @@ exports.getPatents = async (req, res) => {
   }
 };
 
-// @desc    Get aggregate patent statistics (including Proof & Grant Year breakdowns)
+// @desc    Get aggregate patent statistics (including Proof & Publication Year breakdowns)
 // @route   GET /api/patents/stats
 // @access  Private / Public
 exports.getPatentStats = async (req, res) => {
   try {
-    const { year, department } = req.query;
+    const { year, publicationYear, department } = req.query;
     const where = {};
+    const selectedYear = publicationYear || year;
 
-    if (year && year !== 'all') {
-      const yrTrim = String(year).trim();
-      if (/^\d{4}$/.test(yrTrim)) {
+    if (selectedYear && selectedYear !== 'all') {
+      const yrTrim = String(selectedYear).trim();
+      if (['missing', 'not_available', 'unassigned', 'blank', 'none', 'null'].includes(yrTrim.toLowerCase())) {
+        where.publicationYear = null;
+      } else if (/^\d{4}$/.test(yrTrim)) {
         where[Op.or] = [
-          { grantYear: parseInt(yrTrim, 10) },
+          { publicationYear: parseInt(yrTrim, 10) },
           { academicYear: { [Op.iLike]: `%${yrTrim}%` } }
         ];
       } else {
@@ -416,7 +743,7 @@ exports.getPatentStats = async (req, res) => {
     let missingProofCount = 0;
 
     const departmentBreakdown = {};
-    const yearBreakdown = {};
+    const publicationYearBreakdown = {};
 
     allPatents.forEach(p => {
       const s = (p.status || '').toLowerCase();
@@ -442,9 +769,9 @@ exports.getPatentStats = async (req, res) => {
       const dept = p.department || 'Unassigned';
       departmentBreakdown[dept] = (departmentBreakdown[dept] || 0) + 1;
 
-      // Year breakdown: Prefer grantYear; for ungranted use 'Pending Grant'
-      const yrKey = p.grantYear ? String(p.grantYear) : (p.status === 'granted' || p.status === 'commercialized' ? (p.academicYear || 'Unknown') : 'Pending Grant');
-      yearBreakdown[yrKey] = (yearBreakdown[yrKey] || 0) + 1;
+      // Publication Year breakdown (4-digit calendar year strictly derived from publishedDate)
+      const yrKey = p.publicationYear ? String(p.publicationYear) : (p.publishedDate ? String(p.publishedDate).slice(0, 4) : 'Missing / Not Available');
+      publicationYearBreakdown[yrKey] = (publicationYearBreakdown[yrKey] || 0) + 1;
 
       const proofs = p.proofs || [];
       if (proofs.length > 0) {
@@ -468,7 +795,8 @@ exports.getPatentStats = async (req, res) => {
         withProofCount,
         missingProofCount,
         departmentBreakdown,
-        yearBreakdown
+        publicationYearBreakdown,
+        yearBreakdown: publicationYearBreakdown
       }
     });
   } catch (error) {
@@ -603,6 +931,16 @@ exports.createPatent = async (req, res) => {
       creatorId = admin ? admin.id : null;
     }
 
+    // Validate Publication Date and derive Publication Year
+    const pubDateValidation = parseAndValidatePublicationDate(publishedDate);
+    if (!pubDateValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: pubDateValidation.error,
+        isAmbiguous: pubDateValidation.isAmbiguous || false
+      });
+    }
+
     const patent = await Patent.create({
       title: title.trim(),
       inventors: rawInventors.trim(),
@@ -612,9 +950,10 @@ exports.createPatent = async (req, res) => {
       patentType: patentType || 'National (Indian)',
       department: assignedDept.trim(),
       grantYear: isGranted ? yearValidation.grantYear : null,
-      academicYear: isGranted ? yearValidation.academicYear : (academicYear || 'Pending Grant'),
+      academicYear: null,
+      publicationYear: pubDateValidation.publicationYear,
       filedDate: sanitizeDate(filedDate),
-      publishedDate: sanitizeDate(publishedDate),
+      publishedDate: pubDateValidation.isoDate,
       grantedDate: sanitizeDate(grantedDate),
       licenseDate: sanitizeDate(licenseDate),
       partner: partner ? partner.trim() : null,
@@ -677,6 +1016,7 @@ exports.createPatent = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Patent record created successfully',
+      warning: pubDateValidation.warning || undefined,
       data: reloaded || patent
     });
   } catch (error) {
@@ -747,9 +1087,27 @@ exports.updatePatent = async (req, res) => {
       });
     }
 
+    // Validate Publication Date if modified and recalculate Publication Year automatically
+    let pubDateWarning = undefined;
+    if (req.body.publishedDate !== undefined) {
+      const pubDateValidation = parseAndValidatePublicationDate(req.body.publishedDate);
+      if (!pubDateValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: pubDateValidation.error,
+          isAmbiguous: pubDateValidation.isAmbiguous || false
+        });
+      }
+      patent.publishedDate = pubDateValidation.isoDate;
+      patent.publicationYear = pubDateValidation.publicationYear;
+      if (pubDateValidation.warning) {
+        pubDateWarning = pubDateValidation.warning;
+      }
+    }
+
     const allowedFields = [
       'title', 'inventors', 'applicationNo', 'patentNo', 'status', 'patentType',
-      'filedDate', 'publishedDate', 'grantedDate', 'licenseDate',
+      'filedDate', 'grantedDate', 'licenseDate',
       'partner', 'revenue', 'patentUrl', 'description'
     ];
 
@@ -757,7 +1115,7 @@ exports.updatePatent = async (req, res) => {
       if (req.body[field] !== undefined) {
         if (field === 'inventors' && Array.isArray(req.body.inventors)) {
           patent.inventors = req.body.inventors.join(', ');
-        } else if (['filedDate', 'publishedDate', 'grantedDate', 'licenseDate'].includes(field)) {
+        } else if (['filedDate', 'grantedDate', 'licenseDate'].includes(field)) {
           patent[field] = sanitizeDate(req.body[field]);
         } else if (field === 'revenue') {
           patent.revenue = sanitizeAmount(req.body[field]);
@@ -768,7 +1126,7 @@ exports.updatePatent = async (req, res) => {
     });
 
     patent.grantYear = isTargetGranted ? yearValidation.grantYear : null;
-    patent.academicYear = isTargetGranted ? yearValidation.academicYear : (req.body.academicYear || patent.academicYear || 'Pending Grant');
+    patent.academicYear = null;
 
     // Only coordinator, hod, and admin can change approval status
     if (['admin', 'coordinator', 'hod'].includes(req.user.role) && req.body.approvalStatus !== undefined) {
@@ -812,6 +1170,7 @@ exports.updatePatent = async (req, res) => {
     res.json({
       success: true,
       message: 'Patent updated successfully',
+      warning: pubDateWarning,
       data: patent
     });
   } catch (error) {
@@ -931,6 +1290,10 @@ exports.bulkUploadPatents = async (req, res) => {
     const validRecords = [];
     const recordProofLinks = [];
     const errors = [];
+    const warnings = [];
+    let missingPublicationDateCount = 0;
+    let invalidPublicationDateCount = 0;
+    let ambiguousPublicationDateCount = 0;
 
     items.forEach((item, index) => {
       const rowNum = index + 1;
@@ -1088,6 +1451,24 @@ exports.bulkUploadPatents = async (req, res) => {
         normalizedType = 'National (Indian)';
       }
 
+      // Validate Publication Date & derive Publication Year
+      const pubDateCheck = parseAndValidatePublicationDate(publishedDate);
+      if (!pubDateCheck.valid) {
+        if (pubDateCheck.isAmbiguous) {
+          ambiguousPublicationDateCount++;
+          errors.push(`Row ${rowNum} ("${String(title).trim().slice(0, 30)}..."): ${pubDateCheck.error}`);
+        } else {
+          invalidPublicationDateCount++;
+          errors.push(`Row ${rowNum} ("${String(title).trim().slice(0, 30)}..."): ${pubDateCheck.error}`);
+        }
+        return;
+      }
+
+      if (pubDateCheck.isBlank) {
+        missingPublicationDateCount++;
+        warnings.push(`Row ${rowNum} ("${String(title).trim().slice(0, 30)}..."): ${pubDateCheck.warning}`);
+      }
+
       const inventorsStr = Array.isArray(rawInventors) ? rawInventors.join(', ') : String(rawInventors);
 
       validRecords.push({
@@ -1099,9 +1480,10 @@ exports.bulkUploadPatents = async (req, res) => {
         patentType: normalizedType,
         department: String(department).trim(),
         grantYear: yearValidation.grantYear,
-        academicYear: yearValidation.academicYear,
+        academicYear: null,
+        publicationYear: pubDateCheck.publicationYear,
         filedDate: sanitizeDate(filedDate),
-        publishedDate: sanitizeDate(publishedDate),
+        publishedDate: pubDateCheck.isoDate,
         grantedDate: sanitizeDate(grantedDate),
         licenseDate: sanitizeDate(licenseDate),
         partner: partner ? String(partner).trim() : null,
@@ -1172,7 +1554,14 @@ exports.bulkUploadPatents = async (req, res) => {
       success: true,
       message: `Successfully uploaded ${createdPatents.length} patent records (${proofRecordsToCreate.length} Proof links attached).`,
       count: createdPatents.length,
+      totalRows: items.length,
+      importedCount: createdPatents.length,
       proofCount: proofRecordsToCreate.length,
+      missingPublicationDateCount,
+      invalidPublicationDateCount,
+      ambiguousPublicationDateCount,
+      rejectedCount: errors.length,
+      warnings: warnings.length > 0 ? warnings : undefined,
       errors: errors.length > 0 ? errors : undefined,
       data: createdPatents
     });
@@ -1632,3 +2021,5 @@ exports.clearAllPatents = async (req, res) => {
 
 // Export validation helper for unit testing
 exports.validateYearAndStatus = validateYearAndStatus;
+exports.parseAndValidatePublicationDate = parseAndValidatePublicationDate;
+exports.buildIsoDateIfValid = buildIsoDateIfValid;
