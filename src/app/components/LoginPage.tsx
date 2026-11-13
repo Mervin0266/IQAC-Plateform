@@ -6,6 +6,8 @@ import { Label } from './ui/label';
 import { Shield, User, Users, AlertCircle, ArrowLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import christLogo from '../../assets/logo.png';
+import { LoginShowcase } from './LoginShowcase';
+import '../../styles/login.css';
 
 interface LoginPageProps {
   onBack?: () => void;
@@ -98,22 +100,6 @@ export function LoginPage({ onBack }: LoginPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittingSeconds, setSubmittingSeconds] = useState(0);
   const [error, setError] = useState('');
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
-  const heroImages = [
-    'https://images.unsplash.com/photo-1562774053-701939374585?w=1600&q=80',
-    'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1600&q=80',
-    'https://images.unsplash.com/photo-1607237138185-eedd9c632b0b?w=1600&q=80',
-    'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=1600&q=80',
-  ];
-
-  // Hero slideshow
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Progressive timer when authenticating
   React.useEffect(() => {
@@ -219,57 +205,12 @@ export function LoginPage({ onBack }: LoginPageProps) {
   // ── VIEW 1: Role Selection Cards (When no role is selected) ────────────────
   if (!selectedRole) {
     return (
-      <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
-        {/* Left Half - Christ Identity Showcase */}
-        <div
-          className="relative w-full md:w-1/2 min-h-[320px] md:min-h-screen flex items-center justify-center overflow-hidden bg-[#0B132B]"
-          style={{ borderLeft: '6px solid #E8C84A' }}
-        >
-          {/* Background Slideshow with overlay */}
-          <div className="absolute inset-0">
-            {heroImages.map((image, index) => (
-              <div
-                key={image}
-                className="absolute inset-0 transition-opacity duration-1000"
-                style={{
-                  opacity: currentImageIndex === index ? 0.25 : 0,
-                  backgroundImage: `url(${image})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }}
-              />
-            ))}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0B132B]/80 via-[#0B132B]/90 to-[#0B132B]" />
-          </div>
-
-          {/* Institutional Emblem & Typography */}
-          <div className="relative z-10 text-center px-8 py-10 max-w-md mx-auto">
-            <img
-              src={christLogo}
-              alt="CHRIST (Deemed to be University)"
-              className="w-48 h-20 mx-auto mb-5 object-contain drop-shadow-md"
-            />
-            <div className="inline-block px-3 py-1 bg-white/10 border border-white/15 rounded-full mb-3">
-              <span className="text-[11px] font-bold text-[#E8C84A] uppercase tracking-wider">
-                Internal Quality Assurance Cell
-              </span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">CHRIST</h1>
-            <p className="text-xs sm:text-sm text-slate-300 font-medium tracking-widest uppercase mt-0.5">
-              (Deemed to be University)
-            </p>
-            <div className="h-0.5 w-16 bg-[#E8C84A] mx-auto my-4" />
-            <h2 className="text-base sm:text-lg font-bold text-white/95">
-              IQAC Institutional Quality Platform
-            </h2>
-            <p className="text-xs text-slate-300 mt-1 max-w-xs mx-auto">
-              Unified institutional intelligence for NAAC, NIRF, and academic quality auditing
-            </p>
-          </div>
-        </div>
+      <div className="iq-login min-h-screen flex flex-col md:flex-row bg-slate-50">
+        <LoginShowcase />
 
         {/* Right Half - Institutional Role Selection */}
-        <div className="w-full md:w-1/2 bg-white flex items-center justify-center p-6 sm:p-10 md:p-12 overflow-y-auto">
+        <div className="iq-login-panel w-full md:w-1/2 bg-white flex items-center justify-center p-6 sm:p-10 md:p-12 overflow-y-auto">
+<img src={christLogo} className="iq-login-logo" alt="CHRIST (Deemed to be University)" />
           <div className="w-full max-w-md my-auto py-6">
             {onBack && (
               <button
@@ -341,57 +282,12 @@ export function LoginPage({ onBack }: LoginPageProps) {
   const RoleIcon = selectedRoleData.icon;
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
-      {/* Left Half - Christ Identity Showcase */}
-      <div
-        className="relative w-full md:w-1/2 min-h-[320px] md:min-h-screen flex items-center justify-center overflow-hidden bg-[#0B132B]"
-        style={{ borderLeft: '6px solid #E8C84A' }}
-      >
-        {/* Background Slideshow with overlay */}
-        <div className="absolute inset-0">
-          {heroImages.map((image, index) => (
-            <div
-              key={image}
-              className="absolute inset-0 transition-opacity duration-1000"
-              style={{
-                opacity: currentImageIndex === index ? 0.25 : 0,
-                backgroundImage: `url(${image})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              }}
-            />
-          ))}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0B132B]/80 via-[#0B132B]/90 to-[#0B132B]" />
-        </div>
-
-        {/* Institutional Emblem & Typography */}
-        <div className="relative z-10 text-center px-8 py-10 max-w-md mx-auto">
-          <img
-            src={christLogo}
-            alt="CHRIST (Deemed to be University)"
-            className="w-48 h-20 mx-auto mb-5 object-contain drop-shadow-md"
-          />
-          <div className="inline-block px-3 py-1 bg-white/10 border border-white/15 rounded-full mb-3">
-            <span className="text-[11px] font-bold text-[#E8C84A] uppercase tracking-wider">
-              Internal Quality Assurance Cell
-            </span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">CHRIST</h1>
-          <p className="text-xs sm:text-sm text-slate-300 font-medium tracking-widest uppercase mt-0.5">
-            (Deemed to be University)
-          </p>
-          <div className="h-0.5 w-16 bg-[#E8C84A] mx-auto my-4" />
-          <h2 className="text-base sm:text-lg font-bold text-white/95">
-            IQAC Institutional Quality Platform
-          </h2>
-          <p className="text-xs text-slate-300 mt-1 max-w-xs mx-auto">
-            Unified institutional intelligence for NAAC, NIRF, and academic quality auditing
-          </p>
-        </div>
-      </div>
+    <div className="iq-login min-h-screen flex flex-col md:flex-row bg-slate-50">
+      <LoginShowcase />
 
       {/* Right Half - Login Form */}
-      <div className="w-full md:w-1/2 bg-white flex items-center justify-center p-6 sm:p-10 md:p-12 overflow-y-auto">
+      <div className="iq-login-panel w-full md:w-1/2 bg-white flex items-center justify-center p-6 sm:p-10 md:p-12 overflow-y-auto">
+<img src={christLogo} className="iq-login-logo" alt="CHRIST (Deemed to be University)" />
         <div className="w-full max-w-md my-auto py-6">
           {/* Navigation & Return */}
           <button
@@ -523,7 +419,7 @@ export function LoginPage({ onBack }: LoginPageProps) {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
-                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   title={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
