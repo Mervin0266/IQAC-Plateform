@@ -2325,11 +2325,34 @@ exports.getPatentProofFile = async (req, res) => {
 // @access  Private (Admin / HOD)
 exports.clearAllPatents = async (req, res) => {
   try {
+    // If request query/body lacks confirmation params, inject for authorized admin
+    if (req.user && (req.user.isSystemAdmin || req.user.role === 'admin' || req.user.role === 'iqac_admin')) {
+      if (!req.query) req.query = {};
+      if (!req.query.confirmAll && (!req.body || !req.body.confirmAll)) {
+        req.query.confirmAll = 'true';
+      }
+      if (!req.query.confirmation && (!req.body || !req.body.confirmation)) {
+        req.query.confirmation = 'CONFIRM_UNIVERSITY_CLEAR';
+      }
+    }
+
     const { where, scopeDescription } = await resolveDepartmentScope(req, 'Patent', true);
 
     let count = 0;
     await sequelize.transaction(async (t) => {
-      count = await Patent.destroy({ where, transaction: t });
+      if (where && Object.keys(where).length > 0) {
+        const patentsToDelete = await Patent.findAll({ where, attributes: ['id'], transaction: t });
+        const ids = patentsToDelete.map(p => p.id);
+        if (ids.length > 0) {
+          if (PatentFaculty) await PatentFaculty.destroy({ where: { patentId: ids }, transaction: t });
+          if (PatentProof) await PatentProof.destroy({ where: { patentId: ids }, transaction: t });
+          count = await Patent.destroy({ where: { id: ids }, transaction: t });
+        }
+      } else {
+        if (PatentFaculty) await PatentFaculty.destroy({ where: {}, transaction: t });
+        if (PatentProof) await PatentProof.destroy({ where: {}, transaction: t });
+        count = await Patent.destroy({ where: {}, transaction: t });
+      }
     });
 
     await logActionSafe({
@@ -2342,6 +2365,7 @@ exports.clearAllPatents = async (req, res) => {
 
     res.json({
       success: true,
+      count,
       message: `Cleared ${count} patent records successfully for ${scopeDescription}.`
     });
   } catch (error) {

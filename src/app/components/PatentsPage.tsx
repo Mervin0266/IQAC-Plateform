@@ -663,18 +663,34 @@ export function PatentsPage({
   const handleClearAll = async () => {
     setClearLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/patents/clear-all`, {
+      const params = new URLSearchParams();
+      params.append('confirmAll', 'true');
+      params.append('confirmation', 'CONFIRM_UNIVERSITY_CLEAR');
+      if (selectedDepts.length === 1) {
+        params.append('department', selectedDepts[0]);
+      }
+
+      const res = await fetch(`${API_BASE}/api/patents/clear-all?${params.toString()}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          confirmAll: true,
+          confirmation: 'CONFIRM_UNIVERSITY_CLEAR',
+          department: selectedDepts.length === 1 ? selectedDepts[0] : undefined
+        })
       });
       const json = await res.json();
-      if (!json.success) {
+      if (!json.success && !res.ok) {
         alert(json.message || 'Failed to clear patent records.');
       } else {
         setIsClearOpen(false);
         setRefreshKey(k => k + 1);
       }
-    } catch (_) {
+    } catch (err) {
+      console.error('Clear all patents error:', err);
       alert('Failed to clear patent records.');
     } finally {
       setClearLoading(false);
