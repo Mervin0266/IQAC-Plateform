@@ -742,6 +742,7 @@ async function executeBulkImportExternal({ evaluatedRows, user, sequelize, Spons
         {
           title: row.title,
           fundingAgency: row.fundingAgency,
+          scheme: row.scheme || null,
           schemeProgram: row.scheme || null,
           agencyType: row.agencyType || null,
           sanctionOrderNo: row.sanctionOrderNo || null,

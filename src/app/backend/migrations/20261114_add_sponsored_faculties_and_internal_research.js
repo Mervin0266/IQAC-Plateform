@@ -28,7 +28,11 @@ module.exports = {
       ADD COLUMN IF NOT EXISTS "duplicateEmpIds" JSONB NOT NULL DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS "unresolvedPI" BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS "externalCollaborators" JSONB NOT NULL DEFAULT '[]'::jsonb,
-      ADD COLUMN IF NOT EXISTS "duration" VARCHAR(100);
+      ADD COLUMN IF NOT EXISTS "duration" VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS "school" VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS "campus" VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS "principalInvestigatorEmpId" VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS "principalInvestigatorDepartment" VARCHAR(255);
     `);
 
     // Ensure principalInvestigator allows NULL in schema if needed for EmpId-based multi-investigators

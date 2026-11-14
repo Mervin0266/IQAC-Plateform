@@ -133,8 +133,9 @@ const SponsoredProject = sequelize.define('SponsoredProject', {
     defaultValue: false
   },
   externalCollaborators: {
-    type: DataTypes.TEXT,
-    allowNull: true
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: []
   },
   sanctionYear: {
     type: DataTypes.INTEGER,
