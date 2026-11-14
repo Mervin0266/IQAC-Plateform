@@ -252,9 +252,10 @@ exports.bulkUploadActivities = async (req, res) => {
     for (let i = 0; i < activityList.length; i++) {
       try {
         const item = { ...activityList[i] };
-        ['academicYear', 'campus', 'school', 'department', 'activityCategory', 'title', 'reportDetails', 'pendingNotes', 'resourcePersons'].forEach(field => {
-          if (item[field] === undefined || item[field] === null || item[field] === '' || String(item[field]).trim() === '') {
-            item[field] = 'NIL';
+        const optionalFields = ['reportDetails', 'pendingNotes', 'resourcePersons', 'documentUrl', 'eventDate'];
+        optionalFields.forEach(field => {
+          if (item[field] === undefined || item[field] === null || item[field] === '' || String(item[field]).trim() === '' || String(item[field]).toLowerCase() === 'nil') {
+            item[field] = null;
           }
         });
         validRecords.push(item);

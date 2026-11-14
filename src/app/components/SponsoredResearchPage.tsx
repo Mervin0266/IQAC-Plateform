@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Sidebar } from './Sidebar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent } from './ui/card';
 import {
   TrendingUp, FileText, Award, Users, Calendar,
   Building, CheckCircle, Clock, Plus, Search, Trash2, Edit,
   Eye, Download, AlertCircle, Upload, X, ExternalLink,
-  Layers, ChevronRight, Check, RefreshCw, DollarSign, ShieldCheck, PieChart, Landmark,
-  FileCheck, Receipt, AlertTriangle, Paperclip, ArrowRight
+  Layers, ChevronRight, Check, RefreshCw, DollarSign, ShieldCheck,
+  FileCheck, Receipt, AlertTriangle, Paperclip, UploadCloud, FileSpreadsheet,
+  HelpCircle, UserCheck
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
@@ -19,9 +19,8 @@ import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
-import { BulkUploadDialog } from './BulkUploadDialog';
 import { AppShell, PageHeader, StatCard } from './design-system';
-import { calculateProjectDuration, deriveSanctionYear } from '../utils/projectDurationHelper';
+import { calculateProjectDuration } from '../utils/projectDurationHelper';
 
 export interface SponsoredDocumentItem {
   id: string;
@@ -50,36 +49,62 @@ export interface SponsoredInstallmentItem {
   createdAt?: string;
 }
 
+export interface SponsoredFacultyAssociation {
+  id?: string;
+  facultyId?: string | null;
+  employeeId: string;
+  normalizedEmployeeId?: string;
+  role: 'PI' | 'Co-PI';
+  facultyName?: string | null;
+  designation?: string | null;
+  department?: string | null;
+  originalDepartment?: string | null;
+  originalDepartmentSource?: string;
+  school?: string | null;
+  campus?: string | null;
+  isValid: boolean;
+  displayOrder?: number;
+}
+
 export interface SponsoredProjectItem {
   id: string;
   title: string;
-  principalInvestigator: string;
+  principalInvestigator?: string;
+  principalInvestigatorEmpId?: string | null;
+  principalInvestigatorDepartment?: string | null;
   coInvestigators?: string | null;
   fundingAgency: string;
   scheme?: string | null;
+  schemeProgram?: string | null;
   agencyType: string;
   sanctionOrderNo?: string | null;
   sanctionDate?: string | null;
   sanctionYear?: number | null;
-  academicYear: string;
+  academicYear?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  duration?: string | null;
+  durationFormatted?: string;
   sanctionedAmount: number | string;
   amountReceived?: number | string | null;
+  effectiveAmountReceived?: number;
+  balanceYetToBeReceived?: number;
   status: string; // 'Ongoing' | 'Completed' | 'Sanctioned' | 'Proposal Submitted' | 'Terminated'
   progressPercentage?: number | null;
   department?: string;
+  school?: string | null;
+  campus?: string | null;
   projectUrl?: string | null;
   description?: string | null;
   approvalStatus?: string;
-  createdAt?: string;
-  // Computed & attached fields
-  durationFormatted?: string;
-  effectiveAmountReceived?: number;
-  installmentTotal?: number;
-  balanceYetToBeReceived?: number;
-  reconciliationStatus?: string;
-  reconciliationDiff?: number;
+  empIdsRaw?: string;
+  hasInvalidEmpIds?: boolean;
+  invalidEmpIds?: string[];
+  duplicateEmpIds?: string[];
+  unresolvedPI?: boolean;
+  facultyAssociations?: SponsoredFacultyAssociation[];
+  piAssociation?: SponsoredFacultyAssociation | null;
+  coPiAssociations?: SponsoredFacultyAssociation[];
   agreementLetters?: SponsoredDocumentItem[];
   paymentReceipts?: SponsoredDocumentItem[];
   agreementLetterCount?: number;
@@ -92,6 +117,18 @@ export interface SponsoredProjectItem {
     email: string;
     department?: string;
   };
+  createdAt?: string;
+}
+
+export interface FacultyDirectoryItem {
+  id: string;
+  employeeId: string;
+  name: string;
+  designation: string;
+  department: string;
+  email?: string;
+  school?: string;
+  campus?: string;
 }
 
 interface SponsoredResearchPageProps {
@@ -103,7 +140,6 @@ interface SponsoredResearchPageProps {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-// Exact five original statuses preserved
 const PROJECT_STATUS_OPTIONS = [
   { value: 'Ongoing', label: 'Ongoing Research' },
   { value: 'Completed', label: 'Completed' },
@@ -121,38 +157,16 @@ const AGENCY_TYPE_OPTIONS = [
   'Non-Governmental Organization (NGO)'
 ];
 
-const EMPTY_FORM = {
-  title: '',
-  principalInvestigator: '',
-  coInvestigators: '',
-  fundingAgency: '',
-  scheme: '',
-  agencyType: 'Government (National)',
-  sanctionOrderNo: '',
-  sanctionDate: '',
-  sanctionYear: '',
-  startDate: '',
-  endDate: '',
-  sanctionedAmount: 0,
-  amountReceived: '' as string | number,
-  status: 'Ongoing',
-  progressPercentage: 0,
-  department: '',
-  projectUrl: '',
-  description: '',
-  approvalStatus: 'approved'
-};
-
 export function SponsoredResearchPage({
   onNavigate,
   hideSidebar = false,
   token: propToken,
   userRole: propRole
 }: SponsoredResearchPageProps) {
-  const { user: authUser, logout } = useAuth();
+  const { user: authUser } = useAuth();
   const token = propToken || authUser?.token;
   const currentRole = propRole || authUser?.role || 'faculty';
-  const isPrivileged = ['admin', 'coordinator', 'hod'].includes(currentRole);
+  const isPrivileged = ['admin', 'coordinator', 'hod', 'faculty', 'iqac_admin'].includes(currentRole);
 
   const [projects, setProjects] = useState<SponsoredProjectItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -165,39 +179,59 @@ export function SponsoredResearchPage({
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedDept, setSelectedDept] = useState('all');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
 
   // Add / Edit Modal States
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<SponsoredProjectItem | null>(null);
-  const [formData, setFormData] = useState(EMPTY_FORM);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  // Document attachments state for modal
-  const [agreementFiles, setAgreementFiles] = useState<File[]>([]);
-  const [agreementLinks, setAgreementLinks] = useState('');
-  const [paymentFiles, setPaymentFiles] = useState<File[]>([]);
-  const [paymentLinks, setPaymentLinks] = useState('');
+  const [formData, setFormData] = useState({
+    title: '',
+    fundingAgency: '',
+    scheme: '',
+    agencyType: 'Government (National)',
+    sanctionOrderNo: '',
+    sanctionDate: '',
+    sanctionYear: '',
+    startDate: '',
+    endDate: '',
+    duration: '',
+    sanctionedAmount: '',
+    amountReceived: '',
+    status: 'Ongoing',
+    projectUrl: '',
+    description: '',
+    department: ''
+  });
 
-  // Installment entry inside Add/Edit modal
-  const [tempInstallments, setTempInstallments] = useState<Array<{
-    id?: string;
-    installmentNumber?: number;
-    paymentDate: string;
-    amount: number;
-    paymentReference: string;
-    notes: string;
-  }>>([]);
-  const [newInstDate, setNewInstDate] = useState('');
-  const [newInstAmount, setNewInstAmount] = useState('');
-  const [newInstRef, setNewInstRef] = useState('');
+  // Multi-investigator selectors (PI is single, Co-PI is multiple)
+  const [piFaculty, setPiFaculty] = useState<FacultyDirectoryItem | null>(null);
+  const [coPiFacultyList, setCoPiFacultyList] = useState<FacultyDirectoryItem[]>([]);
+  const [piQuery, setPiQuery] = useState('');
+  const [piOptions, setPiOptions] = useState<FacultyDirectoryItem[]>([]);
+  const [piLoading, setPiLoading] = useState(false);
+
+  const [coPiQuery, setCoPiQuery] = useState('');
+  const [coPiOptions, setCoPiOptions] = useState<FacultyDirectoryItem[]>([]);
+  const [coPiLoading, setCoPiLoading] = useState(false);
 
   // View Details Drawer / Modal
   const [viewingProject, setViewingProject] = useState<SponsoredProjectItem | null>(null);
   const [detailTab, setDetailTab] = useState<'overview' | 'financial' | 'documents'>('overview');
 
-  // Bulk Upload Modal
+  // 5-Step Bulk Upload Modal
   const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [bulkStep, setBulkStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkPreview, setBulkPreview] = useState<any>(null);
+  const [bulkResult, setBulkResult] = useState<any>(null);
+  const [bulkError, setBulkError] = useState('');
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const bulkFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Clear All Modal
   const [isClearOpen, setIsClearOpen] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
 
@@ -205,33 +239,10 @@ export function SponsoredResearchPage({
   const { departmentList } = useAcademicHierarchy();
   const departments = useMemo(() => {
     const set = new Set<string>();
-    departmentList.forEach(d => {
-      if (d) set.add(normalizeDepartmentName(d));
-    });
-    if (set.size === 0) {
-      return [
-        'AI and Data Science Engineering',
-        'Civil Engineering',
-        'Computer Science and Engineering',
-        'Electrical and Electronics Engineering',
-        'Electronics and Communication Engineering',
-        'Mechanical and Automobile Engineering',
-        'School of Architecture',
-        'Sciences and Humanities (Engineering)'
-      ];
-    }
+    departmentList.forEach(d => { if (d) set.add(normalizeDepartmentName(d)); });
+    projects.forEach(p => { if (p.department) set.add(p.department); });
     return Array.from(set).sort();
-  }, [departmentList]);
-
-  // Sanction Years for filter dropdown (2020 to 2028)
-  const sanctionYears = useMemo(() => {
-    const current = new Date().getFullYear();
-    const list: number[] = [];
-    for (let y = current + 2; y >= current - 6; y--) {
-      list.push(y);
-    }
-    return list;
-  }, []);
+  }, [departmentList, projects]);
 
   // Fetch Projects from Backend
   const fetchProjects = useCallback(async () => {
@@ -247,28 +258,30 @@ export function SponsoredResearchPage({
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
 
       const res = await fetch(`${API_BASE}/api/sponsored-projects?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
-
-      if (res.status === 401) {
-        logout();
-        return;
-      }
-
       const data = await res.json();
-      if (data.success) {
-        setProjects(data.data || []);
+      if (data.success || data.rows) {
+        const list: SponsoredProjectItem[] = data.rows || data.data || [];
+        setProjects(list);
+
+        const yearsSet = new Set<number>();
+        list.forEach(p => {
+          if (p.sanctionYear) yearsSet.add(p.sanctionYear);
+        });
+        const currentYear = new Date().getFullYear();
+        yearsSet.add(currentYear);
+        yearsSet.add(currentYear - 1);
+        setAvailableYears(Array.from(yearsSet).sort((a, b) => b - a));
       }
     } catch (err) {
       console.error('Fetch sponsored projects error:', err);
     } finally {
       setLoading(false);
     }
-  }, [token, selectedStatus, selectedAgencyType, selectedYear, selectedDept, searchQuery, logout]);
+  }, [token, selectedStatus, selectedAgencyType, selectedYear, selectedDept, searchQuery]);
 
-  // Fetch Aggregate Stats
+  // Fetch KPI Stats
   const fetchStats = useCallback(async () => {
     if (!token) return;
     try {
@@ -277,19 +290,14 @@ export function SponsoredResearchPage({
       if (selectedDept !== 'all') params.append('department', selectedDept);
 
       const res = await fetch(`${API_BASE}/api/sponsored-projects/stats?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setStats(data.stats);
-        }
+      const data = await res.json();
+      if (data.success && data.stats) {
+        setStats(data.stats);
       }
     } catch (err) {
-      console.error('Fetch sponsored stats error:', err);
+      console.error('Fetch sponsored project stats error:', err);
     }
   }, [token, selectedYear, selectedDept]);
 
@@ -298,201 +306,254 @@ export function SponsoredResearchPage({
     fetchStats();
   }, [fetchProjects, fetchStats]);
 
-  // Currency Formatter
-  const formatCurrency = (val: number | string | undefined | null) => {
-    const num = Number(val) || 0;
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(num);
+  // PI Faculty Autocomplete Search
+  useEffect(() => {
+    if (!isFormOpen || !piQuery.trim() || !token) {
+      setPiOptions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setPiLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/sponsored-projects/faculty-search?q=${encodeURIComponent(piQuery.trim())}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          setPiOptions(data.data || []);
+        }
+      } catch {
+        // silent
+      } finally {
+        setPiLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [isFormOpen, piQuery, token]);
+
+  // Co-PI Faculty Autocomplete Search
+  useEffect(() => {
+    if (!isFormOpen || !coPiQuery.trim() || !token) {
+      setCoPiOptions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setCoPiLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/sponsored-projects/faculty-search?q=${encodeURIComponent(coPiQuery.trim())}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          setCoPiOptions(data.data || []);
+        }
+      } catch {
+        // silent
+      } finally {
+        setCoPiLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [isFormOpen, coPiQuery, token]);
+
+  // Handle Sanction Date change with strictly derived Sanction Year
+  const handleSanctionDateChange = (val: string) => {
+    let derivedYear = '';
+    if (val) {
+      const match = val.match(/^(\d{4})/);
+      if (match) derivedYear = match[1];
+    }
+    setFormData(prev => ({
+      ...prev,
+      sanctionDate: val,
+      sanctionYear: derivedYear
+    }));
   };
 
-  // Status Badge Helper
-  const getStatusBadge = (status: string) => {
-    const s = (status || '').toLowerCase().trim();
-    if (s.includes('ongoing')) {
-      return <Badge className="bg-[#EAF1FD] text-[#2855B9] border-[#C8DCFB] text-[10px] font-semibold">Ongoing Research</Badge>;
+  // Handle Start & End Date changes with calculated Duration
+  const handleStartDateChange = (val: string) => {
+    let dur = '';
+    if (val && formData.endDate) {
+      dur = calculateProjectDuration(val, formData.endDate).formatted;
+    } else if (val) {
+      dur = 'Ongoing (Start date recorded)';
     }
-    if (s.includes('complete')) {
-      return <Badge className="bg-[#E8F5ED] text-[#167447] border-[#C6E7D2] text-[10px] font-semibold">Completed</Badge>;
-    }
-    if (s.includes('sanction')) {
-      return <Badge className="bg-[#FFF4D8] text-[#9A6700] border-[#FFE5A3] text-[10px] font-semibold">Sanctioned / Awaiting Funds</Badge>;
-    }
-    if (s.includes('proposal') || s.includes('submit')) {
-      return <Badge className="bg-[#FFF4D8] text-[#9A6700] border-[#FFE5A3] text-[10px] font-semibold">Proposal Submitted / Under Review</Badge>;
-    }
-    if (s.includes('terminate')) {
-      return <Badge className="bg-[#FEF2F2] text-[#B42318] border-[#FECDCA] text-[10px] font-semibold">Terminated / Closed</Badge>;
-    }
-    return <Badge variant="outline" className="text-[10px] bg-[#F1F5F9] text-[#475569] border-[#E2E8F0]">{status || 'Ongoing'}</Badge>;
+    setFormData(prev => ({
+      ...prev,
+      startDate: val,
+      duration: dur
+    }));
   };
 
-  const getAgencyBadge = (type: string) => {
-    const t = (type || '').toLowerCase();
-    if (t.includes('government') || t.includes('national')) {
-      return <Badge variant="secondary" className="bg-[#EAF1FD] text-[#2855B9] border-[#C8DCFB] text-[10px]">National Govt</Badge>;
+  const handleEndDateChange = (val: string) => {
+    let dur = '';
+    if (formData.startDate && val) {
+      dur = calculateProjectDuration(formData.startDate, val).formatted;
+    } else if (formData.startDate) {
+      dur = 'Ongoing (Start date recorded)';
     }
-    if (t.includes('state')) {
-      return <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-[#E2E8F0] text-[10px]">State Govt</Badge>;
-    }
-    if (t.includes('international')) {
-      return <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-[#E2E8F0] text-[10px]">International</Badge>;
-    }
-    if (t.includes('industry')) {
-      return <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-[#E2E8F0] text-[10px]">Industry</Badge>;
-    }
-    return <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-600 border-[#E2E8F0]">Internal/Other</Badge>;
+    setFormData(prev => ({
+      ...prev,
+      endDate: val,
+      duration: dur
+    }));
   };
 
-  // Open Modal for Add
+  // Add / Remove Co-PI
+  const handleAddCoPi = (fac: FacultyDirectoryItem) => {
+    if (piFaculty && piFaculty.employeeId === fac.employeeId) {
+      alert('This faculty member is already assigned as the Principal Investigator (PI).');
+      return;
+    }
+    const exists = coPiFacultyList.some(f => f.employeeId === fac.employeeId);
+    if (!exists) {
+      setCoPiFacultyList(prev => [...prev, fac]);
+    }
+    setCoPiQuery('');
+    setCoPiOptions([]);
+  };
+
+  const handleRemoveCoPi = (empId: string) => {
+    setCoPiFacultyList(prev => prev.filter(f => f.employeeId !== empId));
+  };
+
+  // Open Add Modal
   const handleOpenAdd = () => {
     setEditingProject(null);
+    setFormError('');
     setFormData({
-      ...EMPTY_FORM,
-      department: authUser?.department || (departments[0] || '')
+      title: '',
+      fundingAgency: '',
+      scheme: '',
+      agencyType: 'Government (National)',
+      sanctionOrderNo: '',
+      sanctionDate: '',
+      sanctionYear: '',
+      startDate: '',
+      endDate: '',
+      duration: '',
+      sanctionedAmount: '',
+      amountReceived: '',
+      status: 'Ongoing',
+      projectUrl: '',
+      description: '',
+      department: ''
     });
-    setAgreementFiles([]);
-    setAgreementLinks('');
-    setPaymentFiles([]);
-    setPaymentLinks('');
-    setTempInstallments([]);
-    setFormErrors({});
+    setPiFaculty(null);
+    setCoPiFacultyList([]);
+    setPiQuery('');
+    setCoPiQuery('');
     setIsFormOpen(true);
   };
 
-  // Open Modal for Edit
-  const handleOpenEdit = (proj: SponsoredProjectItem) => {
-    setEditingProject(proj);
+  // Open Edit Modal
+  const handleOpenEdit = (project: SponsoredProjectItem) => {
+    setEditingProject(project);
+    setFormError('');
     setFormData({
-      title: proj.title || '',
-      principalInvestigator: proj.principalInvestigator || '',
-      coInvestigators: proj.coInvestigators || '',
-      fundingAgency: proj.fundingAgency || '',
-      scheme: proj.scheme || '',
-      agencyType: proj.agencyType || 'Government (National)',
-      sanctionOrderNo: proj.sanctionOrderNo || '',
-      sanctionDate: proj.sanctionDate ? proj.sanctionDate.split('T')[0] : '',
-      sanctionYear: proj.sanctionYear ? String(proj.sanctionYear) : '',
-      startDate: proj.startDate ? proj.startDate.split('T')[0] : '',
-      endDate: proj.endDate ? proj.endDate.split('T')[0] : '',
-      sanctionedAmount: Number(proj.sanctionedAmount) || 0,
-      amountReceived: proj.amountReceived !== null && proj.amountReceived !== undefined ? proj.amountReceived : '',
-      status: proj.status || 'Ongoing',
-      progressPercentage: proj.progressPercentage || 0,
-      department: proj.department || '',
-      projectUrl: proj.projectUrl || '',
-      description: proj.description || '',
-      approvalStatus: proj.approvalStatus || 'approved'
+      title: project.title,
+      fundingAgency: project.fundingAgency,
+      scheme: project.scheme || project.schemeProgram || '',
+      agencyType: project.agencyType || 'Government (National)',
+      sanctionOrderNo: project.sanctionOrderNo || '',
+      sanctionDate: project.sanctionDate ? project.sanctionDate.split('T')[0] : '',
+      sanctionYear: String(project.sanctionYear || ''),
+      startDate: project.startDate ? project.startDate.split('T')[0] : '',
+      endDate: project.endDate ? project.endDate.split('T')[0] : '',
+      duration: project.duration || project.durationFormatted || '',
+      sanctionedAmount: String(project.sanctionedAmount || ''),
+      amountReceived: project.amountReceived !== null && project.amountReceived !== undefined ? String(project.amountReceived) : '',
+      status: project.status || 'Ongoing',
+      projectUrl: project.projectUrl || '',
+      description: project.description || '',
+      department: project.department || ''
     });
-    setAgreementFiles([]);
-    setAgreementLinks('');
-    setPaymentFiles([]);
-    setPaymentLinks('');
-    setTempInstallments((proj.installments || []).map(i => ({
-      id: i.id,
-      installmentNumber: i.installmentNumber || undefined,
-      paymentDate: i.paymentDate ? i.paymentDate.split('T')[0] : '',
-      amount: Number(i.amount) || 0,
-      paymentReference: i.paymentReference || '',
-      notes: i.notes || ''
+
+    const piAssoc = project.piAssociation || (project.facultyAssociations || []).find(a => a.role === 'PI');
+    if (piAssoc) {
+      setPiFaculty({
+        id: piAssoc.facultyId || piAssoc.employeeId,
+        employeeId: piAssoc.employeeId,
+        name: piAssoc.facultyName || `Faculty (${piAssoc.employeeId})`,
+        designation: piAssoc.designation || '',
+        department: piAssoc.department || '',
+        school: piAssoc.school || undefined,
+        campus: piAssoc.campus || undefined
+      });
+    } else if (project.principalInvestigatorEmpId || project.principalInvestigator) {
+      setPiFaculty({
+        id: project.principalInvestigatorEmpId || 'pi',
+        employeeId: project.principalInvestigatorEmpId || 'N/A',
+        name: project.principalInvestigator || 'Unassigned PI',
+        designation: '',
+        department: project.principalInvestigatorDepartment || project.department || ''
+      });
+    } else {
+      setPiFaculty(null);
+    }
+
+    const coPiAssocs = project.coPiAssociations || (project.facultyAssociations || []).filter(a => a.role === 'Co-PI');
+    setCoPiFacultyList(coPiAssocs.map(a => ({
+      id: a.facultyId || a.employeeId,
+      employeeId: a.employeeId,
+      name: a.facultyName || `Faculty (${a.employeeId})`,
+      designation: a.designation || '',
+      department: a.department || '',
+      school: a.school || undefined,
+      campus: a.campus || undefined
     })));
-    setFormErrors({});
+
+    setPiQuery('');
+    setCoPiQuery('');
     setIsFormOpen(true);
   };
 
-  // Live duration calculation for Add/Edit Form
-  const liveDuration = useMemo(() => {
-    return calculateProjectDuration(formData.startDate, formData.endDate);
-  }, [formData.startDate, formData.endDate]);
-
-  // Live financial reconciliation for Add/Edit Form
-  const liveFinancials = useMemo(() => {
-    const sAmt = parseFloat(String(formData.sanctionedAmount)) || 0;
-    const hasManualRec = formData.amountReceived !== '' && formData.amountReceived !== null && formData.amountReceived !== undefined;
-    const manualRec = hasManualRec ? (parseFloat(String(formData.amountReceived)) || 0) : null;
-    const instTotal = tempInstallments.reduce((sum, inst) => sum + (Number(inst.amount) || 0), 0);
-
-    let effective = 0;
-    let recStatus = 'none';
-    let diff = 0;
-
-    if (manualRec !== null && tempInstallments.length === 0) {
-      effective = manualRec;
-      recStatus = 'manual_only';
-    } else if (manualRec === null && tempInstallments.length > 0) {
-      effective = instTotal;
-      recStatus = 'installments_only';
-    } else if (manualRec !== null && tempInstallments.length > 0) {
-      effective = manualRec;
-      diff = Math.abs(manualRec - instTotal);
-      recStatus = diff < 0.01 ? 'matched' : 'mismatched';
-    }
-
-    const balance = Math.max(0, sAmt - effective);
-
-    return {
-      sanctionedAmount: sAmt,
-      effectiveReceived: effective,
-      installmentTotal: instTotal,
-      balanceYetToBeReceived: balance,
-      recStatus,
-      diff
-    };
-  }, [formData.sanctionedAmount, formData.amountReceived, tempInstallments]);
-
-  // Form Submit Handler
-  const handleFormSubmit = async (e: React.FormEvent) => {
+  // Submit Project Add / Edit
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
-    const errors: Record<string, string> = {};
-
-    if (!formData.title.trim()) errors.title = 'Project Title is required';
-    if (!formData.principalInvestigator.trim()) errors.principalInvestigator = 'Principal Investigator (PI) is required';
-    if (!formData.fundingAgency.trim()) errors.fundingAgency = 'Funding Agency name is required';
-    if (Number(formData.sanctionedAmount) < 0) errors.sanctionedAmount = 'Sanctioned amount must be positive';
-
-    if (formData.startDate && formData.endDate) {
-      const dur = calculateProjectDuration(formData.startDate, formData.endDate);
-      if (!dur.isValid) {
-        errors.endDate = dur.error || 'End Date cannot be earlier than Start Date';
-      }
+    if (!formData.title.trim()) {
+      setFormError('Project title is required.');
+      return;
     }
-
-    if (formData.sanctionYear && formData.sanctionYear.trim()) {
-      const y = parseInt(formData.sanctionYear.trim(), 10);
-      if (isNaN(y) || y < 1950 || y > 2100) {
-        errors.sanctionYear = 'Sanction Year must be a valid 4-digit calendar year (e.g., 2024)';
-      }
+    if (!piFaculty) {
+      setFormError('Principal Investigator (PI) is required.');
+      return;
     }
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
+    if (!formData.fundingAgency.trim()) {
+      setFormError('Funding Agency is required.');
+      return;
+    }
+    if (!formData.sanctionDate) {
+      setFormError('Sanction Date is required to derive Sanction Year.');
       return;
     }
 
-    setSubmitting(true);
+    setFormLoading(true);
+    setFormError('');
+
     try {
-      const payload: any = {
-        title: formData.title,
-        principalInvestigator: formData.principalInvestigator,
-        coInvestigators: formData.coInvestigators,
-        fundingAgency: formData.fundingAgency,
-        scheme: formData.scheme,
+      const payload = {
+        title: formData.title.trim(),
+        piEmpId: piFaculty.employeeId,
+        principalInvestigator: piFaculty.name,
+        principalInvestigatorEmpId: piFaculty.employeeId,
+        principalInvestigatorDepartment: piFaculty.department,
+        coPiEmpIds: coPiFacultyList.map(f => f.employeeId).join(', '),
+        coInvestigators: coPiFacultyList.map(f => f.name).join(', '),
+        fundingAgency: formData.fundingAgency.trim(),
+        scheme: formData.scheme.trim() || null,
         agencyType: formData.agencyType,
-        sanctionOrderNo: formData.sanctionOrderNo,
-        sanctionDate: formData.sanctionDate || null,
-        sanctionYear: formData.sanctionYear ? parseInt(formData.sanctionYear, 10) : null,
+        sanctionOrderNo: formData.sanctionOrderNo.trim() || null,
+        sanctionDate: formData.sanctionDate,
+        sanctionYear: formData.sanctionYear ? parseInt(formData.sanctionYear, 10) : undefined,
         startDate: formData.startDate || null,
         endDate: formData.endDate || null,
-        sanctionedAmount: formData.sanctionedAmount,
-        amountReceived: formData.amountReceived !== '' ? formData.amountReceived : null,
+        sanctionedAmount: parseFloat(formData.sanctionedAmount) || 0,
+        amountReceived: formData.amountReceived !== '' ? (parseFloat(formData.amountReceived) || 0) : null,
         status: formData.status,
-        progressPercentage: formData.progressPercentage,
-        department: formData.department,
-        projectUrl: formData.projectUrl,
-        description: formData.description,
-        approvalStatus: formData.approvalStatus
+        department: piFaculty.department || formData.department.trim() || null,
+        projectUrl: formData.projectUrl.trim() || null,
+        description: formData.description.trim() || null
       };
 
       const url = editingProject
@@ -510,261 +571,199 @@ export function SponsoredResearchPage({
       });
 
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        setFormErrors({ submit: data.message || 'Operation failed' });
-        setSubmitting(false);
-        return;
+      if (data.success) {
+        setIsFormOpen(false);
+        fetchProjects();
+        fetchStats();
+      } else {
+        setFormError(data.message || 'Failed to save grant record.');
       }
-
-      const savedProjectId = editingProject ? editingProject.id : data.data.id;
-
-      // 1. Process Agreement Letter Files Upload
-      if (agreementFiles.length > 0) {
-        const formDataFiles = new FormData();
-        agreementFiles.forEach(f => formDataFiles.append('files', f));
-        await fetch(`${API_BASE}/api/sponsored-projects/${savedProjectId}/documents/upload?category=agreement_letter`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formDataFiles
-        });
-      }
-
-      // 2. Process Agreement Letter Drive Links
-      if (agreementLinks.trim()) {
-        const links = agreementLinks.split(/[\r\n;,]+/).map(s => s.trim()).filter(Boolean);
-        if (links.length > 0) {
-          await fetch(`${API_BASE}/api/sponsored-projects/${savedProjectId}/documents/links`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({ category: 'agreement_letter', links })
-          });
-        }
-      }
-
-      // 3. Process Payment Receipt Files Upload
-      if (paymentFiles.length > 0) {
-        const formDataReceipts = new FormData();
-        paymentFiles.forEach(f => formDataReceipts.append('files', f));
-        await fetch(`${API_BASE}/api/sponsored-projects/${savedProjectId}/documents/upload?category=payment_receipt`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formDataReceipts
-        });
-      }
-
-      // 4. Process Payment Receipt Drive Links
-      if (paymentLinks.trim()) {
-        const links = paymentLinks.split(/[\r\n;,]+/).map(s => s.trim()).filter(Boolean);
-        if (links.length > 0) {
-          await fetch(`${API_BASE}/api/sponsored-projects/${savedProjectId}/documents/links`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({ category: 'payment_receipt', links })
-          });
-        }
-      }
-
-      setIsFormOpen(false);
-      fetchProjects();
-      fetchStats();
     } catch (err: any) {
-      setFormErrors({ submit: err.message || 'Connection error' });
+      setFormError(err.message || 'Network error saving project.');
     } finally {
-      setSubmitting(false);
+      setFormLoading(false);
     }
   };
 
-  // Add an installment to active project
-  const handleAddInstallment = async () => {
-    if (!newInstAmount || Number(newInstAmount) <= 0) {
-      alert('Please enter a valid installment amount.');
-      return;
-    }
-
-    if (editingProject) {
-      try {
-        const res = await fetch(`${API_BASE}/api/sponsored-projects/${editingProject.id}/installments`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            installmentNumber: tempInstallments.length + 1,
-            paymentDate: newInstDate || null,
-            amount: parseFloat(newInstAmount),
-            paymentReference: newInstRef || null
-          })
-        });
-        const data = await res.json();
-        if (data.success && data.data) {
-          setTempInstallments(prev => [...prev, data.data]);
-        }
-      } catch (err) {
-        console.error('Add installment error:', err);
-      }
-    } else {
-      setTempInstallments(prev => [
-        ...prev,
-        {
-          installmentNumber: prev.length + 1,
-          paymentDate: newInstDate,
-          amount: parseFloat(newInstAmount),
-          paymentReference: newInstRef,
-          notes: ''
-        }
-      ]);
-    }
-
-    setNewInstAmount('');
-    setNewInstDate('');
-    setNewInstRef('');
-  };
-
-  // Remove an installment
-  const handleRemoveInstallment = async (idx: number, instId?: string) => {
-    if (editingProject && instId) {
-      try {
-        await fetch(`${API_BASE}/api/sponsored-projects/${editingProject.id}/installments/${instId}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } catch (err) {
-        console.error('Delete installment error:', err);
-      }
-    }
-    setTempInstallments(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  // Delete attached document
-  const handleDeleteDocument = async (docId: string, projectId: string) => {
-    if (!window.confirm('Are you sure you want to remove this attached document?')) return;
+  // Delete Single Project
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this sponsored research project?')) return;
     try {
-      const res = await fetch(`${API_BASE}/api/sponsored-projects/${projectId}/documents/${docId}`, {
+      const res = await fetch(`${API_BASE}/api/sponsored-projects/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
       if (data.success) {
-        fetchProjects();
-        if (viewingProject && viewingProject.id === projectId) {
-          setViewingProject(prev => {
-            if (!prev) return null;
-            const updatedDocs = (prev.documents || []).filter(d => d.id !== docId);
-            return {
-              ...prev,
-              documents: updatedDocs,
-              agreementLetters: updatedDocs.filter(d => d.documentCategory === 'agreement_letter'),
-              paymentReceipts: updatedDocs.filter(d => d.documentCategory === 'payment_receipt')
-            };
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Delete document error:', err);
-    }
-  };
-
-  // Delete Project Handler
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this sponsored research grant record? All attached Sanction Letters and Fund Receipts / Utilization Certificates (UC) will also be removed.')) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/sponsored-projects/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      const data = await res.json();
-      if (data.success) {
+        if (viewingProject?.id === id) setViewingProject(null);
         fetchProjects();
         fetchStats();
-        if (viewingProject?.id === id) setViewingProject(null);
       } else {
-        alert(data.message || 'Failed to delete record');
+        alert(data.message || 'Failed to delete record.');
       }
-    } catch (err) {
-      console.error('Delete error:', err);
-      alert('Failed to connect to backend server');
+    } catch {
+      alert('Error connecting to server.');
     }
   };
 
-  // Clear All Projects in scope
+  // Clear All
   const handleClearAll = async () => {
     setClearLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/sponsored-projects/clear-all?confirmAll=true&confirmation=CONFIRM_UNIVERSITY_CLEAR`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token || localStorage.getItem('token') || ''}`,
-          'Content-Type': 'application/json'
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (res.ok) {
+      if (data.success) {
         setIsClearOpen(false);
         fetchProjects();
         fetchStats();
       } else {
-        alert(data.message || 'Failed to clear records');
+        alert(data.message || 'Failed to clear records.');
       }
-    } catch (err) {
-      console.error('Clear all error:', err);
-      alert('Failed to clear sponsored projects');
+    } catch {
+      alert('Error clearing records.');
     } finally {
       setClearLoading(false);
     }
   };
 
-  // Export to Excel / CSV
+  // Bulk Upload File Handlers (5-Step Stepper)
+  const handleBulkFileSelect = async (file: File) => {
+    setBulkFile(file);
+    setBulkError('');
+    setBulkStep(2);
+    setBulkLoading(true);
+
+    try {
+      const form = new FormData();
+      form.append('file', file);
+
+      const res = await fetch(`${API_BASE}/api/sponsored-projects/bulk/preview`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setBulkPreview(data);
+        setBulkStep(3);
+      } else {
+        setBulkError(data.message || 'Failed to parse spreadsheet file.');
+        setBulkStep(1);
+      }
+    } catch (err: any) {
+      setBulkError(err.message || 'Failed to upload spreadsheet.');
+      setBulkStep(1);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleExecuteImport = async () => {
+    if (!bulkPreview || !bulkPreview.rows) return;
+    setBulkLoading(true);
+    setBulkError('');
+    setBulkStep(4);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/sponsored-projects/bulk/import`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ rows: bulkPreview.rows })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setBulkResult(data.result);
+        setBulkStep(5);
+        fetchProjects();
+        fetchStats();
+      } else {
+        setBulkError(data.message || 'Import failed.');
+        setBulkStep(3);
+      }
+    } catch (err: any) {
+      setBulkError(err.message || 'Error processing import.');
+      setBulkStep(3);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  // Template Download
+  const handleDownloadTemplate = (format: 'xlsx' | 'csv') => {
+    window.open(`${API_BASE}/api/sponsored-projects/template?format=${format}`, '_blank');
+  };
+
+  // Export Data (Excel & CSV)
   const handleExport = (format: 'xlsx' | 'csv') => {
     if (projects.length === 0) {
-      alert('No sponsored project records to export.');
+      alert('No sponsored research records to export.');
       return;
     }
 
-    const exportRows = projects.map((p, idx) => ({
+    const data = projects.map((p, idx) => ({
       'S.No': idx + 1,
       'Project Title': p.title,
-      'Principal Investigator': p.principalInvestigator,
-      'Co-Investigators': p.coInvestigators || '-',
+      'Principal Investigator': p.piAssociation ? `${p.piAssociation.facultyName} (${p.piAssociation.employeeId})` : p.principalInvestigator,
+      'Co-Investigators': (p.coPiAssociations || []).map(f => `${f.facultyName} (${f.employeeId})`).join('; ') || p.coInvestigators || '',
       'Funding Agency': p.fundingAgency,
-      'Scheme / Program': p.scheme || '-',
+      'Scheme / Program': p.scheme || p.schemeProgram || '',
       'Agency Type': p.agencyType,
-      'Sanction Order No': p.sanctionOrderNo || '-',
-      'Sanction Date': p.sanctionDate || '-',
-      'Sanction Year': p.sanctionYear || p.academicYear || '-',
-      'Start Date': p.startDate || '-',
-      'End Date': p.endDate || '-',
-      'Project Duration': p.durationFormatted || (p.startDate && p.endDate ? calculateProjectDuration(p.startDate, p.endDate).formatted : '-'),
-      'Sanctioned Amount (INR)': Number(p.sanctionedAmount) || 0,
-      'Amount Received (INR)': p.amountReceived !== null && p.amountReceived !== undefined ? Number(p.amountReceived) : (p.effectiveAmountReceived || 0),
-      'Balance Yet to Be Received (INR)': p.balanceYetToBeReceived ?? Math.max(0, (Number(p.sanctionedAmount) || 0) - (Number(p.amountReceived) || 0)),
+      'Sanction Order No': p.sanctionOrderNo || '',
+      'Sanction Date': p.sanctionDate || '',
+      'Sanction Year': p.sanctionYear || '',
+      'Start Date': p.startDate || '',
+      'End Date': p.endDate || '',
+      'Project Duration': p.duration || p.durationFormatted || '',
+      'Sanctioned Amount (INR)': p.sanctionedAmount,
+      'Amount Received (INR)': p.amountReceived || 0,
       'Status': p.status,
-      'Milestone Progress (%)': p.progressPercentage ?? (p.status === 'Completed' ? 100 : 50),
-      'Department': p.department || 'General',
-      'Sanction Letters': (p.agreementLetters || []).map(d => d.driveUrl).join('\n') || '-',
-      'Fund Receipts / Utilization Certificates (UC)': (p.paymentReceipts || []).map(d => d.driveUrl).join('\n') || '-',
-      'Project URL': p.projectUrl || '-',
-      'Description': p.description || '-'
+      'Host Department': p.department || '',
+      'Project URL': p.projectUrl || ''
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sponsored Research');
+    XLSX.utils.book_append_sheet(wb, ws, 'External_Research');
 
-    const fileName = `CHRIST_Sponsored_Research_${new Date().toISOString().slice(0, 10)}.${format}`;
+    const filename = `External_Research_Export_${new Date().toISOString().slice(0, 10)}.${format}`;
     if (format === 'xlsx') {
-      XLSX.writeFile(wb, fileName);
+      XLSX.writeFile(wb, filename);
     } else {
-      XLSX.writeFile(wb, fileName, { bookType: 'csv' });
+      XLSX.writeFile(wb, filename, { bookType: 'csv' });
     }
+  };
+
+  const formatINR = (val: number | string | null | undefined) => {
+    const num = typeof val === 'string' ? parseFloat(val) : (val || 0);
+    if (!num) return '₹0.00';
+    if (num >= 10000000) return `₹${(num / 10000000).toFixed(2)} Cr`;
+    if (num >= 100000) return `₹${(num / 100000).toFixed(2)} Lakhs`;
+    return `₹${num.toLocaleString('en-IN')}`;
+  };
+
+  const getStatusBadge = (status: string) => {
+    const s = String(status || '').toLowerCase();
+    if (s.includes('ongoing') || s.includes('active')) {
+      return <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px]">Ongoing</Badge>;
+    }
+    if (s.includes('completed')) {
+      return <Badge className="bg-blue-50 text-[#2855B9] border-blue-200 text-[10px]">Completed</Badge>;
+    }
+    if (s.includes('sanction')) {
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[10px]">Sanctioned</Badge>;
+    }
+    if (s.includes('proposal') || s.includes('submit')) {
+      return <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Proposal Submitted</Badge>;
+    }
+    return <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">Terminated</Badge>;
   };
 
   const content = (
@@ -772,553 +771,497 @@ export function SponsoredResearchPage({
       {/* Page Header */}
       <PageHeader
         breadcrumbs={[
-          { label: 'Academics' },
-          { label: 'Research' },
-          { label: 'Sponsored Research & Grants' }
+          { label: 'Research & Innovation' },
+          { label: 'Sponsored Research & Grants' },
+          { label: 'External Research' }
         ]}
-        title="Sponsored Research & Grants"
-        badge={`${(stats?.totalProjects ?? projects.length).toLocaleString()} Grants`}
-        description="Track funded research projects, principal investigators, sanctioned grants, financial installments, sanction letters, and fund receipts / utilization certificates (UC)."
+        title="External Research & Grants"
+        badge={`${projects.length} Grants`}
+        description="Externally funded research grants, government & corporate sponsors, multi-faculty PI / Co-PI investigators, and financial reconciliation."
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
+              variant="outline"
+              size="sm"
               onClick={() => handleExport('xlsx')}
-              variant="outline"
-              size="sm"
               className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
             >
-              <Download className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
-              <span>Export Excel</span>
+              <Download className="w-3.5 h-3.5 text-emerald-600 mr-1.5" />
+              <span>Excel</span>
             </Button>
-
             <Button
-              onClick={() => setIsBulkOpen(true)}
               variant="outline"
               size="sm"
+              onClick={() => handleExport('csv')}
               className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
             >
-              <Upload className="w-3.5 h-3.5 mr-1.5" />
-              <span>Bulk Upload</span>
+              <Download className="w-3.5 h-3.5 text-slate-500 mr-1.5" />
+              <span>CSV</span>
             </Button>
-
-            <Button
-              onClick={handleOpenAdd}
-              size="sm"
-              className="bg-[#2855B9] hover:bg-[#1C355B] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
-            >
-              <Plus className="w-4 h-4 mr-1.5" />
-              <span>Record Grant</span>
-            </Button>
+            {isPrivileged && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setBulkFile(null);
+                    setBulkPreview(null);
+                    setBulkResult(null);
+                    setBulkError('');
+                    setBulkStep(1);
+                    setIsBulkOpen(true);
+                  }}
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-xs"
+                >
+                  <Upload className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Bulk Upload</span>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleOpenAdd}
+                  className="bg-[#2855B9] hover:bg-[#1C355B] text-white text-xs font-semibold h-9 px-4 rounded-xl shadow-xs"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  <span>Add External Grant</span>
+                </Button>
+              </>
+            )}
           </div>
         }
       />
 
-      {/* KPI Stats Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+      {/* KPI Cards (IPRs Style) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <StatCard
           title="Total Grants"
-          value={(stats?.totalProjects ?? projects.length).toLocaleString()}
-          subtitle="Across active departments"
-          icon={FileText}
+          value={(stats?.totalProjects || projects.length).toLocaleString()}
+          subtitle="All recorded external grants"
+          icon={Award}
         />
         <StatCard
-          title="Total Sanctioned"
-          value={formatCurrency(stats?.totalSanctionedAmount ?? projects.reduce((sum, p) => sum + (Number(p.sanctionedAmount) || 0), 0))}
-          subtitle="Approved funding"
+          title="Sanctioned Amount"
+          value={formatINR(stats?.totalSanctionedAmount || 0)}
+          subtitle="Total sanctioned funding"
           icon={DollarSign}
         />
         <StatCard
           title="Funds Received"
-          value={formatCurrency(stats?.totalFundsReceived ?? projects.reduce((sum, p) => sum + (Number(p.effectiveAmountReceived || p.amountReceived) || 0), 0))}
-          subtitle="Credited to date"
-          icon={Landmark}
+          value={formatINR(stats?.totalFundsReceived || 0)}
+          subtitle="Disbursed grant funds"
+          icon={Receipt}
         />
         <StatCard
-          title="Balance Receivable"
-          value={formatCurrency(stats?.totalBalanceReceivable ?? projects.reduce((sum, p) => sum + (Number(p.balanceYetToBeReceived) || 0), 0))}
-          subtitle="Remaining grant funds"
-          icon={TrendingUp}
-        />
-        <StatCard
-          title="Active Projects"
-          value={(stats?.ongoingCount ?? projects.filter(p => (p.status || '').toLowerCase().includes('ongoing')).length).toLocaleString()}
-          subtitle="Ongoing Research"
+          title="Ongoing Projects"
+          value={(stats?.ongoingCount || 0).toLocaleString()}
+          subtitle="Active grant research"
           icon={Clock}
+        />
+        <StatCard
+          title="Completed Projects"
+          value={(stats?.completedCount || 0).toLocaleString()}
+          subtitle="Fully finalized grants"
+          icon={CheckCircle}
         />
       </div>
 
-      {/* Filter & Search Bar */}
-      <Card className="border-gray-200 shadow-sm bg-white">
+      {/* Filter and Search Bar */}
+      <Card className="border border-slate-200 shadow-xs">
         <CardContent className="p-4">
-          <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
-            {/* Search Input */}
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            <div className="flex-1 relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input
-                placeholder="Search by Title, Principal Investigator, Agency, Scheme, Sanction Ref..."
-                className="pl-9 h-9 text-xs border-gray-200 focus-visible:ring-[#2855B9]"
+                placeholder="Search title, PI name, EmpId, agency, scheme, sanction ref..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 text-xs rounded-xl border-slate-200"
               />
             </div>
 
-            {/* Filter Dropdowns */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Status Filter (5 Statuses + All) */}
-              <div className="w-[160px]">
-                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="All Statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    {PROJECT_STATUS_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               {/* Sanction Year Filter */}
-              <div className="w-[130px]">
-                <Select value={selectedYear} onValueChange={setSelectedYear}>
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="Sanction Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Years</SelectItem>
-                    {sanctionYears.map(y => (
-                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-[130px] h-9 text-xs rounded-xl border-slate-200">
+                  <SelectValue placeholder="All Years" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  {availableYears.map(y => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
               {/* Department Filter */}
-              <div className="w-[160px]">
-                <Select value={selectedDept} onValueChange={setSelectedDept}>
-                  <SelectTrigger className="h-9 text-xs border-gray-200 bg-white">
-                    <SelectValue placeholder="All Departments" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map(d => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={selectedDept} onValueChange={setSelectedDept}>
+                <SelectTrigger className="w-[170px] h-9 text-xs rounded-xl border-slate-200 truncate">
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.map(dept => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-              {/* View Mode Toggle */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-0.5 border border-gray-200">
+              {/* Status Filter */}
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger className="w-[160px] h-9 text-xs rounded-xl border-slate-200">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  {PROJECT_STATUS_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Agency Type Filter */}
+              <Select value={selectedAgencyType} onValueChange={setSelectedAgencyType}>
+                <SelectTrigger className="w-[170px] h-9 text-xs rounded-xl border-slate-200 truncate">
+                  <SelectValue placeholder="All Agency Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Agency Types</SelectItem>
+                  {AGENCY_TYPE_OPTIONS.map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {isPrivileged && (
                 <Button
-                  variant={viewMode === 'table' ? 'default' : 'ghost'}
+                  variant="outline"
                   size="sm"
-                  onClick={() => setViewMode('table')}
-                  className={`h-8 px-2.5 text-xs ${viewMode === 'table' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600'}`}
+                  onClick={() => setIsClearOpen(true)}
+                  className="h-9 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl"
                 >
-                  Table
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  <span>Clear All</span>
                 </Button>
-                <Button
-                  variant={viewMode === 'cards' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('cards')}
-                  className={`h-8 px-2.5 text-xs ${viewMode === 'cards' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600'}`}
-                >
-                  Cards
-                </Button>
-              </div>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Projects List Content */}
-      {loading ? (
-        <Card className="p-12 text-center border-gray-200">
-          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#2855B9] mb-2" />
-          <p className="text-xs text-gray-500 font-medium">Loading sponsored research grants...</p>
-        </Card>
-      ) : projects.length === 0 ? (
-        <Card className="p-12 text-center border-dashed border-gray-300">
-          <FileText className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-          <h3 className="text-sm font-bold text-gray-700">No sponsored research projects found</h3>
-          <p className="text-xs text-gray-500 mt-1">Try adjusting your filters, or record a new grant.</p>
-          <Button onClick={handleOpenAdd} size="sm" className="mt-4 bg-[#2855B9] text-white text-xs">
-            <Plus className="w-3.5 h-3.5 mr-1" /> Record New Grant
-          </Button>
-        </Card>
-      ) : viewMode === 'cards' ? (
-        /* CARD VIEW */
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {projects.map((proj) => {
-            const progressVal = proj.progressPercentage ?? (proj.status === 'Completed' ? 100 : 50);
-            return (
-              <Card key={proj.id} className="border-gray-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {getStatusBadge(proj.status)}
-                      {getAgencyBadge(proj.agencyType)}
-                      <Badge variant="outline" className="text-[10px] font-mono">
-                        {proj.sanctionYear ? `SY ${proj.sanctionYear}` : `AY ${proj.academicYear}`}
-                      </Badge>
-                    </div>
-                  </div>
-                  <CardTitle className="text-sm font-bold text-gray-900 mt-2 line-clamp-2 leading-snug" title={proj.title}>
-                    {proj.title}
-                  </CardTitle>
-                  <CardDescription className="text-xs text-gray-500 mt-0.5">
-                    PI: <span className="font-semibold text-gray-700">{proj.principalInvestigator}</span>
-                    {proj.department && <span> • {proj.department}</span>}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3 pt-0">
-                  <div className="p-2.5 bg-gray-50 rounded-lg text-xs space-y-1.5 border border-gray-150">
-                    <div className="flex justify-between items-center text-gray-600">
-                      <span>Funding Agency:</span>
-                      <span className="font-semibold text-gray-800 truncate max-w-[170px]" title={proj.fundingAgency}>{proj.fundingAgency}</span>
-                    </div>
-                    {proj.sanctionOrderNo && (
-                      <div className="flex justify-between items-center text-gray-600">
-                        <span>Sanction Ref:</span>
-                        <span className="font-mono text-[11px] text-gray-700 truncate max-w-[170px]">{proj.sanctionOrderNo}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center text-gray-600">
-                      <span>Project Duration:</span>
-                      <span className="font-mono text-[11px] text-gray-700">{proj.durationFormatted || 'Not Available'}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-gray-600">
-                      <span>Sanctioned:</span>
-                      <span className="font-mono font-bold text-teal-800">{formatCurrency(proj.sanctionedAmount)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-gray-600">
-                      <span>Received:</span>
-                      <span className="font-mono font-semibold text-emerald-700">{formatCurrency(proj.effectiveAmountReceived || proj.amountReceived || 0)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-gray-600">
-                      <span>Balance Receivable:</span>
-                      <span className="font-mono font-semibold text-amber-700">{formatCurrency(proj.balanceYetToBeReceived || 0)}</span>
-                    </div>
-                  </div>
-
-                  {/* Document Attachment Badges */}
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="flex-1 flex items-center gap-1.5 text-[11px] text-gray-600">
-                      <FileCheck className="w-3.5 h-3.5 text-blue-600" />
-                      <span title="Sanction Letter">Sanction Letter:</span>
-                      {proj.agreementLetterCount && proj.agreementLetterCount > 0 ? (
-                        <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0">
-                          {proj.agreementLetterCount} {proj.agreementLetterCount === 1 ? 'Doc' : 'Docs'}
-                        </Badge>
-                      ) : (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">Missing</span>
-                      )}
-                    </div>
-                    <div className="flex-1 flex items-center gap-1.5 text-[11px] text-gray-600">
-                      <Receipt className="w-3.5 h-3.5 text-purple-600" />
-                      <span title="Fund Receipt / Utilization Certificate (UC)">Fund Receipt / UC:</span>
-                      {proj.paymentReceiptCount && proj.paymentReceiptCount > 0 ? (
-                        <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] px-1.5 py-0">
-                          {proj.paymentReceiptCount} {proj.paymentReceiptCount === 1 ? 'Doc' : 'Docs'}
-                        </Badge>
-                      ) : (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">Missing</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions Footer */}
-                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setViewingProject(proj)}
-                      className="text-xs text-[#2855B9] font-semibold hover:bg-blue-50 h-8 px-2"
-                    >
-                      <Eye className="w-3.5 h-3.5 mr-1" /> View Details
-                    </Button>
-
-                    <div className="flex items-center gap-1">
-                      {isPrivileged && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenEdit(proj)}
-                            className="h-8 w-8 p-0 text-gray-500 hover:text-blue-600"
-                            title="Edit"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(proj.id)}
-                            className="h-8 w-8 p-0 text-gray-500 hover:text-red-600"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      ) : (
-        /* TABLE VIEW */
-        <Card className="border border-[#E2E8F0] shadow-xs bg-white rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-[#E2E8F0] text-slate-700 font-semibold text-xs">
-                  <th className="py-3 px-3 w-10 text-center">#</th>
-                  <th className="py-3 px-3 min-w-[220px]">Project Title & PI</th>
-                  <th className="py-3 px-3 min-w-[150px]">Agency & Category</th>
-                  <th className="py-3 px-3 min-w-[90px] text-center">Sanction Year</th>
-                  <th className="py-3 px-3 min-w-[130px]">Duration</th>
-                  <th className="py-3 px-3 text-right min-w-[140px]">Grant Finances</th>
-                  <th className="py-3 px-3 text-center min-w-[100px]">Status</th>
-                  <th className="py-3 px-3 text-center min-w-[100px]" title="Sanction Letter">Sanction Letter</th>
-                  <th className="py-3 px-3 text-center min-w-[100px]" title="Fund Receipt / Utilization Certificate (UC)">Fund Receipt / UC</th>
-                  <th className="py-3 px-3 text-center w-24">Actions</th>
+      {/* Projects Table */}
+      <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead className="bg-[#0B1B3D] text-white">
+              <tr>
+                <th className="p-3.5 font-semibold text-[11px] uppercase tracking-wider w-12 text-center">#</th>
+                <th className="p-3.5 font-semibold text-[11px] uppercase tracking-wider min-w-[280px]">Project Title & Sponsor</th>
+                <th className="p-3.5 font-semibold text-[11px] uppercase tracking-wider min-w-[220px]">Investigators (PI & Co-PI)</th>
+                <th className="p-3.5 font-semibold text-[11px] uppercase tracking-wider min-w-[120px]">Sanction Year</th>
+                <th className="p-3.5 font-semibold text-[11px] uppercase tracking-wider min-w-[140px]">Timeline / Duration</th>
+                <th className="p-3.5 font-semibold text-[11px] uppercase tracking-wider min-w-[140px] text-right">Financials (Sanctioned)</th>
+                <th className="p-3.5 font-semibold text-[11px] uppercase tracking-wider min-w-[100px] text-center">Status</th>
+                <th className="p-3.5 font-semibold text-[11px] uppercase tracking-wider min-w-[100px] text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="p-12 text-center text-slate-500">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#2855B9] mb-2" />
+                    <span>Loading external research grants...</span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E2E8F0] text-xs sm:text-[13px] text-slate-700">
-                {projects.map((proj, idx) => {
-                  return (
-                    <tr key={proj.id} className="hover:bg-[#F1F5F9] transition-colors">
-                      <td className="py-3 px-3 text-center font-mono text-gray-400">{idx + 1}</td>
-
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-gray-900 line-clamp-2 max-w-[260px]" title={proj.title}>
-                          {proj.title}
+              ) : projects.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-12 text-center text-slate-500">
+                    <Award className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-700">No External Research Grants Found</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Try adjusting your filters or search query.</p>
+                  </td>
+                </tr>
+              ) : (
+                projects.map((project, idx) => (
+                  <tr key={project.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="p-3.5 text-center font-mono text-slate-400">{idx + 1}</td>
+                    <td className="p-3.5">
+                      <div className="font-semibold text-slate-900 leading-snug">{project.title}</div>
+                      <div className="text-[11px] text-[#2855B9] font-medium mt-0.5">
+                        {project.fundingAgency} {project.scheme ? `• ${project.scheme}` : ''}
+                      </div>
+                      {project.sanctionOrderNo && (
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">Ref: {project.sanctionOrderNo}</div>
+                      )}
+                    </td>
+                    <td className="p-3.5">
+                      {/* Principal Investigator Badge */}
+                      <div className="mb-1">
+                        <Badge className="bg-[#EAF1FD] text-[#2855B9] border-[#C8DCFB] text-[10px] font-semibold">
+                          PI: {project.piAssociation?.facultyName || project.principalInvestigator || 'Unassigned'}
+                          {project.piAssociation?.employeeId ? ` (${project.piAssociation.employeeId})` : ''}
+                        </Badge>
+                      </div>
+                      {/* Co-Investigators Badges */}
+                      {(project.coPiAssociations || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {project.coPiAssociations?.map(co => (
+                            <Badge key={co.employeeId} variant="outline" className="text-[9px] border-slate-200 text-slate-600">
+                              Co-PI: {co.facultyName || co.employeeId}
+                            </Badge>
+                          ))}
                         </div>
-                        <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                          <span className="font-medium text-gray-700">PI: {proj.principalInvestigator}</span>
-                          {proj.department && <span className="text-gray-400">• {proj.department}</span>}
+                      )}
+                    </td>
+                    <td className="p-3.5">
+                      <Badge className="bg-slate-100 text-slate-800 border-slate-200 text-[11px] font-mono font-semibold">
+                        {project.sanctionYear || 'N/A'}
+                      </Badge>
+                    </td>
+                    <td className="p-3.5">
+                      <div className="text-slate-800 font-medium">{project.startDate || 'No Start Date'}</div>
+                      <div className="text-[11px] text-slate-500">
+                        {project.endDate ? `End: ${project.endDate}` : 'Ongoing'}
+                      </div>
+                      {(project.duration || project.durationFormatted) && (
+                        <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                          {project.duration || project.durationFormatted}
                         </div>
-                      </td>
-
-                      <td className="py-3 px-3">
-                        <div className="font-medium text-gray-800 truncate max-w-[150px]" title={proj.fundingAgency}>{proj.fundingAgency}</div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          {getAgencyBadge(proj.agencyType)}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3 text-center font-mono font-semibold text-gray-800">
-                        {proj.sanctionYear ? (
-                          <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] border border-slate-200">
-                            {proj.sanctionYear}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-[10px] italic">Pending</span>
+                      )}
+                    </td>
+                    <td className="p-3.5 text-right font-mono">
+                      <div className="font-bold text-slate-900">{formatINR(project.sanctionedAmount)}</div>
+                      {project.amountReceived !== null && project.amountReceived !== undefined && (
+                        <div className="text-[11px] text-emerald-700">Rec: {formatINR(project.amountReceived)}</div>
+                      )}
+                    </td>
+                    <td className="p-3.5 text-center">
+                      {getStatusBadge(project.status)}
+                    </td>
+                    <td className="p-3.5 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setViewingProject(project)}
+                          className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </Button>
+                        {isPrivileged && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenEdit(project)}
+                              className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(project.id)}
+                              className="h-7 w-7 p-0 text-rose-500 hover:text-rose-700"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </>
                         )}
-                      </td>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-                      <td className="py-3 px-3 font-mono text-[11px] text-gray-700">
-                        {proj.durationFormatted || 'Not Available'}
-                      </td>
-
-                      <td className="py-3 px-3 text-right">
-                        <div className="font-mono font-bold text-teal-800">{formatCurrency(proj.sanctionedAmount)}</div>
-                        <div className="text-[10px] text-emerald-700 font-mono">
-                          Rec: {formatCurrency(proj.effectiveAmountReceived || proj.amountReceived || 0)}
-                        </div>
-                        <div className="text-[10px] text-amber-700 font-mono">
-                          Bal: {formatCurrency(proj.balanceYetToBeReceived || 0)}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3 text-center">
-                        {getStatusBadge(proj.status)}
-                      </td>
-
-                      {/* Sanction Letter Column */}
-                      <td className="py-3 px-3 text-center">
-                        {proj.agreementLetterCount && proj.agreementLetterCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2] text-[10px] font-semibold" title={`${proj.agreementLetterCount} Sanction Letter(s) attached`}>
-                            <FileCheck className="w-3 h-3 text-[#167447]" />
-                            {proj.agreementLetterCount} {proj.agreementLetterCount === 1 ? 'Doc' : 'Docs'}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-[10px] italic">Missing</span>
-                        )}
-                      </td>
-
-                      {/* Fund Receipt / UC Column */}
-                      <td className="py-3 px-3 text-center">
-                        {proj.paymentReceiptCount && proj.paymentReceiptCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2] text-[10px] font-semibold" title={`${proj.agreementLetterCount} Sanction Letter(s) attached`}>
-                            <Receipt className="w-3 h-3 text-[#167447]" />
-                            {proj.paymentReceiptCount} {proj.paymentReceiptCount === 1 ? 'Doc' : 'Docs'}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-[10px] italic">Missing</span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setViewingProject(proj)}
-                            className="h-7 w-7 p-0 text-gray-500 hover:text-gray-900 rounded-md"
-                            title="View Details"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </Button>
-
-                          {isPrivileged && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenEdit(proj)}
-                                className="h-7 w-7 p-0 text-gray-500 hover:text-blue-600 rounded-md"
-                                title="Edit"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(proj.id)}
-                                className="h-7 w-7 p-0 text-gray-500 hover:text-red-600 rounded-md"
-                                title="Delete"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="p-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex justify-between items-center px-4">
-            <span>Showing {projects.length} sponsored project records</span>
-            {isPrivileged && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsClearOpen(true)}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] h-7 px-2"
-              >
-                Clear All Grants
-              </Button>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* ======================================================== */}
-      {/* RECORD / EDIT SPONSORED PROJECT DIALOG */}
-      {/* ======================================================== */}
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-[760px] max-h-[92vh] overflow-y-auto bg-white p-6 rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-[#2855B9]" />
-              <span>{editingProject ? 'Edit Sponsored Research Project' : 'Record New Sponsored Research Grant'}</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-gray-500">
-              Fill in all sanctioned grant details, Principal Investigator information, timeline, financial installments, and upload supporting documents.
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* RECORD DETAIL DIALOG (IPRs Style)                             */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <Dialog open={!!viewingProject} onOpenChange={(open) => !open && setViewingProject(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white p-6 rounded-2xl">
+          <DialogHeader className="border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2 text-[#2855B9]">
+              <Award className="w-5 h-5" />
+              <DialogTitle className="text-base font-bold text-slate-900">
+                External Research Project Details
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-slate-500">
+              Grant sanction information, investigators, and financials.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleFormSubmit} className="space-y-4 py-2 text-xs">
-            {formErrors.submit && (
-              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg flex items-center gap-2 font-medium">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{formErrors.submit}</span>
+          {viewingProject && (
+            <div className="space-y-4 py-2 text-xs">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between mb-1">
+                  {getStatusBadge(viewingProject.status)}
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    Sanction Year: {viewingProject.sanctionYear}
+                  </Badge>
+                </div>
+                <h3 className="text-sm font-bold text-slate-900 leading-snug">{viewingProject.title}</h3>
+                <p className="text-xs text-[#2855B9] font-medium mt-1">
+                  {viewingProject.fundingAgency} {viewingProject.scheme ? `• ${viewingProject.scheme}` : ''}
+                </p>
+              </div>
+
+              {/* Research Team Banner */}
+              <div className="border border-slate-200 rounded-xl p-3.5 space-y-3 bg-[#EAF1FD]/20">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#2855B9] block">Principal Investigator (PI)</span>
+                  <div className="text-xs font-bold text-slate-900 mt-0.5">
+                    {viewingProject.piAssociation?.facultyName || viewingProject.principalInvestigator}
+                    {viewingProject.piAssociation?.employeeId ? ` (EmpID: ${viewingProject.piAssociation.employeeId})` : ''}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {viewingProject.piAssociation?.designation ? `${viewingProject.piAssociation.designation} • ` : ''}
+                    {viewingProject.piAssociation?.department || viewingProject.department}
+                  </div>
+                </div>
+
+                {(viewingProject.coPiAssociations || []).length > 0 && (
+                  <div className="pt-2 border-t border-slate-100">
+                    <span className="text-[10px] uppercase font-bold text-slate-600 block">Co-Investigators (Co-PI)</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {viewingProject.coPiAssociations?.map(co => (
+                        <Badge key={co.employeeId} variant="outline" className="text-[10px] border-slate-300 bg-white">
+                          {co.facultyName || co.employeeId} (EmpID: {co.employeeId})
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Metadata Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="p-3 bg-slate-50/60 rounded-lg border border-slate-100">
+                  <span className="text-[10px] uppercase text-slate-400 block">Sanction Order No</span>
+                  <span className="text-xs font-mono font-semibold text-slate-800">{viewingProject.sanctionOrderNo || 'N/A'}</span>
+                </div>
+                <div className="p-3 bg-slate-50/60 rounded-lg border border-slate-100">
+                  <span className="text-[10px] uppercase text-slate-400 block">Sanction Date</span>
+                  <span className="text-xs font-medium text-slate-800">{viewingProject.sanctionDate || 'N/A'}</span>
+                </div>
+                <div className="p-3 bg-slate-50/60 rounded-lg border border-slate-100">
+                  <span className="text-[10px] uppercase text-slate-400 block">Project Duration</span>
+                  <span className="text-xs font-semibold text-slate-700">{viewingProject.duration || viewingProject.durationFormatted || 'N/A'}</span>
+                </div>
+                <div className="p-3 bg-slate-50/60 rounded-lg border border-slate-100">
+                  <span className="text-[10px] uppercase text-slate-400 block">Sanctioned Amount</span>
+                  <span className="text-sm font-bold text-slate-900">{formatINR(viewingProject.sanctionedAmount)}</span>
+                </div>
+                <div className="p-3 bg-slate-50/60 rounded-lg border border-slate-100">
+                  <span className="text-[10px] uppercase text-slate-400 block">Amount Received</span>
+                  <span className="text-sm font-bold text-emerald-700">{formatINR(viewingProject.amountReceived)}</span>
+                </div>
+                <div className="p-3 bg-slate-50/60 rounded-lg border border-slate-100">
+                  <span className="text-[10px] uppercase text-slate-400 block">Host Department</span>
+                  <span className="text-xs font-medium text-slate-800">{viewingProject.department || 'General'}</span>
+                </div>
+              </div>
+
+              {/* Documents */}
+              {((viewingProject.agreementLetters?.length || 0) + (viewingProject.paymentReceipts?.length || 0)) > 0 && (
+                <div className="border border-slate-200 rounded-xl p-3.5 space-y-2">
+                  <span className="text-xs font-bold text-slate-800 block">Attached Grant Documents</span>
+                  <div className="divide-y divide-slate-100">
+                    {(viewingProject.agreementLetters || []).map(doc => (
+                      <div key={doc.id} className="py-2 flex items-center justify-between text-xs">
+                        <span className="font-medium text-slate-700">Sanction Letter: {doc.fileName}</span>
+                        <a href={doc.driveUrl} target="_blank" rel="noopener noreferrer" className="text-[#2855B9] font-medium flex items-center gap-1 hover:underline">
+                          <span>View in Drive</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    ))}
+                    {(viewingProject.paymentReceipts || []).map(doc => (
+                      <div key={doc.id} className="py-2 flex items-center justify-between text-xs">
+                        <span className="font-medium text-slate-700">Fund Receipt / UC: {doc.fileName}</span>
+                        <a href={doc.driveUrl} target="_blank" rel="noopener noreferrer" className="text-[#2855B9] font-medium flex items-center gap-1 hover:underline">
+                          <span>View in Drive</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="border-t border-slate-100 pt-3">
+            <Button variant="outline" size="sm" onClick={() => setViewingProject(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* SINGLE-ENTRY ADD / EDIT DIALOG                                */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white p-6 rounded-2xl">
+          <DialogHeader className="border-b border-slate-100 pb-3">
+            <DialogTitle className="text-base font-bold text-slate-900">
+              {editingProject ? 'Edit External Research Grant' : 'Record New External Research Grant'}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Enter sponsored research details, assign Principal Investigator & Co-Investigators.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmitForm} className="space-y-4 py-2 text-xs">
+            {formError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{formError}</span>
               </div>
             )}
 
-            {/* SECTION A — PROJECT INFORMATION */}
-            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-[#2855B9]" />
-                <span>Section A — Project Information</span>
-              </h4>
-
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Project Title <span className="text-red-500">*</span></Label>
+            {/* A. Project Information */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Project Title *</Label>
                 <Input
-                  placeholder="Full sanctioned project title..."
                   value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="mt-1 h-9 text-xs bg-white"
+                  onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Official title of the sponsored research project"
+                  className="h-8 text-xs"
                 />
-                {formErrors.title && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.title}</p>}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Principal Investigator (PI) <span className="text-red-500">*</span></Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">Funding Agency *</Label>
                   <Input
-                    placeholder="e.g., Dr. Rajesh Kumar"
-                    value={formData.principalInvestigator}
-                    onChange={(e) => setFormData({ ...formData, principalInvestigator: e.target.value })}
-                    className="mt-1 h-9 text-xs bg-white"
-                  />
-                  {formErrors.principalInvestigator && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.principalInvestigator}</p>}
-                </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Co-Investigators (Co-PI)</Label>
-                  <Input
-                    placeholder="e.g., Dr. Priya Sharma, Dr. Arun Kumar"
-                    value={formData.coInvestigators || ''}
-                    onChange={(e) => setFormData({ ...formData, coInvestigators: e.target.value })}
-                    className="mt-1 h-9 text-xs bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Funding Agency <span className="text-red-500">*</span></Label>
-                  <Input
-                    placeholder="e.g., DST - SERB, AICTE, ICMR, ISRO"
                     value={formData.fundingAgency}
-                    onChange={(e) => setFormData({ ...formData, fundingAgency: e.target.value })}
-                    className="mt-1 h-9 text-xs bg-white"
+                    onChange={e => setFormData(prev => ({ ...prev, fundingAgency: e.target.value }))}
+                    placeholder="e.g. DST, SERB, ISRO, DRDO"
+                    className="h-8 text-xs"
                   />
-                  {formErrors.fundingAgency && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.fundingAgency}</p>}
                 </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Scheme / Program Name</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">Scheme / Program</Label>
                   <Input
-                    placeholder="e.g., Core Research Grant (CRG), RPS, FIST"
-                    value={formData.scheme || ''}
-                    onChange={(e) => setFormData({ ...formData, scheme: e.target.value })}
-                    className="mt-1 h-9 text-xs bg-white"
+                    value={formData.scheme}
+                    onChange={e => setFormData(prev => ({ ...prev, scheme: e.target.value }))}
+                    placeholder="e.g. Core Research Grant"
+                    className="h-8 text-xs"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Funding Agency Category</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">Agency Type</Label>
                   <Select
                     value={formData.agencyType}
-                    onValueChange={(val) => setFormData({ ...formData, agencyType: val })}
+                    onValueChange={val => setFormData(prev => ({ ...prev, agencyType: val }))}
                   >
-                    <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                      <SelectValue placeholder="Select Agency Category" />
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {AGENCY_TYPE_OPTIONS.map(opt => (
@@ -1327,395 +1270,124 @@ export function SponsoredResearchPage({
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Sanction Order Number / Ref ID</Label>
-                  <Input
-                    placeholder="e.g., DST/SERB/CRG/2023/004821"
-                    value={formData.sanctionOrderNo || ''}
-                    onChange={(e) => setFormData({ ...formData, sanctionOrderNo: e.target.value })}
-                    className="mt-1 h-9 text-xs bg-white"
-                  />
-                </div>
               </div>
             </div>
 
-            {/* SECTION B — FINANCIAL INFORMATION */}
-            <div className="space-y-3 p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl">
-              <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-700" />
-                  Section B — Financial Information & Installments
-                </span>
-                {liveFinancials.recStatus === 'matched' && (
-                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px]">Reconciliation: Matched</Badge>
-                )}
-                {liveFinancials.recStatus === 'mismatched' && (
-                  <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px]">
-                    Discrepancy: Difference of {formatCurrency(liveFinancials.diff)}
-                  </Badge>
-                )}
-              </h4>
+            {/* B. Investigators (PI & Co-PI) */}
+            <div className="border border-slate-200 rounded-xl p-3.5 space-y-3 bg-slate-50/40">
+              <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-[#2855B9]" />
+                <span>Investigators Hierarchy (PI & Co-PIs)</span>
+              </Label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Total Sanctioned Amount (₹) <span className="text-red-500">*</span></Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g., 4850000"
-                    value={formData.sanctionedAmount}
-                    onChange={(e) => setFormData({ ...formData, sanctionedAmount: parseFloat(e.target.value) || 0 })}
-                    className="mt-1 h-9 text-xs font-mono bg-white font-semibold text-teal-900"
-                  />
-                  {formErrors.sanctionedAmount && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.sanctionedAmount}</p>}
-                </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Reported Amount Received (₹)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g., 2425000"
-                    value={formData.amountReceived !== null && formData.amountReceived !== undefined ? formData.amountReceived : ''}
-                    onChange={(e) => setFormData({ ...formData, amountReceived: e.target.value })}
-                    className="mt-1 h-9 text-xs font-mono bg-white text-emerald-800 font-semibold"
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Balance Receivable (₹)</Label>
-                  <div className="mt-1 h-9 px-3 bg-white rounded-md border border-gray-200 flex items-center font-mono font-bold text-amber-700">
-                    {formatCurrency(liveFinancials.balanceYetToBeReceived)}
+              {/* Principal Investigator (Single Required) */}
+              <div className="space-y-1.5 bg-white p-3 rounded-lg border border-slate-200">
+                <Label className="text-[11px] font-bold text-[#2855B9]">Principal Investigator (PI) *</Label>
+                {piFaculty ? (
+                  <div className="flex items-center justify-between p-2 bg-[#EAF1FD] border border-[#C8DCFB] rounded-lg">
+                    <div>
+                      <div className="font-bold text-slate-900 text-xs">{piFaculty.name} (EmpID: {piFaculty.employeeId})</div>
+                      <div className="text-[10px] text-slate-500">{piFaculty.designation} • {piFaculty.department}</div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPiFaculty(null)}
+                      className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
-                </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      placeholder="Search PI by EmpID or Name..."
+                      value={piQuery}
+                      onChange={e => setPiQuery(e.target.value)}
+                      className="pl-8 h-8 text-xs bg-white"
+                    />
+                    {piLoading && (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    )}
+
+                    {piOptions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto divide-y divide-slate-100">
+                        {piOptions.map(opt => (
+                          <div
+                            key={opt.employeeId}
+                            onClick={() => {
+                              setPiFaculty(opt);
+                              setPiQuery('');
+                              setPiOptions([]);
+                            }}
+                            className="p-2 hover:bg-slate-50 cursor-pointer flex items-center justify-between"
+                          >
+                            <div>
+                              <div className="font-semibold text-slate-800 text-xs">{opt.name}</div>
+                              <div className="text-[10px] text-slate-500">{opt.designation} • {opt.department}</div>
+                            </div>
+                            <Badge variant="outline" className="font-mono text-[10px]">EmpID: {opt.employeeId}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Installments Tracker */}
-              <div className="mt-2 pt-2 border-t border-emerald-200/60 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-800 flex items-center gap-1">
-                    <Landmark className="w-3.5 h-3.5 text-emerald-700" />
-                    Funding Installments ({tempInstallments.length})
-                  </span>
-                  <span className="text-[11px] font-mono text-gray-600">
-                    Sum: <strong className="text-emerald-700">{formatCurrency(liveFinancials.installmentTotal)}</strong>
-                  </span>
-                </div>
-
-                {/* Add Installment Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-white p-2 rounded-lg border border-emerald-200">
-                  <Input
-                    type="date"
-                    value={newInstDate}
-                    onChange={(e) => setNewInstDate(e.target.value)}
-                    className="h-8 text-[11px]"
-                    placeholder="Payment Date"
-                  />
-                  <Input
-                    type="number"
-                    value={newInstAmount}
-                    onChange={(e) => setNewInstAmount(e.target.value)}
-                    className="h-8 text-[11px] font-mono"
-                    placeholder="Amount (₹)"
-                  />
-                  <Input
-                    type="text"
-                    value={newInstRef}
-                    onChange={(e) => setNewInstRef(e.target.value)}
-                    className="h-8 text-[11px]"
-                    placeholder="Ref / UTR / PFMS No"
-                  />
-                  <Button
-                    type="button"
-                    onClick={handleAddInstallment}
-                    size="sm"
-                    className="h-8 bg-emerald-700 text-white hover:bg-emerald-800 text-[11px]"
-                  >
-                    <Plus className="w-3 h-3 mr-1" /> Add Installment
-                  </Button>
-                </div>
-
-                {/* Existing Installments List */}
-                {tempInstallments.length > 0 && (
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {tempInstallments.map((inst, i) => (
-                      <div key={i} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-gray-200 text-[11px]">
-                        <span className="font-semibold text-gray-700">Installment #{i + 1}</span>
-                        <span className="text-gray-500">{inst.paymentDate || 'Date N/A'}</span>
-                        <span className="font-mono font-bold text-emerald-800">{formatCurrency(inst.amount)}</span>
-                        <span className="font-mono text-gray-500 text-[10px] truncate max-w-[100px]">{inst.paymentReference || '-'}</span>
+              {/* Co-Investigators (Multiple Optional) */}
+              <div className="space-y-1.5 bg-white p-3 rounded-lg border border-slate-200">
+                <Label className="text-[11px] font-bold text-slate-700">Co-Investigators (Co-PI)</Label>
+                <div className="flex flex-wrap gap-1.5 min-h-[28px] mb-1">
+                  {coPiFacultyList.length === 0 ? (
+                    <span className="text-slate-400 text-[11px] italic">No Co-Investigators added.</span>
+                  ) : (
+                    coPiFacultyList.map(co => (
+                      <Badge
+                        key={co.employeeId}
+                        variant="outline"
+                        className="border-slate-300 text-slate-700 text-[11px] flex items-center gap-1.5 pr-1"
+                      >
+                        <span>{co.name} ({co.employeeId})</span>
                         <button
                           type="button"
-                          onClick={() => handleRemoveInstallment(i, inst.id)}
-                          className="text-red-500 hover:text-red-700"
+                          onClick={() => handleRemoveCoPi(co.employeeId)}
+                          className="hover:bg-slate-200 rounded-full p-0.5"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <X className="w-3 h-3 text-slate-500" />
                         </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* SECTION C — PROJECT TIMELINE */}
-            <div className="space-y-3 p-3.5 bg-blue-50/50 border border-blue-200 rounded-xl">
-              <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-blue-700" />
-                <span>Section C — Project Timeline & Duration</span>
-              </h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Sanction Date</Label>
-                  <Input
-                    type="date"
-                    value={formData.sanctionDate || ''}
-                    onChange={(e) => {
-                      const newDate = e.target.value;
-                      const derived = deriveSanctionYear(newDate);
-                      setFormData({
-                        ...formData,
-                        sanctionDate: newDate,
-                        sanctionYear: derived ? String(derived) : formData.sanctionYear
-                      });
-                    }}
-                    className="mt-1 h-9 text-xs bg-white"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-0.5">Automatically derives calendar Sanction Year</p>
-                </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Sanction Year (Calendar Year)</Label>
-                  <Input
-                    type="number"
-                    placeholder="e.g., 2024"
-                    value={formData.sanctionYear || ''}
-                    onChange={(e) => setFormData({ ...formData, sanctionYear: e.target.value })}
-                    className="mt-1 h-9 text-xs bg-white font-mono"
-                  />
-                  {formErrors.sanctionYear && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.sanctionYear}</p>}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Start Date</Label>
-                  <Input
-                    type="date"
-                    value={formData.startDate || ''}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="mt-1 h-9 text-xs bg-white"
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Completion / End Date</Label>
-                  <Input
-                    type="date"
-                    value={formData.endDate || ''}
-                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    className="mt-1 h-9 text-xs bg-white"
-                  />
-                  {formErrors.endDate && <p className="text-[11px] text-red-500 mt-0.5">{formErrors.endDate}</p>}
-                </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Calculated Project Duration</Label>
-                  <div className={`mt-1 h-9 px-3 rounded-md border flex items-center font-mono text-[11px] font-semibold ${
-                    liveDuration.isValid ? 'bg-white text-blue-900 border-blue-200' : 'bg-gray-100 text-gray-400 border-gray-200'
-                  }`}>
-                    <Clock className="w-3.5 h-3.5 mr-1 text-blue-600 shrink-0" />
-                    <span>{liveDuration.formatted}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* SECTION D — PROJECT CLASSIFICATION */}
-            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-[#2855B9]" />
-                <span>Section D — Project Classification & Progress</span>
-              </h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Project Status</Label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(val) => {
-                      setFormData({
-                        ...formData,
-                        status: val,
-                        progressPercentage: val === 'Completed' ? 100 : (val === 'Sanctioned' ? 10 : formData.progressPercentage)
-                      });
-                    }}
-                  >
-                    <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PROJECT_STATUS_OPTIONS.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Milestone Progress (%)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    placeholder="0 - 100"
-                    value={formData.progressPercentage || 0}
-                    onChange={(e) => setFormData({ ...formData, progressPercentage: parseInt(e.target.value, 10) || 0 })}
-                    className="mt-1 h-9 text-xs font-mono bg-white"
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-gray-700">Host Department</Label>
-                  <Select
-                    value={formData.department || ''}
-                    onValueChange={(val) => setFormData({ ...formData, department: val })}
-                  >
-                    <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                      <SelectValue placeholder="Department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map(d => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            {/* SECTION E — SUPPORTING DOCUMENTS (TWO SEPARATE CATEGORIES) */}
-            <div className="space-y-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Paperclip className="w-3.5 h-3.5 text-[#2855B9]" />
-                <span>Section E — Supporting Documents (Google Drive Integration)</span>
-              </h4>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 1. SANCTION LETTER */}
-                <div className="p-3 bg-white rounded-lg border border-blue-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
-                      <FileCheck className="w-4 h-4 text-blue-600" />
-                      Sanction Letter
-                    </span>
-                    <span className="text-[10px] text-gray-400">PDF, JPG, PNG (Max 10MB)</span>
-                  </div>
-
-                  <div>
-                    <Label className="text-[11px] text-gray-600 block mb-1">Upload File(s)</Label>
-                    <Input
-                      type="file"
-                      multiple
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={(e) => setAgreementFiles(Array.from(e.target.files || []))}
-                      className="h-8 text-[11px] cursor-pointer"
-                    />
-                    {agreementFiles.length > 0 && (
-                      <p className="text-[10px] text-emerald-600 mt-1 font-medium">{agreementFiles.length} file(s) selected for upload</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label className="text-[11px] text-gray-600 block mb-1">Or Existing Google Drive Link(s)</Label>
-                    <textarea
-                      rows={2}
-                      placeholder="https://drive.google.com/file/d/... (one per line)"
-                      value={agreementLinks}
-                      onChange={(e) => setAgreementLinks(e.target.value)}
-                      className="w-full p-1.5 text-[11px] border border-gray-200 rounded focus:ring-1 focus:ring-blue-500 font-mono"
-                    />
-                  </div>
-
-                  {/* Show existing attached agreement letters if editing */}
-                  {editingProject && editingProject.agreementLetters && editingProject.agreementLetters.length > 0 && (
-                    <div className="pt-1.5 border-t border-gray-150 space-y-1">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">Attached Sanction Letters ({editingProject.agreementLetters.length}):</span>
-                      {editingProject.agreementLetters.map(doc => (
-                        <div key={doc.id} className="flex items-center justify-between text-[11px] bg-slate-50 p-1.5 rounded">
-                          <a href={doc.driveUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[180px] flex items-center gap-1">
-                            <ExternalLink className="w-3 h-3 shrink-0" />
-                            {doc.fileName}
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDocument(doc.id, editingProject.id)}
-                            className="text-red-500 hover:text-red-700"
-                            title="Remove Document"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                      </Badge>
+                    ))
                   )}
                 </div>
 
-                {/* 2. FUND RECEIPT / UTILIZATION CERTIFICATE (UC) */}
-                <div className="p-3 bg-white rounded-lg border border-purple-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
-                      <Receipt className="w-4 h-4 text-purple-600" />
-                      Fund Receipt / Utilization Certificate (UC)
-                    </span>
-                    <span className="text-[10px] text-gray-400">PDF, JPG, PNG (Max 10MB)</span>
-                  </div>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    placeholder="Search Co-PI by EmpID or Name to add..."
+                    value={coPiQuery}
+                    onChange={e => setCoPiQuery(e.target.value)}
+                    className="pl-8 h-8 text-xs bg-white"
+                  />
+                  {coPiLoading && (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  )}
 
-                  <div>
-                    <Label className="text-[11px] text-gray-600 block mb-1">Upload File(s)</Label>
-                    <Input
-                      type="file"
-                      multiple
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={(e) => setPaymentFiles(Array.from(e.target.files || []))}
-                      className="h-8 text-[11px] cursor-pointer"
-                    />
-                    {paymentFiles.length > 0 && (
-                      <p className="text-[10px] text-emerald-600 mt-1 font-medium">{paymentFiles.length} document(s) selected for upload</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label className="text-[11px] text-gray-600 block mb-1">Or Existing Google Drive Link(s)</Label>
-                    <textarea
-                      rows={2}
-                      placeholder="https://drive.google.com/file/d/... (one per line)"
-                      value={paymentLinks}
-                      onChange={(e) => setPaymentLinks(e.target.value)}
-                      className="w-full p-1.5 text-[11px] border border-gray-200 rounded focus:ring-1 focus:ring-purple-500 font-mono"
-                    />
-                  </div>
-
-                  {/* Show existing attached payment receipts if editing */}
-                  {editingProject && editingProject.paymentReceipts && editingProject.paymentReceipts.length > 0 && (
-                    <div className="pt-1.5 border-t border-gray-150 space-y-1">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">Attached Fund Receipts / UCs ({editingProject.paymentReceipts.length}):</span>
-                      {editingProject.paymentReceipts.map(doc => (
-                        <div key={doc.id} className="flex items-center justify-between text-[11px] bg-slate-50 p-1.5 rounded">
-                          <a href={doc.driveUrl} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline truncate max-w-[180px] flex items-center gap-1">
-                            <ExternalLink className="w-3 h-3 shrink-0" />
-                            {doc.fileName}
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDocument(doc.id, editingProject.id)}
-                            className="text-red-500 hover:text-red-700"
-                            title="Remove Document"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                  {coPiOptions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto divide-y divide-slate-100">
+                      {coPiOptions.map(opt => (
+                        <div
+                          key={opt.employeeId}
+                          onClick={() => handleAddCoPi(opt)}
+                          className="p-2 hover:bg-slate-50 cursor-pointer flex items-center justify-between"
+                        >
+                          <div>
+                            <div className="font-semibold text-slate-800 text-xs">{opt.name}</div>
+                            <div className="text-[10px] text-slate-500">{opt.designation} • {opt.department}</div>
+                          </div>
+                          <Badge variant="outline" className="font-mono text-[10px]">EmpID: {opt.employeeId}</Badge>
                         </div>
                       ))}
                     </div>
@@ -1724,363 +1396,443 @@ export function SponsoredResearchPage({
               </div>
             </div>
 
-            {/* SECTION F — ADDITIONAL INFORMATION */}
-            <div className="space-y-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <ExternalLink className="w-3.5 h-3.5 text-[#2855B9]" />
-                <span>Section F — Additional Information</span>
-              </h4>
+            {/* C. Sanction Information & Timeline */}
+            <div className="border border-slate-200 rounded-xl p-3.5 space-y-3 bg-slate-50/40">
+              <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[#2855B9]" />
+                <span>Sanction & Timeline Information</span>
+              </Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Sanction Order Number</Label>
+                  <Input
+                    value={formData.sanctionOrderNo}
+                    onChange={e => setFormData(prev => ({ ...prev, sanctionOrderNo: e.target.value }))}
+                    placeholder="Order / Reference No"
+                    className="h-8 text-xs bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Sanction Date *</Label>
+                  <Input
+                    type="date"
+                    value={formData.sanctionDate}
+                    onChange={e => handleSanctionDateChange(e.target.value)}
+                    className="h-8 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Sanction Year (Derived)</Label>
+                  <Input
+                    value={formData.sanctionYear}
+                    readOnly
+                    placeholder="Auto-derived from date"
+                    className="h-8 text-xs bg-slate-100 text-slate-700 font-bold"
+                  />
+                </div>
+              </div>
 
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Project / Sanction Letter URL</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Commencement / Start Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.startDate}
+                    onChange={e => handleStartDateChange(e.target.value)}
+                    className="h-8 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Completion / End Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.endDate}
+                    onChange={e => handleEndDateChange(e.target.value)}
+                    className="h-8 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Project Duration (Calculated)</Label>
+                  <Input
+                    value={formData.duration}
+                    readOnly
+                    placeholder="Auto-calculated"
+                    className="h-8 text-xs bg-slate-100 text-slate-700"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* D. Financial Information & Status */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Sanctioned Amount (INR) *</Label>
                 <Input
-                  placeholder="https://serbonline.in/grant/..."
-                  value={formData.projectUrl || ''}
-                  onChange={(e) => setFormData({ ...formData, projectUrl: e.target.value })}
-                  className="mt-1 h-9 text-xs bg-white"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.sanctionedAmount}
+                  onChange={e => setFormData(prev => ({ ...prev, sanctionedAmount: e.target.value }))}
+                  placeholder="e.g. 4500000"
+                  className="h-8 text-xs font-mono"
                 />
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Amount Received (INR)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.amountReceived}
+                  onChange={e => setFormData(prev => ({ ...prev, amountReceived: e.target.value }))}
+                  placeholder="e.g. 1500000"
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Status *</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={val => setFormData(prev => ({ ...prev, status: val }))}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_STATUS_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-              <div>
-                <Label className="text-xs font-semibold text-gray-700">Project Objectives & Deliverables</Label>
-                <textarea
-                  rows={2}
-                  placeholder="Brief summary of research scope, objectives, and deliverables..."
-                  value={formData.description || ''}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full mt-1 p-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#2855B9] bg-white"
+            {/* E. Project URL & Description */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Project URL</Label>
+                <Input
+                  value={formData.projectUrl}
+                  onChange={e => setFormData(prev => ({ ...prev, projectUrl: e.target.value }))}
+                  placeholder="https://..."
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Description / Abstract</Label>
+                <Input
+                  value={formData.description}
+                  onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Brief objectives & deliverables"
+                  className="h-8 text-xs"
                 />
               </div>
             </div>
 
-            <DialogFooter className="pt-3 border-t border-gray-150 flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsFormOpen(false)}
-                disabled={submitting}
-                className="text-xs"
-              >
+            <DialogFooter className="border-t border-slate-100 pt-3">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsFormOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="bg-[#2855B9] text-white hover:bg-[#1C355B] text-xs font-semibold"
-              >
-                {submitting ? 'Saving...' : editingProject ? 'Update Grant' : 'Record Project'}
+              <Button type="submit" size="sm" disabled={formLoading} className="bg-[#2855B9] text-white hover:bg-[#1C355B]">
+                {formLoading ? 'Saving...' : editingProject ? 'Update Grant' : 'Record Project'}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* ======================================================== */}
-      {/* VIEW PROJECT DETAILS MODAL */}
-      {/* ======================================================== */}
-      <Dialog open={!!viewingProject} onOpenChange={(open) => !open && setViewingProject(null)}>
-        <DialogContent className="sm:max-w-[720px] max-h-[88vh] overflow-y-auto bg-white p-6 rounded-xl">
-          {viewingProject && (
-            <div className="space-y-4">
-              <DialogHeader>
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  {getStatusBadge(viewingProject.status)}
-                  {getAgencyBadge(viewingProject.agencyType)}
-                  <Badge variant="secondary" className="text-[10px] font-mono">
-                    {viewingProject.sanctionYear ? `SY ${viewingProject.sanctionYear}` : `AY ${viewingProject.academicYear}`}
-                  </Badge>
-                  {(viewingProject.durationFormatted || (viewingProject.startDate && viewingProject.endDate)) && (
-                    <Badge variant="outline" className="text-[10px] font-mono bg-[#EAF1FD] text-[#2855B9] border-[#C8DCFB]">
-                      Duration: {viewingProject.durationFormatted || calculateProjectDuration(viewingProject.startDate, viewingProject.endDate).formatted}
-                    </Badge>
-                  )}
-                </div>
-                <DialogTitle className="text-lg font-bold text-gray-900 leading-snug">
-                  {viewingProject.title}
-                </DialogTitle>
-                <DialogDescription className="text-xs text-gray-500">
-                  Host Department: <span className="font-semibold text-gray-700">{viewingProject.department || 'General'}</span>
-                </DialogDescription>
-              </DialogHeader>
-
-              {/* Research Team Banner */}
-              <div className="p-3 bg-[#EAF1FD]/40 rounded-lg border border-[#C8DCFB] text-xs">
-                <div className="font-semibold text-[#2855B9]">Principal Investigator (PI):</div>
-                <div className="text-gray-900 font-bold text-sm mt-0.5">{viewingProject.principalInvestigator}</div>
-                {viewingProject.coInvestigators && (
-                  <div className="text-gray-600 mt-1">
-                    <span className="font-semibold">Co-Investigators:</span> {viewingProject.coInvestigators}
-                  </div>
-                )}
-              </div>
-
-              {/* Navigation Tabs */}
-              <Tabs value={detailTab} onValueChange={(val: any) => setDetailTab(val)} className="w-full">
-                <TabsList className="grid w-full grid-cols-3 bg-gray-100 p-1 rounded-lg">
-                  <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
-                  <TabsTrigger value="financial" className="text-xs">Finances & Installments</TabsTrigger>
-                  <TabsTrigger value="documents" className="text-xs">Documents ({((viewingProject.agreementLetters?.length || 0) + (viewingProject.paymentReceipts?.length || 0))})</TabsTrigger>
-                </TabsList>
-
-                {/* TAB 1: OVERVIEW */}
-                <TabsContent value="overview" className="space-y-3 pt-3 text-xs">
-                  <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                    <div>
-                      <span className="text-gray-500 block text-[11px]">Funding Agency</span>
-                      <span className="font-semibold text-gray-900">{viewingProject.fundingAgency}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block text-[11px]">Scheme / Program</span>
-                      <span className="font-semibold text-gray-900">{viewingProject.scheme || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block text-[11px]">Sanction Order Number</span>
-                      <span className="font-mono font-semibold text-gray-900">{viewingProject.sanctionOrderNo || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block text-[11px]">Sanction Date</span>
-                      <span className="font-semibold text-gray-900">{viewingProject.sanctionDate ? viewingProject.sanctionDate.split('T')[0] : '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block text-[11px]">Commencement / Start Date</span>
-                      <span className="font-semibold text-gray-900">{viewingProject.startDate ? viewingProject.startDate.split('T')[0] : '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block text-[11px]">Completion / End Date</span>
-                      <span className="font-semibold text-gray-900">{viewingProject.endDate ? viewingProject.endDate.split('T')[0] : '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block text-[11px]">Project Duration</span>
-                      <span className="font-semibold text-[#2855B9] flex items-center gap-1.5 mt-0.5">
-                        <Clock className="w-3.5 h-3.5 text-[#2855B9] shrink-0" />
-                        {viewingProject.durationFormatted || (viewingProject.startDate && viewingProject.endDate ? calculateProjectDuration(viewingProject.startDate, viewingProject.endDate).formatted : 'Not Available')}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block text-[11px]">Sanction Year</span>
-                      <span className="font-mono font-semibold text-gray-900 mt-0.5 block">
-                        {viewingProject.sanctionYear ? `SY ${viewingProject.sanctionYear}` : (viewingProject.academicYear ? `AY ${viewingProject.academicYear}` : '-')}
-                      </span>
-                    </div>
-                  </div>
-
-                  {viewingProject.description && (
-                    <div className="p-3 bg-white border border-gray-200 rounded-lg">
-                      <span className="text-[11px] font-bold text-gray-700 block mb-1">Objectives & Deliverables</span>
-                      <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{viewingProject.description}</p>
-                    </div>
-                  )}
-
-                  {viewingProject.projectUrl && (
-                    <div className="flex items-center justify-between p-2.5 bg-[#EAF1FD]/40 border border-[#C8DCFB] rounded-lg">
-                      <span className="text-gray-600">External Research Portal:</span>
-                      <a
-                        href={viewingProject.projectUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#2855B9] font-semibold hover:underline flex items-center gap-1"
-                      >
-                        Visit Portal <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* TAB 2: FINANCIAL */}
-                <TabsContent value="financial" className="space-y-3 pt-3 text-xs">
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg">
-                      <span className="text-[10px] text-teal-700 uppercase font-semibold block">Total Sanctioned</span>
-                      <span className="text-sm font-bold font-mono text-teal-900">{formatCurrency(viewingProject.sanctionedAmount)}</span>
-                    </div>
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                      <span className="text-[10px] text-emerald-700 uppercase font-semibold block">Amount Received</span>
-                      <span className="text-sm font-bold font-mono text-emerald-900">{formatCurrency(viewingProject.effectiveAmountReceived || viewingProject.amountReceived || 0)}</span>
-                    </div>
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                      <span className="text-[10px] text-amber-700 uppercase font-semibold block">Balance Receivable</span>
-                      <span className="text-sm font-bold font-mono text-amber-900">{formatCurrency(viewingProject.balanceYetToBeReceived || 0)}</span>
-                    </div>
-                  </div>
-
-                  {/* Reconciliation Banner */}
-                  <div className="p-2.5 rounded-lg border flex items-center justify-between text-[11px] bg-slate-50 border-slate-200">
-                    <span className="font-semibold text-gray-700">Financial Reconciliation Status:</span>
-                    {viewingProject.reconciliationStatus === 'matched' && (
-                      <span className="text-emerald-700 font-bold flex items-center gap-1">
-                        <CheckCircle className="w-3.5 h-3.5" /> Matched (Installments equal reported funds)
-                      </span>
-                    )}
-                    {viewingProject.reconciliationStatus === 'mismatched' && (
-                      <span className="text-amber-700 font-bold flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5" /> Discrepancy: Difference of {formatCurrency(viewingProject.reconciliationDiff || 0)}
-                      </span>
-                    )}
-                    {viewingProject.reconciliationStatus === 'manual_only' && (
-                      <span className="text-gray-600">Manual Aggregate (No installments entered)</span>
-                    )}
-                    {viewingProject.reconciliationStatus === 'installments_only' && (
-                      <span className="text-emerald-700 font-semibold">Derived from installments sum</span>
-                    )}
-                  </div>
-
-                  {/* Installments Table */}
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="bg-gray-50 px-3 py-2 font-bold text-gray-800 text-[11px] flex justify-between items-center">
-                      <span>Installments History</span>
-                      <span className="text-gray-500 font-mono font-normal">{(viewingProject.installments || []).length} credited</span>
-                    </div>
-                    {(viewingProject.installments || []).length === 0 ? (
-                      <div className="p-4 text-center text-gray-400 italic">No individual funding installments recorded yet.</div>
-                    ) : (
-                      <table className="w-full text-left text-[11px]">
-                        <thead>
-                          <tr className="bg-gray-100 text-gray-600 border-b border-gray-200">
-                            <th className="py-1.5 px-3">#</th>
-                            <th className="py-1.5 px-3">Date</th>
-                            <th className="py-1.5 px-3 text-right">Amount</th>
-                            <th className="py-1.5 px-3">Reference / UTR</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {(viewingProject.installments || []).map((inst, i) => (
-                            <tr key={inst.id || i}>
-                              <td className="py-1.5 px-3 font-semibold">{i + 1}</td>
-                              <td className="py-1.5 px-3">{inst.paymentDate ? inst.paymentDate.split('T')[0] : '-'}</td>
-                              <td className="py-1.5 px-3 text-right font-mono font-bold text-emerald-800">{formatCurrency(inst.amount)}</td>
-                              <td className="py-1.5 px-3 font-mono text-gray-600">{inst.paymentReference || '-'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                </TabsContent>
-
-                {/* TAB 3: DOCUMENTS */}
-                <TabsContent value="documents" className="space-y-4 pt-3 text-xs">
-                  {/* Sanction Letters */}
-                  <div className="border border-blue-200 rounded-lg p-3 bg-blue-50/20 space-y-2">
-                    <h5 className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
-                      <FileCheck className="w-4 h-4 text-blue-600" />
-                      Sanction Letters ({(viewingProject.agreementLetters || []).length})
-                    </h5>
-                    {(viewingProject.agreementLetters || []).length === 0 ? (
-                      <p className="text-gray-400 italic text-[11px]">No Sanction Letters attached yet.</p>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {(viewingProject.agreementLetters || []).map(doc => (
-                          <div key={doc.id} className="flex items-center justify-between p-2 bg-white rounded border border-blue-100 text-[11px]">
-                            <div className="flex items-center gap-2 truncate">
-                              <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                              <span className="font-medium text-gray-800 truncate" title={doc.fileName}>{doc.fileName}</span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <a
-                                href={doc.driveUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold text-[10px] flex items-center gap-1"
-                              >
-                                View in Drive <ExternalLink className="w-3 h-3" />
-                              </a>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Fund Receipts / UCs */}
-                  <div className="border border-purple-200 rounded-lg p-3 bg-purple-50/20 space-y-2">
-                    <h5 className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
-                      <Receipt className="w-4 h-4 text-purple-600" />
-                      Fund Receipts / Utilization Certificates (UC) ({(viewingProject.paymentReceipts || []).length})
-                    </h5>
-                    {(viewingProject.paymentReceipts || []).length === 0 ? (
-                      <p className="text-gray-400 italic text-[11px]">No Fund Receipts / Utilization Certificates (UC) attached yet.</p>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {(viewingProject.paymentReceipts || []).map(doc => (
-                          <div key={doc.id} className="flex items-center justify-between p-2 bg-white rounded border border-purple-100 text-[11px]">
-                            <div className="flex items-center gap-2 truncate">
-                              <Receipt className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                              <span className="font-medium text-gray-800 truncate" title={doc.fileName}>{doc.fileName}</span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <a
-                                href={doc.driveUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 font-semibold text-[10px] flex items-center gap-1"
-                              >
-                                View in Drive <ExternalLink className="w-3 h-3" />
-                              </a>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
-
-              <DialogFooter className="pt-3 border-t border-gray-150">
-                <Button variant="outline" size="sm" onClick={() => setViewingProject(null)} className="text-xs">
-                  Close
-                </Button>
-                {isPrivileged && (
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      const proj = viewingProject;
-                      setViewingProject(null);
-                      handleOpenEdit(proj);
-                    }}
-                    className="bg-[#2855B9] text-white hover:bg-[#1C355B] text-xs font-semibold"
-                  >
-                    <Edit className="w-3.5 h-3.5 mr-1" /> Edit Grant
-                  </Button>
-                )}
-              </DialogFooter>
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 5-STEP BULK UPLOAD MODAL (Exact 18-Column Template)           */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <Dialog open={isBulkOpen} onOpenChange={setIsBulkOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto bg-white p-6 rounded-2xl">
+          <DialogHeader className="border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2 text-[#2855B9]">
+              <FileSpreadsheet className="w-5 h-5" />
+              <DialogTitle className="text-base font-bold text-slate-900">
+                External Research Bulk Excel Upload
+              </DialogTitle>
             </div>
-          )}
+            <DialogDescription className="text-xs text-slate-500">
+              Upload Excel (.xlsx, .xls) or CSV (.csv) using the official 18-column template. Multi-investigator EmpIDs must be comma-separated (Position 1 = PI, subsequent = Co-PI).
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Stepper Header (5 Equal Steps) */}
+          <div className="py-2 border-b border-slate-100">
+            <div className="grid grid-cols-5 text-center text-xs">
+              {[
+                { num: 1, label: 'Upload' },
+                { num: 2, label: 'Validation' },
+                { num: 3, label: 'Preview' },
+                { num: 4, label: 'Confirmation' },
+                { num: 5, label: 'Summary' }
+              ].map(st => (
+                <div key={st.num} className="flex flex-col items-center">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      bulkStep === st.num
+                        ? 'bg-[#2855B9] text-white ring-2 ring-blue-200'
+                        : bulkStep > st.num
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}
+                  >
+                    {bulkStep > st.num ? <Check className="w-3.5 h-3.5" /> : st.num}
+                  </div>
+                  <span className={`text-[11px] mt-1 ${bulkStep === st.num ? 'font-bold text-[#2855B9]' : 'text-slate-500'}`}>
+                    {st.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Step 1: Upload */}
+            {bulkStep === 1 && (
+              <div className="space-y-4">
+                <div className="p-3.5 bg-[#EAF1FD]/50 border border-[#C8DCFB] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-slate-800">Official 18-Column External Research Template</p>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Columns: <code>Project Title, Investigators EmpId, Funding Agency, Scheme / Program, Agency Type, Sanction Order No, Sanction Date, Sanction Year, Start Date, End Date, Project Duration, Sanctioned Amount (INR), Amount Received (INR), Status, Sanction Letter, Fund Receipt / UC, Project URL, Description</code>
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button size="sm" variant="outline" onClick={() => handleDownloadTemplate('xlsx')} className="bg-white border-[#C8DCFB] text-[#2855B9] text-xs">
+                      <Download className="w-3.5 h-3.5 mr-1" />
+                      Excel (.xlsx)
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleDownloadTemplate('csv')} className="bg-white border-[#C8DCFB] text-slate-600 text-xs">
+                      <Download className="w-3.5 h-3.5 mr-1" />
+                      CSV (.csv)
+                    </Button>
+                  </div>
+                </div>
+
+                <input
+                  ref={bulkFileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={e => { if (e.target.files?.[0]) handleBulkFileSelect(e.target.files[0]); }}
+                />
+
+                <div
+                  onClick={() => bulkFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-300 hover:border-[#2855B9] rounded-xl p-8 text-center cursor-pointer bg-slate-50/40 transition-colors"
+                >
+                  <UploadCloud className="w-10 h-10 mx-auto text-[#2855B9] mb-2" />
+                  <p className="font-semibold text-slate-800">
+                    {bulkFile ? `${bulkFile.name} (${Math.round(bulkFile.size / 1024)} KB)` : 'Click to select External Research Excel / CSV file'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Supports .xlsx, .xls, and .csv formats</p>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Validating */}
+            {bulkStep === 2 && bulkLoading && (
+              <div className="p-12 text-center text-slate-500 space-y-2">
+                <RefreshCw className="w-8 h-8 animate-spin mx-auto text-[#2855B9]" />
+                <p className="font-semibold text-slate-700">Validating External Research Spreadsheet...</p>
+                <p className="text-[11px] text-slate-400">Resolving PI & Co-PI EmpIDs, deriving Sanction Years, and calculating durations.</p>
+              </div>
+            )}
+
+            {/* Step 3: Preview */}
+            {bulkStep === 3 && bulkPreview && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-center">
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="text-[10px] uppercase text-slate-500 block">Total Rows</span>
+                    <span className="text-base font-bold text-slate-900">{bulkPreview.totalRows}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                    <span className="text-[10px] uppercase text-emerald-700 block">Valid Rows</span>
+                    <span className="text-base font-bold text-emerald-800">{bulkPreview.validRows}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                    <span className="text-[10px] uppercase text-amber-800 block">Invalid EmpID (Skip)</span>
+                    <span className="text-base font-bold text-amber-900">{bulkPreview.skippedInvalidEmpIdCount || 0}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="text-[10px] uppercase text-slate-700 block">Missing EmpID (Skip)</span>
+                    <span className="text-base font-bold text-slate-900">{bulkPreview.skippedMissingEmpIdCount || 0}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-indigo-50 border border-indigo-200">
+                    <span className="text-[10px] uppercase text-indigo-700 block">Duplicates</span>
+                    <span className="text-base font-bold text-indigo-900">{bulkPreview.duplicates}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200">
+                    <span className="text-[10px] uppercase text-rose-700 block">Fatal Errors</span>
+                    <span className="text-base font-bold text-rose-900">{bulkPreview.errors}</span>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl overflow-x-auto max-h-72 overflow-y-auto">
+                  <table className="w-full text-left border-collapse text-[11px]">
+                    <thead className="bg-slate-50 sticky top-0 border-b border-slate-200">
+                      <tr>
+                        <th className="p-2">Row</th>
+                        <th className="p-2">Title</th>
+                        <th className="p-2">PI & Co-PIs</th>
+                        <th className="p-2">Funding Agency</th>
+                        <th className="p-2">Sanction Date / Yr</th>
+                        <th className="p-2 text-right">Amount (INR)</th>
+                        <th className="p-2">Status</th>
+                        <th className="p-2">Validation Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(bulkPreview.rows || []).map((r: any) => (
+                        <tr key={r.rowNumber} className={r.rowStatus === 'ERROR' ? 'bg-rose-50/40' : undefined}>
+                          <td className="p-2 font-mono">{r.rowNumber}</td>
+                          <td className="p-2 font-medium max-w-[200px] truncate">{r.title}</td>
+                          <td className="p-2">
+                            <span className="font-semibold text-slate-800">
+                              {r.piFaculty ? `PI: ${r.piFaculty.facultyName} (${r.piFaculty.employeeId})` : 'Unresolved PI'}
+                            </span>
+                            {r.invalidEmpIds?.length > 0 && (
+                              <span className="text-[10px] text-amber-700 block">Unverified: {r.invalidEmpIds.join(', ')}</span>
+                            )}
+                          </td>
+                          <td className="p-2">{r.fundingAgency}</td>
+                          <td className="p-2 font-mono">{r.sanctionDate} ({r.sanctionYear})</td>
+                          <td className="p-2 text-right font-mono font-semibold">{formatINR(r.sanctionedAmount)}</td>
+                          <td className="p-2">{getStatusBadge(r.status)}</td>
+                          <td className="p-2">
+                            {r.rowStatus === 'VALID' && (
+                              <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">Valid</Badge>
+                            )}
+                            {r.rowStatus === 'SKIPPED_INVALID_EMPID' && (
+                              <div>
+                                <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">Skipped (Invalid EmpID)</Badge>
+                                <p className="text-[10px] text-amber-800 mt-0.5">{r.skipReason || (r.errors || []).join('; ')}</p>
+                              </div>
+                            )}
+                            {r.rowStatus === 'SKIPPED_MISSING_EMPID' && (
+                              <div>
+                                <Badge className="bg-slate-100 text-slate-800 border-slate-200 text-[10px]">Skipped (Missing EmpID)</Badge>
+                                <p className="text-[10px] text-slate-700 mt-0.5">{r.skipReason || 'Required EmpID is missing.'}</p>
+                              </div>
+                            )}
+                            {r.rowStatus === 'WARNING' && (
+                              <Badge className="bg-amber-100 text-amber-800 text-[10px]">Warning</Badge>
+                            )}
+                            {r.rowStatus === 'DUPLICATE' && (
+                              <Badge className="bg-indigo-100 text-indigo-800 text-[10px]">Duplicate</Badge>
+                            )}
+                            {r.rowStatus === 'ERROR' && (
+                              <Badge className="bg-rose-100 text-rose-800 text-[10px]">Error</Badge>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Confirmation */}
+            {bulkStep === 4 && bulkLoading && (
+              <div className="p-12 text-center text-slate-500 space-y-2">
+                <RefreshCw className="w-8 h-8 animate-spin mx-auto text-[#2855B9]" />
+                <p className="font-semibold text-slate-700">Importing External Research Grants...</p>
+                <p className="text-[11px] text-slate-400">Saving records, PI/Co-PI associations, and drive links in transaction.</p>
+              </div>
+            )}
+
+            {/* Step 5: Summary */}
+            {bulkStep === 5 && bulkResult && (
+              <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-3">
+                <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
+                <h3 className="text-base font-bold text-slate-900">Bulk Import Complete!</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 max-w-lg mx-auto text-xs">
+                  <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <span className="block text-[10px] text-emerald-700 uppercase">Imported</span>
+                    <span className="text-base font-bold text-emerald-900">{bulkResult.successfulImports}</span>
+                  </div>
+                  <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                    <span className="block text-[10px] text-amber-700 uppercase">Invalid EmpID (Skip)</span>
+                    <span className="text-base font-bold text-amber-900">{bulkResult.skippedInvalidEmpIdCount || 0}</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <span className="block text-[10px] text-slate-700 uppercase">Missing EmpID (Skip)</span>
+                    <span className="text-base font-bold text-slate-900">{bulkResult.skippedMissingEmpIdCount || 0}</span>
+                  </div>
+                  <div className="p-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+                    <span className="block text-[10px] text-indigo-700 uppercase">Duplicates Skipped</span>
+                    <span className="text-base font-bold text-indigo-900">{bulkResult.duplicatesSkipped || 0}</span>
+                  </div>
+                  <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg">
+                    <span className="block text-[10px] text-rose-700 uppercase">Errors Skipped</span>
+                    <span className="text-base font-bold text-rose-900">{bulkResult.errorsSkipped || 0}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {bulkError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{bulkError}</span>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="border-t border-slate-100 pt-3">
+            {bulkStep === 3 && (
+              <div className="flex justify-between w-full">
+                <Button variant="outline" size="sm" onClick={() => setBulkStep(1)}>
+                  Upload Different File
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleExecuteImport}
+                  className="bg-[#2855B9] hover:bg-[#1C355B] text-white"
+                >
+                  Confirm & Import ({bulkPreview?.validRows || 0} Eligible Rows)
+                </Button>
+              </div>
+            )}
+            {bulkStep === 5 && (
+              <Button size="sm" onClick={() => setIsBulkOpen(false)} className="bg-[#2855B9] text-white">
+                Done
+              </Button>
+            )}
+            {(bulkStep === 1 || bulkStep === 2) && (
+              <Button variant="outline" size="sm" onClick={() => setIsBulkOpen(false)}>
+                Close
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* BULK UPLOAD MODAL */}
-      <BulkUploadDialog
-        isOpen={isBulkOpen}
-        onClose={() => setIsBulkOpen(false)}
-        token={token || ''}
-        onSuccess={() => {
-          fetchProjects();
-          fetchStats();
-        }}
-        uploadType="sponsored-projects"
-      />
-
-      {/* Clear All Confirmation Dialog */}
+      {/* Clear All Confirmation Modal */}
       <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white p-6 rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-red-600 flex items-center gap-2 text-base">
-              <AlertCircle className="w-5 h-5" />
-              Clear Sponsored Project Records
+            <DialogTitle className="text-base font-bold text-rose-700 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-rose-600" />
+              <span>Clear Sponsored Research Projects?</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-gray-600">
-              Are you sure you want to delete all sponsored project records and attached documents in your scope? This action is irreversible.
+            <DialogDescription className="text-xs text-slate-500">
+              Are you sure you want to delete all sponsored project records and attached documents in your scope? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex gap-2">
+          <DialogFooter className="pt-3">
             <Button variant="outline" size="sm" onClick={() => setIsClearOpen(false)}>
               Cancel
             </Button>
             <Button
-              variant="destructive"
               size="sm"
               onClick={handleClearAll}
               disabled={clearLoading}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {clearLoading ? 'Clearing...' : 'Yes, Delete All'}
             </Button>
@@ -2095,7 +1847,7 @@ export function SponsoredResearchPage({
   }
 
   return (
-    <AppShell currentPage="research-innovation" onNavigate={onNavigate}>
+    <AppShell currentPage="sponsored-research" onNavigate={onNavigate}>
       {content}
     </AppShell>
   );

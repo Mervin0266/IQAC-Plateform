@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { PatentsPage } from './PatentsPage';
 import { CopyrightsPage } from './CopyrightsPage';
 import { SponsoredResearchPage } from './SponsoredResearchPage';
+import { InternalResearchPage } from './InternalResearchPage';
 import { ConsultancyProjectsPage } from './ConsultancyProjectsPage';
 import { PublicationsPage } from './PublicationsPage';
 import { ResearchReportGeneratorDialog } from './ResearchReportGeneratorDialog';
@@ -43,7 +44,10 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
       case 'patents':
       case 'copyrights':
         return 'iprs';
-      case 'sponsored-research': return 'sponsored';
+      case 'sponsored-research':
+      case 'external-research':
+      case 'internal-research':
+        return 'sponsored';
       case 'consultancy-projects': return 'consultancy';
       default: return 'metrics';
     }
@@ -750,7 +754,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                 className="py-2 px-3.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all data-[state=active]:bg-[#2855B9] data-[state=active]:text-white data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 shrink-0"
               >
                 <TrendingUp className="w-4 h-4" />
-                <span>Sponsored Research</span>
+                <span>Sponsored Research & Grants</span>
               </TabsTrigger>
 
               <TabsTrigger 
@@ -1274,9 +1278,47 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
             </div>
           )}
 
-          {/* TAB 4: SPONSORED RESEARCH */}
+          {/* TAB 4: SPONSORED RESEARCH & GRANTS */}
           {activeTab === 'sponsored' && (
-            <SponsoredResearchPage hideSidebar={true} onNavigate={onNavigate} token={user?.token} userRole={user?.role} />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-slate-200/80 shadow-2xs">
+                <div className="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200/80 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('sponsored-research')}
+                    className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      currentPage !== 'internal-research'
+                        ? 'bg-[#2855B9] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <Building className="w-3.5 h-3.5" />
+                    <span>External Research</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('internal-research')}
+                    className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      currentPage === 'internal-research'
+                        ? 'bg-[#2855B9] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Internal Research (Seed Money)</span>
+                  </button>
+                </div>
+                <span className="text-[11px] text-slate-500 hidden sm:inline">
+                  Sponsored Research & Grants
+                </span>
+              </div>
+
+              {currentPage === 'internal-research' ? (
+                <InternalResearchPage hideSidebar={true} onNavigate={onNavigate} token={user?.token} userRole={user?.role} />
+              ) : (
+                <SponsoredResearchPage hideSidebar={true} onNavigate={onNavigate} token={user?.token} userRole={user?.role} />
+              )}
+            </div>
           )}
 
           {/* TAB 5: CONSULTANCY */}

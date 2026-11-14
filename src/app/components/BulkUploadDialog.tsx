@@ -459,6 +459,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     data?: any[];
     duplicates?: any[];
     errors?: any[];
+    summary?: any;
+    rowResults?: any[];
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -599,7 +601,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       csvContent =
         CONSULTANCY_HEADERS.join(',') + '\n' +
         `"3489, 2043","AI-Driven Quality Assurance Framework for Manufacturing","Apex Robotics Ltd","projects@apexrobotics.in","+91 9876543210","15/08/2024","14/08/2025","Collaborative","","On Going",15.50,12.00,8.00,"Design and deployment of machine vision quality inspection models.","https://drive.google.com/file/d/1SAMPLE_AGREEMENT_ID/view","https://drive.google.com/file/d/1SAMPLE_INVOICE_ID/view","https://drive.google.com/file/d/1SAMPLE_RECEIPT_ID/view"\n` +
-        `"1672","Sustainable Energy Optimization & Grid Feasibility Study","CleanTech Energy Solutions","consulting@cleantech.org","+91 9123456789","10/02/2024","10/11/2024","Sole","05/11/2024","Completed",8.00,8.00,8.00,"Techno-economic viability report on rooftop microgrid installation.","https://drive.google.com/file/d/1SAMPLE_AGREEMENT_2/view","https://drive.google.com/file/d/1SAMPLE_INVOICE_2/view","https://drive.google.com/file/d/1SAMPLE_RECEIPT_2/view"`;
+        `"1028","Sustainable Energy Optimization & Grid Feasibility Study","CleanTech Energy Solutions","consulting@cleantech.org","+91 9123456789","10/02/2024","10/11/2024","Sole","05/11/2024","Completed",8.00,8.00,8.00,"Techno-economic viability report on rooftop microgrid installation.","https://drive.google.com/file/d/1SAMPLE_AGREEMENT_2/view","https://drive.google.com/file/d/1SAMPLE_INVOICE_2/view","https://drive.google.com/file/d/1SAMPLE_RECEIPT_2/view"`;
       fileName = 'consultancy_bulk_template.csv';
     } else if (isFaculty) {
       csvContent =
@@ -610,9 +612,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isStudent) {
       csvContent =
         STUDENT_HEADERS.join(',') + '\n' +
-        `"2460301","Aarav Sharma","3A B.Tech CSE","APP12345","Male","2002-04-12","9876543210","Indian","General","Bengaluru","Karnataka","Bengaluru","Karnataka","9876543211","NO","NIL","Kengeri Campus","NO","Computer Science and Engineering","UG"\n` +
-        `"2460302","Ananya Rao","3B B.Tech ADSE","APP12346","Female","2003-09-25","9876543212","Indian","General","Bengaluru","Karnataka","Mysuru","Karnataka","9876543213","NO","NIL","Kengeri Campus","NO","AI and Data Science Engineering","UG"\n` +
-        `"2560301","Diya Patel","Research Scholar","APP12347","Female","1998-11-15","9876543214","Indian","General","Bengaluru","Karnataka","Hubballi","Karnataka","9876543215","NO","NIL","Kengeri Campus","NO","Civil Engineering","PhD"`;
+        `"2460301","Aarav Sharma","3A B.Tech CSE","APP12345","Male","2002-04-12","9876543210","Indian","General","Bengaluru","Karnataka","Bengaluru","Karnataka","9876543211","NO","","Kengeri Campus","NO","Computer Science and Engineering","UG"\n` +
+        `"2460302","Ananya Rao","3B B.Tech ADSE","APP12346","Female","2003-09-25","9876543212","Indian","General","Bengaluru","Karnataka","Mysuru","Karnataka","9876543213","NO","","Kengeri Campus","NO","AI and Data Science Engineering","UG"\n` +
+        `"2560301","Diya Patel","Research Scholar","APP12347","Female","1998-11-15","9876543214","Indian","General","Bengaluru","Karnataka","Hubballi","Karnataka","9876543215","NO","","Kengeri Campus","NO","Civil Engineering","PhD"`;
       fileName = 'students_bulk_template.csv';
     } else if (isDepartment) {
       csvContent =
@@ -687,7 +689,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       headers = CONSULTANCY_HEADERS;
       sampleRows = [
         ['3489, 2043', 'AI-Driven Quality Assurance Framework for Manufacturing', 'Apex Robotics Ltd', 'projects@apexrobotics.in', '+91 9876543210', '15/08/2024', '14/08/2025', 'Collaborative', '', 'On Going', 15.50, 12.00, 8.00, 'Design and deployment of machine vision quality inspection models.', 'https://drive.google.com/file/d/1SAMPLE_AGREEMENT_ID/view', 'https://drive.google.com/file/d/1SAMPLE_INVOICE_ID/view', 'https://drive.google.com/file/d/1SAMPLE_RECEIPT_ID/view'],
-        ['1672', 'Sustainable Energy Optimization & Grid Feasibility Study', 'CleanTech Energy Solutions', 'consulting@cleantech.org', '+91 9123456789', '10/02/2024', '10/11/2024', 'Sole', '05/11/2024', 'Completed', 8.00, 8.00, 8.00, 'Techno-economic viability report on rooftop microgrid installation.', 'https://drive.google.com/file/d/1SAMPLE_AGREEMENT_2/view', 'https://drive.google.com/file/d/1SAMPLE_INVOICE_2/view', 'https://drive.google.com/file/d/1SAMPLE_RECEIPT_2/view']
+        ['1028', 'Sustainable Energy Optimization & Grid Feasibility Study', 'CleanTech Energy Solutions', 'consulting@cleantech.org', '+91 9123456789', '10/02/2024', '10/11/2024', 'Sole', '05/11/2024', 'Completed', 8.00, 8.00, 8.00, 'Techno-economic viability report on rooftop microgrid installation.', 'https://drive.google.com/file/d/1SAMPLE_AGREEMENT_2/view', 'https://drive.google.com/file/d/1SAMPLE_INVOICE_2/view', 'https://drive.google.com/file/d/1SAMPLE_RECEIPT_2/view']
       ];
       fileName = 'consultancy_bulk_template.xlsx';
     } else if (isFaculty) {
@@ -700,9 +702,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isStudent) {
       headers = STUDENT_HEADERS;
       sampleRows = [
-        ['2460301', 'Aarav Sharma', '3A B.Tech CSE', 'APP12345', 'Male', '2002-04-12', '9876543210', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Bengaluru', 'Karnataka', '9876543211', 'NO', 'NIL', 'Kengeri Campus', 'NO', 'Computer Science and Engineering', 'UG'],
-        ['2460302', 'Ananya Rao', '3B B.Tech ADSE', 'APP12346', 'Female', '2003-09-25', '9876543212', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Mysuru', 'Karnataka', '9876543213', 'NO', 'NIL', 'Kengeri Campus', 'NO', 'AI and Data Science Engineering', 'UG'],
-        ['2560301', 'Diya Patel', 'Research Scholar', 'APP12347', 'Female', '1998-11-15', '9876543214', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Hubballi', 'Karnataka', '9876543215', 'NO', 'NIL', 'Kengeri Campus', 'NO', 'Civil Engineering', 'PhD']
+        ['2460301', 'Aarav Sharma', '3A B.Tech CSE', 'APP12345', 'Male', '2002-04-12', '9876543210', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Bengaluru', 'Karnataka', '9876543211', 'NO', '', 'Kengeri Campus', 'NO', 'Computer Science and Engineering', 'UG'],
+        ['2460302', 'Ananya Rao', '3B B.Tech ADSE', 'APP12346', 'Female', '2003-09-25', '9876543212', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Mysuru', 'Karnataka', '9876543213', 'NO', '', 'Kengeri Campus', 'NO', 'AI and Data Science Engineering', 'UG'],
+        ['2560301', 'Diya Patel', 'Research Scholar', 'APP12347', 'Female', '1998-11-15', '9876543214', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Hubballi', 'Karnataka', '9876543215', 'NO', '', 'Kengeri Campus', 'NO', 'Civil Engineering', 'PhD']
       ];
       fileName = 'students_bulk_template.xlsx';
     } else if (isDepartment) {
@@ -1498,30 +1500,33 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           const val = rowValues[index];
           if (isConsultancy) {
             const lowerHeader = header.toLowerCase().trim();
+            const rawVal = val !== undefined && val !== null ? String(val).trim() : '';
+            const cleanVal = ['nil', 'n/a', 'na', 'null', '-', '--', 'none'].includes(rawVal.toLowerCase()) ? '' : rawVal;
+
             if (lowerHeader.includes('s. no') || lowerHeader.includes('s.no')) {
               // Ignore serial number column
             } else if (lowerHeader.includes('empid') || lowerHeader.includes('emp id') || lowerHeader.includes('employee id')) {
-              record['empId'] = val || '';
-              record['empIds'] = val || '';
+              record['empId'] = cleanVal;
+              record['empIds'] = cleanVal;
             } else if (lowerHeader.includes('teacher consultant') || lowerHeader.includes('consultant')) {
-              record['teacherConsultant'] = val || '';
+              record['teacherConsultant'] = cleanVal;
             } else if (lowerHeader.includes('consultancy project') || lowerHeader.includes('project name') || lowerHeader === 'title') {
-              record['projectName'] = val || '';
+              record['projectName'] = cleanVal;
             } else if (lowerHeader === 'agency name' || lowerHeader.includes('client name')) {
-              record['agencyName'] = val || '';
+              record['agencyName'] = cleanVal;
             } else if (lowerHeader.includes('agency contact email') || lowerHeader.includes('contact email') || lowerHeader.includes('client email')) {
-              record['agencyContactEmail'] = val || '';
+              record['agencyContactEmail'] = cleanVal;
             } else if (lowerHeader.includes('agency contact number') || lowerHeader.includes('contact number') || lowerHeader.includes('phone') || lowerHeader.includes('mobile')) {
-              record['agencyContactNumber'] = val || '';
+              record['agencyContactNumber'] = cleanVal;
             } else if (lowerHeader.includes('sponsoring agency') || lowerHeader.includes('consulting/sponsoring')) {
-              record['sponsoringAgency'] = val || '';
+              record['sponsoringAgency'] = cleanVal;
             } else if (lowerHeader.includes('project type') || lowerHeader.includes('type')) {
-              record['projectType'] = val || '';
+              record['projectType'] = cleanVal;
             } else if (lowerHeader.includes('start date') || lowerHeader === 'startdate') {
-              record['startDate'] = val || '';
+              record['startDate'] = cleanVal;
               // Derive Consultancy Start Year automatically from Start Date
-              if (val) {
-                const s = String(val).trim();
+              if (cleanVal) {
+                const s = cleanVal;
                 const m = s.match(/(\d{4})/) || s.match(/\/(\d{2})$/);
                 if (m) {
                   const y = m[1].length === 2 ? 2000 + parseInt(m[1], 10) : parseInt(m[1], 10);
@@ -1532,99 +1537,105 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                 }
               }
             } else if (lowerHeader.includes('expected end date') || lowerHeader.includes('expected end') || lowerHeader === 'end date') {
-              record['expectedEndDate'] = val || '';
+              record['expectedEndDate'] = cleanVal;
             } else if (lowerHeader.includes('actual completion date') || lowerHeader.includes('completion date') || lowerHeader.includes('actual completion')) {
-              record['actualCompletionDate'] = val || '';
+              record['actualCompletionDate'] = cleanVal;
             } else if (lowerHeader.includes('project status') || lowerHeader === 'status') {
-              record['projectStatus'] = val || '';
+              record['projectStatus'] = cleanVal;
             } else if (lowerHeader.includes('contract value')) {
-              record['contractValueInLakhs'] = val ? parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0 : null;
+              record['contractValueInLakhs'] = cleanVal ? parseFloat(cleanVal.replace(/[^0-9.]/g, '')) || 0 : null;
             } else if (lowerHeader.includes('revenue')) {
-              record['revenueInLakhs'] = parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0;
+              record['revenueInLakhs'] = parseFloat(cleanVal.replace(/[^0-9.]/g, '')) || 0;
             } else if (lowerHeader.includes('amount received')) {
-              record['amountReceivedInLakhs'] = val ? parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0 : null;
+              record['amountReceivedInLakhs'] = cleanVal ? parseFloat(cleanVal.replace(/[^0-9.]/g, '')) || 0 : null;
             } else if (lowerHeader === 'department') {
-              record['department'] = val || '';
+              record['department'] = cleanVal;
             } else if (lowerHeader.includes('scope') || lowerHeader.includes('deliverable') || lowerHeader.includes('description') || lowerHeader.includes('summary')) {
-              record['description'] = val || '';
+              record['description'] = cleanVal;
             } else if (lowerHeader.includes('agreement') || lowerHeader.includes('work order')) {
-              record['agreementLinks'] = val || '';
+              record['agreementLinks'] = cleanVal;
             } else if (lowerHeader.includes('invoice')) {
-              record['invoiceLinks'] = val || '';
+              record['invoiceLinks'] = cleanVal;
             } else if (lowerHeader.includes('receipt')) {
-              record['receiptLinks'] = val || '';
+              record['receiptLinks'] = cleanVal;
             } else {
-              record[header] = val;
+              record[header] = cleanVal;
             }
           } else if (isFaculty) {
             // Map CSV headers to backend field names
+            const rawVal = val !== undefined && val !== null ? String(val).trim() : '';
+            const cleanVal = ['nil', 'n/a', 'na', 'null', '-', '--', 'none'].includes(rawVal.toLowerCase()) ? '' : rawVal;
             switch (header) {
-              case 'EmpId':            record['employeeId'] = val || 'NIL'; break;
-              case 'Name':             record['name'] = val || 'NIL'; break;
-              case 'Designation':      record['designation'] = normalizeDesignationName(val) || 'NIL'; break;
-              case 'Department':       record['department'] = normalizeDepartmentName(val) || 'NIL'; break;
-              case 'Gender':           record['gender'] = normalizeGender(val); break;
-              case 'Date of birth':    record['dateOfBirth'] = formatDateToISO(val); break;
-              case 'PanCard No':       record['panCardNo'] = val || 'NIL'; break;
-              case 'Date Of Joining':  record['dateOfJoining'] = formatDateToISO(val); break;
-              case 'Previous Teaching Experince Years':   record['prevTeachingExpYears'] = val || 'NIL'; break;
-              case 'Previous Teaching Experince Months':  record['prevTeachingExpMonths'] = val || 'NIL'; break;
-              case 'Previous Industry Experince Years':   record['prevIndustryExpYears'] = val || 'NIL'; break;
-              case 'Previous Industry Experince Months':  record['prevIndustryExpMonths'] = val || 'NIL'; break;
-              case 'Qualification Level':     record['qualificationLevel'] = val || 'NIL'; break;
-              case 'Highest Qualification':   record['highestQualification'] = val || 'NIL'; break;
-              case 'Experience in CU - Years':  record['cuExpYears'] = val || 'NIL'; break;
-              case 'Experience in CU - Months': record['cuExpMonths'] = val || 'NIL'; break;
-              case 'Academic Year':            record['academicYear'] = val || selectedAcademicYear || '2024-2025'; break;
-              default: record[header] = val;
+              case 'EmpId':            record['employeeId'] = cleanVal; break;
+              case 'Name':             record['name'] = cleanVal; break;
+              case 'Designation':      record['designation'] = normalizeDesignationName(cleanVal) || ''; break;
+              case 'Department':       record['department'] = normalizeDepartmentName(cleanVal) || ''; break;
+              case 'Gender':           record['gender'] = normalizeGender(cleanVal); break;
+              case 'Date of birth':    record['dateOfBirth'] = formatDateToISO(cleanVal); break;
+              case 'PanCard No':       record['panCardNo'] = cleanVal; break;
+              case 'Date Of Joining':  record['dateOfJoining'] = formatDateToISO(cleanVal); break;
+              case 'Previous Teaching Experince Years':   record['prevTeachingExpYears'] = cleanVal || '0'; break;
+              case 'Previous Teaching Experince Months':  record['prevTeachingExpMonths'] = cleanVal || '0'; break;
+              case 'Previous Industry Experince Years':   record['prevIndustryExpYears'] = cleanVal || '0'; break;
+              case 'Previous Industry Experince Months':  record['prevIndustryExpMonths'] = cleanVal || '0'; break;
+              case 'Qualification Level':     record['qualificationLevel'] = cleanVal; break;
+              case 'Highest Qualification':   record['highestQualification'] = cleanVal; break;
+              case 'Experience in CU - Years':  record['cuExpYears'] = cleanVal || '0'; break;
+              case 'Experience in CU - Months': record['cuExpMonths'] = cleanVal || '0'; break;
+              case 'Academic Year':            record['academicYear'] = cleanVal || selectedAcademicYear || '2024-2025'; break;
+              default: record[header] = cleanVal;
             }
             if (!record['academicYear']) {
               record['academicYear'] = selectedAcademicYear || '2024-2025';
             }
           } else if (isStudent) {
             // Map CSV headers to student backend field names
+            const rawVal = val !== undefined && val !== null ? String(val).trim() : '';
+            const cleanVal = ['nil', 'n/a', 'na', 'null', '-', '--', 'none'].includes(rawVal.toLowerCase()) ? '' : rawVal;
             switch (header) {
-              case 'Register No':              record['registerNumber'] = val; break;
-              case 'Student Name':             record['name'] = val; break;
-              case 'Academic Year':            record['academicYear'] = val || '2024-2025'; break;
-              case 'School':                   record['school'] = val || 'School of Engineering and Technology'; break;
-              case 'Program Level':            record['programLevel'] = val || 'UG'; break;
-              case 'Course':                   record['course'] = val || 'NIL'; break;
-              case 'Class Name':               record['className'] = val || 'NIL'; break;
-              case 'Application No':           record['applicationNo'] = val || 'NIL'; break;
-              case 'Gender':                   record['gender'] = normalizeGender(val) || 'Male'; break;
-              case 'Date Of Birth':            record['dob'] = formatDateToISO(val); break;
-              case 'Mobile No':                record['mobileNo'] = val || 'NIL'; record['phone'] = val || 'NIL'; break;
-              case 'Nationality':              record['nationality'] = val || 'NIL'; break;
-              case 'Caste':                    record['caste'] = val || 'NIL'; break;
-              case 'Current City':             record['currentCity'] = val || 'NIL'; break;
-              case 'Current State':            record['currentState'] = val || 'NIL'; break;
-              case 'Permanent City':           record['permanentCity'] = val || 'NIL'; break;
-              case 'Permanent State':          record['permanentState'] = val || 'NIL'; break;
-              case 'Parent Mobile No':         record['parentMobileNo'] = val || 'NIL'; record['guardianPhone'] = val || 'NIL'; break;
-              case 'Handicapped':              record['handicapped'] = val || 'NIL'; break;
-              case 'Handicapped Description':  record['handicappedDescription'] = val || 'NIL'; break;
-              case 'Campus':                   record['campus'] = val || 'NIL'; break;
-              case 'Disability: (YES/NO)':     record['disability'] = val || 'NIL'; break;
-              case 'Department':               record['department'] = val || 'NIL'; break;
-              case 'Batch':                    record['batch'] = val || 'NIL'; break;
+              case 'Register No':              record['registerNumber'] = cleanVal; break;
+              case 'Student Name':             record['name'] = cleanVal; break;
+              case 'Academic Year':            record['academicYear'] = cleanVal || '2024-2025'; break;
+              case 'School':                   record['school'] = cleanVal || 'School of Engineering and Technology'; break;
+              case 'Program Level':            record['programLevel'] = cleanVal || 'UG'; break;
+              case 'Course':                   record['course'] = cleanVal; break;
+              case 'Class Name':               record['className'] = cleanVal; break;
+              case 'Application No':           record['applicationNo'] = cleanVal; break;
+              case 'Gender':                   record['gender'] = normalizeGender(cleanVal) || 'Male'; break;
+              case 'Date Of Birth':            record['dob'] = formatDateToISO(cleanVal); break;
+              case 'Mobile No':                record['mobileNo'] = cleanVal; record['phone'] = cleanVal; break;
+              case 'Nationality':              record['nationality'] = cleanVal; break;
+              case 'Caste':                    record['caste'] = cleanVal; break;
+              case 'Current City':             record['currentCity'] = cleanVal; break;
+              case 'Current State':            record['currentState'] = cleanVal; break;
+              case 'Permanent City':           record['permanentCity'] = cleanVal; break;
+              case 'Permanent State':          record['permanentState'] = cleanVal; break;
+              case 'Parent Mobile No':         record['parentMobileNo'] = cleanVal; record['guardianPhone'] = cleanVal; break;
+              case 'Handicapped':              record['handicapped'] = cleanVal; break;
+              case 'Handicapped Description':  record['handicappedDescription'] = cleanVal; break;
+              case 'Campus':                   record['campus'] = cleanVal; break;
+              case 'Disability: (YES/NO)':     record['disability'] = cleanVal; break;
+              case 'Department':               record['department'] = cleanVal; break;
+              case 'Batch':                    record['batch'] = cleanVal; break;
               case 'S. No.':
               case 'S.No':
               case 'S.No.':
                 break; // Ignore serial number column
-              default: record[header] = val;
+              default: record[header] = cleanVal;
             }
           } else if (isDepartment) {
             // Map CSV headers to department backend field names
+            const rawVal = val !== undefined && val !== null ? String(val).trim() : '';
+            const cleanVal = ['nil', 'n/a', 'na', 'null', '-', '--', 'none'].includes(rawVal.toLowerCase()) ? '' : rawVal;
             switch (header) {
-              case 'Code':             record['code'] = val || 'NIL'; break;
-              case 'Name':             record['name'] = val || 'NIL'; break;
-              case 'HOD Name':         record['hodName'] = val || 'NIL'; break;
-              case 'HOD Email':        record['hodEmail'] = val || 'NIL'; break;
-              case 'Established Year': record['establishedYear'] = parseInt(val) || null; break;
-              case 'Phone':            record['phone'] = val || 'NIL'; break;
-              case 'Description':      record['description'] = val || 'NIL'; break;
-              default: record[header] = val;
+              case 'Code':             record['code'] = cleanVal; break;
+              case 'Name':             record['name'] = cleanVal; break;
+              case 'HOD Name':         record['hodName'] = cleanVal; break;
+              case 'HOD Email':        record['hodEmail'] = cleanVal; break;
+              case 'Established Year': record['establishedYear'] = parseInt(cleanVal) || null; break;
+              case 'Phone':            record['phone'] = cleanVal; break;
+              case 'Description':      record['description'] = cleanVal; break;
+              default: record[header] = cleanVal;
             }
           } else if (isPlacement) {
             const lh = header.toLowerCase().trim();
@@ -1854,15 +1865,6 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         record.school = selectedSchool;
         if (!record.placementDate) record.placementDate = new Date().toISOString().split('T')[0];
         if (!record.role) record.role = '';
-      }
-
-      // Default any missing, null, or empty string values to 'NIL' (except for publications/patents/sponsored/placements where optional fields can remain empty/null)
-      if (!isPublication && !isPatent && !isSponsored && !isPlacement) {
-        Object.keys(record).forEach(k => {
-          if (record[k] === undefined || record[k] === null || record[k] === '' || String(record[k]).trim() === '') {
-            record[k] = 'NIL';
-          }
-        });
       }
 
       records.push(record);
@@ -2104,10 +2106,6 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           if (!item[k] || String(item[k]).toLowerCase() === 'nil' || String(item[k]).toLowerCase() === 'n/a' || String(item[k]).toLowerCase() === 'invalid date' || String(item[k]).trim() === '') {
             item[k] = null;
           }
-        } else if (!isPublication && !isPatent && !isSponsored && !isConsultancy && !isPlacement && !isFaculty) {
-          if (item[k] === undefined || item[k] === null || item[k] === '' || String(item[k]).trim() === '') {
-            item[k] = 'NIL';
-          }
         }
       });
 
@@ -2207,7 +2205,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           success: true,
           data: data.data,
           duplicates: data.duplicates,
-          errors: data.errors
+          errors: data.errors,
+          summary: data.summary,
+          rowResults: data.rowResults
         });
         if (data.errors && data.errors.length > 0) {
           setUploadError(`${data.count} record(s) loaded successfully, but ${data.errors.length} failed.`);
@@ -2226,7 +2226,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         setImportResult({
           message: failureMessage,
           success: false,
-          errors: data.errors
+          errors: data.errors,
+          summary: data.summary,
+          rowResults: data.rowResults
         });
         if (data.errors) {
           setUploadErrorsList(data.errors.map((e: any) => typeof e === 'string' ? e : `${e.title || 'Row'}: ${Array.isArray(e.issues) ? e.issues.join(', ') : (e.issues || 'Error')}`));
@@ -3549,6 +3551,41 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   <p className="text-xs text-emerald-700 leading-relaxed">
                     {importResult.message || `Successfully processed records into the IQAC platform.`}
                   </p>
+
+                  {isConsultancy && (importResult as any)?.summary && (
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1 text-xs">
+                      <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Rows</span>
+                        <span className="text-base font-bold text-slate-800 font-mono">
+                          {(importResult as any).summary.totalRows ?? 0}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Imported</span>
+                        <span className="text-base font-bold text-emerald-700 font-mono">
+                          {(importResult as any).summary.importedCount ?? 0}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Invalid EmpID (Skip)</span>
+                        <span className="text-base font-bold text-amber-700 font-mono">
+                          {(importResult as any).summary.skippedInvalidEmpIdCount ?? 0}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Missing EmpID (Skip)</span>
+                        <span className="text-base font-bold text-slate-700 font-mono">
+                          {(importResult as any).summary.skippedMissingEmpIdCount ?? 0}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Duplicates (Skip)</span>
+                        <span className="text-base font-bold text-indigo-700 font-mono">
+                          {(importResult as any).summary.skippedDuplicatesCount ?? 0}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {isPublication && (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">

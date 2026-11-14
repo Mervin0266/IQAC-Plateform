@@ -1015,7 +1015,7 @@ exports.downloadTemplate = async (req, res) => {
     const rows = [
       ALLOWED_TEMPLATE_COLUMNS,
       [
-        'CU001, CU015',
+        '1028, 3489',
         'Smart Agricultural Monitoring System',
         '15-02-2025',
         'SW-18421/2025',
@@ -1024,7 +1024,7 @@ exports.downloadTemplate = async (req, res) => {
         'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view'
       ],
       [
-        'CU028',
+        '2043',
         'Adaptive Curriculum Analytics Dashboard',
         '20-04-2025',
         '',
@@ -1168,7 +1168,8 @@ async function evaluateBulkCopyrightRows(rawRows = [], options = {}) {
 
   const evaluatedRows = [];
   let validCleanCount = 0;
-  let warningInvalidEmpIdCount = 0;
+  let skippedInvalidEmpIdCount = 0;
+  let skippedMissingEmpIdCount = 0;
   let duplicateCount = 0;
   let invalidErrorCount = 0;
 
@@ -1192,8 +1193,9 @@ async function evaluateBulkCopyrightRows(rawRows = [], options = {}) {
     const warnings = [];
 
     const parsedEmp = parseAndNormalizeEmpIds(rawEmpStr);
-    if (parsedEmp.empIds.length === 0) {
-      errors.push('EmpId is required.');
+    const isMissingEmpId = parsedEmp.empIds.length === 0;
+    if (isMissingEmpId) {
+      errors.push('EmpId is required. Provide at least one valid faculty Employee ID.');
     }
     if (!title) {
       errors.push('Title is required.');
@@ -1281,8 +1283,21 @@ async function evaluateBulkCopyrightRows(rawRows = [], options = {}) {
     }
 
     let status = 'valid';
-    let eligible = true;
-    if (errors.length > 0) {
+    let eligible = false;
+    let skipReason = null;
+
+    if (isMissingEmpId) {
+      status = 'skipped_missing_empid';
+      eligible = false;
+      skipReason = 'Required EmpId is blank or missing. Entire row skipped.';
+      skippedMissingEmpIdCount++;
+    } else if (resolved.hasInvalidEmpIds) {
+      status = 'skipped_invalid_empid';
+      eligible = false;
+      skipReason = `EmpID(s) not found in Faculty Management: ${resolved.invalidEmpIds.join(', ')}. Entire row skipped.`;
+      errors.push(skipReason);
+      skippedInvalidEmpIdCount++;
+    } else if (errors.length > 0) {
       status = 'invalid';
       eligible = false;
       invalidErrorCount++;
@@ -1290,11 +1305,9 @@ async function evaluateBulkCopyrightRows(rawRows = [], options = {}) {
       status = 'duplicate';
       eligible = false;
       duplicateCount++;
-    } else if (resolved.hasInvalidEmpIds || warnings.length > 0) {
-      status = 'warning';
-      eligible = true;
-      warningInvalidEmpIdCount++;
     } else {
+      status = 'valid';
+      eligible = true;
       validCleanCount++;
     }
 
@@ -1304,6 +1317,7 @@ async function evaluateBulkCopyrightRows(rawRows = [], options = {}) {
       eligible,
       isDuplicate,
       duplicateReason,
+      skipReason,
       errors,
       warnings,
       normalized: {
@@ -1332,9 +1346,11 @@ async function evaluateBulkCopyrightRows(rawRows = [], options = {}) {
     missingColumns: [],
     summary: {
       totalRows: evaluatedRows.length,
-      eligibleCount: validCleanCount + warningInvalidEmpIdCount,
+      eligibleCount: validCleanCount,
       validCleanCount,
-      warningInvalidEmpIdCount,
+      skippedInvalidEmpIdCount,
+      skippedMissingEmpIdCount,
+      warningInvalidEmpIdCount: 0,
       duplicateCount,
       invalidErrorCount
     },
@@ -1424,8 +1440,9 @@ exports.importBulkUpload = async (req, res) => {
     }
 
     let importedCount = 0;
-    let importedWithWarningsCount = 0;
     let skippedDuplicatesCount = 0;
+    let skippedInvalidEmpIdCount = 0;
+    let skippedMissingEmpIdCount = 0;
     let rejectedMandatoryCount = 0;
     let rejectedValidationCount = 0;
     const rowResults = [];
@@ -1440,6 +1457,30 @@ exports.importBulkUpload = async (req, res) => {
           title: n.title,
           empIds: n.empIdsRaw,
           reason: row.duplicateReason
+        });
+        continue;
+      }
+
+      if (row.status === 'skipped_missing_empid') {
+        skippedMissingEmpIdCount++;
+        rowResults.push({
+          rowNumber: row.rowNumber,
+          status: 'skipped_missing_empid',
+          title: n.title,
+          empIds: n.empIdsRaw,
+          reason: row.skipReason || 'Required EmpID is missing.'
+        });
+        continue;
+      }
+
+      if (row.status === 'skipped_invalid_empid') {
+        skippedInvalidEmpIdCount++;
+        rowResults.push({
+          rowNumber: row.rowNumber,
+          status: 'skipped_invalid_empid',
+          title: n.title,
+          empIds: n.empIdsRaw,
+          reason: row.skipReason || `EmpID(s) not found in Faculty Management: ${(n.invalidEmpIds || []).join(', ')}`
         });
         continue;
       }
@@ -1474,8 +1515,8 @@ exports.importBulkUpload = async (req, res) => {
         proofFileName: n.proofUrl ? `Google Drive Document (${(n.proofFileId || 'link').slice(0, 8)})` : null,
         proofAccessStatus: n.proofAccessStatus,
         proofAccessRemarks: n.proofAccessRemarks,
-        hasInvalidEmpIds: n.hasInvalidEmpIds,
-        invalidEmpIds: n.invalidEmpIds,
+        hasInvalidEmpIds: false,
+        invalidEmpIds: [],
         duplicateEmpIds: n.duplicateEmpIds,
         createdBy: req.user?.id || null
       }, { transaction: t });
@@ -1486,11 +1527,10 @@ exports.importBulkUpload = async (req, res) => {
       );
 
       importedCount++;
-      if (n.hasInvalidEmpIds) importedWithWarningsCount++;
 
       rowResults.push({
         rowNumber: row.rowNumber,
-        status: n.hasInvalidEmpIds ? 'imported_with_warning' : 'imported',
+        status: 'imported',
         copyrightId: created.id,
         title: n.title,
         empIds: n.empIdsRaw,
@@ -1508,24 +1548,28 @@ exports.importBulkUpload = async (req, res) => {
         totalRows: evaluation.rows.length,
         importedCount,
         skippedDuplicatesCount,
-        importedWithWarningsCount,
+        skippedInvalidEmpIdCount,
+        skippedMissingEmpIdCount,
         rejectedMandatoryCount,
         rejectedValidationCount
       },
       ipAddress: req.ip,
-      remarks: `Bulk upload completed: ${importedCount} imported, ${skippedDuplicatesCount} duplicates skipped`
+      remarks: `Bulk upload completed: ${importedCount} imported, ${skippedInvalidEmpIdCount} invalid EmpID skipped, ${skippedDuplicatesCount} duplicates skipped`
     });
 
     res.status(201).json({
       success: true,
-      message: `Import complete: ${importedCount} copyright(s) imported, ${skippedDuplicatesCount} duplicate(s) skipped.`,
+      message: `Import complete: ${importedCount} copyright(s) imported. Skipped ${skippedInvalidEmpIdCount} (invalid EmpID), ${skippedMissingEmpIdCount} (missing EmpID), ${skippedDuplicatesCount} (duplicate).`,
       summary: {
         totalRows: evaluation.rows.length,
         importedCount,
         skippedDuplicatesCount,
-        importedWithInvalidEmpIdsCount: importedWithWarningsCount,
+        skippedInvalidEmpIdCount,
+        skippedMissingEmpIdCount,
+        importedWithInvalidEmpIdsCount: 0,
         rejectedMandatoryCount,
-        rejectedValidationCount
+        rejectedValidationCount,
+        rejectedErrorCount: rejectedMandatoryCount + rejectedValidationCount
       },
       rowResults
     });

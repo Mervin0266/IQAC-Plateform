@@ -15,7 +15,11 @@ const {
   deleteSponsoredDocument,
   addSponsoredInstallment,
   updateSponsoredInstallment,
-  deleteSponsoredInstallment
+  deleteSponsoredInstallment,
+  downloadExternalTemplate,
+  searchFacultyDirectory,
+  previewBulkUploadExternal,
+  importBulkUploadExternal
 } = require('../controllers/sponsoredProjectController');
 const { auth, authorize } = require('../middleware/auth');
 const { requireModuleEnabled, validateFormSubmission } = require('../middleware/configEnforcement');
@@ -28,11 +32,23 @@ const upload = multer({
   }
 });
 
-// All routes require authentication
+// Multer memory storage configuration for Excel spreadsheet preview and import (Max 15MB)
+const excelUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 }
+});
+
+// Direct template download endpoint (accessible without blocking auth tokens on browser click)
+router.get('/template', downloadExternalTemplate);
+
+// All subsequent routes require authentication
 router.use(auth);
 
+router.get('/faculty-search', searchFacultyDirectory);
 router.get('/stats', getSponsoredProjectStats);
 router.post('/bulk', authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('sponsored-research'), bulkUploadSponsoredProjects);
+router.post('/bulk/preview', authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('sponsored-research'), excelUpload.single('file'), previewBulkUploadExternal);
+router.post('/bulk/import', authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('sponsored-research'), excelUpload.single('file'), importBulkUploadExternal);
 router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('sponsored-research'), clearAllSponsoredProjects);
 
 // Document attachments (Agreement Letters & Payment Receipts)

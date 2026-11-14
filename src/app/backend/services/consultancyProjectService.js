@@ -99,6 +99,7 @@ function parseAndNormalizeEmpIds(rawInput) {
   for (const token of rawTokens) {
     const trimmed = String(token || '').trim();
     if (!trimmed) continue;
+    if (['n/a', 'na', 'nil', 'null', '-', '--', 'none'].includes(trimmed.toLowerCase())) continue;
     const key = normalizeEmpIdKey(trimmed);
     if (!key) continue;
     if (seenKeys.has(key)) {
@@ -325,7 +326,7 @@ function normalizeProjectType(rawType) {
  * Normalizes Project Status strictly to Sanctioned, On Going, Completed.
  */
 function normalizeProjectStatus(rawStatus) {
-  if (!rawStatus || !String(rawStatus).trim()) {
+  if (!rawStatus || !String(rawStatus).trim() || ['n/a', 'na', 'nil', 'null', '-', '--', 'none'].includes(String(rawStatus).trim().toLowerCase())) {
     return {
       valid: false,
       projectStatus: null,
@@ -392,7 +393,12 @@ function generateConsultancyDuplicateKeys({ agencyName, projectName, startDate, 
  * Resolves Faculty associations for a given list of EmpIds against the Faculty table.
  */
 async function resolveFacultyAssociationsForEmpIds(empIds = [], options = {}) {
-  const { Faculty = null, mockFacultyRows = null } = options;
+  let { Faculty = null, mockFacultyRows = null } = options;
+  if (!Faculty && !mockFacultyRows) {
+    try {
+      Faculty = require('../models').Faculty;
+    } catch (_) {}
+  }
 
   const parsed = parseAndNormalizeEmpIds(empIds);
   const { normalizedKeys } = parsed;
@@ -503,7 +509,7 @@ async function resolveFacultyAssociationsForEmpIds(empIds = [], options = {}) {
  * Validates Google Drive URL and reports status.
  */
 function validateDocumentLink(url, categoryLabel = 'Document') {
-  if (!url || !String(url).trim()) {
+  if (!url || !String(url).trim() || ['n/a', 'na', 'nil', 'null', '-', '--', 'none'].includes(String(url).trim().toLowerCase())) {
     return { valid: true, isBlank: true, driveUrl: null, fileId: null, warning: null };
   }
 
@@ -552,6 +558,10 @@ function mapConsultancySpreadsheetRow(rawObj) {
     for (const v of variants) {
       const norm = normalizeHeaderName(v);
       if (normalizedMap[norm] !== undefined && normalizedMap[norm] !== null && String(normalizedMap[norm]).trim() !== '') {
+        const valStr = String(normalizedMap[norm]).trim();
+        if (['n/a', 'na', 'nil', 'null', '-', '--'].includes(valStr.toLowerCase())) {
+          return '';
+        }
         return normalizedMap[norm];
       }
     }
@@ -629,7 +639,7 @@ function buildConsultancyTemplateWorkbook() {
       'Payment Receipt': 'https://drive.google.com/file/d/1SAMPLE_RECEIPT_ID/view'
     },
     {
-      'EmpId': '1672',
+      'EmpId': '1028',
       'Name of Consultancy Project': 'Sustainable Energy Optimization & Grid Feasibility Study',
       'Agency Name': 'CleanTech Energy Solutions',
       'Agency Contact Email': 'consulting@cleantech.org',
@@ -648,7 +658,7 @@ function buildConsultancyTemplateWorkbook() {
       'Payment Receipt': 'https://drive.google.com/file/d/1SAMPLE_RECEIPT_2/view'
     },
     {
-      'EmpId': '2195',
+      'EmpId': '914',
       'Name of Consultancy Project': 'Industry Advisory for Cyber-Physical Security Protocol',
       'Agency Name': 'SecureNet Systems Pvt Ltd',
       'Agency Contact Email': 'security@securenet.com',
@@ -741,7 +751,7 @@ async function evaluateBulkConsultancyRows(rawRows = [], options = {}) {
     }
   }
 
-  const {
+  let {
     user = null,
     headers = headersToUse,
     mockExistingProjects = null,
@@ -750,6 +760,15 @@ async function evaluateBulkConsultancyRows(rawRows = [], options = {}) {
     ConsultancyProjectFaculty = null,
     Faculty = null
   } = options;
+
+  if (!Faculty || !ConsultancyProject || !ConsultancyProjectFaculty) {
+    try {
+      const models = require('../models');
+      if (!Faculty) Faculty = models.Faculty;
+      if (!ConsultancyProject) ConsultancyProject = models.ConsultancyProject;
+      if (!ConsultancyProjectFaculty) ConsultancyProjectFaculty = models.ConsultancyProjectFaculty;
+    } catch (_) {}
+  }
 
   const actualHeaders = headers || headersToUse;
   if (Array.isArray(actualHeaders) && actualHeaders.length > 0) {
@@ -839,7 +858,8 @@ async function evaluateBulkConsultancyRows(rawRows = [], options = {}) {
   const evaluatedRows = [];
   let eligibleCount = 0;
   let validCleanCount = 0;
-  let warningInvalidEmpIdCount = 0;
+  let skippedInvalidEmpIdCount = 0;
+  let skippedMissingEmpIdCount = 0;
   let duplicateCount = 0;
   let invalidErrorCount = 0;
 
@@ -853,7 +873,8 @@ async function evaluateBulkConsultancyRows(rawRows = [], options = {}) {
 
     // 1. Validate EmpId
     const empParse = parseAndNormalizeEmpIds(mapped.empId);
-    if (empParse.empIds.length === 0) {
+    const isMissingEmpId = empParse.empIds.length === 0;
+    if (isMissingEmpId) {
       errors.push('EmpId is required. Provide at least one faculty Employee ID.');
     }
 
@@ -902,11 +923,8 @@ async function evaluateBulkConsultancyRows(rawRows = [], options = {}) {
       }
     });
 
-    const validFacultyCount = resolvedAssociations.filter(a => a.isValid).length;
-    if (empParse.empIds.length > 0 && validFacultyCount === 0) {
-      errors.push(`All supplied EmpId(s) (${invalidEmpIds.join(', ')}) are unrecognized in Faculty Management. Requires ownership correction.`);
-    } else if (invalidEmpIds.length > 0) {
-      warnings.push(`Unrecognized EmpId(s): ${invalidEmpIds.join(', ')}. Linked ${validFacultyCount} verified faculty member(s).`);
+    if (invalidEmpIds.length > 0) {
+      errors.push(`EmpID(s) not found in Faculty Management: ${invalidEmpIds.join(', ')}. Entire row skipped.`);
     }
 
     if (empParse.duplicateEmpIds.length > 0) {
@@ -929,15 +947,23 @@ async function evaluateBulkConsultancyRows(rawRows = [], options = {}) {
     let finalAgencyEmail = null;
     if (mapped.agencyContactEmail && String(mapped.agencyContactEmail).trim()) {
       const email = String(mapped.agencyContactEmail).trim();
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        errors.push(`Invalid Agency Contact Email format: "${email}".`);
-      } else {
-        finalAgencyEmail = email;
+      if (!['n/a', 'na', 'nil', 'null', '-', '--', 'none'].includes(email.toLowerCase())) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          errors.push(`Invalid Agency Contact Email format: "${email}".`);
+        } else {
+          finalAgencyEmail = email;
+        }
       }
     }
 
-    const finalAgencyPhone = mapped.agencyContactNumber ? String(mapped.agencyContactNumber).trim() : null;
+    let finalAgencyPhone = null;
+    if (mapped.agencyContactNumber && String(mapped.agencyContactNumber).trim()) {
+      const phone = String(mapped.agencyContactNumber).trim();
+      if (!['n/a', 'na', 'nil', 'null', '-', '--', 'none'].includes(phone.toLowerCase())) {
+        finalAgencyPhone = phone;
+      }
+    }
 
     // 5. Validate Start Date & Authoritatively Derive Consultancy Start Year
     const yearDerivation = deriveConsultancyStartYear(mapped.startDate);
@@ -1070,18 +1096,30 @@ async function evaluateBulkConsultancyRows(rawRows = [], options = {}) {
 
     // Classification
     let validationStatus = 'VALID_CLEAN';
-    if (errors.length > 0) {
+    let isEligible = false;
+    let skipReason = null;
+
+    if (isMissingEmpId) {
+      validationStatus = 'SKIPPED_MISSING_EMPID';
+      isEligible = false;
+      skipReason = 'Required EmpId is blank or missing. Entire row skipped.';
+      skippedMissingEmpIdCount++;
+    } else if (invalidEmpIds.length > 0) {
+      validationStatus = 'SKIPPED_INVALID_EMPID';
+      isEligible = false;
+      skipReason = `EmpID(s) not found in Faculty Management: ${invalidEmpIds.join(', ')}. Entire row skipped.`;
+      skippedInvalidEmpIdCount++;
+    } else if (errors.length > 0) {
       validationStatus = 'ERROR_REJECT';
+      isEligible = false;
       invalidErrorCount++;
     } else if (isDuplicate) {
       validationStatus = 'DUPLICATE_SKIP';
+      isEligible = false;
       duplicateCount++;
-    } else if (invalidEmpIds.length > 0) {
-      validationStatus = 'EMPID_WARNING';
-      warningInvalidEmpIdCount++;
-      eligibleCount++;
     } else {
       validationStatus = 'VALID_CLEAN';
+      isEligible = true;
       validCleanCount++;
       eligibleCount++;
     }
@@ -1094,7 +1132,8 @@ async function evaluateBulkConsultancyRows(rawRows = [], options = {}) {
     evaluatedRows.push({
       rowNumber,
       validationStatus,
-      isEligible: errors.length === 0 && !isDuplicate,
+      isEligible,
+      skipReason,
       isDuplicate,
       duplicateReason,
       errors,
@@ -1136,9 +1175,11 @@ async function evaluateBulkConsultancyRows(rawRows = [], options = {}) {
     missingColumns: [],
     summary: {
       totalRows: rowsToProcess.length,
-      eligibleCount,
+      eligibleCount: validCleanCount,
       validCleanCount,
-      warningInvalidEmpIdCount,
+      skippedInvalidEmpIdCount,
+      skippedMissingEmpIdCount,
+      warningInvalidEmpIdCount: 0,
       duplicateCount,
       invalidErrorCount
     },
@@ -1160,7 +1201,11 @@ async function executeBulkImport(evaluatedRows = [], options = {}) {
     ConsultancyDocument
   } = options;
 
-  const eligible = evaluatedRows.filter(r => r.isEligible && r.validationStatus !== 'ERROR_REJECT' && r.validationStatus !== 'DUPLICATE_SKIP');
+  const eligible = evaluatedRows.filter(r => r.isEligible && r.validationStatus === 'VALID_CLEAN');
+  const skippedDuplicatesCount = evaluatedRows.filter(r => r.validationStatus === 'DUPLICATE_SKIP').length;
+  const skippedInvalidEmpIdCount = evaluatedRows.filter(r => r.validationStatus === 'SKIPPED_INVALID_EMPID').length;
+  const skippedMissingEmpIdCount = evaluatedRows.filter(r => r.validationStatus === 'SKIPPED_MISSING_EMPID').length;
+  const rejectedCount = evaluatedRows.filter(r => r.validationStatus === 'ERROR_REJECT').length;
 
   if (eligible.length === 0) {
     return {
@@ -1170,9 +1215,10 @@ async function executeBulkImport(evaluatedRows = [], options = {}) {
         totalRows: evaluatedRows.length,
         eligibleCount: 0,
         importedCount: 0,
-        importedWithInvalidEmpIdsCount: 0,
-        skippedDuplicatesCount: evaluatedRows.filter(r => r.validationStatus === 'DUPLICATE_SKIP').length,
-        rejectedCount: evaluatedRows.filter(r => r.validationStatus === 'ERROR_REJECT').length
+        skippedInvalidEmpIdCount,
+        skippedMissingEmpIdCount,
+        skippedDuplicatesCount,
+        rejectedCount
       },
       createdIds: [],
       rowResults: evaluatedRows.map(r => ({
@@ -1180,7 +1226,8 @@ async function executeBulkImport(evaluatedRows = [], options = {}) {
         status: r.validationStatus,
         title: r.mappedData ? r.mappedData.projectName : '',
         errors: r.errors,
-        warnings: r.warnings
+        warnings: r.warnings,
+        skipReason: r.skipReason
       }))
     };
   }
@@ -1292,14 +1339,15 @@ async function executeBulkImport(evaluatedRows = [], options = {}) {
 
   return {
     success: true,
-    message: `Successfully imported ${createdProjects.length} consultancy project record(s).`,
+    message: `Successfully imported ${createdProjects.length} consultancy project record(s). Skipped ${skippedInvalidEmpIdCount} (invalid EmpID), ${skippedMissingEmpIdCount} (missing EmpID), ${skippedDuplicatesCount} (duplicate).`,
     summary: {
       totalRows: evaluatedRows.length,
       eligibleCount: eligible.length,
       importedCount: createdProjects.length,
-      importedWithInvalidEmpIdsCount,
-      skippedDuplicatesCount: evaluatedRows.filter(r => r.validationStatus === 'DUPLICATE_SKIP').length,
-      rejectedCount: evaluatedRows.filter(r => r.validationStatus === 'ERROR_REJECT').length
+      skippedInvalidEmpIdCount,
+      skippedMissingEmpIdCount,
+      skippedDuplicatesCount,
+      rejectedCount
     },
     createdIds: createdProjects.map(p => p.id),
     rowResults: evaluatedRows.map(r => ({
@@ -1307,7 +1355,8 @@ async function executeBulkImport(evaluatedRows = [], options = {}) {
       status: r.isEligible ? 'IMPORTED' : r.validationStatus,
       title: r.mappedData ? r.mappedData.projectName : '',
       errors: r.errors,
-      warnings: r.warnings
+      warnings: r.warnings,
+      skipReason: r.skipReason
     }))
   };
 }

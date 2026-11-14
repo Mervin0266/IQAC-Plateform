@@ -2073,12 +2073,12 @@ export function PatentsPage({
                     <span className="text-base font-bold text-emerald-800">{bulkPreview.summary.validCleanCount}</span>
                   </div>
                   <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200">
-                    <span className="text-[10px] uppercase text-amber-800 block">EmpId Warning</span>
-                    <span className="text-base font-bold text-amber-900">{bulkPreview.summary.warningInvalidEmpIdCount}</span>
+                    <span className="text-[10px] uppercase text-amber-800 block">Invalid EmpID (Skip)</span>
+                    <span className="text-base font-bold text-amber-900">{bulkPreview.summary.skippedInvalidEmpIdCount || 0}</span>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200">
-                    <span className="text-[10px] uppercase text-blue-700 block">Missing Pub Date</span>
-                    <span className="text-base font-bold text-blue-900">{bulkPreview.summary.missingPublicationDateCount}</span>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="text-[10px] uppercase text-slate-700 block">Missing EmpID (Skip)</span>
+                    <span className="text-base font-bold text-slate-900">{bulkPreview.summary.skippedMissingEmpIdCount || 0}</span>
                   </div>
                   <div className="p-2.5 rounded-lg bg-indigo-50 border border-indigo-200">
                     <span className="text-[10px] uppercase text-indigo-700 block">Duplicates (Skip)</span>
@@ -2125,10 +2125,22 @@ export function PatentsPage({
                             {r.rowStatus === 'valid' && (
                               <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Ready</Badge>
                             )}
+                            {r.rowStatus === 'skipped_invalid_empid' && (
+                              <div>
+                                <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">Skipped (Invalid EmpID)</Badge>
+                                <p className="text-[10px] text-amber-800 mt-0.5">{r.skipReason || (r.errors || []).join('; ')}</p>
+                              </div>
+                            )}
+                            {r.rowStatus === 'skipped_missing_empid' && (
+                              <div>
+                                <Badge className="bg-slate-100 text-slate-800 border-slate-200 text-[10px]">Skipped (Missing EmpID)</Badge>
+                                <p className="text-[10px] text-slate-700 mt-0.5">{r.skipReason || 'Required EmpID is missing.'}</p>
+                              </div>
+                            )}
                             {r.rowStatus === 'warning' && (
                               <div>
-                                <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">Import w/ Warning</Badge>
-                                <p className="text-[10px] text-amber-800 mt-0.5">{(r.warnings || []).join('; ')}</p>
+                                <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">Skipped (Invalid EmpID)</Badge>
+                                <p className="text-[10px] text-amber-800 mt-0.5">{(r.errors || r.warnings || []).join('; ')}</p>
                               </div>
                             )}
                             {r.rowStatus === 'duplicate' && (
@@ -2167,10 +2179,10 @@ export function PatentsPage({
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-[11px]">
                   <div className="bg-white p-2 rounded border border-emerald-200">Imported: <strong>{bulkResult.summary.importedCount}</strong></div>
-                  <div className="bg-white p-2 rounded border border-amber-200">With Invalid EmpIds: <strong>{bulkResult.summary.importedWithInvalidEmpIdsCount}</strong></div>
-                  <div className="bg-white p-2 rounded border border-blue-200">Missing Pub Date: <strong>{bulkResult.summary.missingPublicationDateCount || 0}</strong></div>
-                  <div className="bg-white p-2 rounded border border-indigo-200">Duplicates Skipped: <strong>{bulkResult.summary.skippedDuplicatesCount}</strong></div>
-                  <div className="bg-white p-2 rounded border border-rose-200">Errors Rejected: <strong>{bulkResult.summary.rejectedErrorCount || bulkResult.summary.rejectedMandatoryCount || 0}</strong></div>
+                  <div className="bg-white p-2 rounded border border-amber-200">Skipped (Invalid EmpID): <strong>{bulkResult.summary.skippedInvalidEmpIdCount || 0}</strong></div>
+                  <div className="bg-white p-2 rounded border border-slate-200">Skipped (Missing EmpID): <strong>{bulkResult.summary.skippedMissingEmpIdCount || 0}</strong></div>
+                  <div className="bg-white p-2 rounded border border-indigo-200">Duplicates Skipped: <strong>{bulkResult.summary.skippedDuplicatesCount || 0}</strong></div>
+                  <div className="bg-white p-2 rounded border border-rose-200">Errors Rejected: <strong>{bulkResult.summary.rejectedErrorCount || 0}</strong></div>
                 </div>
               </div>
             )}
@@ -2185,7 +2197,7 @@ export function PatentsPage({
                 onClick={handleExecuteImport}
                 className="bg-[#2855B9] hover:bg-[#1C355B] text-white"
               >
-                {bulkLoading ? 'Importing...' : `Import ${bulkPreview.summary.eligibleCount} Patent(s) (Skip ${bulkPreview.summary.duplicateCount} Duplicates)`}
+                {bulkLoading ? 'Importing...' : `Import ${bulkPreview.summary.eligibleCount} Valid Patent(s)`}
               </Button>
             )}
           </DialogFooter>

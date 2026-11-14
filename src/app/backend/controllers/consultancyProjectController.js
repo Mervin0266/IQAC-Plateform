@@ -1502,12 +1502,21 @@ exports.bulkCreateConsultancyProjects = async (req, res) => {
       ConsultancyDocument
     });
 
+    const formattedErrors = (importResult.rowResults || [])
+      .filter(r => (r.errors && r.errors.length > 0) || r.status === 'DUPLICATE_SKIP')
+      .map(r => ({
+        title: `Row ${r.rowNumber}${r.title ? ` (${r.title})` : ''}`,
+        issues: r.errors && r.errors.length > 0 ? r.errors : ['Duplicate record skipped']
+      }));
+
     res.status(importResult.success ? 201 : 400).json({
       success: importResult.success,
       message: importResult.message,
       count: importResult.summary.importedCount,
       summary: importResult.summary,
-      data: importResult.createdIds
+      data: importResult.createdIds,
+      rowResults: importResult.rowResults,
+      errors: formattedErrors
     });
   } catch (error) {
     console.error('Bulk import error:', error);

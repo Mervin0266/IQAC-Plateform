@@ -2,8 +2,10 @@
 
 const {
   SponsoredProject,
+  SponsoredProjectFaculty,
   SponsoredResearchDocument,
   SponsoredResearchInstallment,
+  Faculty,
   User
 } = require('../models');
 const { Op } = require('sequelize');
@@ -13,6 +15,23 @@ const { resolveDepartmentScope } = require('../utils/scopeHelper');
 const { parsePagination, formatPaginationResponse } = require('../utils/paginationHelper');
 const googleDriveService = require('../services/googleDriveService');
 const { calculateProjectDuration, deriveAndValidateSanctionYear } = require('../utils/projectDurationHelper');
+const {
+  EXTERNAL_RESEARCH_TEMPLATE_COLUMNS,
+  VALID_EXTERNAL_STATUSES,
+  EXTERNAL_STATUS_ALIASES,
+  normalizeEmpIdKey,
+  parseAndNormalizeEmpIds,
+  sanitizeDateNoShift,
+  deriveSanctionYear,
+  normalizeExternalStatus,
+  deriveSchoolAndCampus,
+  buildExternalDuplicateKey,
+  buildExternalTemplateWorkbook,
+  buildExternalTemplateCsv,
+  evaluateBulkExternalRows,
+  executeBulkImportExternal
+} = require('../services/sponsoredResearchService');
+const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -93,6 +112,33 @@ function formatProjectWithFinancials(projectInstance) {
   const agreementLetters = docs.filter(d => d.documentCategory === 'agreement_letter' && d.isActive !== false);
   const paymentReceipts = docs.filter(d => d.documentCategory === 'payment_receipt' && d.isActive !== false);
 
+  const rawAssocs = Array.isArray(p.facultyAssociations) ? p.facultyAssociations : [];
+  const facultyAssociations = rawAssocs.map(assoc => {
+    const f = assoc.faculty || {};
+    const effDept = assoc.originalDepartment || f.department || null;
+    const sc = deriveSchoolAndCampus(effDept);
+    return {
+      id: assoc.id,
+      facultyId: assoc.facultyId,
+      employeeId: assoc.employeeId,
+      role: assoc.role, // 'PI' or 'Co-PI'
+      facultyName: assoc.facultyName || f.name || 'Unknown Faculty',
+      designation: assoc.designation || f.designation || null,
+      department: effDept,
+      originalDepartment: assoc.originalDepartment,
+      originalDepartmentSource: assoc.originalDepartmentSource,
+      school: sc.school,
+      campus: sc.campus,
+      isValid: assoc.isValid !== false,
+      displayOrder: assoc.displayOrder ?? 0
+    };
+  });
+
+  const piAssociation = facultyAssociations.find(a => a.role === 'PI') || null;
+  const coPiAssociations = facultyAssociations.filter(a => a.role === 'Co-PI');
+  const primaryDept = p.department || piAssociation?.department || null;
+  const scPrimary = deriveSchoolAndCampus(primaryDept);
+
   return {
     ...p,
     sanctionedAmount,
@@ -102,8 +148,17 @@ function formatProjectWithFinancials(projectInstance) {
     balanceYetToBeReceived,
     reconciliationStatus,
     reconciliationDiff,
-    durationFormatted: duration.formatted,
+    durationFormatted: p.duration || duration.formatted,
     durationDetails: duration,
+    department: primaryDept,
+    school: p.school || scPrimary.school,
+    campus: p.campus || scPrimary.campus,
+    principalInvestigator: piAssociation ? piAssociation.facultyName : (p.principalInvestigator || 'Unassigned PI'),
+    principalInvestigatorEmpId: piAssociation ? piAssociation.employeeId : (p.principalInvestigatorEmpId || null),
+    principalInvestigatorDepartment: piAssociation ? piAssociation.department : (p.principalInvestigatorDepartment || primaryDept),
+    facultyAssociations,
+    piAssociation,
+    coPiAssociations,
     agreementLetters,
     paymentReceipts,
     agreementLetterCount: agreementLetters.length,
@@ -192,9 +247,12 @@ exports.getSponsoredProjects = async (req, res) => {
     if (req.user) {
       if (['coordinator', 'hod'].includes(req.user.role)) {
         if (req.user.department && req.user.department !== 'All') {
-          where.department = {
-            [Op.iLike]: `%${req.user.department}%`
-          };
+          const cleanUserDept = req.user.department.replace(/-/g, '%');
+          where[Op.or] = [
+            { department: { [Op.iLike]: `%${cleanUserDept}%` } },
+            { empIdsRaw: { [Op.iLike]: `%${cleanUserDept}%` } },
+            { principalInvestigatorDepartment: { [Op.iLike]: `%${cleanUserDept}%` } }
+          ];
         }
       } else if (req.user.role === 'authority') {
         where.approvalStatus = 'approved';
@@ -203,9 +261,13 @@ exports.getSponsoredProjects = async (req, res) => {
 
     // Explicit department filter
     if (department && department !== 'all') {
-      where.department = {
-        [Op.iLike]: `%${department.replace(/-/g, '%')}%`
-      };
+      const cleanDept = department.replace(/-/g, '%');
+      where[Op.or] = where[Op.or] || [];
+      where[Op.or].push(
+        { department: { [Op.iLike]: `%${cleanDept}%` } },
+        { empIdsRaw: { [Op.iLike]: `%${cleanDept}%` } },
+        { principalInvestigatorDepartment: { [Op.iLike]: `%${cleanDept}%` } }
+      );
     }
 
     if (search && search.trim()) {
@@ -213,6 +275,8 @@ exports.getSponsoredProjects = async (req, res) => {
       where[Op.or] = [
         { title: { [Op.iLike]: q } },
         { principalInvestigator: { [Op.iLike]: q } },
+        { principalInvestigatorEmpId: { [Op.iLike]: q } },
+        { empIdsRaw: { [Op.iLike]: q } },
         { coInvestigators: { [Op.iLike]: q } },
         { fundingAgency: { [Op.iLike]: q } },
         { scheme: { [Op.iLike]: q } },
@@ -243,6 +307,18 @@ exports.getSponsoredProjects = async (req, res) => {
           model: SponsoredResearchInstallment,
           as: 'installments',
           required: false
+        },
+        {
+          model: SponsoredProjectFaculty,
+          as: 'facultyAssociations',
+          required: false,
+          include: [
+            {
+              model: Faculty,
+              as: 'faculty',
+              attributes: ['id', 'employeeId', 'name', 'designation', 'department', 'email']
+            }
+          ]
         }
       ],
       order: [
@@ -316,6 +392,18 @@ exports.getSponsoredProjectStats = async (req, res) => {
           model: SponsoredResearchInstallment,
           as: 'installments',
           required: false
+        },
+        {
+          model: SponsoredProjectFaculty,
+          as: 'facultyAssociations',
+          required: false,
+          include: [
+            {
+              model: Faculty,
+              as: 'faculty',
+              attributes: ['id', 'employeeId', 'name', 'designation', 'department', 'email']
+            }
+          ]
         }
       ]
     });
@@ -411,6 +499,18 @@ exports.getSponsoredProject = async (req, res) => {
           model: SponsoredResearchInstallment,
           as: 'installments',
           required: false
+        },
+        {
+          model: SponsoredProjectFaculty,
+          as: 'facultyAssociations',
+          required: false,
+          include: [
+            {
+              model: Faculty,
+              as: 'faculty',
+              attributes: ['id', 'employeeId', 'name', 'designation', 'department', 'email']
+            }
+          ]
         }
       ],
       order: [
@@ -448,11 +548,15 @@ exports.getSponsoredProject = async (req, res) => {
 // @route   POST /api/sponsored-projects
 // @access  Private (Admin, HOD, Coordinator, Faculty)
 exports.createSponsoredProject = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const {
       title,
       principalInvestigator,
+      principalInvestigatorEmpId,
+      piEmpId,
       coInvestigators,
+      coPiEmpIds,
       fundingAgency,
       scheme,
       agencyType,
@@ -472,12 +576,36 @@ exports.createSponsoredProject = async (req, res) => {
     } = req.body;
 
     if (!title || !title.trim()) {
+      await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Project title is required' });
     }
-    if (!principalInvestigator || !principalInvestigator.trim()) {
-      return res.status(400).json({ success: false, message: 'Principal Investigator (PI) name is required' });
+
+    const effPiEmpId = piEmpId || principalInvestigatorEmpId || null;
+    let piFacultyRecord = null;
+    if (effPiEmpId) {
+      piFacultyRecord = await Faculty.findOne({
+        where: { employeeId: effPiEmpId },
+        attributes: ['id', 'employeeId', 'name', 'designation', 'department']
+      });
     }
+
+    let finalPiName = principalInvestigator ? principalInvestigator.trim() : null;
+    let finalPiEmpId = effPiEmpId ? String(effPiEmpId).trim() : null;
+    let finalPiDept = department ? department.trim() : null;
+
+    if (piFacultyRecord) {
+      finalPiName = piFacultyRecord.name;
+      finalPiEmpId = piFacultyRecord.employeeId;
+      finalPiDept = piFacultyRecord.department;
+    }
+
+    if (!finalPiName && !finalPiEmpId) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Principal Investigator (PI) EmpId or name is required' });
+    }
+
     if (!fundingAgency || !fundingAgency.trim()) {
+      await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Funding Agency name is required' });
     }
 
@@ -490,6 +618,7 @@ exports.createSponsoredProject = async (req, res) => {
       } else if (VALID_STATUSES.includes(status)) {
         normalizedStatus = status;
       } else {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: `Invalid project status '${status}'. Must be one of: ${VALID_STATUSES.join(', ')}`
@@ -498,28 +627,36 @@ exports.createSponsoredProject = async (req, res) => {
     }
 
     // Validate Project Duration Dates
+    let durationFormatted = 'Not Available';
     if (startDate && endDate) {
       const durationCheck = calculateProjectDuration(startDate, endDate);
       if (!durationCheck.isValid) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: durationCheck.error || 'End Date cannot be earlier than Start Date'
         });
       }
+      durationFormatted = durationCheck.formatted;
+    } else if (startDate) {
+      durationFormatted = 'Ongoing (Start date recorded)';
     }
 
     // Derive and validate Sanction Year
     const yearDerivation = deriveAndValidateSanctionYear(sanctionDate, manualSanctionYear);
     if (!yearDerivation.valid) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: yearDerivation.error
       });
     }
 
-    const assignedDept = req.user?.role === 'admin'
+    const assignedDept = finalPiDept || (req.user?.role === 'admin'
       ? (department || 'General')
-      : (req.user?.department || 'General');
+      : (req.user?.department || 'General'));
+
+    const sc = deriveSchoolAndCampus(assignedDept);
 
     const finalApproval = (['admin', 'coordinator', 'hod'].includes(req.user?.role) && approvalStatus)
       ? approvalStatus
@@ -531,10 +668,22 @@ exports.createSponsoredProject = async (req, res) => {
       parsedAmountReceived = parseFloat(String(amountReceived).replace(/[^0-9.]/g, '')) || 0.00;
     }
 
+    // Parse Co-Investigators
+    const parsedCoPi = parseAndNormalizeEmpIds(coPiEmpIds || coInvestigators);
+    const allEmpIds = [];
+    if (finalPiEmpId) allEmpIds.push(finalPiEmpId);
+    parsedCoPi.empIds.forEach(id => {
+      if (id !== finalPiEmpId && !allEmpIds.includes(id)) {
+        allEmpIds.push(id);
+      }
+    });
+
     const project = await SponsoredProject.create({
       title: title.trim(),
-      principalInvestigator: principalInvestigator.trim(),
-      coInvestigators: coInvestigators ? coInvestigators.trim() : null,
+      principalInvestigator: finalPiName,
+      principalInvestigatorEmpId: finalPiEmpId,
+      principalInvestigatorDepartment: finalPiDept,
+      coInvestigators: coInvestigators ? coInvestigators.trim() : (parsedCoPi.empIds.length > 0 ? parsedCoPi.empIds.join(', ') : null),
       fundingAgency: fundingAgency.trim(),
       scheme: scheme ? scheme.trim() : null,
       agencyType: agencyType || 'Government (National)',
@@ -544,16 +693,67 @@ exports.createSponsoredProject = async (req, res) => {
       academicYear: yearDerivation.academicYear,
       startDate: startDate || null,
       endDate: endDate || null,
+      duration: durationFormatted,
       sanctionedAmount: parseFloat(sanctionedAmount) || 0.00,
       amountReceived: parsedAmountReceived,
       status: normalizedStatus,
       progressPercentage: parseInt(progressPercentage, 10) || 0,
       department: assignedDept.trim(),
+      school: sc.school,
+      campus: sc.campus,
       projectUrl: projectUrl ? projectUrl.trim() : null,
       description: description ? description.trim() : null,
+      empIdsRaw: allEmpIds.length > 0 ? allEmpIds.join(', ') : null,
       approvalStatus: finalApproval,
       createdBy: req.user?.id
-    });
+    }, { transaction });
+
+    // Create Faculty Associations
+    if (finalPiEmpId) {
+      await SponsoredProjectFaculty.create({
+        projectId: project.id,
+        facultyId: piFacultyRecord?.id || null,
+        employeeId: finalPiEmpId,
+        normalizedEmployeeId: normalizeEmpIdKey(finalPiEmpId),
+        role: 'PI',
+        facultyName: finalPiName || `Faculty (${finalPiEmpId})`,
+        designation: piFacultyRecord?.designation || null,
+        originalDepartment: finalPiDept,
+        originalDepartmentSource: piFacultyRecord ? 'faculty_profile_snapshot' : 'manual_entry',
+        isValid: !!piFacultyRecord,
+        displayOrder: 0
+      }, { transaction });
+    }
+
+    if (parsedCoPi.empIds.length > 0) {
+      const coPiFaculties = await Faculty.findAll({
+        where: { employeeId: { [Op.in]: parsedCoPi.empIds } },
+        attributes: ['id', 'employeeId', 'name', 'designation', 'department']
+      });
+      const coPiMap = new Map();
+      coPiFaculties.forEach(f => coPiMap.set(normalizeEmpIdKey(f.employeeId), f));
+
+      for (let pos = 0; pos < parsedCoPi.empIds.length; pos++) {
+        const coId = parsedCoPi.empIds[pos];
+        if (coId === finalPiEmpId) continue;
+        const rec = coPiMap.get(normalizeEmpIdKey(coId));
+        await SponsoredProjectFaculty.create({
+          projectId: project.id,
+          facultyId: rec?.id || null,
+          employeeId: coId,
+          normalizedEmployeeId: normalizeEmpIdKey(coId),
+          role: 'Co-PI',
+          facultyName: rec?.name || `Faculty (${coId})`,
+          designation: rec?.designation || null,
+          originalDepartment: rec?.department || null,
+          originalDepartmentSource: rec ? 'faculty_profile_snapshot' : 'unresolved_empid',
+          isValid: !!rec,
+          displayOrder: pos + 1
+        }, { transaction });
+      }
+    }
+
+    await transaction.commit();
 
     await logActionSafe({
       recordId: project.id,
@@ -1658,6 +1858,7 @@ exports.clearAllSponsoredProjects = async (req, res) => {
       const matchingProjects = await SponsoredProject.findAll({ where, attributes: ['id'], transaction: t });
       const ids = matchingProjects.map(p => p.id);
       if (ids.length > 0) {
+        await SponsoredProjectFaculty.destroy({ where: { projectId: ids }, transaction: t });
         await SponsoredResearchDocument.destroy({ where: { projectId: ids }, transaction: t });
         await SponsoredResearchInstallment.destroy({ where: { projectId: ids }, transaction: t });
       }
@@ -1681,6 +1882,157 @@ exports.clearAllSponsoredProjects = async (req, res) => {
     res.status(error.status || 500).json({
       success: false,
       message: error.message || 'Failed to clear sponsored project records'
+    });
+  }
+};
+
+// @desc    Download official 18-column External Research template (Excel or CSV)
+// @route   GET /api/sponsored-projects/template
+// @access  Public
+exports.downloadExternalTemplate = async (req, res) => {
+  try {
+    const { format } = req.query;
+    if (format === 'csv') {
+      const csvData = buildExternalTemplateCsv();
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="External_Research_Template.csv"');
+      return res.send(csvData);
+    }
+
+    const wb = buildExternalTemplateWorkbook();
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="External_Research_Template.xlsx"');
+    return res.send(buffer);
+  } catch (error) {
+    console.error('Download external research template error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Search Faculty Directory by EmpID or Name
+// @route   GET /api/sponsored-projects/faculty-search
+// @access  Private
+exports.searchFacultyDirectory = async (req, res) => {
+  try {
+    const { q, query } = req.query;
+    const keyword = String(q || query || '').trim();
+    if (!keyword) {
+      return res.json({ success: true, count: 0, data: [] });
+    }
+    const isEmpId = /^\d+$/.test(keyword);
+    const where = isEmpId
+      ? { employeeId: { [Op.iLike]: `%${keyword}%` } }
+      : {
+          [Op.or]: [
+            { name: { [Op.iLike]: `%${keyword}%` } },
+            { employeeId: { [Op.iLike]: `%${keyword}%` } }
+          ]
+        };
+    const faculties = await Faculty.findAll({
+      where,
+      attributes: ['id', 'employeeId', 'name', 'designation', 'department', 'email'],
+      limit: 25,
+      order: [['name', 'ASC']]
+    });
+    const data = faculties.map(f => {
+      const plain = f.toJSON ? f.toJSON() : f;
+      const sc = deriveSchoolAndCampus(plain.department);
+      return {
+        ...plain,
+        school: sc.school,
+        campus: sc.campus
+      };
+    });
+    res.json({ success: true, count: data.length, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Preview bulk upload for External Research (18 columns)
+// @route   POST /api/sponsored-projects/bulk/preview
+// @access  Private
+exports.previewBulkUploadExternal = async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, message: 'Spreadsheet file is required (.xlsx, .xls, .csv).' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    if (rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Spreadsheet contains no data rows.' });
+    }
+
+    const evaluation = await evaluateBulkExternalRows({
+      rows,
+      user: req.user,
+      Faculty,
+      SponsoredProject
+    });
+
+    res.json({
+      success: true,
+      ...evaluation
+    });
+  } catch (error) {
+    console.error('Preview bulk upload external error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to preview external research spreadsheet: ' + error.message
+    });
+  }
+};
+
+// @desc    Import bulk upload for External Research
+// @route   POST /api/sponsored-projects/bulk/import
+// @access  Private
+exports.importBulkUploadExternal = async (req, res) => {
+  try {
+    let rowsToImport = [];
+
+    if (req.body.rows && Array.isArray(req.body.rows)) {
+      rowsToImport = req.body.rows;
+    } else if (req.file && req.file.buffer) {
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+      const evaluation = await evaluateBulkExternalRows({
+        rows: rawRows,
+        user: req.user,
+        Faculty,
+        SponsoredProject
+      });
+      rowsToImport = evaluation.rows;
+    } else {
+      return res.status(400).json({ success: false, message: 'No rows or spreadsheet file provided for import.' });
+    }
+
+    const result = await executeBulkImportExternal({
+      evaluatedRows: rowsToImport,
+      user: req.user,
+      sequelize,
+      SponsoredProject,
+      SponsoredProjectFaculty,
+      SponsoredResearchDocument
+    });
+
+    res.json({
+      success: true,
+      message: `Import completed: ${result.successfulImports} projects imported. Skipped ${result.skippedInvalidEmpIdCount || 0} (invalid EmpID), ${result.skippedMissingEmpIdCount || 0} (missing EmpID), ${result.duplicatesSkipped || 0} (duplicate).`,
+      result
+    });
+  } catch (error) {
+    console.error('Import bulk upload external error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to import external research spreadsheet: ' + error.message
     });
   }
 };

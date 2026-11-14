@@ -178,8 +178,11 @@ PublicationCitationSnapshot.belongsTo(CitationImportBatch, { foreignKey: 'import
 
 // Sponsored Research Project Associations
 const SponsoredProject = require('./SponsoredProject');
+const SponsoredProjectFaculty = require('./SponsoredProjectFaculty');
 const SponsoredResearchDocument = require('./SponsoredResearchDocument');
 const SponsoredResearchInstallment = require('./SponsoredResearchInstallment');
+const InternalResearchProject = require('./InternalResearchProject');
+const InternalResearchFaculty = require('./InternalResearchFaculty');
 
 User.hasMany(SponsoredProject, { foreignKey: 'createdBy', as: 'sponsoredProjects' });
 SponsoredProject.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
@@ -193,6 +196,20 @@ SponsoredProject.hasMany(SponsoredResearchInstallment, { foreignKey: 'projectId'
 SponsoredResearchInstallment.belongsTo(SponsoredProject, { foreignKey: 'projectId', as: 'project' });
 User.hasMany(SponsoredResearchInstallment, { foreignKey: 'createdBy', as: 'createdSponsoredInstallments' });
 SponsoredResearchInstallment.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+
+// Sponsored Research Multi-Investigator Associations
+SponsoredProject.hasMany(SponsoredProjectFaculty, { foreignKey: 'projectId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+SponsoredProjectFaculty.belongsTo(SponsoredProject, { foreignKey: 'projectId', as: 'project' });
+SponsoredProjectFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+Faculty.hasMany(SponsoredProjectFaculty, { foreignKey: 'facultyId', as: 'sponsoredProjectAssociations' });
+
+// Internal Research & Seed Money Associations
+User.hasMany(InternalResearchProject, { foreignKey: 'createdBy', as: 'internalResearchProjects' });
+InternalResearchProject.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+InternalResearchProject.hasMany(InternalResearchFaculty, { foreignKey: 'projectId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+InternalResearchFaculty.belongsTo(InternalResearchProject, { foreignKey: 'projectId', as: 'project' });
+InternalResearchFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+Faculty.hasMany(InternalResearchFaculty, { foreignKey: 'facultyId', as: 'internalResearchAssociations' });
 
 // System Administration V2.0 Associations
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
@@ -216,8 +233,11 @@ module.exports = {
   PublicationCitationSnapshot,
   CitationYearlyDetail,
   SponsoredProject,
+  SponsoredProjectFaculty,
   SponsoredResearchDocument,
   SponsoredResearchInstallment,
+  InternalResearchProject,
+  InternalResearchFaculty,
   Document,
   Patent,
   PatentProof,

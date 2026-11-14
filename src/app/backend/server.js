@@ -156,6 +156,7 @@ app.use('/api/departments', require('./routes/departments'));
 app.use('/api/research-metrics', require('./routes/researchMetrics'));
 app.use('/api/publications', require('./routes/publications'));
 app.use('/api/sponsored-projects', require('./routes/sponsoredProjects'));
+app.use('/api/internal-research', require('./routes/internalResearch'));
 app.use('/api/consultancy-projects', require('./routes/consultancyProjects'));
 app.use('/api/departmental-activities', require('./routes/departmentalActivities'));
 app.use('/api/parameter-master', require('./routes/parameterMaster'));

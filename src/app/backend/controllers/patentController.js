@@ -2512,12 +2512,13 @@ exports.importBulkUploadPatents = async (req, res) => {
 
     const defaultApproval = ['admin', 'coordinator', 'hod'].includes(req.user?.role) ? 'approved' : 'submitted';
 
-    const eligibleRows = evaluation.rows.filter(r => r.rowStatus === 'valid' || r.rowStatus === 'warning');
+    const eligibleRows = evaluation.rows.filter(r => r.isEligible && r.rowStatus === 'valid');
+    const skippedInvalidEmpIdCount = evaluation.rows.filter(r => r.rowStatus === 'skipped_invalid_empid').length;
+    const skippedMissingEmpIdCount = evaluation.rows.filter(r => r.rowStatus === 'skipped_missing_empid').length;
     const skippedDuplicatesCount = evaluation.rows.filter(r => r.rowStatus === 'duplicate').length;
     const rejectedErrorCount = evaluation.rows.filter(r => r.rowStatus === 'error').length;
 
     let importedCount = 0;
-    let warningInvalidEmpIdCount = 0;
     let missingPublicationDateCount = 0;
 
     for (const r of eligibleRows) {
@@ -2624,11 +2625,12 @@ exports.importBulkUploadPatents = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Successfully imported ${importedCount} patent record(s). Skipped ${skippedDuplicatesCount} duplicate(s).`,
+      message: `Successfully imported ${importedCount} patent record(s). Skipped ${skippedInvalidEmpIdCount} (invalid EmpID), ${skippedMissingEmpIdCount} (missing EmpID), ${skippedDuplicatesCount} (duplicate).`,
       summary: {
         totalRows: evaluation.rows.length,
         importedCount,
-        importedWithInvalidEmpIdsCount: warningInvalidEmpIdCount,
+        skippedInvalidEmpIdCount,
+        skippedMissingEmpIdCount,
         missingPublicationDateCount,
         skippedDuplicatesCount,
         rejectedErrorCount

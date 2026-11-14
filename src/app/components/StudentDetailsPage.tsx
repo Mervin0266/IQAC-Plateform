@@ -291,7 +291,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
     permanentState: '',
     parentMobileNo: '',
     handicapped: 'NO',
-    handicappedDescription: 'NIL',
+    handicappedDescription: '',
     disability: 'NO'
   });
 
@@ -370,7 +370,7 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
       permanentState: '',
       parentMobileNo: '',
       handicapped: 'NO',
-      handicappedDescription: 'NIL',
+      handicappedDescription: '',
       disability: 'NO'
     });
   };

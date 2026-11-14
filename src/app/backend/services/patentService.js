@@ -748,7 +748,7 @@ async function evaluateBulkPatentRows(rawRows = [], options = {}) {
     }
   }
 
-  const {
+  let {
     user = null,
     headers = headersToUse,
     mockExistingPatents = null,
@@ -758,6 +758,15 @@ async function evaluateBulkPatentRows(rawRows = [], options = {}) {
     PatentFaculty = null,
     Faculty = null
   } = options;
+
+  if (!Faculty || !Patent || !PatentFaculty) {
+    try {
+      const models = require('../models');
+      if (!Faculty) Faculty = models.Faculty;
+      if (!Patent) Patent = models.Patent;
+      if (!PatentFaculty) PatentFaculty = models.PatentFaculty;
+    } catch (_) {}
+  }
 
   const actualHeaders = headers || headersToUse;
   if (Array.isArray(actualHeaders) && actualHeaders.length > 0) {
@@ -832,7 +841,8 @@ async function evaluateBulkPatentRows(rawRows = [], options = {}) {
 
   const evaluatedRows = [];
   let validCleanCount = 0;
-  let warningInvalidEmpIdCount = 0;
+  let skippedInvalidEmpIdCount = 0;
+  let skippedMissingEmpIdCount = 0;
   let missingPublicationDateCount = 0;
   let duplicateCount = 0;
   let invalidErrorCount = 0;
@@ -867,8 +877,9 @@ async function evaluateBulkPatentRows(rawRows = [], options = {}) {
     const warnings = [];
 
     const parsedEmp = parseAndNormalizeEmpIds(rawEmpStr);
-    if (parsedEmp.empIds.length === 0) {
-      errors.push('EmpId is required.');
+    const isMissingEmpId = parsedEmp.empIds.length === 0;
+    if (isMissingEmpId) {
+      errors.push('EmpId is required. Provide at least one valid faculty Employee ID.');
     }
     if (!title) {
       errors.push('Title is required.');
@@ -978,40 +989,48 @@ async function evaluateBulkPatentRows(rawRows = [], options = {}) {
     const resolvedFaculty = await resolveFacultyAssociationsForEmpIds(
       parsedEmp.empIds,
       filingDate || publicationDate,
-      { Faculty: options.Faculty },
+      { Faculty },
       preloadedFaculty
     );
 
-    if (resolvedFaculty.hasInvalidEmpIds) {
-      warnings.push(`Unrecognized Employee ID(s): ${resolvedFaculty.invalidEmpIds.join(', ')} (record will be saved with warning).`);
+    let rowStatus = 'valid';
+    let isEligible = false;
+    let skipReason = null;
+
+    if (isMissingEmpId) {
+      rowStatus = 'skipped_missing_empid';
+      isEligible = false;
+      skipReason = 'Required EmpId is blank or missing. Entire row skipped.';
+      skippedMissingEmpIdCount++;
+    } else if (resolvedFaculty.hasInvalidEmpIds) {
+      rowStatus = 'skipped_invalid_empid';
+      isEligible = false;
+      skipReason = `EmpID(s) not found in Faculty Management: ${resolvedFaculty.invalidEmpIds.join(', ')}. Entire row skipped.`;
+      errors.push(skipReason);
+      skippedInvalidEmpIdCount++;
+    } else if (errors.length > 0) {
+      rowStatus = 'error';
+      isEligible = false;
+      invalidErrorCount++;
+    } else if (isDuplicate) {
+      rowStatus = 'duplicate';
+      isEligible = false;
+      duplicateCount++;
+    } else {
+      rowStatus = 'valid';
+      isEligible = true;
+      validCleanCount++;
     }
+
     if (parsedEmp.duplicateEmpIds.length > 0) {
       warnings.push(`Duplicate EmpIds removed within row: ${parsedEmp.duplicateEmpIds.join(', ')}.`);
-    }
-
-    const rowStatus = isDuplicate
-      ? 'duplicate'
-      : errors.length > 0
-      ? 'error'
-      : resolvedFaculty.hasInvalidEmpIds || pubDateRes.isBlank
-      ? 'warning'
-      : 'valid';
-
-    if (isDuplicate) {
-      duplicateCount++;
-    } else if (errors.length > 0) {
-      invalidErrorCount++;
-    } else if (resolvedFaculty.hasInvalidEmpIds) {
-      warningInvalidEmpIdCount++;
-    } else {
-      validCleanCount++;
     }
 
     if (pubDateRes.isBlank) {
       missingPublicationDateCount++;
     }
 
-    if (!isDuplicate && errors.length === 0) {
+    if (!isDuplicate && errors.length === 0 && isEligible) {
       if (duplicateKeys.primaryKey) seenBatchAppNos.set(duplicateKeys.primaryKey, rowNumber);
       if (duplicateKeys.fallbackKey) seenBatchFallbackSigs.set(duplicateKeys.fallbackKey, rowNumber);
     }
@@ -1019,8 +1038,10 @@ async function evaluateBulkPatentRows(rawRows = [], options = {}) {
     evaluatedRows.push({
       rowNumber,
       rowStatus,
+      isEligible,
       isDuplicate,
       duplicateReason,
+      skipReason,
       errors,
       warnings,
       data: {
@@ -1049,7 +1070,7 @@ async function evaluateBulkPatentRows(rawRows = [], options = {}) {
     });
   }
 
-  const eligibleCount = evaluatedRows.filter(r => r.rowStatus === 'valid' || r.rowStatus === 'warning').length;
+  const eligibleCount = evaluatedRows.filter(r => r.isEligible && r.rowStatus === 'valid').length;
 
   return {
     validColumns: true,
@@ -1057,7 +1078,8 @@ async function evaluateBulkPatentRows(rawRows = [], options = {}) {
       totalRows: evaluatedRows.length,
       eligibleCount,
       validCleanCount,
-      warningInvalidEmpIdCount,
+      skippedInvalidEmpIdCount,
+      skippedMissingEmpIdCount,
       missingPublicationDateCount,
       duplicateCount,
       invalidErrorCount

@@ -150,6 +150,8 @@ function AppContent() {
       case 'research-metrics':
       case 'research-innovation':
       case 'sponsored-research':
+      case 'external-research':
+      case 'internal-research':
       case 'consultancy-projects':
         return <ResearchPage onNavigate={setCurrentPage} currentPage={currentPage} />;
       case 'incubations':

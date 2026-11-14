@@ -58,6 +58,11 @@ const SponsoredProject = sequelize.define('SponsoredProject', {
     allowNull: true,
     comment: 'Project expected / actual completion date'
   },
+  duration: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    comment: 'Calculated duration from Start Date and End Date'
+  },
   sanctionedAmount: {
     type: DataTypes.DECIMAL(15, 2),
     allowNull: false,
@@ -86,6 +91,50 @@ const SponsoredProject = sequelize.define('SponsoredProject', {
     type: DataTypes.STRING,
     allowNull: true,
     comment: 'Host department'
+  },
+  school: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  campus: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  principalInvestigatorEmpId: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  principalInvestigatorDepartment: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  empIdsRaw: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  hasInvalidEmpIds: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  invalidEmpIds: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: []
+  },
+  duplicateEmpIds: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: []
+  },
+  unresolvedPI: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  externalCollaborators: {
+    type: DataTypes.TEXT,
+    allowNull: true
   },
   sanctionYear: {
     type: DataTypes.INTEGER,

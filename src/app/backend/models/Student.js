@@ -117,7 +117,7 @@ const Student = sequelize.define('Student', {
   },
   handicappedDescription: {
     type: DataTypes.TEXT,
-    defaultValue: 'NIL',
+    defaultValue: null,
     allowNull: true
   },
   campus: {

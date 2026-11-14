@@ -75,9 +75,16 @@ export function Sidebar({
                 icon: FlaskConical,
                 children: [
                   { label: 'Research Metrics Grid', key: 'research-metrics' },
-                  { label: 'Sponsored Research', key: 'sponsored-research' },
                   { label: 'Consultancy Projects', key: 'consultancy-projects' },
                   { label: 'Publications', key: 'publications' },
+                  {
+                    label: 'Sponsored Research',
+                    key: 'sponsored-grants',
+                    children: [
+                      { label: 'External Research', key: 'sponsored-research' },
+                      { label: 'Internal Research', key: 'internal-research' },
+                    ],
+                  },
                   {
                     label: 'IPRs',
                     key: 'iprs',
