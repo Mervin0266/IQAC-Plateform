@@ -125,7 +125,12 @@ export function InternalResearchPage({ onNavigate, hideSidebar, token: tokenProp
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [selectedScheme, setSelectedScheme] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [availableYears, setAvailableYears] = useState<number[]>(() => {
+    const cur = new Date().getFullYear();
+    const yrs: number[] = [];
+    for (let y = cur + 1; y >= cur - 15; y--) yrs.push(y);
+    return yrs;
+  });
   const [configuredSchemes, setConfiguredSchemes] = useState<string[]>(DEFAULT_SEED_MONEY_SCHEMES);
 
   // View Details Modal
@@ -210,15 +215,17 @@ export function InternalResearchPage({ onNavigate, hideSidebar, token: tokenProp
         const list: InternalResearchItem[] = data.rows || data.data || [];
         setProjects(list);
 
-        // Derive unique calendar years from dataset
-        const yearsSet = new Set<number>();
-        list.forEach(p => {
-          if (p.calendarYear) yearsSet.add(p.calendarYear);
+        setAvailableYears(prev => {
+          const yearsSet = new Set<number>(prev);
+          const currentYear = new Date().getFullYear();
+          for (let y = currentYear + 1; y >= currentYear - 15; y--) {
+            yearsSet.add(y);
+          }
+          list.forEach(p => {
+            if (p.calendarYear) yearsSet.add(Number(p.calendarYear));
+          });
+          return Array.from(yearsSet).sort((a, b) => b - a);
         });
-        const currentYear = new Date().getFullYear();
-        yearsSet.add(currentYear);
-        yearsSet.add(currentYear - 1);
-        setAvailableYears(Array.from(yearsSet).sort((a, b) => b - a));
       } else {
         setError(data.message || 'Failed to load internal research records');
       }
@@ -722,7 +729,7 @@ export function InternalResearchPage({ onNavigate, hideSidebar, token: tokenProp
                 <SelectTrigger className="w-[130px] h-9 text-xs rounded-xl border-slate-200">
                   <SelectValue placeholder="All Years" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   <SelectItem value="all">All Years</SelectItem>
                   {availableYears.map(y => (
                     <SelectItem key={y} value={String(y)}>{y}</SelectItem>

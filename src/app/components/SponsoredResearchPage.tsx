@@ -179,7 +179,12 @@ export function SponsoredResearchPage({
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedDept, setSelectedDept] = useState('all');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [availableYears, setAvailableYears] = useState<number[]>(() => {
+    const cur = new Date().getFullYear();
+    const yrs: number[] = [];
+    for (let y = cur + 1; y >= cur - 15; y--) yrs.push(y);
+    return yrs;
+  });
 
   // Add / Edit Modal States
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -265,14 +270,17 @@ export function SponsoredResearchPage({
         const list: SponsoredProjectItem[] = data.rows || data.data || [];
         setProjects(list);
 
-        const yearsSet = new Set<number>();
-        list.forEach(p => {
-          if (p.sanctionYear) yearsSet.add(p.sanctionYear);
+        setAvailableYears(prev => {
+          const yearsSet = new Set<number>(prev);
+          const currentYear = new Date().getFullYear();
+          for (let y = currentYear + 1; y >= currentYear - 15; y--) {
+            yearsSet.add(y);
+          }
+          list.forEach(p => {
+            if (p.sanctionYear) yearsSet.add(Number(p.sanctionYear));
+          });
+          return Array.from(yearsSet).sort((a, b) => b - a);
         });
-        const currentYear = new Date().getFullYear();
-        yearsSet.add(currentYear);
-        yearsSet.add(currentYear - 1);
-        setAvailableYears(Array.from(yearsSet).sort((a, b) => b - a));
       }
     } catch (err) {
       console.error('Fetch sponsored projects error:', err);
@@ -884,7 +892,7 @@ export function SponsoredResearchPage({
                 <SelectTrigger className="w-[130px] h-9 text-xs rounded-xl border-slate-200">
                   <SelectValue placeholder="All Years" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   <SelectItem value="all">All Years</SelectItem>
                   {availableYears.map(y => (
                     <SelectItem key={y} value={String(y)}>{y}</SelectItem>
@@ -910,7 +918,7 @@ export function SponsoredResearchPage({
                 <SelectTrigger className="w-[160px] h-9 text-xs rounded-xl border-slate-200">
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   <SelectItem value="all">All Statuses</SelectItem>
                   {PROJECT_STATUS_OPTIONS.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
@@ -923,7 +931,7 @@ export function SponsoredResearchPage({
                 <SelectTrigger className="w-[170px] h-9 text-xs rounded-xl border-slate-200 truncate">
                   <SelectValue placeholder="All Agency Types" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   <SelectItem value="all">All Agency Types</SelectItem>
                   {AGENCY_TYPE_OPTIONS.map(opt => (
                     <SelectItem key={opt} value={opt}>{opt}</SelectItem>
@@ -1263,7 +1271,7 @@ export function SponsoredResearchPage({
                     <SelectTrigger className="h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-60">
                       {AGENCY_TYPE_OPTIONS.map(opt => (
                         <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                       ))}
@@ -1498,7 +1506,7 @@ export function SponsoredResearchPage({
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60">
                     {PROJECT_STATUS_OPTIONS.map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
