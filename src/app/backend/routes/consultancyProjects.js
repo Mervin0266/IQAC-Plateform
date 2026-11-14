@@ -1,3 +1,5 @@
+'use strict';
+
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -12,7 +14,11 @@ const {
   clearAllConsultancyProjects,
   uploadConsultancyDocument,
   addConsultancyDocumentLink,
-  deleteConsultancyDocument
+  deleteConsultancyDocument,
+  downloadConsultancyTemplate,
+  previewBulkUploadConsultancy,
+  importBulkUploadConsultancy,
+  searchFacultyDirectory
 } = require('../controllers/consultancyProjectController');
 const { auth, authorize } = require('../middleware/auth');
 const { requireModuleEnabled, validateFormSubmission } = require('../middleware/configEnforcement');
@@ -25,11 +31,23 @@ const upload = multer({
   }
 });
 
-// All routes require authentication
+// Multer memory storage configuration for Excel spreadsheet preview and import (Max 15MB)
+const excelUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 }
+});
+
+// Direct template download endpoint (accessible without blocking auth tokens on browser click)
+router.get('/template', downloadConsultancyTemplate);
+
+// All subsequent routes require authentication
 router.use(auth);
 
+router.get('/faculty-search', searchFacultyDirectory);
 router.get('/stats', getConsultancyStats);
 router.post('/bulk', authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('consultancy-projects'), bulkCreateConsultancyProjects);
+router.post('/bulk/preview', authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('consultancy-projects'), excelUpload.single('file'), previewBulkUploadConsultancy);
+router.post('/bulk/import', authorize('admin', 'coordinator', 'hod', 'faculty'), requireModuleEnabled('consultancy-projects'), excelUpload.single('file'), importBulkUploadConsultancy);
 router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('consultancy-projects'), clearAllConsultancyProjects);
 
 // Document attachments (Agreement / Work Order, Invoice, Payment Receipt)

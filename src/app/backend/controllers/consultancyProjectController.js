@@ -1,4 +1,10 @@
-const { ConsultancyProject, ConsultancyDocument, User } = require('../models');
+const {
+  ConsultancyProject,
+  ConsultancyProjectFaculty,
+  ConsultancyDocument,
+  Faculty,
+  User
+} = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { logAction, logActionSafe } = require('../middleware/auditLogger');
@@ -17,6 +23,21 @@ const {
   validateDriveUrl,
   isDriveConfigured
 } = require('../services/googleDriveService');
+const {
+  CONSULTANCY_TEMPLATE_COLUMNS,
+  VALID_PROJECT_TYPES,
+  VALID_PROJECT_STATUSES,
+  parseAndNormalizeEmpIds,
+  deriveConsultancyStartYear,
+  normalizeProjectType,
+  normalizeProjectStatus,
+  generateConsultancyDuplicateKeys,
+  resolveFacultyAssociationsForEmpIds,
+  buildConsultancyTemplateWorkbook,
+  parseConsultancySpreadsheetBuffer,
+  evaluateBulkConsultancyRows,
+  executeBulkImport
+} = require('../services/consultancyProjectService');
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -27,8 +48,16 @@ const ALLOWED_MIME_TYPES = [
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per document
 const VALID_DOCUMENT_CATEGORIES = ['agreement_work_order', 'invoice', 'payment_receipt'];
 
+function deriveSchoolAndCampus(department) {
+  const deptStr = String(department || '').toLowerCase();
+  if (deptStr.includes('architecture') || deptStr.includes('soa')) {
+    return { school: 'School of Architecture', campus: 'Bangalore Kengeri Campus' };
+  }
+  return { school: 'School of Engineering and Technology', campus: 'Bangalore Kengeri Campus' };
+}
+
 /**
- * Format project with durations and categorized documents
+ * Format project with durations, categorized documents, and faculty associations
  */
 function formatConsultancyProject(projectInstance) {
   const p = projectInstance.toJSON ? projectInstance.toJSON() : projectInstance;
@@ -42,6 +71,30 @@ function formatConsultancyProject(projectInstance) {
   const agreementWorkOrders = allDocs.filter(d => d.documentCategory === 'agreement_work_order');
   const invoices = allDocs.filter(d => d.documentCategory === 'invoice');
   const paymentReceipts = allDocs.filter(d => d.documentCategory === 'payment_receipt');
+
+  // Faculty associations
+  const rawAssocs = Array.isArray(p.facultyAssociations) ? p.facultyAssociations : [];
+  const sortedAssocs = [...rawAssocs].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+
+  const associatedFaculty = sortedAssocs.map(assoc => {
+    const liveFaculty = assoc.faculty || {};
+    const effectiveDept = liveFaculty.department || assoc.originalDepartment || null;
+    const sc = deriveSchoolAndCampus(effectiveDept);
+    return {
+      id: assoc.id,
+      facultyId: assoc.facultyId || liveFaculty.id || null,
+      employeeId: assoc.employeeId,
+      normalizedEmployeeId: assoc.normalizedEmployeeId,
+      name: assoc.facultyName || liveFaculty.name || assoc.employeeId,
+      designation: assoc.designation || liveFaculty.designation || null,
+      originalDepartment: assoc.originalDepartment || null,
+      originalDepartmentSource: assoc.originalDepartmentSource || 'creation_snapshot',
+      currentDepartment: effectiveDept,
+      school: sc.school,
+      campus: sc.campus,
+      isValid: assoc.isValid !== false
+    };
+  });
 
   // Financial values
   const revenueInLakhs = p.revenueInLakhs !== null && p.revenueInLakhs !== undefined ? parseFloat(p.revenueInLakhs) : 0;
@@ -57,6 +110,8 @@ function formatConsultancyProject(projectInstance) {
     plannedDurationDetails: plannedDuration,
     actualDurationFormatted: actualDuration ? actualDuration.formatted : null,
     actualDurationDetails: actualDuration,
+    facultyAssociations: sortedAssocs,
+    associatedFaculty,
     agreementWorkOrders,
     invoices,
     paymentReceipts,
@@ -97,41 +152,91 @@ async function ingestLinks(projectId, category, rawLinks, userId) {
   }
 }
 
-// @desc    Get all consultancy projects
-// @route   GET /api/consultancy-projects
-// @access  Private
+// ──────────────────────────────────────────────────────────────────────────────
+// 1. GET ALL CONSULTANCY PROJECTS
+// ──────────────────────────────────────────────────────────────────────────────
 exports.getConsultancyProjects = async (req, res) => {
   try {
-    const { year, department, academicYear, consultancyStartYear, projectStatus } = req.query;
+    const {
+      year,
+      department,
+      academicYear,
+      consultancyStartYear,
+      projectStatus,
+      projectType,
+      search,
+      q
+    } = req.query;
 
     const where = {};
-    const targetYear = year || academicYear;
+
+    // 1. Consultancy Start Year derivation / filter
+    const targetYear = consultancyStartYear || year || academicYear;
     if (targetYear && targetYear !== 'all') {
+      const parsedYear = parseInt(targetYear, 10);
+      if (!isNaN(parsedYear) && /^\d{4}$/.test(String(targetYear).trim())) {
+        where.consultancyStartYear = parsedYear;
+      } else {
+        where[Op.or] = [
+          { year: targetYear },
+          { consultancyStartYear: parseInt(targetYear, 10) || -1 }
+        ];
+      }
+    }
+
+    // 2. Project Status filter (Sanctioned, On Going, Completed)
+    if (projectStatus && projectStatus !== 'all') {
+      const normStatus = normalizeProjectStatus(projectStatus);
+      if (normStatus.valid) {
+        where.projectStatus = normStatus.projectStatus;
+      } else {
+        where.projectStatus = projectStatus;
+      }
+    }
+
+    // 3. Project Type filter (Collaborative, Sole, MOU_Based, Private_Consulting, Others)
+    if (projectType && projectType !== 'all') {
+      const normType = normalizeProjectType(projectType);
+      if (normType.valid) {
+        where.projectType = normType.projectType;
+      } else {
+        where.projectType = projectType;
+      }
+    }
+
+    // 4. Text Search
+    const searchKeyword = String(search || q || '').trim();
+    if (searchKeyword) {
       where[Op.or] = [
-        { year: targetYear },
-        { consultancyStartYear: parseInt(targetYear, 10) || -1 }
+        { projectName: { [Op.iLike]: `%${searchKeyword}%` } },
+        { agencyName: { [Op.iLike]: `%${searchKeyword}%` } },
+        { teacherConsultant: { [Op.iLike]: `%${searchKeyword}%` } },
+        { empIdsRaw: { [Op.iLike]: `%${searchKeyword}%` } }
       ];
     }
-    if (consultancyStartYear && consultancyStartYear !== 'all') {
-      where.consultancyStartYear = parseInt(consultancyStartYear, 10);
-    }
 
-    // Filter by Project Status (Sanctioned, On Going, Completed)
-    if (projectStatus && projectStatus !== 'all') {
-      where.projectStatus = projectStatus;
-    }
-
-    // Enforce data isolation based on role
+    // 5. Department and Role Isolation
     if (req.user.role === 'faculty') {
-      where.createdBy = req.user.id;
+      // Faculty members see projects they created OR where they are associated by EmpId
+      where[Op.or] = [
+        { createdBy: req.user.id }
+      ];
+      if (req.user.employeeId) {
+        where[Op.or].push({
+          empIdsRaw: { [Op.iLike]: `%${req.user.employeeId}%` }
+        });
+      }
     } else if (req.user.role === 'coordinator' || req.user.role === 'hod') {
-      where.department = req.user.department;
+      const userDept = req.user.department;
+      where[Op.or] = [
+        { department: userDept }
+      ];
     } else {
-      // Admin and Institutional Authority can filter by any department
       if (department && department !== 'all') {
-        where.department = {
-          [Op.iLike]: `%${department.replace(/-/g, '%')}%`
-        };
+        const cleanDept = department.replace(/-/g, '%');
+        where[Op.or] = [
+          { department: { [Op.iLike]: `%${cleanDept}%` } }
+        ];
       }
     }
 
@@ -148,6 +253,18 @@ exports.getConsultancyProjects = async (req, res) => {
           as: 'documents',
           where: { isActive: true },
           required: false
+        },
+        {
+          model: ConsultancyProjectFaculty,
+          as: 'facultyAssociations',
+          required: false,
+          include: [
+            {
+              model: Faculty,
+              as: 'faculty',
+              attributes: ['id', 'employeeId', 'name', 'designation', 'department', 'email']
+            }
+          ]
         }
       ],
       order: [['createdAt', 'DESC']]
@@ -164,14 +281,14 @@ exports.getConsultancyProjects = async (req, res) => {
     console.error('Get consultancy projects error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error: ' + error.message
     });
   }
 };
 
-// @desc    Get single consultancy project
-// @route   GET /api/consultancy-projects/:id
-// @access  Private
+// ──────────────────────────────────────────────────────────────────────────────
+// 2. GET SINGLE CONSULTANCY PROJECT
+// ──────────────────────────────────────────────────────────────────────────────
 exports.getConsultancyProject = async (req, res) => {
   try {
     const project = await ConsultancyProject.findByPk(req.params.id, {
@@ -186,6 +303,18 @@ exports.getConsultancyProject = async (req, res) => {
           as: 'documents',
           where: { isActive: true },
           required: false
+        },
+        {
+          model: ConsultancyProjectFaculty,
+          as: 'facultyAssociations',
+          required: false,
+          include: [
+            {
+              model: Faculty,
+              as: 'faculty',
+              attributes: ['id', 'employeeId', 'name', 'designation', 'department', 'email']
+            }
+          ]
         }
       ]
     });
@@ -197,18 +326,29 @@ exports.getConsultancyProject = async (req, res) => {
       });
     }
 
-    // Check departmental permission
-    if (req.user.role === 'faculty' && project.createdBy !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. You can only view your own records.'
-      });
-    }
-    if ((req.user.role === 'coordinator' || req.user.role === 'hod') && project.department !== req.user.department) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. You can only view records within your department.'
-      });
+    // Role scope checking
+    if (req.user.role === 'faculty') {
+      const isCreator = project.createdBy === req.user.id;
+      const isAssociated = project.facultyAssociations && project.facultyAssociations.some(
+        fa => fa.employeeId === req.user.employeeId
+      );
+      if (!isCreator && !isAssociated) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You can only view your own records.'
+        });
+      }
+    } else if (req.user.role === 'coordinator' || req.user.role === 'hod') {
+      const hasDeptMatch = project.department === req.user.department ||
+        (project.facultyAssociations && project.facultyAssociations.some(
+          fa => fa.originalDepartment === req.user.department || (fa.faculty && fa.faculty.department === req.user.department)
+        ));
+      if (!hasDeptMatch) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You can only view records within your department.'
+        });
+      }
     }
 
     res.json({
@@ -219,14 +359,14 @@ exports.getConsultancyProject = async (req, res) => {
     console.error('Get consultancy project error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error: ' + error.message
     });
   }
 };
 
-// @desc    Create consultancy project
-// @route   POST /api/consultancy-projects
-// @access  Private (Admin, Coordinator, Faculty)
+// ──────────────────────────────────────────────────────────────────────────────
+// 3. CREATE CONSULTANCY PROJECT (Multi-Faculty & Authoritative Year Derivation)
+// ──────────────────────────────────────────────────────────────────────────────
 exports.createConsultancyProject = async (req, res) => {
   try {
     const dept = req.user.role === 'admin' || req.user.role === 'authority'
@@ -236,6 +376,8 @@ exports.createConsultancyProject = async (req, res) => {
     const {
       projectName,
       teacherConsultant,
+      empId,
+      empIds,
       agencyName,
       agencyContactEmail,
       agencyContactNumber,
@@ -243,8 +385,8 @@ exports.createConsultancyProject = async (req, res) => {
       startDate,
       expectedEndDate,
       actualCompletionDate,
-      consultancyStartYear: rawStartYear,
-      year: rawYear,
+      projectType: rawProjectType,
+      otherProjectTypeDescription,
       projectStatus: rawProjectStatus,
       contractValueInLakhs,
       revenueInLakhs,
@@ -255,15 +397,12 @@ exports.createConsultancyProject = async (req, res) => {
       receiptLinks
     } = req.body;
 
-    // Required fields check
+    // 1. Project Title
     if (!projectName || !String(projectName).trim()) {
-      return res.status(400).json({ success: false, message: 'Project Title / Assignment Name is required.' });
-    }
-    if (!teacherConsultant || !String(teacherConsultant).trim()) {
-      return res.status(400).json({ success: false, message: 'Teacher Consultant is required.' });
+      return res.status(400).json({ success: false, message: 'Name of Consultancy Project is required.' });
     }
 
-    // Agency details extraction and validation
+    // 2. Agency Name
     let finalAgencyName = agencyName ? String(agencyName).trim() : '';
     let finalEmail = agencyContactEmail ? String(agencyContactEmail).trim() : null;
     let finalPhone = agencyContactNumber ? String(agencyContactNumber).trim() : null;
@@ -286,52 +425,83 @@ exports.createConsultancyProject = async (req, res) => {
       }
     }
 
-    // Start Year derivation and validation
-    const yearValidation = deriveAndValidateConsultancyStartYear(startDate, rawStartYear);
-    if (!yearValidation.valid) {
-      return res.status(400).json({ success: false, message: yearValidation.error });
+    // 3. Start Date & Authoritative Start Year Derivation
+    const yearDerivation = deriveConsultancyStartYear(startDate);
+    if (!yearDerivation.valid) {
+      return res.status(400).json({ success: false, message: yearDerivation.error });
     }
-    const finalStartYear = yearValidation.startYear;
-    const finalYear = rawYear || yearValidation.legacyYear;
+    const finalStartDate = yearDerivation.isoDate;
+    const finalStartYear = yearDerivation.startYear;
+    const finalLegacyYear = `${finalStartYear - 1}-${finalStartYear}`;
 
-    // Date validation
-    if (startDate && expectedEndDate) {
-      const s = new Date(String(startDate).split('T')[0]);
-      const e = new Date(String(expectedEndDate).split('T')[0]);
-      if (e < s) {
+    // 4. Date order checks
+    let finalExpectedEndDate = null;
+    if (expectedEndDate && String(expectedEndDate).trim()) {
+      finalExpectedEndDate = String(expectedEndDate).split('T')[0];
+      if (finalExpectedEndDate < finalStartDate) {
         return res.status(400).json({ success: false, message: 'Expected End Date cannot be earlier than Start Date.' });
       }
     }
-    if (startDate && actualCompletionDate) {
-      const s = new Date(String(startDate).split('T')[0]);
-      const a = new Date(String(actualCompletionDate).split('T')[0]);
-      if (a < s) {
+
+    let finalActualCompletionDate = null;
+    if (actualCompletionDate && String(actualCompletionDate).trim()) {
+      finalActualCompletionDate = String(actualCompletionDate).split('T')[0];
+      if (finalActualCompletionDate < finalStartDate) {
         return res.status(400).json({ success: false, message: 'Actual Completion Date cannot be earlier than Start Date.' });
       }
     }
 
-    // Project Status validation (Strictly Sanctioned, On Going, Completed)
-    const finalProjectStatus = normalizeConsultancyProjectStatus(rawProjectStatus);
-    if (!finalProjectStatus) {
-      return res.status(400).json({
-        success: false,
-        message: 'Project Status is required. Allowed values: Sanctioned, On Going, Completed.'
-      });
+    // 5. Project Type validation (strictly 5 allowed options)
+    const typeNorm = normalizeProjectType(rawProjectType);
+    if (!typeNorm.valid) {
+      return res.status(400).json({ success: false, message: typeNorm.error });
+    }
+    const finalProjectType = typeNorm.projectType;
+    let finalOtherDescription = typeNorm.otherProjectTypeDescription || otherProjectTypeDescription || null;
+    if (finalProjectType === 'Others' && !finalOtherDescription && req.body.otherProjectTypeDescription) {
+      finalOtherDescription = String(req.body.otherProjectTypeDescription).trim();
     }
 
-    // Financial values validation
+    // 6. Project Status validation (Strictly Sanctioned, On Going, Completed)
+    const statusNorm = normalizeProjectStatus(rawProjectStatus);
+    if (!statusNorm.valid) {
+      return res.status(400).json({ success: false, message: statusNorm.error });
+    }
+    const finalProjectStatus = statusNorm.projectStatus;
+
+    // 7. Multi-Faculty EmpId Resolution
+    const rawEmpInput = empIds || empId || (Array.isArray(req.body.facultyOwners) ? req.body.facultyOwners.map(f => f.employeeId || f) : null);
+    let resolvedFaculties = { associations: [], validCount: 0, invalidEmpIds: [], hasInvalidEmpIds: false, empIdsRaw: '' };
+
+    if (rawEmpInput) {
+      resolvedFaculties = await resolveFacultyAssociationsForEmpIds(rawEmpInput, { Faculty });
+    }
+
+    // Fallback if legacy teacherConsultant supplied without EmpId
+    let finalTeacherConsultant = teacherConsultant ? String(teacherConsultant).trim() : null;
+    if (resolvedFaculties.validCount > 0) {
+      const validNames = resolvedFaculties.associations.filter(a => a.isValid && a.facultyName).map(a => a.facultyName);
+      if (validNames.length > 0) {
+        finalTeacherConsultant = validNames.join(', ');
+      }
+    }
+    if (!finalTeacherConsultant) {
+      finalTeacherConsultant = resolvedFaculties.empIdsRaw || 'Unassigned';
+    }
+
+    // 8. Financials validation (INR Lakhs)
     const parsedRevenue = revenueInLakhs !== undefined && revenueInLakhs !== '' && revenueInLakhs !== null
       ? parseFloat(revenueInLakhs)
       : 0;
     if (isNaN(parsedRevenue) || parsedRevenue < 0) {
-      return res.status(400).json({ success: false, message: 'Revenue Generated must be a non-negative number.' });
+      return res.status(400).json({ success: false, message: 'Revenue Generated must be a non-negative number in INR Lakhs.' });
     }
 
     let parsedContractValue = null;
     if (contractValueInLakhs !== undefined && contractValueInLakhs !== '' && contractValueInLakhs !== null) {
       parsedContractValue = parseFloat(contractValueInLakhs);
       if (isNaN(parsedContractValue) || parsedContractValue < 0) {
-        return res.status(400).json({ success: false, message: 'Contract Value must be a non-negative number.' });
+        return res.status(400).json({ success: false, message: 'Contract Value must be a non-negative number in INR Lakhs.' });
       }
     }
 
@@ -339,11 +509,11 @@ exports.createConsultancyProject = async (req, res) => {
     if (amountReceivedInLakhs !== undefined && amountReceivedInLakhs !== '' && amountReceivedInLakhs !== null) {
       parsedAmountReceived = parseFloat(amountReceivedInLakhs);
       if (isNaN(parsedAmountReceived) || parsedAmountReceived < 0) {
-        return res.status(400).json({ success: false, message: 'Amount Received must be a non-negative number.' });
+        return res.status(400).json({ success: false, message: 'Amount Received must be a non-negative number in INR Lakhs.' });
       }
     }
 
-    // Build combined sponsoringAgency for backward compatibility
+    // 9. Legacy composite sponsoring agency
     let legacySponsoringAgency = rawSponsoringAgency || finalAgencyName;
     if (!rawSponsoringAgency) {
       const contactParts = [];
@@ -354,29 +524,56 @@ exports.createConsultancyProject = async (req, res) => {
       }
     }
 
+    const assignedDept = resolvedFaculties.primaryDepartment || dept;
+
     const safeData = {
       projectName: String(projectName).trim(),
-      teacherConsultant: String(teacherConsultant).trim(),
+      teacherConsultant: finalTeacherConsultant,
+      empIdsRaw: resolvedFaculties.empIdsRaw || (empId ? String(empId).trim() : null),
+      hasInvalidEmpIds: resolvedFaculties.hasInvalidEmpIds,
+      invalidEmpIds: resolvedFaculties.invalidEmpIds,
+      duplicateEmpIds: resolvedFaculties.duplicateEmpIds || [],
       agencyName: finalAgencyName,
       agencyContactEmail: finalEmail,
       agencyContactNumber: finalPhone,
       sponsoringAgency: legacySponsoringAgency,
+      startDate: finalStartDate,
       consultancyStartYear: finalStartYear,
-      year: finalYear,
-      startDate: startDate ? String(startDate).split('T')[0] : null,
-      expectedEndDate: expectedEndDate ? String(expectedEndDate).split('T')[0] : null,
-      actualCompletionDate: actualCompletionDate ? String(actualCompletionDate).split('T')[0] : null,
+      year: finalLegacyYear,
+      expectedEndDate: finalExpectedEndDate,
+      actualCompletionDate: finalActualCompletionDate,
+      projectType: finalProjectType,
+      otherProjectTypeDescription: finalOtherDescription,
       projectStatus: finalProjectStatus,
       contractValueInLakhs: parsedContractValue,
       revenueInLakhs: parsedRevenue,
       amountReceivedInLakhs: parsedAmountReceived,
       description: description ? String(description).trim() : null,
-      department: dept,
+      department: assignedDept,
       status: null,
       createdBy: req.user.id
     };
 
-    const project = await ConsultancyProject.create(safeData);
+    let project;
+    await sequelize.transaction(async (t) => {
+      project = await ConsultancyProject.create(safeData, { transaction: t });
+
+      // Create ConsultancyProjectFaculty junction rows
+      for (const assoc of resolvedFaculties.associations) {
+        await ConsultancyProjectFaculty.create({
+          projectId: project.id,
+          facultyId: assoc.facultyId,
+          employeeId: assoc.employeeId,
+          normalizedEmployeeId: assoc.normalizedEmployeeId,
+          facultyName: assoc.facultyName,
+          designation: assoc.designation,
+          originalDepartment: assoc.originalDepartment,
+          originalDepartmentSource: assoc.originalDepartmentSource,
+          isValid: assoc.isValid,
+          displayOrder: assoc.displayOrder
+        }, { transaction: t });
+      }
+    });
 
     // Ingest Google Drive links if provided
     await ingestLinks(project.id, 'agreement_work_order', agreementLinks, req.user.id);
@@ -393,11 +590,19 @@ exports.createConsultancyProject = async (req, res) => {
       updatedValue: project.toJSON()
     });
 
-    // Reload with documents
+    // Reload with documents and faculty associations
     const createdWithDocs = await ConsultancyProject.findByPk(project.id, {
       include: [
         { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'department'] },
-        { model: ConsultancyDocument, as: 'documents', where: { isActive: true }, required: false }
+        { model: ConsultancyDocument, as: 'documents', where: { isActive: true }, required: false },
+        {
+          model: ConsultancyProjectFaculty,
+          as: 'facultyAssociations',
+          required: false,
+          include: [
+            { model: Faculty, as: 'faculty', attributes: ['id', 'employeeId', 'name', 'designation', 'department', 'email'] }
+          ]
+        }
       ]
     });
 
@@ -414,12 +619,16 @@ exports.createConsultancyProject = async (req, res) => {
   }
 };
 
-// @desc    Update consultancy project
-// @route   PUT /api/consultancy-projects/:id
-// @access  Private
+// ──────────────────────────────────────────────────────────────────────────────
+// 4. UPDATE CONSULTANCY PROJECT (Multi-Faculty & Authoritative Year Derivation)
+// ──────────────────────────────────────────────────────────────────────────────
 exports.updateConsultancyProject = async (req, res) => {
   try {
-    const project = await ConsultancyProject.findByPk(req.params.id);
+    const project = await ConsultancyProject.findByPk(req.params.id, {
+      include: [
+        { model: ConsultancyProjectFaculty, as: 'facultyAssociations' }
+      ]
+    });
 
     if (!project) {
       return res.status(404).json({
@@ -428,16 +637,24 @@ exports.updateConsultancyProject = async (req, res) => {
       });
     }
 
-    // Enforce Role Constraints (Approval locks removed; based purely on role & department)
+    // Role check
     if (req.user.role === 'faculty') {
-      if (project.createdBy !== req.user.id) {
+      const isCreator = project.createdBy === req.user.id;
+      const isAssociated = project.facultyAssociations && project.facultyAssociations.some(
+        fa => fa.employeeId === req.user.employeeId
+      );
+      if (!isCreator && !isAssociated) {
         return res.status(403).json({
           success: false,
           message: 'Access denied. You can only update your own records.'
         });
       }
     } else if (req.user.role === 'coordinator' || req.user.role === 'hod') {
-      if (project.department !== req.user.department) {
+      const hasDeptMatch = project.department === req.user.department ||
+        (project.facultyAssociations && project.facultyAssociations.some(
+          fa => fa.originalDepartment === req.user.department
+        ));
+      if (!hasDeptMatch) {
         return res.status(403).json({
           success: false,
           message: 'Access denied. You can only update records in your department.'
@@ -454,6 +671,8 @@ exports.updateConsultancyProject = async (req, res) => {
     const {
       projectName,
       teacherConsultant,
+      empId,
+      empIds,
       agencyName,
       agencyContactEmail,
       agencyContactNumber,
@@ -461,8 +680,8 @@ exports.updateConsultancyProject = async (req, res) => {
       startDate,
       expectedEndDate,
       actualCompletionDate,
-      consultancyStartYear,
-      year,
+      projectType,
+      otherProjectTypeDescription,
       projectStatus,
       contractValueInLakhs,
       revenueInLakhs,
@@ -472,7 +691,6 @@ exports.updateConsultancyProject = async (req, res) => {
     } = req.body;
 
     if (projectName !== undefined) updates.projectName = String(projectName).trim();
-    if (teacherConsultant !== undefined) updates.teacherConsultant = String(teacherConsultant).trim();
 
     // Agency updates
     if (agencyName !== undefined) updates.agencyName = String(agencyName).trim();
@@ -491,105 +709,94 @@ exports.updateConsultancyProject = async (req, res) => {
       updates.agencyContactNumber = agencyContactNumber ? String(agencyContactNumber).trim() : null;
     }
 
-    if (sponsoringAgency !== undefined) {
-      updates.sponsoringAgency = String(sponsoringAgency).trim();
-      if (!updates.agencyName && !project.agencyName) {
-        const parsed = parseAgencyDetails(updates.sponsoringAgency);
-        updates.agencyName = parsed.agencyName;
-        if (!updates.agencyContactEmail && parsed.email) updates.agencyContactEmail = parsed.email;
-        if (!updates.agencyContactNumber && parsed.phone) updates.agencyContactNumber = parsed.phone;
+    // Start Date & Start Year Derivation
+    if (startDate !== undefined) {
+      const yearDerivation = deriveConsultancyStartYear(startDate);
+      if (!yearDerivation.valid) {
+        return res.status(400).json({ success: false, message: yearDerivation.error });
       }
-    } else if (updates.agencyName) {
-      const email = updates.agencyContactEmail !== undefined ? updates.agencyContactEmail : project.agencyContactEmail;
-      const phone = updates.agencyContactNumber !== undefined ? updates.agencyContactNumber : project.agencyContactNumber;
-      const contactParts = [];
-      if (email) contactParts.push(`Email: ${email}`);
-      if (phone) contactParts.push(`Ph: ${phone}`);
-      updates.sponsoringAgency = contactParts.length > 0 ? `${updates.agencyName} (${contactParts.join(', ')})` : updates.agencyName;
+      updates.startDate = yearDerivation.isoDate;
+      updates.consultancyStartYear = yearDerivation.startYear;
+      updates.year = `${yearDerivation.startYear - 1}-${yearDerivation.startYear}`;
     }
 
-    // Dates
-    const effectiveStart = startDate !== undefined ? (startDate ? String(startDate).split('T')[0] : null) : project.startDate;
-    const effectiveExpectedEnd = expectedEndDate !== undefined ? (expectedEndDate ? String(expectedEndDate).split('T')[0] : null) : project.expectedEndDate;
-    const effectiveActualCompletion = actualCompletionDate !== undefined ? (actualCompletionDate ? String(actualCompletionDate).split('T')[0] : null) : project.actualCompletionDate;
-
-    if (startDate !== undefined) updates.startDate = effectiveStart;
-    if (expectedEndDate !== undefined) updates.expectedEndDate = effectiveExpectedEnd;
-    if (actualCompletionDate !== undefined) updates.actualCompletionDate = effectiveActualCompletion;
-
-    if (effectiveStart && effectiveExpectedEnd) {
-      const s = new Date(effectiveStart);
-      const e = new Date(effectiveExpectedEnd);
-      if (e < s) {
-        return res.status(400).json({ success: false, message: 'Expected End Date cannot be earlier than Start Date.' });
-      }
-    }
-    if (effectiveStart && effectiveActualCompletion) {
-      const s = new Date(effectiveStart);
-      const a = new Date(effectiveActualCompletion);
-      if (a < s) {
-        return res.status(400).json({ success: false, message: 'Actual Completion Date cannot be earlier than Start Date.' });
+    // Expected End Date & Actual Completion Date
+    const currentStart = updates.startDate || project.startDate;
+    if (expectedEndDate !== undefined) {
+      if (expectedEndDate && String(expectedEndDate).trim()) {
+        const iso = String(expectedEndDate).split('T')[0];
+        if (currentStart && iso < currentStart) {
+          return res.status(400).json({ success: false, message: 'Expected End Date cannot be earlier than Start Date.' });
+        }
+        updates.expectedEndDate = iso;
+      } else {
+        updates.expectedEndDate = null;
       }
     }
 
-    // Start Year
-    if (startDate !== undefined || consultancyStartYear !== undefined) {
-      const yearValidation = deriveAndValidateConsultancyStartYear(effectiveStart, consultancyStartYear);
-      if (!yearValidation.valid) {
-        return res.status(400).json({ success: false, message: yearValidation.error });
+    if (actualCompletionDate !== undefined) {
+      if (actualCompletionDate && String(actualCompletionDate).trim()) {
+        const iso = String(actualCompletionDate).split('T')[0];
+        if (currentStart && iso < currentStart) {
+          return res.status(400).json({ success: false, message: 'Actual Completion Date cannot be earlier than Start Date.' });
+        }
+        updates.actualCompletionDate = iso;
+      } else {
+        updates.actualCompletionDate = null;
       }
-      updates.consultancyStartYear = yearValidation.startYear;
-      if (year !== undefined) {
-        updates.year = year;
-      } else if (yearValidation.startYear) {
-        updates.year = yearValidation.legacyYear;
-      }
-    } else if (year !== undefined) {
-      updates.year = year;
     }
 
-    // Project Status
+    // Project Type update
+    if (projectType !== undefined) {
+      const typeNorm = normalizeProjectType(projectType);
+      if (!typeNorm.valid) {
+        return res.status(400).json({ success: false, message: typeNorm.error });
+      }
+      updates.projectType = typeNorm.projectType;
+      updates.otherProjectTypeDescription = typeNorm.otherProjectTypeDescription || otherProjectTypeDescription || null;
+    } else if (otherProjectTypeDescription !== undefined) {
+      updates.otherProjectTypeDescription = otherProjectTypeDescription ? String(otherProjectTypeDescription).trim() : null;
+    }
+
+    // Project Status update
     if (projectStatus !== undefined) {
-      const normalized = normalizeConsultancyProjectStatus(projectStatus);
-      if (projectStatus && !normalized) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid Project Status. Allowed values: Sanctioned, On Going, Completed.'
-        });
+      const statusNorm = normalizeProjectStatus(projectStatus);
+      if (!statusNorm.valid) {
+        return res.status(400).json({ success: false, message: statusNorm.error });
       }
-      updates.projectStatus = normalized;
+      updates.projectStatus = statusNorm.projectStatus;
     }
 
-    // Financials
-    if (revenueInLakhs !== undefined && revenueInLakhs !== '') {
-      const r = parseFloat(revenueInLakhs);
-      if (isNaN(r) || r < 0) {
-        return res.status(400).json({ success: false, message: 'Revenue Generated must be a non-negative number.' });
+    // Financial updates
+    if (revenueInLakhs !== undefined) {
+      const num = revenueInLakhs !== '' && revenueInLakhs !== null ? parseFloat(revenueInLakhs) : 0;
+      if (isNaN(num) || num < 0) {
+        return res.status(400).json({ success: false, message: 'Revenue Generated must be a non-negative number in INR Lakhs.' });
       }
-      updates.revenueInLakhs = r;
+      updates.revenueInLakhs = num;
     }
 
     if (contractValueInLakhs !== undefined) {
-      if (contractValueInLakhs === '' || contractValueInLakhs === null) {
-        updates.contractValueInLakhs = null;
-      } else {
-        const cv = parseFloat(contractValueInLakhs);
-        if (isNaN(cv) || cv < 0) {
-          return res.status(400).json({ success: false, message: 'Contract Value must be a non-negative number.' });
+      if (contractValueInLakhs !== '' && contractValueInLakhs !== null) {
+        const num = parseFloat(contractValueInLakhs);
+        if (isNaN(num) || num < 0) {
+          return res.status(400).json({ success: false, message: 'Contract Value must be a non-negative number in INR Lakhs.' });
         }
-        updates.contractValueInLakhs = cv;
+        updates.contractValueInLakhs = num;
+      } else {
+        updates.contractValueInLakhs = null;
       }
     }
 
     if (amountReceivedInLakhs !== undefined) {
-      if (amountReceivedInLakhs === '' || amountReceivedInLakhs === null) {
-        updates.amountReceivedInLakhs = null;
-      } else {
-        const ar = parseFloat(amountReceivedInLakhs);
-        if (isNaN(ar) || ar < 0) {
-          return res.status(400).json({ success: false, message: 'Amount Received must be a non-negative number.' });
+      if (amountReceivedInLakhs !== '' && amountReceivedInLakhs !== null) {
+        const num = parseFloat(amountReceivedInLakhs);
+        if (isNaN(num) || num < 0) {
+          return res.status(400).json({ success: false, message: 'Amount Received must be a non-negative number in INR Lakhs.' });
         }
-        updates.amountReceivedInLakhs = ar;
+        updates.amountReceivedInLakhs = num;
+      } else {
+        updates.amountReceivedInLakhs = null;
       }
     }
 
@@ -597,16 +804,61 @@ exports.updateConsultancyProject = async (req, res) => {
       updates.description = description ? String(description).trim() : null;
     }
 
-    // Department change (admin only)
     if (req.user.role === 'admin' && department !== undefined) {
       updates.department = department;
+    }
+
+    // Handle faculty EmpId updates
+    const rawEmpInput = empIds !== undefined ? empIds : (empId !== undefined ? empId : null);
+    let resolvedFaculties = null;
+
+    if (rawEmpInput !== null) {
+      resolvedFaculties = await resolveFacultyAssociationsForEmpIds(rawEmpInput, { Faculty });
+      updates.empIdsRaw = resolvedFaculties.empIdsRaw;
+      updates.hasInvalidEmpIds = resolvedFaculties.hasInvalidEmpIds;
+      updates.invalidEmpIds = resolvedFaculties.invalidEmpIds;
+      updates.duplicateEmpIds = resolvedFaculties.duplicateEmpIds || [];
+
+      const validNames = resolvedFaculties.associations.filter(a => a.isValid && a.facultyName).map(a => a.facultyName);
+      if (validNames.length > 0) {
+        updates.teacherConsultant = validNames.join(', ');
+      }
+    } else if (teacherConsultant !== undefined) {
+      updates.teacherConsultant = String(teacherConsultant).trim();
     }
 
     delete updates.id;
     delete updates.createdBy;
 
     const oldValues = project.toJSON();
-    await project.update(updates);
+
+    await sequelize.transaction(async (t) => {
+      await project.update(updates, { transaction: t });
+
+      if (resolvedFaculties) {
+        // Replace existing junction rows with newly resolved associations
+        await ConsultancyProjectFaculty.destroy({
+          where: { projectId: project.id },
+          transaction: t
+        });
+
+        for (const assoc of resolvedFaculties.associations) {
+          await ConsultancyProjectFaculty.create({
+            projectId: project.id,
+            facultyId: assoc.facultyId,
+            employeeId: assoc.employeeId,
+            normalizedEmployeeId: assoc.normalizedEmployeeId,
+            facultyName: assoc.facultyName,
+            designation: assoc.designation,
+            originalDepartment: assoc.originalDepartment,
+            originalDepartmentSource: assoc.originalDepartmentSource,
+            isValid: assoc.isValid,
+            displayOrder: assoc.displayOrder
+          }, { transaction: t });
+        }
+      }
+    });
+
     const newValues = project.toJSON();
 
     // Log update
@@ -630,11 +882,19 @@ exports.updateConsultancyProject = async (req, res) => {
       await ingestLinks(project.id, 'payment_receipt', req.body.receiptLinks, req.user.id);
     }
 
-    // Reload with documents
+    // Reload with documents and faculty associations
     const updatedWithDocs = await ConsultancyProject.findByPk(project.id, {
       include: [
         { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'department'] },
-        { model: ConsultancyDocument, as: 'documents', where: { isActive: true }, required: false }
+        { model: ConsultancyDocument, as: 'documents', where: { isActive: true }, required: false },
+        {
+          model: ConsultancyProjectFaculty,
+          as: 'facultyAssociations',
+          required: false,
+          include: [
+            { model: Faculty, as: 'faculty', attributes: ['id', 'employeeId', 'name', 'designation', 'department', 'email'] }
+          ]
+        }
       ]
     });
 
@@ -651,9 +911,9 @@ exports.updateConsultancyProject = async (req, res) => {
   }
 };
 
-// @desc    Delete consultancy project
-// @route   DELETE /api/consultancy-projects/:id
-// @access  Private
+// ──────────────────────────────────────────────────────────────────────────────
+// 5. DELETE CONSULTANCY PROJECT
+// ──────────────────────────────────────────────────────────────────────────────
 exports.deleteConsultancyProject = async (req, res) => {
   try {
     const project = await ConsultancyProject.findByPk(req.params.id);
@@ -711,9 +971,9 @@ exports.deleteConsultancyProject = async (req, res) => {
   }
 };
 
-// @desc    Clear all consultancy projects
-// @route   DELETE /api/consultancy-projects/clear-all
-// @access  Private (Admin / Coordinator / HOD)
+// ──────────────────────────────────────────────────────────────────────────────
+// 6. CLEAR ALL CONSULTANCY PROJECTS
+// ──────────────────────────────────────────────────────────────────────────────
 exports.clearAllConsultancyProjects = async (req, res) => {
   try {
     const { where, scopeDescription } = await resolveDepartmentScope(req, 'ConsultancyProject', true);
@@ -744,38 +1004,51 @@ exports.clearAllConsultancyProjects = async (req, res) => {
   }
 };
 
-// @desc    Get consultancy project statistics
-// @route   GET /api/consultancy-projects/stats
-// @access  Private
+// ──────────────────────────────────────────────────────────────────────────────
+// 7. GET CONSULTANCY MODULE STATS & PROJECT TYPE ANALYTICS
+// ──────────────────────────────────────────────────────────────────────────────
 exports.getConsultancyStats = async (req, res) => {
   try {
-    const { year, consultancyStartYear, projectStatus } = req.query;
+    const { year, consultancyStartYear, projectStatus, projectType, department } = req.query;
 
     const where = {};
-    if (year && year !== 'all') {
-      where[Op.or] = [
-        { year },
-        { consultancyStartYear: parseInt(year, 10) || -1 }
-      ];
+    const targetYear = consultancyStartYear || year;
+    if (targetYear && targetYear !== 'all') {
+      const parsedYear = parseInt(targetYear, 10);
+      if (!isNaN(parsedYear) && /^\d{4}$/.test(String(targetYear).trim())) {
+        where.consultancyStartYear = parsedYear;
+      } else {
+        where[Op.or] = [
+          { year: targetYear },
+          { consultancyStartYear: parseInt(targetYear, 10) || -1 }
+        ];
+      }
     }
-    if (consultancyStartYear && consultancyStartYear !== 'all') {
-      where.consultancyStartYear = parseInt(consultancyStartYear, 10);
-    }
+
     if (projectStatus && projectStatus !== 'all') {
-      where.projectStatus = projectStatus;
+      const normStatus = normalizeProjectStatus(projectStatus);
+      where.projectStatus = normStatus.valid ? normStatus.projectStatus : projectStatus;
+    }
+
+    if (projectType && projectType !== 'all') {
+      const normType = normalizeProjectType(projectType);
+      where.projectType = normType.valid ? normType.projectType : projectType;
     }
 
     if (req.user.role === 'faculty') {
       where.createdBy = req.user.id;
     } else if (req.user.role === 'coordinator' || req.user.role === 'hod') {
       where.department = req.user.department;
+    } else if (department && department !== 'all') {
+      where.department = { [Op.iLike]: `%${department.replace(/-/g, '%')}%` };
     }
 
     const total = await ConsultancyProject.count({ where });
-    const totalRevenue = await ConsultancyProject.sum('revenueInLakhs', { where }) || 0;
-    const totalContractValue = await ConsultancyProject.sum('contractValueInLakhs', { where }) || 0;
-    const totalAmountReceived = await ConsultancyProject.sum('amountReceivedInLakhs', { where }) || 0;
+    const totalRevenue = parseFloat(await ConsultancyProject.sum('revenueInLakhs', { where }) || 0);
+    const totalContractValue = parseFloat(await ConsultancyProject.sum('contractValueInLakhs', { where }) || 0);
+    const totalAmountReceived = parseFloat(await ConsultancyProject.sum('amountReceivedInLakhs', { where }) || 0);
 
+    // Breakdown by Department
     const byDepartment = await ConsultancyProject.findAll({
       where,
       attributes: [
@@ -788,6 +1061,30 @@ exports.getConsultancyStats = async (req, res) => {
       group: ['department']
     });
 
+    // Breakdown by Project Type
+    const byProjectType = await ConsultancyProject.findAll({
+      where,
+      attributes: [
+        'projectType',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+        [sequelize.fn('SUM', sequelize.col('revenueInLakhs')), 'revenue'],
+        [sequelize.fn('SUM', sequelize.col('contractValueInLakhs')), 'contractValue'],
+        [sequelize.fn('SUM', sequelize.col('amountReceivedInLakhs')), 'amountReceived']
+      ],
+      group: ['projectType']
+    });
+
+    // Breakdown by Project Status
+    const byProjectStatus = await ConsultancyProject.findAll({
+      where,
+      attributes: [
+        'projectStatus',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+        [sequelize.fn('SUM', sequelize.col('revenueInLakhs')), 'revenue']
+      ],
+      group: ['projectStatus']
+    });
+
     res.json({
       success: true,
       data: {
@@ -795,21 +1092,23 @@ exports.getConsultancyStats = async (req, res) => {
         totalRevenue,
         totalContractValue,
         totalAmountReceived,
-        byDepartment
+        byDepartment,
+        byProjectType,
+        byProjectStatus
       }
     });
   } catch (error) {
     console.error('Get consultancy stats error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error: ' + error.message
     });
   }
 };
 
-// @desc    Upload document file directly to Google Drive
-// @route   POST /api/consultancy-projects/:id/documents/upload
-// @access  Private
+// ──────────────────────────────────────────────────────────────────────────────
+// 8. DOCUMENT OPERATIONS (Google Drive & Direct Upload)
+// ──────────────────────────────────────────────────────────────────────────────
 exports.uploadConsultancyDocument = async (req, res) => {
   try {
     const project = await ConsultancyProject.findByPk(req.params.id);
@@ -817,7 +1116,6 @@ exports.uploadConsultancyDocument = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Consultancy project not found' });
     }
 
-    // Role check
     if (req.user.role === 'faculty' && project.createdBy !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Access denied: You can only upload documents for your own projects' });
     }
@@ -888,9 +1186,6 @@ exports.uploadConsultancyDocument = async (req, res) => {
   }
 };
 
-// @desc    Add external Google Drive link for a consultancy project
-// @route   POST /api/consultancy-projects/:id/documents/link
-// @access  Private
 exports.addConsultancyDocumentLink = async (req, res) => {
   try {
     const project = await ConsultancyProject.findByPk(req.params.id);
@@ -898,7 +1193,6 @@ exports.addConsultancyDocumentLink = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Consultancy project not found' });
     }
 
-    // Role check
     if (req.user.role === 'faculty' && project.createdBy !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Access denied: You can only attach documents to your own projects' });
     }
@@ -947,9 +1241,6 @@ exports.addConsultancyDocumentLink = async (req, res) => {
   }
 };
 
-// @desc    Delete document from consultancy project
-// @route   DELETE /api/consultancy-projects/:id/documents/:docId
-// @access  Private
 exports.deleteConsultancyDocument = async (req, res) => {
   try {
     const project = await ConsultancyProject.findByPk(req.params.id);
@@ -957,7 +1248,6 @@ exports.deleteConsultancyDocument = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Consultancy project not found' });
     }
 
-    // Role check
     if (req.user.role === 'faculty' && project.createdBy !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Access denied: You can only delete documents from your own projects' });
     }
@@ -976,7 +1266,6 @@ exports.deleteConsultancyDocument = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }
 
-    // If direct drive upload, attempt removing from Drive
     if (doc.sourceType === 'drive_upload' && doc.driveFileId) {
       await deleteConsultancyDocumentFile(doc.driveFileId);
     }
@@ -996,9 +1285,195 @@ exports.deleteConsultancyDocument = async (req, res) => {
   }
 };
 
-// @desc    Bulk create consultancy projects
-// @route   POST /api/consultancy-projects/bulk
-// @access  Private (Admin, Coordinator, HOD, Faculty)
+// ──────────────────────────────────────────────────────────────────────────────
+// 9. DOWNLOAD 17-COLUMN CONSULTANCY TEMPLATE (XLSX / CSV)
+// ──────────────────────────────────────────────────────────────────────────────
+exports.downloadConsultancyTemplate = async (req, res) => {
+  try {
+    const format = String(req.query.format || 'xlsx').toLowerCase();
+    const { xlsxBuffer, csvBuffer } = buildConsultancyTemplateWorkbook();
+
+    if (format === 'csv') {
+      res.setHeader('Content-Disposition', 'attachment; filename="Consultancy_Projects_Template.csv"');
+      res.setHeader('Content-Type', 'text/csv');
+      return res.send(csvBuffer);
+    }
+
+    res.setHeader('Content-Disposition', 'attachment; filename="Consultancy_Projects_Template.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(xlsxBuffer);
+  } catch (error) {
+    console.error('Download consultancy template error:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate consultancy template.' });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 10. PREVIEW BULK UPLOAD CONSULTANCY (5-Step Row-by-Row Validation)
+// ──────────────────────────────────────────────────────────────────────────────
+exports.previewBulkUploadConsultancy = async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file provided. Please upload an Excel (.xlsx, .xls) or CSV file.'
+      });
+    }
+
+    const { headers, rows } = parseConsultancySpreadsheetBuffer(req.file.buffer);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'The uploaded spreadsheet is empty or contains no readable data rows.'
+      });
+    }
+
+    const result = await evaluateBulkConsultancyRows(rows, {
+      headers,
+      user: req.user,
+      ConsultancyProject,
+      ConsultancyProjectFaculty,
+      Faculty
+    });
+
+    if (!result.validColumns) {
+      return res.status(400).json({
+        success: false,
+        message: result.error || `Missing required columns: ${(result.missingColumns || []).join(', ')}`,
+        missingColumns: result.missingColumns,
+        foundHeaders: result.foundHeaders
+      });
+    }
+
+    res.json({
+      success: true,
+      summary: result.summary,
+      rows: result.rows,
+      data: result
+    });
+  } catch (error) {
+    console.error('Preview bulk upload consultancy error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to parse and preview consultancy spreadsheet'
+    });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 11. IMPORT BULK UPLOAD CONSULTANCY (Atomic Transaction & Multi-Faculty Linkage)
+// ──────────────────────────────────────────────────────────────────────────────
+exports.importBulkUploadConsultancy = async (req, res) => {
+  try {
+    let rowsToImport = null;
+
+    if (req.file && req.file.buffer) {
+      const { headers, rows } = parseConsultancySpreadsheetBuffer(req.file.buffer);
+      const evalResult = await evaluateBulkConsultancyRows(rows, {
+        headers,
+        user: req.user,
+        ConsultancyProject,
+        ConsultancyProjectFaculty,
+        Faculty
+      });
+
+      if (!evalResult.validColumns) {
+        return res.status(400).json({
+          success: false,
+          message: evalResult.error
+        });
+      }
+      rowsToImport = evalResult.rows;
+    } else if (Array.isArray(req.body.rows)) {
+      rowsToImport = req.body.rows;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'No file or evaluated rows provided for import.'
+      });
+    }
+
+    const importResult = await executeBulkImport(rowsToImport, {
+      userId: req.user.id,
+      userRole: req.user.role,
+      userDepartment: req.user.department,
+      sequelize,
+      ConsultancyProject,
+      ConsultancyProjectFaculty,
+      ConsultancyDocument
+    });
+
+    if (importResult.summary && importResult.summary.importedCount > 0) {
+      try {
+        await logAction({
+          user: req.user,
+          action: 'CONSULTANCY_PROJECT_BULK_IMPORTED',
+          title: `Bulk imported ${importResult.summary.importedCount} consultancy projects`,
+          remarks: `Imported ${importResult.summary.importedCount} records. Duplicates skipped: ${importResult.summary.skippedDuplicatesCount}. Errors: ${importResult.summary.rejectedCount}`,
+          ipAddress: req.ip
+        });
+      } catch (logErr) {}
+    }
+
+    res.status(importResult.success ? 200 : 400).json(importResult);
+  } catch (error) {
+    console.error('Import bulk upload consultancy error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to complete bulk import'
+    });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 12. SEARCH FACULTY DIRECTORY (Autocomplete by EmpId / Name / Dept)
+// ──────────────────────────────────────────────────────────────────────────────
+exports.searchFacultyDirectory = async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10) || 50, 1), 200);
+
+    const where = {};
+    if (q) {
+      where[Op.or] = [
+        { employeeId: { [Op.iLike]: `%${q}%` } },
+        { name: { [Op.iLike]: `%${q}%` } },
+        { department: { [Op.iLike]: `%${q}%` } },
+        { designation: { [Op.iLike]: `%${q}%` } }
+      ];
+    }
+
+    const records = await Faculty.findAll({
+      where,
+      attributes: ['id', 'employeeId', 'name', 'designation', 'department', 'email'],
+      limit,
+      order: [['employeeId', 'ASC']]
+    });
+
+    const enrichedRecords = records.map(f => {
+      const plain = f.toJSON ? f.toJSON() : f;
+      const sc = deriveSchoolAndCampus(plain.department);
+      return {
+        ...plain,
+        school: sc.school,
+        campus: sc.campus
+      };
+    });
+
+    res.json({
+      success: true,
+      data: enrichedRecords,
+      count: enrichedRecords.length
+    });
+  } catch (error) {
+    console.error('Search faculty directory error:', error);
+    res.status(500).json({ success: false, message: 'Failed to search Faculty Management directory.' });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 13. LEGACY BULK CREATE (Backward-compatibility for API clients)
+// ──────────────────────────────────────────────────────────────────────────────
 exports.bulkCreateConsultancyProjects = async (req, res) => {
   try {
     const { consultancyProjects } = req.body;
@@ -1009,163 +1484,30 @@ exports.bulkCreateConsultancyProjects = async (req, res) => {
       });
     }
 
-    const dept = req.user.role === 'admin' || req.user.role === 'authority' ? null : req.user.department;
+    // Evaluate using evaluateBulkConsultancyRows
+    const evalResult = await evaluateBulkConsultancyRows(consultancyProjects, {
+      user: req.user,
+      ConsultancyProject,
+      ConsultancyProjectFaculty,
+      Faculty
+    });
 
-    const validRecords = [];
-    const errors = [];
+    const importResult = await executeBulkImport(evalResult.rows, {
+      userId: req.user.id,
+      userRole: req.user.role,
+      userDepartment: req.user.department,
+      sequelize,
+      ConsultancyProject,
+      ConsultancyProjectFaculty,
+      ConsultancyDocument
+    });
 
-    for (let i = 0; i < consultancyProjects.length; i++) {
-      const record = consultancyProjects[i];
-      const rowNum = i + 1;
-
-      // Extract Consultant and Project Name
-      const teacherConsultant = record.teacherConsultant || record['Name of the Teacher Consultant'] || record['Teacher Consultant'];
-      const projectName = record.projectName || record['Name of Consultancy Project'] || record['Project Name'];
-
-      if (!teacherConsultant || !String(teacherConsultant).trim()) {
-        errors.push(`Row ${rowNum}: Missing Teacher Consultant`);
-        continue;
-      }
-      if (!projectName || !String(projectName).trim()) {
-        errors.push(`Row ${rowNum}: Missing Project Name / Title`);
-        continue;
-      }
-
-      // Agency Name, Email, Phone
-      let agencyName = record.agencyName || record['Agency Name'];
-      let agencyEmail = record.agencyContactEmail || record['Agency Contact Email'];
-      let agencyPhone = record.agencyContactNumber || record['Agency Contact Number'];
-      const rawSponsoring = record.sponsoringAgency || record['Consulting/Sponsoring Agency with Contact Details'] || record['Consulting / Sponsoring Agency with Contact Details'];
-
-      if (!agencyName && rawSponsoring) {
-        const parsed = parseAgencyDetails(rawSponsoring);
-        agencyName = parsed.agencyName;
-        if (!agencyEmail) agencyEmail = parsed.email;
-        if (!agencyPhone) agencyPhone = parsed.phone;
-      }
-
-      if (!agencyName || !String(agencyName).trim()) {
-        errors.push(`Row ${rowNum}: Missing Agency Name`);
-        continue;
-      }
-
-      // Start Date & Start Year
-      const startDate = record.startDate || record['Start Date'];
-      const rawStartYear = record.consultancyStartYear || record['Consultancy Start Year'] || record.year || record['Year'] || record['Academic Year'];
-
-      const yearValidation = deriveAndValidateConsultancyStartYear(startDate, rawStartYear);
-      if (!yearValidation.valid) {
-        errors.push(`Row ${rowNum}: ${yearValidation.error}`);
-        continue;
-      }
-
-      // Project Status (Strictly Sanctioned, On Going, Completed)
-      const rawStatus = record.projectStatus || record['Project Status'];
-      const projectStatus = normalizeConsultancyProjectStatus(rawStatus);
-      if (!projectStatus) {
-        errors.push(`Row ${rowNum}: Missing or invalid Project Status "${rawStatus || ''}". Allowed values: Sanctioned, On Going, Completed.`);
-        continue;
-      }
-
-      // Financials
-      const contractValueInLakhs = record.contractValueInLakhs !== undefined && record.contractValueInLakhs !== ''
-        ? parseFloat(record.contractValueInLakhs)
-        : (record['Contract Value (INR in Lakhs)'] !== undefined && record['Contract Value (INR in Lakhs)'] !== ''
-            ? parseFloat(String(record['Contract Value (INR in Lakhs)']).replace(/[^0-9.]/g, ''))
-            : null);
-
-      const revenueInLakhs = record.revenueInLakhs !== undefined && record.revenueInLakhs !== ''
-        ? parseFloat(record.revenueInLakhs)
-        : (record['Revenue Generated (INR in Lakhs)'] !== undefined && record['Revenue Generated (INR in Lakhs)'] !== ''
-            ? parseFloat(String(record['Revenue Generated (INR in Lakhs)']).replace(/[^0-9.]/g, ''))
-            : 0);
-
-      const amountReceivedInLakhs = record.amountReceivedInLakhs !== undefined && record.amountReceivedInLakhs !== ''
-        ? parseFloat(record.amountReceivedInLakhs)
-        : (record['Amount Received (INR in Lakhs)'] !== undefined && record['Amount Received (INR in Lakhs)'] !== ''
-            ? parseFloat(String(record['Amount Received (INR in Lakhs)']).replace(/[^0-9.]/g, ''))
-            : null);
-
-      // Dates
-      const expectedEndDate = record.expectedEndDate || record['Expected End Date'] || null;
-      const actualCompletionDate = record.actualCompletionDate || record['Actual Completion Date'] || null;
-
-      // Sponsoring Agency composite
-      let legacySponsoring = rawSponsoring || agencyName;
-      if (!rawSponsoring) {
-        const contactParts = [];
-        if (agencyEmail) contactParts.push(`Email: ${agencyEmail}`);
-        if (agencyPhone) contactParts.push(`Ph: ${agencyPhone}`);
-        if (contactParts.length > 0) legacySponsoring = `${agencyName} (${contactParts.join(', ')})`;
-      }
-
-      const finalDept = dept || record.department || record['Department'] || 'Not Specified';
-
-      validRecords.push({
-        teacherConsultant: String(teacherConsultant).trim(),
-        projectName: String(projectName).trim(),
-        agencyName: String(agencyName).trim(),
-        agencyContactEmail: agencyEmail ? String(agencyEmail).trim() : null,
-        agencyContactNumber: agencyPhone ? String(agencyPhone).trim() : null,
-        sponsoringAgency: legacySponsoring,
-        consultancyStartYear: yearValidation.startYear,
-        year: yearValidation.legacyYear,
-        startDate: startDate ? String(startDate).split('T')[0] : null,
-        expectedEndDate: expectedEndDate ? String(expectedEndDate).split('T')[0] : null,
-        actualCompletionDate: actualCompletionDate ? String(actualCompletionDate).split('T')[0] : null,
-        projectStatus: projectStatus || 'On Going',
-        contractValueInLakhs: !isNaN(contractValueInLakhs) ? contractValueInLakhs : null,
-        revenueInLakhs: !isNaN(revenueInLakhs) ? revenueInLakhs : 0,
-        amountReceivedInLakhs: !isNaN(amountReceivedInLakhs) ? amountReceivedInLakhs : null,
-        description: record.description || record['Scope of Work / Deliverables Summary'] || null,
-        department: finalDept,
-        status: null,
-        createdBy: req.user.id,
-        _agreementLinks: record.agreementLinks || record['Agreement / Work Order'],
-        _invoiceLinks: record.invoiceLinks || record['Invoice'],
-        _receiptLinks: record.receiptLinks || record['Payment Receipt']
-      });
-    }
-
-    if (errors.length > 0 && validRecords.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Bulk import failed. Please correct the errors and re-upload.',
-        errors
-      });
-    }
-
-    let createdRecords = [];
-    for (const recordData of validRecords) {
-      const { _agreementLinks, _invoiceLinks, _receiptLinks, ...dataToCreate } = recordData;
-      const created = await ConsultancyProject.create(dataToCreate);
-
-      // Ingest document links for this row
-      await ingestLinks(created.id, 'agreement_work_order', _agreementLinks, req.user.id);
-      await ingestLinks(created.id, 'invoice', _invoiceLinks, req.user.id);
-      await ingestLinks(created.id, 'payment_receipt', _receiptLinks, req.user.id);
-
-      createdRecords.push(created);
-    }
-
-    if (createdRecords.length > 0) {
-      try {
-        await logAction({
-          user: req.user,
-          action: 'CONSULTANCY_PROJECT_BULK_IMPORTED',
-          title: `Bulk imported ${createdRecords.length} consultancy projects`,
-          remarks: `Imported ${createdRecords.length} records. Errors: ${errors.length}`,
-          ipAddress: req.ip
-        });
-      } catch (logErr) {}
-    }
-
-    res.status(201).json({
-      success: true,
-      message: `Bulk import completed. Successfully imported ${createdRecords.length} records.`,
-      count: createdRecords.length,
-      errors: errors.length > 0 ? errors : null,
-      data: createdRecords
+    res.status(importResult.success ? 201 : 400).json({
+      success: importResult.success,
+      message: importResult.message,
+      count: importResult.summary.importedCount,
+      summary: importResult.summary,
+      data: importResult.createdIds
     });
   } catch (error) {
     console.error('Bulk import error:', error);

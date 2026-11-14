@@ -16,6 +16,7 @@ const Faculty = require('./Faculty');
 const Department = require('./Department');
 const ResearchMetric = require('./ResearchMetric');
 const ConsultancyProject = require('./ConsultancyProject');
+const ConsultancyProjectFaculty = require('./ConsultancyProjectFaculty');
 const AccreditationFramework = require('./AccreditationFramework');
 const AccreditationParameter = require('./AccreditationParameter');
 const ParameterDataSubmission = require('./ParameterDataSubmission');
@@ -114,6 +115,14 @@ ConsultancyProject.hasMany(ConsultancyDocument, { foreignKey: 'projectId', as: '
 ConsultancyDocument.belongsTo(ConsultancyProject, { foreignKey: 'projectId', as: 'project' });
 User.hasMany(ConsultancyDocument, { foreignKey: 'uploadedBy', as: 'uploadedConsultancyDocuments' });
 ConsultancyDocument.belongsTo(User, { foreignKey: 'uploadedBy', as: 'uploader' });
+
+// Consultancy & Faculty Associations
+ConsultancyProject.hasMany(ConsultancyProjectFaculty, { foreignKey: 'projectId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+ConsultancyProjectFaculty.belongsTo(ConsultancyProject, { foreignKey: 'projectId', as: 'project' });
+Faculty.hasMany(ConsultancyProjectFaculty, { foreignKey: 'facultyId', as: 'consultancyAssociations' });
+ConsultancyProjectFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+ConsultancyProject.belongsToMany(Faculty, { through: ConsultancyProjectFaculty, foreignKey: 'projectId', otherKey: 'facultyId', as: 'associatedFaculty' });
+Faculty.belongsToMany(ConsultancyProject, { through: ConsultancyProjectFaculty, foreignKey: 'facultyId', otherKey: 'projectId', as: 'associatedConsultancyProjects' });
 
 // Accreditation & Parameter Master Associations
 AccreditationFramework.hasMany(AccreditationParameter, { foreignKey: 'frameworkId', as: 'parameters', onDelete: 'CASCADE' });
@@ -225,6 +234,7 @@ module.exports = {
   Department,
   ResearchMetric,
   ConsultancyProject,
+  ConsultancyProjectFaculty,
   ConsultancyDocument,
   AccreditationFramework,
   AccreditationParameter,

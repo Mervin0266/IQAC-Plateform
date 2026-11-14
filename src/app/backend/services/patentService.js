@@ -668,29 +668,69 @@ function generatePatentTemplateBuffer() {
 
 /**
  * Parses uploaded spreadsheet buffer (.xlsx, .xls, .csv) into headers and row objects.
+ * Intelligently scans sheets and scores candidate header rows to avoid mistaking
+ * university banners or instructions for column headers.
  */
 function parsePatentSpreadsheetBuffer(fileBuffer) {
   const XLSX = require('xlsx');
   const wb = XLSX.read(fileBuffer, { type: 'buffer', raw: true });
-  const sheetName = wb.SheetNames[0];
-  if (!sheetName) return { headers: [], rows: [] };
-  const sheet = wb.Sheets[sheetName];
-  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
-  if (!aoa || aoa.length === 0) return { headers: [], rows: [] };
+  if (!wb.SheetNames || wb.SheetNames.length === 0) return { headers: [], rows: [] };
 
-  // Find header row (first row with at least 2 non-empty cells)
-  let headerRowIndex = 0;
-  for (let i = 0; i < Math.min(5, aoa.length); i++) {
-    const nonEmpty = (aoa[i] || []).filter(c => String(c ?? '').trim() !== '');
-    if (nonEmpty.length >= 2) {
-      headerRowIndex = i;
-      break;
+  const knownHeaderKeywords = [
+    'title', 'empid', 'emp', 'inventor', 'faculty', 'application', 'patent',
+    'status', 'type', 'filing', 'publication', 'grant', 'license', 'partner',
+    'revenue', 'proof', 'abstract'
+  ];
+
+  let bestSheetName = wb.SheetNames[0];
+  let bestHeaderRowIndex = 0;
+  let bestScore = -1;
+  let bestAoa = [];
+
+  // Inspect each sheet in workbook to find the one with the highest matching header score
+  for (const sName of wb.SheetNames) {
+    const sheet = wb.Sheets[sName];
+    if (!sheet) continue;
+    const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+    if (!aoa || aoa.length === 0) continue;
+
+    for (let r = 0; r < Math.min(25, aoa.length); r++) {
+      const rowCells = (aoa[r] || []).map(c => String(c ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+      let score = 0;
+      for (const cell of rowCells) {
+        if (!cell) continue;
+        if (knownHeaderKeywords.some(kw => cell.includes(kw))) {
+          score++;
+        }
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestSheetName = sName;
+        bestHeaderRowIndex = r;
+        bestAoa = aoa;
+      }
     }
   }
 
-  const headers = (aoa[headerRowIndex] || []).map(h => String(h ?? '').trim());
-  const rows = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex, defval: '', raw: true });
-  return { headers, rows };
+  // If no keyword match found, fall back to first sheet and first row with >= 2 cells
+  if (bestScore <= 0) {
+    bestSheetName = wb.SheetNames[0];
+    const sheet = wb.Sheets[bestSheetName];
+    bestAoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+    bestHeaderRowIndex = 0;
+    for (let i = 0; i < Math.min(10, (bestAoa || []).length); i++) {
+      const nonEmpty = (bestAoa[i] || []).filter(c => String(c ?? '').trim() !== '');
+      if (nonEmpty.length >= 2) {
+        bestHeaderRowIndex = i;
+        break;
+      }
+    }
+  }
+
+  const targetSheet = wb.Sheets[bestSheetName];
+  const headers = ((bestAoa && bestAoa[bestHeaderRowIndex]) || []).map(h => String(h ?? '').trim());
+  const rows = XLSX.utils.sheet_to_json(targetSheet, { range: bestHeaderRowIndex, defval: '', raw: true });
+  return { headers, rows, sheetName: bestSheetName };
 }
 
 /**

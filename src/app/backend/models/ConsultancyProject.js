@@ -9,11 +9,47 @@ const ConsultancyProject = sequelize.define('ConsultancyProject', {
   },
   teacherConsultant: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true
   },
   projectName: {
     type: DataTypes.STRING,
     allowNull: false
+  },
+  projectType: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    validate: {
+      isIn: [['Collaborative', 'Sole', 'MOU_Based', 'Private_Consulting', 'Others']]
+    }
+  },
+  otherProjectTypeDescription: {
+    type: DataTypes.STRING(500),
+    allowNull: true
+  },
+  empIdsRaw: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Normalized comma-separated Employee IDs preserved for traceability'
+  },
+  hasInvalidEmpIds: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  invalidEmpIds: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: []
+  },
+  duplicateEmpIds: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: []
+  },
+  externalCollaborators: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: []
   },
   sponsoringAgency: {
     type: DataTypes.TEXT,

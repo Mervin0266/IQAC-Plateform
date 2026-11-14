@@ -160,7 +160,7 @@ async function main() {
       // 1. Filter Computer Science
       const reqCS = {
         user: adminUser,
-        query: { department: 'Computer Science and Engineering' }
+        query: { department: 'Computer Science and Engineering', limit: '100' }
       };
       let csData = null;
       const resCS = {
@@ -176,7 +176,7 @@ async function main() {
       // 2. Filter Mechanical
       const reqMech = {
         user: adminUser,
-        query: { department: 'Mechanical and Automobile Engineering' }
+        query: { department: 'Mechanical and Automobile Engineering', limit: '100' }
       };
       let mechData = null;
       const resMech = {
@@ -192,7 +192,7 @@ async function main() {
       // 3. Filter All (University-Wide)
       const reqAll = {
         user: adminUser,
-        query: { department: 'all' }
+        query: { department: 'all', export: 'true' }
       };
       let allData = null;
       const resAll = {

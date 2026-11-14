@@ -262,20 +262,19 @@ const PUBLICATIONS_REQUIRED = [
 ];
 
 const CONSULTANCY_HEADERS = [
-  'Name of Teacher Consultant',
+  'EmpId',
   'Name of Consultancy Project',
   'Agency Name',
   'Agency Contact Email',
   'Agency Contact Number',
-  'Consultancy Start Year',
   'Start Date',
   'Expected End Date',
+  'Project Type',
   'Actual Completion Date',
   'Project Status',
   'Contract Value (INR in Lakhs)',
   'Revenue Generated (INR in Lakhs)',
   'Amount Received (INR in Lakhs)',
-  'Department',
   'Scope of Work / Deliverables Summary',
   'Agreement / Work Order',
   'Invoice',
@@ -283,10 +282,12 @@ const CONSULTANCY_HEADERS = [
 ];
 
 const CONSULTANCY_REQUIRED = [
-  'Name of Teacher Consultant',
+  'EmpId',
   'Name of Consultancy Project',
   'Agency Name',
-  'Consultancy Start Year'
+  'Start Date',
+  'Project Type',
+  'Project Status'
 ];
 
 const DEPARTMENT_HEADERS = [
@@ -597,8 +598,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isConsultancy) {
       csvContent =
         CONSULTANCY_HEADERS.join(',') + '\n' +
-        `"Dr. Rajesh Kumar","AI-Powered Smart City Infrastructure Planning","Bangalore Smart City Corporation","contact@bscc.gov.in","+91 9876543210",2024,"2024-04-01","2026-03-31","","On Going",35.00,25.00,15.00,"Computer Science and Engineering","Technical advisory for smart traffic control and AI sensor grid","https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view","https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds8/view","https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds9/view"\n` +
-        `"Dr. Deepa Singh","Automated Retail Analytics Platform","RetailMax Solutions Pvt. Ltd.","projects@retailmax.in","+91 9876543211",2023,"2023-01-15","2023-12-15","2023-12-20","Completed",20.00,18.50,18.50,"AI and Data Science Engineering","Predictive customer footfall analytics and inventory advisory","","",""`;
+        `"3489, 2043","AI-Driven Quality Assurance Framework for Manufacturing","Apex Robotics Ltd","projects@apexrobotics.in","+91 9876543210","15/08/2024","14/08/2025","Collaborative","","On Going",15.50,12.00,8.00,"Design and deployment of machine vision quality inspection models.","https://drive.google.com/file/d/1SAMPLE_AGREEMENT_ID/view","https://drive.google.com/file/d/1SAMPLE_INVOICE_ID/view","https://drive.google.com/file/d/1SAMPLE_RECEIPT_ID/view"\n` +
+        `"1672","Sustainable Energy Optimization & Grid Feasibility Study","CleanTech Energy Solutions","consulting@cleantech.org","+91 9123456789","10/02/2024","10/11/2024","Sole","05/11/2024","Completed",8.00,8.00,8.00,"Techno-economic viability report on rooftop microgrid installation.","https://drive.google.com/file/d/1SAMPLE_AGREEMENT_2/view","https://drive.google.com/file/d/1SAMPLE_INVOICE_2/view","https://drive.google.com/file/d/1SAMPLE_RECEIPT_2/view"`;
       fileName = 'consultancy_bulk_template.csv';
     } else if (isFaculty) {
       csvContent =
@@ -685,8 +686,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isConsultancy) {
       headers = CONSULTANCY_HEADERS;
       sampleRows = [
-        ['Dr. Rajesh Kumar', 'AI-Powered Smart City Infrastructure Planning', 'Bangalore Smart City Corporation', 'contact@bscc.gov.in', '+91 9876543210', 2024, '2024-04-01', '2026-03-31', '', 'On Going', 35.00, 25.00, 15.00, 'Computer Science and Engineering', 'Technical advisory for smart traffic control and AI sensor grid', 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds7/view', 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds8/view', 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptdds9/view'],
-        ['Dr. Deepa Singh', 'Automated Retail Analytics Platform', 'RetailMax Solutions Pvt. Ltd.', 'projects@retailmax.in', '+91 9876543211', 2023, '2023-01-15', '2023-12-15', '2023-12-20', 'Completed', 20.00, 18.50, 18.50, 'AI and Data Science Engineering', 'Predictive customer footfall analytics and inventory advisory', '', '', '']
+        ['3489, 2043', 'AI-Driven Quality Assurance Framework for Manufacturing', 'Apex Robotics Ltd', 'projects@apexrobotics.in', '+91 9876543210', '15/08/2024', '14/08/2025', 'Collaborative', '', 'On Going', 15.50, 12.00, 8.00, 'Design and deployment of machine vision quality inspection models.', 'https://drive.google.com/file/d/1SAMPLE_AGREEMENT_ID/view', 'https://drive.google.com/file/d/1SAMPLE_INVOICE_ID/view', 'https://drive.google.com/file/d/1SAMPLE_RECEIPT_ID/view'],
+        ['1672', 'Sustainable Energy Optimization & Grid Feasibility Study', 'CleanTech Energy Solutions', 'consulting@cleantech.org', '+91 9123456789', '10/02/2024', '10/11/2024', 'Sole', '05/11/2024', 'Completed', 8.00, 8.00, 8.00, 'Techno-economic viability report on rooftop microgrid installation.', 'https://drive.google.com/file/d/1SAMPLE_AGREEMENT_2/view', 'https://drive.google.com/file/d/1SAMPLE_INVOICE_2/view', 'https://drive.google.com/file/d/1SAMPLE_RECEIPT_2/view']
       ];
       fileName = 'consultancy_bulk_template.xlsx';
     } else if (isFaculty) {
@@ -1308,16 +1309,20 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     let missing: string[] = [];
     if (isConsultancy) {
       const lowerHeaders = headers.map(h => h.toLowerCase().trim());
-      const hasConsultant = lowerHeaders.some(lh => lh.includes('teacher consultant') || lh.includes('consultant'));
+      const hasEmp = lowerHeaders.some(lh => lh.includes('empid') || lh.includes('emp id') || lh.includes('employee id') || lh.includes('faculty id'));
       const hasProject = lowerHeaders.some(lh => lh.includes('consultancy project') || lh.includes('project name') || lh === 'title');
       const hasAgency = lowerHeaders.some(lh => lh.includes('agency') || lh.includes('sponsoring') || lh.includes('client'));
-      const hasYear = lowerHeaders.some(lh => lh.includes('year') || lh.includes('start year'));
+      const hasStartDate = lowerHeaders.some(lh => lh.includes('start date'));
+      const hasType = lowerHeaders.some(lh => lh.includes('project type') || lh.includes('type'));
+      const hasStatus = lowerHeaders.some(lh => lh.includes('project status') || lh.includes('status'));
 
       const missingFields = [];
-      if (!hasConsultant) missingFields.push('Name of Teacher Consultant');
+      if (!hasEmp) missingFields.push('EmpId');
       if (!hasProject) missingFields.push('Name of Consultancy Project');
       if (!hasAgency) missingFields.push('Agency Name');
-      if (!hasYear) missingFields.push('Consultancy Start Year');
+      if (!hasStartDate) missingFields.push('Start Date');
+      if (!hasType) missingFields.push('Project Type');
+      if (!hasStatus) missingFields.push('Project Status');
       missing = missingFields;
     } else if (isFaculty) {
       missing = FACULTY_REQUIRED.filter(field => !headers.includes(field));
@@ -1495,6 +1500,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             const lowerHeader = header.toLowerCase().trim();
             if (lowerHeader.includes('s. no') || lowerHeader.includes('s.no')) {
               // Ignore serial number column
+            } else if (lowerHeader.includes('empid') || lowerHeader.includes('emp id') || lowerHeader.includes('employee id')) {
+              record['empId'] = val || '';
+              record['empIds'] = val || '';
             } else if (lowerHeader.includes('teacher consultant') || lowerHeader.includes('consultant')) {
               record['teacherConsultant'] = val || '';
             } else if (lowerHeader.includes('consultancy project') || lowerHeader.includes('project name') || lowerHeader === 'title') {
@@ -1507,11 +1515,22 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               record['agencyContactNumber'] = val || '';
             } else if (lowerHeader.includes('sponsoring agency') || lowerHeader.includes('consulting/sponsoring')) {
               record['sponsoringAgency'] = val || '';
-            } else if (lowerHeader.includes('start year') || lowerHeader === 'year' || lowerHeader.includes('academic year')) {
-              record['consultancyStartYear'] = val || '';
-              record['year'] = val || '';
+            } else if (lowerHeader.includes('project type') || lowerHeader.includes('type')) {
+              record['projectType'] = val || '';
             } else if (lowerHeader.includes('start date') || lowerHeader === 'startdate') {
               record['startDate'] = val || '';
+              // Derive Consultancy Start Year automatically from Start Date
+              if (val) {
+                const s = String(val).trim();
+                const m = s.match(/(\d{4})/) || s.match(/\/(\d{2})$/);
+                if (m) {
+                  const y = m[1].length === 2 ? 2000 + parseInt(m[1], 10) : parseInt(m[1], 10);
+                  if (y >= 1950 && y <= 2100) {
+                    record['consultancyStartYear'] = y;
+                    record['year'] = `${y - 1}-${y}`;
+                  }
+                }
+              }
             } else if (lowerHeader.includes('expected end date') || lowerHeader.includes('expected end') || lowerHeader === 'end date') {
               record['expectedEndDate'] = val || '';
             } else if (lowerHeader.includes('actual completion date') || lowerHeader.includes('completion date') || lowerHeader.includes('actual completion')) {
@@ -2021,12 +2040,6 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const handleUploadSubmit = async () => {
     if (previewData.length === 0) return;
 
-    // For consultancy, ensure department is selected
-    if (isConsultancy && !selectedDepartment) {
-      setUploadError('Please select a department before uploading.');
-      return;
-    }
-
     setLoading(true);
     setUploadError('');
     setUploadErrorsList([]);
@@ -2056,14 +2069,13 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     // Enrich preview records with common batch metadata selected in the upload dialog
     const dataWithCommonFields = previewData.map(record => {
       const item: Record<string, any> = {
-        ...(isPatent ? {} : { academicYear: selectedAcademicYear }),
-        campus: selectedCampus,
-        school: selectedSchool,
+        ...(isPatent || isConsultancy ? {} : { academicYear: selectedAcademicYear }),
+        ...(!isConsultancy ? { campus: selectedCampus, school: selectedSchool } : {}),
         ...record,
-        ...(isPatent || record.academicYear ? {} : { academicYear: selectedAcademicYear }),
-        ...(record.campus ? {} : { campus: selectedCampus }),
-        ...(record.school ? {} : { school: selectedSchool }),
-        ...(isConsultancy || isPublication || isPatent || isSponsored ? { department: record.department || selectedDepartment } : {})
+        ...(isPatent || isConsultancy || record.academicYear ? {} : { academicYear: selectedAcademicYear }),
+        ...(record.campus || isConsultancy ? {} : { campus: selectedCampus }),
+        ...(record.school || isConsultancy ? {} : { school: selectedSchool }),
+        ...(isPublication || isPatent || isSponsored ? { department: record.department || selectedDepartment } : (record.department ? { department: record.department } : {}))
       };
 
       if (isPatent) {
@@ -2078,6 +2090,9 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       }
 
       if (isConsultancy) {
+        delete item.academicYear;
+        delete item.campus;
+        delete item.school;
         if (record.consultancyStartYear || record.year) {
           item.consultancyStartYear = record.consultancyStartYear || record.year;
         }
@@ -2399,7 +2414,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                 </p>
               ) : isConsultancy ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
-                  Name of Teacher Consultant**, Name of Consultancy Project**, Agency Name**, Agency Contact Email, Agency Contact Number, Consultancy Start Year**, Start Date, Expected End Date, Actual Completion Date, Project Status, Contract Value (INR in Lakhs), Revenue Generated (INR in Lakhs), Amount Received (INR in Lakhs), Department, Scope of Work / Deliverables Summary, Agreement / Work Order, Invoice, Payment Receipt
+                  EmpId**, Name of Consultancy Project**, Agency Name**, Agency Contact Email, Agency Contact Number, Start Date** (Consultancy Start Year auto-derived), Expected End Date, Project Type**, Actual Completion Date, Project Status**, Contract Value (INR in Lakhs), Revenue Generated (INR in Lakhs), Amount Received (INR in Lakhs), Scope of Work / Deliverables Summary, Agreement / Work Order, Invoice, Payment Receipt
                 </p>
               ) : isFaculty ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
@@ -2674,125 +2689,127 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-                <h4 className="font-semibold text-xs text-[#2f4692] uppercase tracking-wider flex items-center gap-1.5">
-                  <FileSpreadsheet className="w-4 h-4 text-[#2f4692]" />
-                  Common Upload Metadata (Applied to all records in this file)
-                </h4>
+              {!isConsultancy && (
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                  <h4 className="font-semibold text-xs text-[#2f4692] uppercase tracking-wider flex items-center gap-1.5">
+                    <FileSpreadsheet className="w-4 h-4 text-[#2f4692]" />
+                    Common Upload Metadata (Applied to all records in this file)
+                  </h4>
 
-                {isPlacement && (
-                  <div className="pt-1 pb-2 border-b border-slate-200">
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                      Upload Record Type <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex items-center gap-4">
-                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-800">
-                        <input
-                          type="radio"
-                          name="placementType"
-                          value="placement"
-                          checked={selectedPlacementType === 'placement'}
-                          onChange={() => {
-                            setSelectedPlacementType('placement');
-                            if (previewData.length > 0) {
-                              verifyPlacementsBatch(previewData, { type: 'placement' });
-                            }
-                          }}
-                          className="text-[#2F4692] focus:ring-[#2F4692]"
-                        />
-                        <span className="font-semibold text-slate-900">Placement</span>
-                        <span className="text-slate-500 text-[11px]">(Full-time offer, Package = LPA)</span>
+                  {isPlacement && (
+                    <div className="pt-1 pb-2 border-b border-slate-200">
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                        Upload Record Type <span className="text-red-500">*</span>
                       </label>
-                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-800">
-                        <input
-                          type="radio"
-                          name="placementType"
-                          value="internship"
-                          checked={selectedPlacementType === 'internship'}
-                          onChange={() => {
-                            setSelectedPlacementType('internship');
-                            if (previewData.length > 0) {
-                              verifyPlacementsBatch(previewData, { type: 'internship' });
-                            }
-                          }}
-                          className="text-[#2F4692] focus:ring-[#2F4692]"
-                        />
-                        <span className="font-semibold text-slate-900">Internship</span>
-                        <span className="text-slate-500 text-[11px]">(Monthly stipend in INR, Optional)</span>
-                      </label>
-                    </div>
-                  </div>
-                )}
-
-                <div className={`grid grid-cols-1 ${isPatent ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3`}>
-                  {!isPatent && (
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year <span className="text-red-500">*</span></label>
-                      <select
-                        value={selectedAcademicYear}
-                        onChange={(e) => {
-                          const newAy = e.target.value;
-                          setSelectedAcademicYear(newAy);
-                          if (isPlacement && previewData.length > 0) {
-                            verifyPlacementsBatch(previewData, { ay: newAy });
-                          }
-                        }}
-                        className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 font-medium focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="2020-2021">2020-2021</option>
-                        <option value="2021-2022">2021-2022</option>
-                        <option value="2022-2023">2022-2023</option>
-                        <option value="2023-2024">2023-2024</option>
-                        <option value="2024-2025">2024-2025</option>
-                        <option value="2025-2026">2025-2026</option>
-                        <option value="2026-2027">2026-2027</option>
-                        <option value="2027-2028">2027-2028</option>
-                      </select>
+                      <div className="flex items-center gap-4">
+                        <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-800">
+                          <input
+                            type="radio"
+                            name="placementType"
+                            value="placement"
+                            checked={selectedPlacementType === 'placement'}
+                            onChange={() => {
+                              setSelectedPlacementType('placement');
+                              if (previewData.length > 0) {
+                                verifyPlacementsBatch(previewData, { type: 'placement' });
+                              }
+                            }}
+                            className="text-[#2F4692] focus:ring-[#2F4692]"
+                          />
+                          <span className="font-semibold text-slate-900">Placement</span>
+                          <span className="text-slate-500 text-[11px]">(Full-time offer, Package = LPA)</span>
+                        </label>
+                        <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-800">
+                          <input
+                            type="radio"
+                            name="placementType"
+                            value="internship"
+                            checked={selectedPlacementType === 'internship'}
+                            onChange={() => {
+                              setSelectedPlacementType('internship');
+                              if (previewData.length > 0) {
+                                verifyPlacementsBatch(previewData, { type: 'internship' });
+                              }
+                            }}
+                            className="text-[#2F4692] focus:ring-[#2F4692]"
+                          />
+                          <span className="font-semibold text-slate-900">Internship</span>
+                          <span className="text-slate-500 text-[11px]">(Monthly stipend in INR, Optional)</span>
+                        </label>
+                      </div>
                     </div>
                   )}
 
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Campus <span className="text-red-500">*</span></label>
-                    <select
-                      value={selectedCampus}
-                      onChange={(e) => {
-                        const newC = e.target.value;
-                        setSelectedCampus(newC);
-                        if (isPlacement && previewData.length > 0) {
-                          verifyPlacementsBatch(previewData, { campus: newC });
-                        }
-                      }}
-                      className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
-                    >
-                      {campusList.map((c, i) => (
-                        <option key={i} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <div className={`grid grid-cols-1 ${isPatent ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3`}>
+                    {!isPatent && (
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Academic Year <span className="text-red-500">*</span></label>
+                        <select
+                          value={selectedAcademicYear}
+                          onChange={(e) => {
+                            const newAy = e.target.value;
+                            setSelectedAcademicYear(newAy);
+                            if (isPlacement && previewData.length > 0) {
+                              verifyPlacementsBatch(previewData, { ay: newAy });
+                            }
+                          }}
+                          className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 font-medium focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="2020-2021">2020-2021</option>
+                          <option value="2021-2022">2021-2022</option>
+                          <option value="2022-2023">2022-2023</option>
+                          <option value="2023-2024">2023-2024</option>
+                          <option value="2024-2025">2024-2025</option>
+                          <option value="2025-2026">2025-2026</option>
+                          <option value="2026-2027">2026-2027</option>
+                          <option value="2027-2028">2027-2028</option>
+                        </select>
+                      </div>
+                    )}
 
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">School <span className="text-red-500">*</span></label>
-                    <select
-                      value={selectedSchool}
-                      onChange={(e) => {
-                        const newS = e.target.value;
-                        setSelectedSchool(newS);
-                        if (isPlacement && previewData.length > 0) {
-                          verifyPlacementsBatch(previewData, { school: newS });
-                        }
-                      }}
-                      className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
-                    >
-                      {schoolList.map((s, i) => (
-                        <option key={i} value={s}>{s}</option>
-                      ))}
-                    </select>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Campus <span className="text-red-500">*</span></label>
+                      <select
+                        value={selectedCampus}
+                        onChange={(e) => {
+                          const newC = e.target.value;
+                          setSelectedCampus(newC);
+                          if (isPlacement && previewData.length > 0) {
+                            verifyPlacementsBatch(previewData, { campus: newC });
+                          }
+                        }}
+                        className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
+                      >
+                        {campusList.map((c, i) => (
+                          <option key={i} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">School <span className="text-red-500">*</span></label>
+                      <select
+                        value={selectedSchool}
+                        onChange={(e) => {
+                          const newS = e.target.value;
+                          setSelectedSchool(newS);
+                          if (isPlacement && previewData.length > 0) {
+                            verifyPlacementsBatch(previewData, { school: newS });
+                          }
+                        }}
+                        className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
+                      >
+                        {schoolList.map((s, i) => (
+                          <option key={i} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
+                  <p className="text-[11px] text-slate-500 italic">
+                    All records in this bulk file will automatically inherit these Academic Year, Campus, and School selections.
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-500 italic">
-                  All records in this bulk file will automatically inherit these Academic Year, Campus, and School selections.
-                </p>
-              </div>
+              )}
 
               {/* Placement V2.1 Specifications Guide */}
               {isPlacement && (
@@ -2807,28 +2824,6 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                     <li><strong>Compensation:</strong> {selectedPlacementType === 'placement' ? 'Annual salary in LPA (mandatory, positive number).' : 'Monthly stipend in INR (optional; blank = "Not Provided", 0 = "₹0 — Unpaid Internship").'}</li>
                     <li><strong>Offer Letters:</strong> Optional. You can attach offer letters per offer record in the preview stage.</li>
                   </ul>
-                </div>
-              )}
-
-              {/* Department Selection for Consultancy */}
-              {isConsultancy && (
-                <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
-                  <Label className="text-sm font-semibold text-amber-900 mb-2 block">
-                    Select Department <span className="text-red-500">*</span>
-                  </Label>
-                  <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                    <SelectTrigger className="w-full bg-white">
-                      <SelectValue placeholder="Choose a department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FIXED_DEPARTMENTS.map(dept => (
-                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-amber-700 mt-1.5">
-                    All uploaded consultancy records will be assigned to the selected department.
-                  </p>
                 </div>
               )}
 
@@ -3183,24 +3178,26 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200 font-semibold">
                           <th className="py-2 px-3 whitespace-nowrap">S. No.</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Teacher Consultant</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Project Name</th>
+                          <th className="py-2 px-3 whitespace-nowrap">EmpId(s)</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Name of Consultancy Project</th>
                           <th className="py-2 px-3 whitespace-nowrap">Agency Name</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Start Year</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Project Type</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Start Date / Year</th>
                           <th className="py-2 px-3 whitespace-nowrap">Project Status</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Revenue (₹ Lakhs)</th>
+                          <th className="py-2 px-3 whitespace-nowrap text-right">Revenue (₹ Lakhs)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 bg-white">
                         {previewData.slice(0, 5).map((row, idx) => (
                           <tr key={idx} className="hover:bg-gray-50">
                             <td className="py-2 px-3 font-mono">{idx + 1}</td>
-                            <td className="py-2 px-3 font-semibold text-gray-900 truncate max-w-[150px]" title={row.teacherConsultant}>{row.teacherConsultant}</td>
+                            <td className="py-2 px-3 font-semibold text-blue-700 font-mono truncate max-w-[150px]" title={row.empId || row.empIds || row.teacherConsultant}>{row.empId || row.empIds || row.teacherConsultant}</td>
                             <td className="py-2 px-3 truncate max-w-[150px]" title={row.projectName}>{row.projectName}</td>
                             <td className="py-2 px-3 truncate max-w-[150px]" title={row.agencyName || row.sponsoringAgency}>{row.agencyName || row.sponsoringAgency}</td>
-                            <td className="py-2 px-3 font-mono">{row.consultancyStartYear || row.year}</td>
+                            <td className="py-2 px-3 whitespace-nowrap font-medium text-slate-800">{row.projectType || '-'}</td>
+                            <td className="py-2 px-3 font-mono whitespace-nowrap">{row.startDate ? `${row.startDate} (${row.consultancyStartYear || ''})` : (row.consultancyStartYear || row.year || '-')}</td>
                             <td className="py-2 px-3 font-mono">{row.projectStatus || 'On Going'}</td>
-                            <td className="py-2 px-3 font-mono font-semibold text-green-700">{row.revenueInLakhs}</td>
+                            <td className="py-2 px-3 font-mono font-semibold text-green-700 text-right">{row.revenueInLakhs !== undefined && row.revenueInLakhs !== null ? `${row.revenueInLakhs} L` : '-'}</td>
                           </tr>
                         ))}
                       </tbody>
