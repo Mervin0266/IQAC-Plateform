@@ -82,8 +82,7 @@ const EContent = sequelize.define('EContent', {
   },
   url: {
     type: DataTypes.TEXT,
-    allowNull: false,
-    validate: { notEmpty: true }
+    allowNull: true
   },
   contentType: {
     type: DataTypes.STRING(150),

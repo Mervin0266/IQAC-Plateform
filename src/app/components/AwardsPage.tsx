@@ -476,9 +476,8 @@ export function AwardsPage({ onNavigate, hideSidebar = false, token: propToken, 
       <div className="space-y-6">
         {/* Page Header */}
         <PageHeader
-          icon={Trophy}
           title="Awards & Recognitions"
-          subtitle="Institutional tracking of faculty honors, fellowships, and recognitions from approved agencies"
+          description="Institutional tracking of faculty honors, fellowships, and recognitions from approved agencies"
           badge="Achievements"
           actions={
             <div className="flex flex-wrap items-center gap-2">

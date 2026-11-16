@@ -66,9 +66,9 @@ function deriveCalendarYear(dateStr) {
 }
 
 function isValidUrl(val) {
-  if (!val) return false;
+  if (!val) return true; // Optional URLs pass if empty
   let str = String(val).trim();
-  if (!str || str.toLowerCase() === 'nil' || str.toLowerCase() === 'n/a') return false;
+  if (!str || str.toLowerCase() === 'nil' || str.toLowerCase() === 'n/a') return true;
   if (!str.startsWith('http://') && !str.startsWith('https://')) {
     str = 'https://' + str;
   }
@@ -99,8 +99,101 @@ const DEFAULT_CONTENT_TYPES = [
   'Podcast / Audio Lecture',
   'E-Text / Reading Material',
   'Interactive Simulation / Virtual Lab',
-  'Learning Object Repository (LOR)'
+  'Learning Object Repository (LOR)',
+  'Other Learning Content'
 ];
+
+// Smart normalization for E-Content Platforms (handles SNAKE_CASE, uppercase, partial keywords)
+function normalizePlatform(platform, activePlatforms = []) {
+  if (!platform) return null;
+  const raw = String(platform).trim();
+  if (!raw || raw.toLowerCase() === 'nil' || raw.toLowerCase() === 'n/a') return null;
+
+  // Exact or direct match
+  const exact = activePlatforms.find(p => p.toLowerCase().trim() === raw.toLowerCase());
+  if (exact) return exact;
+
+  const lower = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  if (lower.includes('swayam') || lower.includes('nptel')) {
+    return 'SWAYAM / NPTEL';
+  }
+  if (lower.includes('coursera')) {
+    return 'Coursera';
+  }
+  if (lower.includes('edx')) {
+    return 'edX';
+  }
+  if (lower.includes('youtube')) {
+    return 'YouTube (Institutional Channel)';
+  }
+  if (lower.includes('moodle') || lower.includes('lms') || lower.includes('institutionallms')) {
+    return 'Institutional LMS / Moodle';
+  }
+  if (lower.includes('inflibnet') || lower.includes('epg') || lower.includes('pathshala')) {
+    return 'e-PG Pathshala / INFLIBNET';
+  }
+  if (lower.includes('cec') || lower.includes('consortium')) {
+    return 'Consortium for Educational Communication (CEC)';
+  }
+  if (lower.includes('other') || lower.includes('mooc') || lower === 'otherapprovedmoocsplatform') {
+    return 'Other Approved MOOCs Platform';
+  }
+
+  const sub = activePlatforms.find(p => {
+    const cleanP = p.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return lower.includes(cleanP) || cleanP.includes(lower);
+  });
+  if (sub) return sub;
+
+  return raw;
+}
+
+// Smart normalization for Content Types (handles SNAKE_CASE, uppercase, partial keywords)
+function normalizeContentType(contentType, activeContentTypes = []) {
+  if (!contentType) return null;
+  const raw = String(contentType).trim();
+  if (!raw || raw.toLowerCase() === 'nil' || raw.toLowerCase() === 'n/a') return null;
+
+  // Exact or direct match
+  const exact = activeContentTypes.find(c => c.toLowerCase().trim() === raw.toLowerCase());
+  if (exact) return exact;
+
+  const lower = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  if (lower.includes('4quadrant') || lower.includes('completemooc') || lower.includes('completecourse') || lower.includes('fullcourse')) {
+    return 'Complete MOOC Course (4 Quadrants)';
+  }
+  if (lower.includes('module') || lower.includes('courseware') || lower.includes('moocmodule')) {
+    return 'MOOC Module / Courseware';
+  }
+  if (lower.includes('video') || lower.includes('lecture') || lower.includes('demonstration')) {
+    return 'Video Lecture / Demonstration';
+  }
+  if (lower.includes('audio') || lower.includes('podcast')) {
+    return 'Podcast / Audio Lecture';
+  }
+  if (lower.includes('etext') || lower.includes('text') || lower.includes('reading') || lower.includes('material') || lower.includes('ebook') || lower.includes('notes')) {
+    return 'E-Text / Reading Material';
+  }
+  if (lower.includes('simulation') || lower.includes('virtual') || lower.includes('lab') || lower.includes('interactive')) {
+    return 'Interactive Simulation / Virtual Lab';
+  }
+  if (lower.includes('lor') || lower.includes('repository') || lower.includes('learningobject')) {
+    return 'Learning Object Repository (LOR)';
+  }
+  if (lower.includes('other') || lower.includes('general')) {
+    return 'Other Learning Content';
+  }
+
+  const sub = activeContentTypes.find(c => {
+    const cleanC = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return lower.includes(cleanC) || cleanC.includes(lower);
+  });
+  if (sub) return sub;
+
+  return raw;
+}
 
 async function getActivePlatforms() {
   try {
@@ -495,12 +588,15 @@ exports.createEContent = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Could not derive a valid Calendar Year from Publication Date.' });
     }
 
-    if (!url || !String(url).trim()) {
-      return res.status(400).json({ success: false, message: 'URL to the published e-content is required.' });
-    }
-
-    if (!isValidUrl(url)) {
-      return res.status(400).json({ success: false, message: 'Invalid URL format. Must start with http:// or https://' });
+    let cleanUrl = null;
+    if (url && String(url).trim() && String(url).toLowerCase() !== 'nil' && String(url).toLowerCase() !== 'n/a') {
+      cleanUrl = String(url).trim();
+      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+        cleanUrl = 'https://' + cleanUrl;
+      }
+      if (!isValidUrl(cleanUrl)) {
+        return res.status(400).json({ success: false, message: 'Invalid URL format. Must start with http:// or https://' });
+      }
     }
 
     if (!contentType || !String(contentType).trim()) {
@@ -531,9 +627,12 @@ exports.createEContent = async (req, res) => {
       });
     }
 
-    // Duplicate detection: EmpID + normalized Title + Publication Date + normalized Published URL
+    // Duplicate detection: EmpID + normalized Title + Publication Date + normalized Published URL (or empty)
     const normTitle = String(title).trim().toLowerCase();
-    const normUrl = String(url).trim().toLowerCase();
+    const normUrl = cleanUrl ? cleanUrl.toLowerCase() : '';
+    const urlWhere = normUrl
+      ? sequelize.where(sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col('url'))), normUrl)
+      : { [Op.or]: [{ url: null }, { url: '' }] };
 
     const existing = await EContent.findOne({
       where: {
@@ -541,7 +640,7 @@ exports.createEContent = async (req, res) => {
         publicationDate: isoDate,
         [Op.and]: [
           sequelize.where(sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col('title'))), normTitle),
-          sequelize.where(sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col('url'))), normUrl)
+          urlWhere
         ]
       }
     });
@@ -549,7 +648,7 @@ exports.createEContent = async (req, res) => {
     if (existing) {
       return res.status(409).json({
         success: false,
-        message: `Duplicate E-Content record detected for EmpID ${cleanEmpId} on date ${isoDate} with matching Title and URL.`
+        message: `Duplicate E-Content record detected for EmpID ${cleanEmpId} on date ${isoDate} with matching Title${normUrl ? ' and URL' : ''}.`
       });
     }
 
@@ -567,7 +666,7 @@ exports.createEContent = async (req, res) => {
       title: String(title).trim(),
       eContentPlatform: String(eContentPlatform).trim(),
       publicationDate: isoDate,
-      url: String(url).trim(),
+      url: cleanUrl,
       contentType: String(contentType).trim(),
       proofUrl: proofUrl && String(proofUrl).trim() ? String(proofUrl).trim() : null,
       calendarYear: derivedYear,
@@ -649,10 +748,21 @@ exports.updateEContent = async (req, res) => {
 
     const finalYear = deriveCalendarYear(finalDate);
     const finalTitle = title ? String(title).trim() : record.title;
-    const finalUrl = url ? String(url).trim() : record.url;
 
-    if (finalUrl && !isValidUrl(finalUrl)) {
-      return res.status(400).json({ success: false, message: 'Invalid published URL format.' });
+    let finalUrl = record.url;
+    if (url !== undefined) {
+      if (url && String(url).trim() && String(url).toLowerCase() !== 'nil' && String(url).toLowerCase() !== 'n/a') {
+        let u = String(url).trim();
+        if (!u.startsWith('http://') && !u.startsWith('https://')) {
+          u = 'https://' + u;
+        }
+        if (!isValidUrl(u)) {
+          return res.status(400).json({ success: false, message: 'Invalid published URL format.' });
+        }
+        finalUrl = u;
+      } else {
+        finalUrl = null;
+      }
     }
 
     if (proofUrl && String(proofUrl).trim() && !isValidUrl(proofUrl)) {
@@ -660,6 +770,11 @@ exports.updateEContent = async (req, res) => {
     }
 
     // Check duplicate excluding self
+    const normUpdateUrl = finalUrl ? finalUrl.toLowerCase() : '';
+    const urlUpdateWhere = normUpdateUrl
+      ? sequelize.where(sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col('url'))), normUpdateUrl)
+      : { [Op.or]: [{ url: null }, { url: '' }] };
+
     const existing = await EContent.findOne({
       where: {
         id: { [Op.ne]: record.id },
@@ -667,7 +782,7 @@ exports.updateEContent = async (req, res) => {
         publicationDate: finalDate,
         [Op.and]: [
           sequelize.where(sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col('title'))), finalTitle.toLowerCase()),
-          sequelize.where(sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col('url'))), finalUrl.toLowerCase())
+          urlUpdateWhere
         ]
       }
     });
@@ -777,7 +892,10 @@ exports.validateBulkEContents = async (req, res) => {
     });
 
     const existingKeys = new Set(
-      existingRecords.map(e => `${e.normalizedEmployeeId}|${String(e.title).trim().toLowerCase()}|${e.publicationDate}|${String(e.url).trim().toLowerCase()}`)
+      existingRecords.map(e => {
+        const urlKey = e.url ? String(e.url).trim().toLowerCase() : '';
+        return `${e.normalizedEmployeeId}|${String(e.title).trim().toLowerCase()}|${e.publicationDate}|${urlKey}`;
+      })
     );
 
     const validatedRows = [];
@@ -793,12 +911,12 @@ exports.validateBulkEContents = async (req, res) => {
     rows.forEach((r, idx) => {
       const rowNum = idx + 1;
       const rawEmpId = String(r.employeeId || r.empId || r.EmpId || r.EmpID || '').trim();
-      const title = String(r.title || r.Title || '').trim();
-      const platform = String(r.eContentPlatform || r.EContentPlatform || r['E-Content Platform'] || '').trim();
-      const rawDate = r.publicationDate || r.PublicationDate || r['Publication Date'] || '';
-      const url = String(r.url || r.Url || r.URL || '').trim();
-      const contentType = String(r.contentType || r.ContentType || r['Content Type'] || '').trim();
-      const rawProof = String(r.proofUrl || r.ProofUrl || r['Proof URL'] || '').trim();
+      const title = String(r.title || r.Title || r['Title'] || r.moduleTitle || r['Module Title'] || r.name || r['Name'] || '').trim();
+      const platform = String(r.eContentPlatform || r.EContentPlatform || r['E-Content Platform'] || r.platform || r['Platform'] || '').trim();
+      const rawDate = r.publicationDate || r.PublicationDate || r['Publication Date'] || r.date || r.Date || r.launchDate || r['Launch Date'] || '';
+      const url = String(r.url || r.Url || r.URL || r['URL'] || r.link || r['Link'] || '').trim();
+      const contentType = String(r.contentType || r.ContentType || r['Content Type'] || r.type || r['Type'] || '').trim();
+      const rawProof = String(r.proofUrl || r.ProofUrl || r['Proof URL'] || r.proof || r['Proof'] || '').trim();
 
       const errors = [];
       let rowStatus = 'ready';
@@ -828,23 +946,13 @@ exports.validateBulkEContents = async (req, res) => {
       }
 
       // Smart platform normalization
-      let effectivePlatform = platform;
-      if (platform && platform.toLowerCase() !== 'nil') {
-        const pLower = platform.toLowerCase().trim();
-        const found = activePlatforms.find(p => p.toLowerCase().trim() === pLower)
-          || activePlatforms.find(p => p.toLowerCase().includes(pLower) || pLower.includes(p.toLowerCase().trim()))
-          || (pLower.includes('swayam') ? 'SWAYAM / NPTEL' : null)
-          || (pLower.includes('nptel') ? 'SWAYAM / NPTEL' : null)
-          || (pLower.includes('moodle') ? 'Institutional LMS (Moodle)' : null)
-          || (pLower.includes('lms') ? 'Institutional LMS (Moodle)' : null)
-          || (pLower.includes('youtube') ? 'YouTube' : null);
-        if (found) {
-          effectivePlatform = found;
-        }
-      }
+      const effectivePlatform = normalizePlatform(platform, activePlatforms);
 
       if (!effectivePlatform || effectivePlatform.toLowerCase() === 'nil') {
         errors.push('E-Content Platform is required.');
+        if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
+      } else if (!platformSet.has(effectivePlatform.toLowerCase())) {
+        errors.push(`Invalid Platform "${platform}". Allowed: ${activePlatforms.join(', ')}.`);
         if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
       }
 
@@ -854,38 +962,28 @@ exports.validateBulkEContents = async (req, res) => {
         if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
       }
 
-      let effectiveUrl = url;
-      if (effectiveUrl && effectiveUrl.toLowerCase() !== 'nil' && !effectiveUrl.startsWith('http://') && !effectiveUrl.startsWith('https://')) {
-        effectiveUrl = 'https://' + effectiveUrl;
-      }
-
-      if (!effectiveUrl || effectiveUrl.toLowerCase() === 'nil') {
-        errors.push('Published content URL is required.');
-        if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
-      } else if (!isValidUrl(effectiveUrl)) {
-        errors.push('Invalid published URL format (must start with http:// or https://).');
-        if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
-      }
-
-      // Smart content type normalization
-      let effectiveContentType = contentType;
-      if (contentType && contentType.toLowerCase() !== 'nil') {
-        const cLower = contentType.toLowerCase().trim();
-        const found = activeContentTypes.find(c => c.toLowerCase().trim() === cLower)
-          || activeContentTypes.find(c => c.toLowerCase().includes(cLower) || cLower.includes(c.toLowerCase().trim()))
-          || (cLower.includes('mooc') ? 'MOOC Module / Courseware' : null)
-          || (cLower.includes('video') ? 'Video Lecture / Demonstration' : null)
-          || (cLower.includes('audio') || cLower.includes('podcast') ? 'Audio Podcast / Lecture' : null)
-          || (cLower.includes('simulation') || cLower.includes('virtual') ? 'Interactive Simulation / Virtual Lab' : null)
-          || (cLower.includes('text') || cLower.includes('material') ? 'E-Text / Digital Learning Material' : null)
-          || (cLower.includes('quiz') || cLower.includes('assessment') ? 'Self-Assessment / Online Quiz' : null);
-        if (found) {
-          effectiveContentType = found;
+      let effectiveUrl = '';
+      if (url && url.toLowerCase() !== 'nil' && url.toLowerCase() !== 'n/a') {
+        let u = url;
+        if (!u.startsWith('http://') && !u.startsWith('https://')) {
+          u = 'https://' + u;
+        }
+        if (!isValidUrl(u)) {
+          errors.push('Invalid published URL format (must start with http:// or https://).');
+          if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
+        } else {
+          effectiveUrl = u;
         }
       }
 
+      // Smart content type normalization
+      const effectiveContentType = normalizeContentType(contentType, activeContentTypes);
+
       if (!effectiveContentType || effectiveContentType.toLowerCase() === 'nil') {
         errors.push('Content Type is required.');
+        if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
+      } else if (!contentTypeSet.has(effectiveContentType.toLowerCase())) {
+        errors.push(`Invalid Content Type "${contentType}". Allowed: ${activeContentTypes.join(', ')}.`);
         if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
       }
 
@@ -897,7 +995,8 @@ exports.validateBulkEContents = async (req, res) => {
       // 3. Duplicate Detection
       if (rowStatus === 'ready') {
         const normEmp = normalizeEmpId(rawEmpId);
-        const dedupKey = `${normEmp}|${title.toLowerCase()}|${isoDate}|${effectiveUrl.toLowerCase()}`;
+        const normUrl = effectiveUrl ? effectiveUrl.toLowerCase() : '';
+        const dedupKey = `${normEmp}|${title.toLowerCase()}|${isoDate}|${normUrl}`;
         if (existingKeys.has(dedupKey) || seenInBatch.has(dedupKey)) {
           errors.push('Duplicate record detected.');
           rowStatus = 'duplicate';
@@ -915,16 +1014,17 @@ exports.validateBulkEContents = async (req, res) => {
         _rowStatus: rowStatus,
         _failureCategory: failureCategory,
         _errors: errors,
+        _issues: errors,
         employeeId: rawEmpId,
         facultyName: faculty ? faculty.name : null,
         department: faculty ? faculty.department : null,
         designation: faculty ? faculty.designation : null,
         title,
-        eContentPlatform: effectivePlatform,
+        eContentPlatform: effectivePlatform || platform,
         publicationDate: isoDate || rawDate,
         calendarYear: isoDate ? deriveCalendarYear(isoDate) : null,
         url: effectiveUrl,
-        contentType: effectiveContentType,
+        contentType: effectiveContentType || contentType,
         proofUrl: rawProof && rawProof.toLowerCase() !== 'nil' ? rawProof : ''
       });
     });
@@ -1001,7 +1101,10 @@ exports.bulkImportEContents = async (req, res) => {
     });
 
     const existingKeys = new Set(
-      existingRecords.map(e => `${e.normalizedEmployeeId}|${String(e.title).trim().toLowerCase()}|${e.publicationDate}|${String(e.url).trim().toLowerCase()}`)
+      existingRecords.map(e => {
+        const urlKey = e.url ? String(e.url).trim().toLowerCase() : '';
+        return `${e.normalizedEmployeeId}|${String(e.title).trim().toLowerCase()}|${e.publicationDate}|${urlKey}`;
+      })
     );
 
     const validToInsert = [];
@@ -1017,12 +1120,12 @@ exports.bulkImportEContents = async (req, res) => {
     rows.forEach((r, idx) => {
       const rowNum = idx + 1;
       const rawEmpId = String(r.employeeId || r.empId || r.EmpId || r.EmpID || '').trim();
-      const title = String(r.title || r.Title || '').trim();
-      const platform = String(r.eContentPlatform || r.EContentPlatform || r['E-Content Platform'] || '').trim();
-      const rawDate = r.publicationDate || r.PublicationDate || r['Publication Date'] || '';
-      const url = String(r.url || r.Url || r.URL || '').trim();
-      const contentType = String(r.contentType || r.ContentType || r['Content Type'] || '').trim();
-      const rawProof = String(r.proofUrl || r.ProofUrl || r['Proof URL'] || '').trim();
+      const title = String(r.title || r.Title || r['Title'] || r.moduleTitle || r['Module Title'] || r.name || r['Name'] || '').trim();
+      const platform = String(r.eContentPlatform || r.EContentPlatform || r['E-Content Platform'] || r.platform || r['Platform'] || '').trim();
+      const rawDate = r.publicationDate || r.PublicationDate || r['Publication Date'] || r.date || r.Date || r.launchDate || r['Launch Date'] || '';
+      const url = String(r.url || r.Url || r.URL || r['URL'] || r.link || r['Link'] || '').trim();
+      const contentType = String(r.contentType || r.ContentType || r['Content Type'] || r.type || r['Type'] || '').trim();
+      const rawProof = String(r.proofUrl || r.ProofUrl || r['Proof URL'] || r.proof || r['Proof'] || '').trim();
 
       if (!rawEmpId || rawEmpId.toLowerCase() === 'nil' || rawEmpId.toLowerCase() === 'n/a') {
         skippedMissingEmpId++;
@@ -1063,20 +1166,7 @@ exports.bulkImportEContents = async (req, res) => {
       }
 
       // Smart platform normalization
-      let effectivePlatform = platform;
-      if (platform && platform.toLowerCase() !== 'nil') {
-        const pLower = platform.toLowerCase().trim();
-        const found = activePlatforms.find(p => p.toLowerCase().trim() === pLower)
-          || activePlatforms.find(p => p.toLowerCase().includes(pLower) || pLower.includes(p.toLowerCase().trim()))
-          || (pLower.includes('swayam') ? 'SWAYAM / NPTEL' : null)
-          || (pLower.includes('nptel') ? 'SWAYAM / NPTEL' : null)
-          || (pLower.includes('moodle') ? 'Institutional LMS (Moodle)' : null)
-          || (pLower.includes('lms') ? 'Institutional LMS (Moodle)' : null)
-          || (pLower.includes('youtube') ? 'YouTube' : null);
-        if (found) {
-          effectivePlatform = found;
-        }
-      }
+      const effectivePlatform = normalizePlatform(platform, activePlatforms);
 
       if (!effectivePlatform || effectivePlatform.toLowerCase() === 'nil') {
         rejectedOther++;
@@ -1105,51 +1195,28 @@ exports.bulkImportEContents = async (req, res) => {
 
       const derivedYear = deriveCalendarYear(isoDate);
 
-      let effectiveUrl = url;
-      if (effectiveUrl && effectiveUrl.toLowerCase() !== 'nil' && !effectiveUrl.startsWith('http://') && !effectiveUrl.startsWith('https://')) {
-        effectiveUrl = 'https://' + effectiveUrl;
-      }
-
-      if (!effectiveUrl || effectiveUrl.toLowerCase() === 'nil') {
-        rejectedOther++;
-        skippedRecords.push({
-          rowNumber: rowNum,
-          employeeId: rawEmpId,
-          title,
-          problematicField: 'URL',
-          reason: 'Missing required field: URL.'
-        });
-        return;
-      }
-
-      if (!isValidUrl(effectiveUrl)) {
-        rejectedOther++;
-        skippedRecords.push({
-          rowNumber: rowNum,
-          employeeId: rawEmpId,
-          title,
-          problematicField: 'URL',
-          reason: `Invalid published URL format: "${effectiveUrl}".`
-        });
-        return;
+      let effectiveUrl = null;
+      if (url && url.toLowerCase() !== 'nil' && url.toLowerCase() !== 'n/a') {
+        let u = url;
+        if (!u.startsWith('http://') && !u.startsWith('https://')) {
+          u = 'https://' + u;
+        }
+        if (!isValidUrl(u)) {
+          rejectedOther++;
+          skippedRecords.push({
+            rowNumber: rowNum,
+            employeeId: rawEmpId,
+            title,
+            problematicField: 'URL',
+            reason: `Invalid published URL format: "${u}".`
+          });
+          return;
+        }
+        effectiveUrl = u;
       }
 
       // Smart content type normalization
-      let effectiveContentType = contentType;
-      if (contentType && contentType.toLowerCase() !== 'nil') {
-        const cLower = contentType.toLowerCase().trim();
-        const found = activeContentTypes.find(c => c.toLowerCase().trim() === cLower)
-          || activeContentTypes.find(c => c.toLowerCase().includes(cLower) || cLower.includes(c.toLowerCase().trim()))
-          || (cLower.includes('mooc') ? 'MOOC Module / Courseware' : null)
-          || (cLower.includes('video') ? 'Video Lecture / Demonstration' : null)
-          || (cLower.includes('audio') || cLower.includes('podcast') ? 'Audio Podcast / Lecture' : null)
-          || (cLower.includes('simulation') || cLower.includes('virtual') ? 'Interactive Simulation / Virtual Lab' : null)
-          || (cLower.includes('text') || cLower.includes('material') ? 'E-Text / Digital Learning Material' : null)
-          || (cLower.includes('quiz') || cLower.includes('assessment') ? 'Self-Assessment / Online Quiz' : null);
-        if (found) {
-          effectiveContentType = found;
-        }
-      }
+      const effectiveContentType = normalizeContentType(contentType, activeContentTypes);
 
       if (!effectiveContentType || effectiveContentType.toLowerCase() === 'nil') {
         rejectedOther++;
@@ -1177,7 +1244,8 @@ exports.bulkImportEContents = async (req, res) => {
       }
 
       // Duplicate Check
-      const dedupKey = `${normEmp}|${title.toLowerCase()}|${isoDate}|${effectiveUrl.toLowerCase()}`;
+      const normUrl = effectiveUrl ? effectiveUrl.toLowerCase() : '';
+      const dedupKey = `${normEmp}|${title.toLowerCase()}|${isoDate}|${normUrl}`;
       if (existingKeys.has(dedupKey) || seenInBatch.has(dedupKey)) {
         skippedDuplicate++;
         skippedRecords.push({

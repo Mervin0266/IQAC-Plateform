@@ -218,7 +218,6 @@ const ECON_REQUIRED = [
   'Title',
   'E-Content Platform',
   'Publication Date',
-  'URL',
   'Content Type'
 ];
 
@@ -841,11 +840,11 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         r.department || '',
         r.nameOfRecognition || '',
         r.dateOfRecognition || '',
-        r.derivedYear || r.year || '',
+        r.calendarYear || r.derivedYear || r.year || '',
         r.recognisedAgencyType || '',
         r.recognisingAgencyName || '',
         r.proofUrl || '',
-        (r._issues ? r._issues.join('; ') : '') || r._duplicateReason || ''
+        (r._issues && r._issues.length > 0 ? r._issues.join('; ') : '') || (r._errors && r._errors.length > 0 ? r._errors.join('; ') : '') || r._duplicateReason || ''
       ]);
       fileName = `awards_preview_validation_report_${new Date().toISOString().slice(0, 10)}.csv`;
     } else if (isEContent) {
@@ -859,11 +858,11 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         r.title || '',
         r.eContentPlatform || '',
         r.publicationDate || '',
-        r.derivedYear || r.year || '',
+        r.calendarYear || r.derivedYear || r.year || '',
         r.contentType || '',
         r.url || '',
         r.proofUrl || '',
-        (r._issues ? r._issues.join('; ') : '') || r._duplicateReason || ''
+        (r._issues && r._issues.length > 0 ? r._issues.join('; ') : '') || (r._errors && r._errors.length > 0 ? r._errors.join('; ') : '') || r._duplicateReason || ''
       ]);
       fileName = `e_contents_preview_validation_report_${new Date().toISOString().slice(0, 10)}.csv`;
     } else {
@@ -1594,7 +1593,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           return cleanH.includes('empid') || cleanH.includes('employeeid') || cleanH.includes('facultyid') || cleanH.includes('empno') || cleanH === 'id';
         }
         if (field === 'Name of Recognition') {
-          return cleanH.includes('recognition') || cleanH.includes('award') || cleanH === 'name' || cleanH === 'title';
+          return !cleanH.includes('date') && (cleanH.includes('recognition') || cleanH.includes('award') || cleanH === 'name' || cleanH === 'title');
         }
         if (field === 'Date of Recognition') {
           return cleanH.includes('date') || cleanH.includes('year');
@@ -1612,20 +1611,20 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         if (field === 'EmpId') {
           return cleanH.includes('empid') || cleanH.includes('employeeid') || cleanH.includes('facultyid') || cleanH.includes('empno') || cleanH === 'id';
         }
-        if (field === 'Title') {
-          return cleanH.includes('title') || cleanH.includes('module') || cleanH.includes('course') || cleanH.includes('name');
+        if (field === 'Publication Date') {
+          return cleanH.includes('date') || cleanH.includes('launch') || cleanH === 'year' || cleanH.includes('published');
         }
         if (field === 'E-Content Platform') {
           return cleanH.includes('platform') || cleanH.includes('portal') || cleanH.includes('lms') || cleanH.includes('host');
         }
-        if (field === 'Publication Date') {
-          return cleanH.includes('date') || cleanH.includes('launch') || cleanH.includes('year') || cleanH.includes('published');
+        if (field === 'Content Type') {
+          return cleanH.includes('contenttype') || cleanH.includes('quadrant') || cleanH.includes('type');
         }
         if (field === 'URL') {
           return cleanH === 'url' || cleanH.includes('url') || cleanH.includes('link') || cleanH.includes('website');
         }
-        if (field === 'Content Type') {
-          return cleanH.includes('contenttype') || cleanH.includes('type') || cleanH.includes('quadrant');
+        if (field === 'Title') {
+          return !cleanH.includes('date') && !cleanH.includes('platform') && !cleanH.includes('type') && (cleanH.includes('title') || cleanH.includes('module') || cleanH.includes('course') || cleanH === 'name');
         }
         return false;
       }));
@@ -1877,18 +1876,18 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             const cleanVal = val !== undefined && val !== null ? String(val).trim() : '';
             if (cleanH.includes('empid') || cleanH.includes('employeeid') || cleanH.includes('facultyid') || cleanH.includes('empno') || cleanH === 'id') {
               record['employeeId'] = cleanVal;
-            } else if (cleanH.includes('recognition') || cleanH.includes('award') || cleanH === 'name' || cleanH === 'title') {
-              record['nameOfRecognition'] = cleanVal;
-            } else if (cleanH.includes('description') || cleanH.includes('detail')) {
-              record['description'] = cleanVal;
-            } else if (cleanH.includes('date') || cleanH.includes('year')) {
+            } else if (cleanH.includes('date') || cleanH === 'year' || cleanH.includes('recognitiondate')) {
               record['dateOfRecognition'] = cleanVal;
-            } else if (cleanH.includes('agencytype') || (cleanH.includes('type') && !cleanH.includes('agencyname'))) {
+            } else if (cleanH.includes('agencytype') || (cleanH.includes('type') && !cleanH.includes('agencyname') && !cleanH.includes('agency'))) {
               record['recognisedAgencyType'] = cleanVal;
             } else if (cleanH.includes('agency') || cleanH.includes('organization') || cleanH.includes('body')) {
               record['recognisingAgencyName'] = cleanVal;
+            } else if (cleanH.includes('description') || cleanH.includes('detail')) {
+              record['description'] = cleanVal;
             } else if (cleanH.includes('proof') || cleanH.includes('evidence') || cleanH.includes('document')) {
               record['proofUrl'] = cleanVal;
+            } else if (!cleanH.includes('date') && (cleanH.includes('recognition') || cleanH.includes('award') || cleanH === 'name' || cleanH === 'title')) {
+              record['nameOfRecognition'] = cleanVal;
             } else {
               record[header] = cleanVal;
             }
@@ -1897,22 +1896,22 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             const cleanVal = val !== undefined && val !== null ? String(val).trim() : '';
             if (cleanH.includes('empid') || cleanH.includes('employeeid') || cleanH.includes('facultyid') || cleanH.includes('empno') || cleanH === 'id') {
               record['employeeId'] = cleanVal;
-            } else if (cleanH.includes('title') || cleanH.includes('module') || cleanH.includes('course') || cleanH.includes('name')) {
-              record['title'] = cleanVal;
+            } else if (cleanH.includes('date') || cleanH.includes('launch') || cleanH === 'year' || cleanH.includes('published')) {
+              record['publicationDate'] = cleanVal;
             } else if (cleanH.includes('platform') || cleanH.includes('portal') || cleanH.includes('lms') || cleanH.includes('host')) {
               record['eContentPlatform'] = cleanVal;
-            } else if (cleanH.includes('date') || cleanH.includes('launch') || cleanH.includes('year') || cleanH.includes('published')) {
-              record['publicationDate'] = cleanVal;
+            } else if (cleanH.includes('contenttype') || cleanH.includes('quadrant') || (cleanH.includes('type') && !cleanH.includes('content'))) {
+              record['contentType'] = cleanVal;
             } else if (cleanH === 'url' || cleanH.includes('url') || cleanH.includes('link') || cleanH.includes('website')) {
               let urlVal = cleanVal;
               if (urlVal && urlVal.toLowerCase() !== 'nil' && !urlVal.startsWith('http://') && !urlVal.startsWith('https://')) {
                 urlVal = 'https://' + urlVal;
               }
               record['url'] = urlVal;
-            } else if (cleanH.includes('contenttype') || cleanH.includes('type') || cleanH.includes('quadrant')) {
-              record['contentType'] = cleanVal;
             } else if (cleanH.includes('proof') || cleanH.includes('evidence') || cleanH.includes('document')) {
               record['proofUrl'] = cleanVal;
+            } else if (!cleanH.includes('date') && !cleanH.includes('platform') && !cleanH.includes('type') && (cleanH.includes('title') || cleanH.includes('module') || cleanH.includes('course') || cleanH === 'name')) {
+              record['title'] = cleanVal;
             } else {
               record[header] = cleanVal;
             }
@@ -2714,7 +2713,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                 </p>
               ) : isEContent ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
-                  EmpId**, Title**, E-Content Platform**, Publication Date**, URL**, Content Type**, Proof URL
+                  EmpId**, Title**, E-Content Platform**, Publication Date**, Content Type**, URL, Proof URL
                 </p>
               ) : isPublication ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
@@ -3736,13 +3735,13 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                                 </td>
                                 <td className="py-2.5 px-3 text-center whitespace-nowrap">
                                   <div className="font-mono text-slate-800">{row.dateOfRecognition || '—'}</div>
-                                  <div className="text-[10px] font-bold text-[#2855B9]">Year: {row.derivedYear || row.year || '—'}</div>
+                                  <div className="text-[10px] font-bold text-[#2855B9]">Year: {row.calendarYear || row.derivedYear || row.year || '—'}</div>
                                 </td>
                                 <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
                                   {row._duplicateReason ? (
                                     <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
-                                  ) : row._issues && row._issues.length > 0 ? (
-                                    <span className="text-red-600 text-[10px] block">{row._issues.join('; ')}</span>
+                                  ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
+                                    <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
                                   ) : (
                                     <span className="text-emerald-700 text-[10px]">Valid record</span>
                                   )}
@@ -3819,13 +3818,13 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                                 </td>
                                 <td className="py-2.5 px-3 text-center whitespace-nowrap">
                                   <div className="font-mono text-slate-800">{row.publicationDate || '—'}</div>
-                                  <div className="text-[10px] font-bold text-[#2855B9]">Year: {row.derivedYear || row.year || '—'}</div>
+                                  <div className="text-[10px] font-bold text-[#2855B9]">Year: {row.calendarYear || row.derivedYear || row.year || '—'}</div>
                                 </td>
                                 <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
                                   {row._duplicateReason ? (
                                     <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
-                                  ) : row._issues && row._issues.length > 0 ? (
-                                    <span className="text-red-600 text-[10px] block">{row._issues.join('; ')}</span>
+                                  ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
+                                    <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
                                   ) : (
                                     <span className="text-emerald-700 text-[10px]">Valid record</span>
                                   )}

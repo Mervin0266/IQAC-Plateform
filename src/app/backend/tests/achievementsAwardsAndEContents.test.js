@@ -198,6 +198,24 @@ async function runTests() {
     assert.strictEqual(resDupEcon.statusCode, 409, 'Duplicate e-content should return 409 Conflict');
     console.log('✓ Duplicate E-Content single-entry rejected with 409 Conflict as expected.');
 
+    // Test Optional URL on E-Content
+    const resNoUrlEcon = createMockRes();
+    const noUrlTitle = `Offline Audio Lectures Module ${Date.now()}`;
+    await eContentsController.createEContent({
+      ...mockAdminReq,
+      body: {
+        facultyEmpId: testEmpId,
+        title: noUrlTitle,
+        publicationDate: '2025-03-20',
+        eContentPlatform: 'Institutional LMS / Moodle',
+        contentType: 'Podcast / Audio Lecture'
+      }
+    }, resNoUrlEcon);
+    assert.strictEqual(resNoUrlEcon.statusCode, 201, `Optional URL creation should succeed with 201: ${JSON.stringify(resNoUrlEcon.data)}`);
+    assert.strictEqual(resNoUrlEcon.data.data.url, null, 'URL should be null when omitted');
+    console.log('✓ E-Content created successfully with optional URL omitted (url: null).');
+    await EContent.destroy({ where: { id: resNoUrlEcon.data.data.id } });
+
     // Clean up created e-content
     await EContent.destroy({ where: { id: createdEcon.id } });
     console.log('✓ Test e-content cleaned up.');

@@ -91,8 +91,56 @@ const DEFAULT_AGENCY_TYPES = [
   'University',
   'Professional Body / Society',
   'Government Agency',
-  'Industry / Corporate'
+  'Industry / Corporate',
+  'Other Recognised Agency'
 ];
+
+// Smart normalization for Recognised Agency Types (handles SNAKE_CASE, uppercase, partial keywords)
+function normalizeAgencyType(agencyType, activeAgencyTypes = []) {
+  if (!agencyType) return null;
+  const raw = String(agencyType).trim();
+  if (!raw || raw.toLowerCase() === 'nil' || raw.toLowerCase() === 'n/a') return null;
+
+  // Exact or direct match
+  const exact = activeAgencyTypes.find(t => t.toLowerCase().trim() === raw.toLowerCase());
+  if (exact) return exact;
+
+  const lower = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  if (lower.includes('govt') || lower.includes('government') || lower === 'awardsfromgovernment') {
+    return 'Government Agency';
+  }
+  if (lower === 'otherrecognisedagency' || lower === 'otherrecognizedagency' || lower.includes('otherrecogni') || lower === 'other' || lower === 'others') {
+    return 'Other Recognised Agency';
+  }
+  if (lower.includes('international')) {
+    return 'International';
+  }
+  if (lower.includes('national')) {
+    return 'National';
+  }
+  if (lower.includes('state')) {
+    return 'State';
+  }
+  if (lower.includes('university') || lower.includes('college') || lower.includes('institutional')) {
+    return 'University';
+  }
+  if (lower.includes('professional') || lower.includes('society') || lower.includes('association') || lower.includes('body')) {
+    return 'Professional Body / Society';
+  }
+  if (lower.includes('industry') || lower.includes('corporate') || lower.includes('company')) {
+    return 'Industry / Corporate';
+  }
+
+  // Fallback to substring match against active types
+  const sub = activeAgencyTypes.find(t => {
+    const cleanT = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return lower.includes(cleanT) || cleanT.includes(lower);
+  });
+  if (sub) return sub;
+
+  return raw;
+}
 
 // Fetch active agency types from SystemConfiguration
 async function getActiveAgencyTypes() {
@@ -819,11 +867,11 @@ exports.validateBulkAwards = async (req, res) => {
     rows.forEach((r, idx) => {
       const rowNum = idx + 1;
       const rawEmpId = String(r.employeeId || r.empId || r.EmpId || r.EmpID || '').trim();
-      const recognitionName = String(r.nameOfRecognition || r.NameOfRecognition || r['Name of Recognition'] || '').trim();
+      const recognitionName = String(r.nameOfRecognition || r.NameOfRecognition || r['Name of Recognition'] || r.awardName || r['Award Name'] || r.title || r.Title || '').trim();
       const description = String(r.description || r.Description || '').trim();
-      const rawDate = r.dateOfRecognition || r.DateOfRecognition || r['Date of Recognition'] || '';
-      const agencyType = String(r.recognisedAgencyType || r.RecognisedAgencyType || r['Recognised Agency Type'] || '').trim();
-      const agencyName = String(r.recognisingAgencyName || r.RecognisingAgencyName || r['Recognising Agency Name'] || '').trim();
+      const rawDate = r.dateOfRecognition || r.DateOfRecognition || r['Date of Recognition'] || r.date || r.Date || r.eventDate || r.EventDate || '';
+      const agencyType = String(r.recognisedAgencyType || r.RecognisedAgencyType || r['Recognised Agency Type'] || r.agencyType || r['Agency Type'] || '').trim();
+      const agencyName = String(r.recognisingAgencyName || r.RecognisingAgencyName || r['Recognising Agency Name'] || r.agencyName || r['Agency Name'] || r.recognisingAgency || r['Recognising Agency'] || '').trim();
       const rawProof = String(r.proofUrl || r.ProofUrl || r['Proof URL'] || '').trim();
 
       const errors = [];
@@ -859,10 +907,12 @@ exports.validateBulkAwards = async (req, res) => {
         if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
       }
 
-      if (!agencyType || agencyType.toLowerCase() === 'nil') {
+      const effectiveAgencyType = normalizeAgencyType(agencyType, activeAgencyTypes);
+
+      if (!effectiveAgencyType || effectiveAgencyType.toLowerCase() === 'nil') {
         errors.push('Recognised Agency Type is required.');
         if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
-      } else if (!agencyTypeSet.has(agencyType.toLowerCase())) {
+      } else if (!agencyTypeSet.has(effectiveAgencyType.toLowerCase())) {
         errors.push(`Invalid Agency Type "${agencyType}". Allowed: ${activeAgencyTypes.join(', ')}.`);
         if (rowStatus === 'ready') { rowStatus = 'needs_review'; failureCategory = 'other'; otherErrorCount++; }
       }
@@ -894,6 +944,7 @@ exports.validateBulkAwards = async (req, res) => {
         _rowStatus: rowStatus,
         _failureCategory: failureCategory,
         _errors: errors,
+        _issues: errors,
         employeeId: rawEmpId,
         facultyName: faculty ? faculty.name : null,
         department: faculty ? faculty.department : null,
@@ -902,7 +953,7 @@ exports.validateBulkAwards = async (req, res) => {
         description: description && description.toLowerCase() !== 'nil' ? description : '',
         dateOfRecognition: isoDate || rawDate,
         calendarYear: isoDate ? deriveCalendarYear(isoDate) : null,
-        recognisedAgencyType: agencyType,
+        recognisedAgencyType: effectiveAgencyType || agencyType,
         recognisingAgencyName: agencyName && agencyName.toLowerCase() !== 'nil' ? agencyName : '',
         proofUrl: rawProof && rawProof.toLowerCase() !== 'nil' ? rawProof : ''
       });
@@ -992,11 +1043,11 @@ exports.bulkImportAwards = async (req, res) => {
     rows.forEach((r, idx) => {
       const rowNum = idx + 1;
       const rawEmpId = String(r.employeeId || r.empId || r.EmpId || r.EmpID || '').trim();
-      const recognitionName = String(r.nameOfRecognition || r.NameOfRecognition || r['Name of Recognition'] || '').trim();
+      const recognitionName = String(r.nameOfRecognition || r.NameOfRecognition || r['Name of Recognition'] || r.awardName || r['Award Name'] || r.title || r.Title || '').trim();
       const description = String(r.description || r.Description || '').trim();
-      const rawDate = r.dateOfRecognition || r.DateOfRecognition || r['Date of Recognition'] || '';
-      const agencyType = String(r.recognisedAgencyType || r.RecognisedAgencyType || r['Recognised Agency Type'] || '').trim();
-      const agencyName = String(r.recognisingAgencyName || r.RecognisingAgencyName || r['Recognising Agency Name'] || '').trim();
+      const rawDate = r.dateOfRecognition || r.DateOfRecognition || r['Date of Recognition'] || r.date || r.Date || r.eventDate || r.EventDate || '';
+      const agencyType = String(r.recognisedAgencyType || r.RecognisedAgencyType || r['Recognised Agency Type'] || r.agencyType || r['Agency Type'] || '').trim();
+      const agencyName = String(r.recognisingAgencyName || r.RecognisingAgencyName || r['Recognising Agency Name'] || r.agencyName || r['Agency Name'] || r.recognisingAgency || r['Recognising Agency'] || '').trim();
       const rawProof = String(r.proofUrl || r.ProofUrl || r['Proof URL'] || '').trim();
 
       // Missing EmpID check
@@ -1052,8 +1103,9 @@ exports.bulkImportAwards = async (req, res) => {
       }
 
       const derivedYear = deriveCalendarYear(isoDate);
+      const effectiveAgencyType = normalizeAgencyType(agencyType, activeAgencyTypes);
 
-      if (!agencyType || agencyType.toLowerCase() === 'nil') {
+      if (!effectiveAgencyType || effectiveAgencyType.toLowerCase() === 'nil') {
         rejectedOther++;
         skippedRecords.push({
           rowNumber: rowNum,
@@ -1065,7 +1117,7 @@ exports.bulkImportAwards = async (req, res) => {
         return;
       }
 
-      if (!agencyTypeSet.has(agencyType.toLowerCase())) {
+      if (!agencyTypeSet.has(effectiveAgencyType.toLowerCase())) {
         rejectedOther++;
         skippedRecords.push({
           rowNumber: rowNum,
@@ -1121,7 +1173,7 @@ exports.bulkImportAwards = async (req, res) => {
         nameOfRecognition: recognitionName,
         description: description && description.toLowerCase() !== 'nil' ? description : null,
         dateOfRecognition: isoDate,
-        recognisedAgencyType: agencyType,
+        recognisedAgencyType: effectiveAgencyType,
         recognisingAgencyName: agencyName && agencyName.toLowerCase() !== 'nil' ? agencyName : null,
         proofUrl: cleanProof,
         calendarYear: derivedYear,

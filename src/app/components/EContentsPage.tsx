@@ -317,10 +317,6 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
       setFormError('Publication Date is required.');
       return;
     }
-    if (!formUrl.trim()) {
-      setFormError('URL to the published e-content is required.');
-      return;
-    }
     if (!formContentType.trim()) {
       setFormError('Content Type is required.');
       return;
@@ -335,7 +331,7 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
         title: formTitle.trim(),
         eContentPlatform: formPlatform.trim(),
         publicationDate: formPublicationDate,
-        url: formUrl.trim(),
+        url: formUrl.trim() || null,
         contentType: formContentType.trim(),
         proofUrl: formProofUrl.trim() || null
       };
@@ -481,9 +477,8 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
       <div className="space-y-6">
         {/* Page Header */}
         <PageHeader
-          icon={Video}
           title="E-Contents & Courseware"
-          subtitle="Institutional repository of digital learning materials, MOOCs, video lectures, and e-course modules"
+          description="Institutional repository of digital learning materials, MOOCs, video lectures, and e-course modules"
           badge="Achievements"
           actions={
             <div className="flex flex-wrap items-center gap-2">
@@ -741,16 +736,20 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
                         )}
                       </td>
                       <td className="py-3 px-3.5 whitespace-nowrap">
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#2855B9] hover:underline"
-                          title="Open Published E-Content"
-                        >
-                          <PlayCircle className="w-3.5 h-3.5" />
-                          <span>View Content</span>
-                        </a>
+                        {item.url ? (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#2855B9] hover:underline"
+                            title="Open Published E-Content"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5" />
+                            <span>View Content</span>
+                          </a>
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
                       </td>
                       <td className="py-3 px-3.5 text-right pr-4 whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
@@ -888,15 +887,19 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
 
                   <div className="col-span-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Published Content URL</span>
-                    <a
-                      href={viewingItem.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#2855B9] font-medium hover:underline inline-flex items-center gap-1 mt-1 break-all"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                      <span>{viewingItem.url}</span>
-                    </a>
+                    {viewingItem.url ? (
+                      <a
+                        href={viewingItem.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#2855B9] font-medium hover:underline inline-flex items-center gap-1 mt-1 break-all"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                        <span>{viewingItem.url}</span>
+                      </a>
+                    ) : (
+                      <span className="text-slate-400 text-xs mt-1 block">Not provided</span>
+                    )}
                   </div>
 
                   {viewingItem.proofUrl && (
@@ -1090,15 +1093,14 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
               {/* Published URL */}
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-700">
-                  URL to Published E-Content <span className="text-rose-500">*</span>
+                  URL to Published E-Content <span className="text-slate-400 font-normal">(Optional)</span>
                 </Label>
                 <Input
                   type="url"
-                  placeholder="https://swayam.gov.in/courses/... or active video / module link"
+                  placeholder="https://swayam.gov.in/courses/... or active video / module link (optional)"
                   value={formUrl}
                   onChange={e => setFormUrl(e.target.value)}
                   className="h-9 text-xs rounded-lg border-slate-300"
-                  required
                 />
               </div>
 
