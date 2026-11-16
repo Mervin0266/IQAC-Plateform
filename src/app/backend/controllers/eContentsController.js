@@ -93,14 +93,9 @@ const DEFAULT_PLATFORMS = [
 ];
 
 const DEFAULT_CONTENT_TYPES = [
-  'Complete MOOC Course (4 Quadrants)',
-  'MOOC Module / Courseware',
-  'Video Lecture / Demonstration',
-  'Podcast / Audio Lecture',
-  'E-Text / Reading Material',
-  'Interactive Simulation / Virtual Lab',
-  'Learning Object Repository (LOR)',
-  'Other Learning Content'
+  'SINGLE_MODULE',
+  'ENTIRE_COURSE',
+  'MULTIPLE_MODULE'
 ];
 
 // Smart normalization for E-Content Platforms (handles SNAKE_CASE, uppercase, partial keywords)
@@ -161,29 +156,14 @@ function normalizeContentType(contentType, activeContentTypes = []) {
 
   const lower = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  if (lower.includes('4quadrant') || lower.includes('completemooc') || lower.includes('completecourse') || lower.includes('fullcourse')) {
-    return 'Complete MOOC Course (4 Quadrants)';
+  if (lower.includes('single') || (lower.includes('module') && !lower.includes('multi'))) {
+    return 'SINGLE_MODULE';
   }
-  if (lower.includes('module') || lower.includes('courseware') || lower.includes('moocmodule')) {
-    return 'MOOC Module / Courseware';
+  if (lower.includes('multi')) {
+    return 'MULTIPLE_MODULE';
   }
-  if (lower.includes('video') || lower.includes('lecture') || lower.includes('demonstration')) {
-    return 'Video Lecture / Demonstration';
-  }
-  if (lower.includes('audio') || lower.includes('podcast')) {
-    return 'Podcast / Audio Lecture';
-  }
-  if (lower.includes('etext') || lower.includes('text') || lower.includes('reading') || lower.includes('material') || lower.includes('ebook') || lower.includes('notes')) {
-    return 'E-Text / Reading Material';
-  }
-  if (lower.includes('simulation') || lower.includes('virtual') || lower.includes('lab') || lower.includes('interactive')) {
-    return 'Interactive Simulation / Virtual Lab';
-  }
-  if (lower.includes('lor') || lower.includes('repository') || lower.includes('learningobject')) {
-    return 'Learning Object Repository (LOR)';
-  }
-  if (lower.includes('other') || lower.includes('general')) {
-    return 'Other Learning Content';
+  if (lower.includes('entire') || lower.includes('course') || lower.includes('mooc') || lower.includes('quadrant')) {
+    return 'ENTIRE_COURSE';
   }
 
   const sub = activeContentTypes.find(c => {

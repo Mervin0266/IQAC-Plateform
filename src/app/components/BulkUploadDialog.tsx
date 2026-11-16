@@ -689,8 +689,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isEContent) {
       csvContent =
         ECON_HEADERS.map(h => `"${h}"`).join(',') + '\n' +
-        `"1028","Advanced Deep Learning and Neural Networks","SWAYAM / NPTEL","2024-09-15","https://swayam.gov.in/courses/deep-learning","Complete MOOC Course (4 Quadrants)","https://example.com/proof/cert1.pdf"\n` +
-        `"914","Structural Engineering Virtual Lab Simulations","Institutional LMS / Moodle","2025-01-10","https://lms.christuniversity.in/course/view.php?id=102","Interactive Simulation / Virtual Lab",""`;
+        `"1028","Advanced Deep Learning and Neural Networks","SWAYAM / NPTEL","2024-09-15","https://swayam.gov.in/courses/deep-learning","ENTIRE_COURSE","https://example.com/proof/cert1.pdf"\n` +
+        `"914","Structural Engineering Virtual Lab Simulations","Institutional LMS / Moodle","2025-01-10","https://lms.christuniversity.in/course/view.php?id=102","SINGLE_MODULE",""`;
       fileName = 'e_contents_bulk_template.csv';
     } else if (isPublication) {
       csvContent =
@@ -797,8 +797,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     } else if (isEContent) {
       headers = ECON_HEADERS;
       sampleRows = [
-        ['1028', 'Advanced Deep Learning and Neural Networks', 'SWAYAM / NPTEL', '2024-09-15', 'https://swayam.gov.in/courses/deep-learning', 'Complete MOOC Course (4 Quadrants)', 'https://example.com/proof/cert1.pdf'],
-        ['914', 'Structural Engineering Virtual Lab Simulations', 'Institutional LMS / Moodle', '2025-01-10', 'https://lms.christuniversity.in/course/view.php?id=102', 'Interactive Simulation / Virtual Lab', '']
+        ['1028', 'Advanced Deep Learning and Neural Networks', 'SWAYAM / NPTEL', '2024-09-15', 'https://swayam.gov.in/courses/deep-learning', 'ENTIRE_COURSE', 'https://example.com/proof/cert1.pdf'],
+        ['914', 'Structural Engineering Virtual Lab Simulations', 'Institutional LMS / Moodle', '2025-01-10', 'https://lms.christuniversity.in/course/view.php?id=102', 'SINGLE_MODULE', '']
       ];
       fileName = 'e_contents_bulk_template.xlsx';
     } else if (isPublication) {
@@ -2713,7 +2713,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                 </p>
               ) : isEContent ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
-                  EmpId**, Title**, E-Content Platform**, Publication Date**, Content Type**, URL, Proof URL
+                  EmpId**, Title**, E-Content Platform**, Publication Date**, Content Type** (Allowed: SINGLE_MODULE, ENTIRE_COURSE, MULTIPLE_MODULE), URL, Proof URL
                 </p>
               ) : isPublication ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">

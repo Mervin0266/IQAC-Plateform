@@ -114,13 +114,9 @@ module.exports = {
 
     const contentTypesJson = JSON.stringify({
       options: [
-        { id: 'complete_course', label: 'Complete MOOC Course (4 Quadrants)', status: 'active' },
-        { id: 'course_module', label: 'MOOC Module / Courseware', status: 'active' },
-        { id: 'video_lecture', label: 'Video Lecture / Demonstration', status: 'active' },
-        { id: 'podcast_audio', label: 'Podcast / Audio Lecture', status: 'active' },
-        { id: 'e_book_notes', label: 'E-Text / Reading Material', status: 'active' },
-        { id: 'interactive_module', label: 'Interactive Simulation / Virtual Lab', status: 'active' },
-        { id: 'learning_object', label: 'Learning Object Repository (LOR)', status: 'active' }
+        { id: 'SINGLE_MODULE', label: 'SINGLE_MODULE', status: 'active' },
+        { id: 'ENTIRE_COURSE', label: 'ENTIRE_COURSE', status: 'active' },
+        { id: 'MULTIPLE_MODULE', label: 'MULTIPLE_MODULE', status: 'active' }
       ]
     });
 

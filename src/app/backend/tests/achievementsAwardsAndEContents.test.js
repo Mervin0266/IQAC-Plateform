@@ -170,7 +170,7 @@ async function runTests() {
         eContentPlatform: 'SWAYAM / NPTEL',
         publicationDate: '2024-10-05',
         url: uniqueEconUrl,
-        contentType: 'Complete MOOC Course (4 Quadrants)',
+        contentType: 'ENTIRE_COURSE',
         proofUrl: 'https://example.com/proof/swayam-cert.pdf'
       }
     }, resCreateEcon);
@@ -192,7 +192,7 @@ async function runTests() {
         publicationDate: '2024-10-05',
         url: uniqueEconUrl,
         eContentPlatform: 'SWAYAM / NPTEL',
-        contentType: 'Complete MOOC Course (4 Quadrants)'
+        contentType: 'ENTIRE_COURSE'
       }
     }, resDupEcon);
     assert.strictEqual(resDupEcon.statusCode, 409, 'Duplicate e-content should return 409 Conflict');
@@ -208,7 +208,7 @@ async function runTests() {
         title: noUrlTitle,
         publicationDate: '2025-03-20',
         eContentPlatform: 'Institutional LMS / Moodle',
-        contentType: 'Podcast / Audio Lecture'
+        contentType: 'SINGLE_MODULE'
       }
     }, resNoUrlEcon);
     assert.strictEqual(resNoUrlEcon.statusCode, 201, `Optional URL creation should succeed with 201: ${JSON.stringify(resNoUrlEcon.data)}`);
@@ -297,7 +297,7 @@ async function runTests() {
         eContentPlatform: 'SWAYAM / NPTEL',
         publicationDate: '2025-02-14',
         url: `https://swayam.gov.in/courses/bulk-a-${Date.now()}`,
-        contentType: 'Interactive Simulation / Virtual Lab'
+        contentType: 'SINGLE_MODULE'
       },
       // Row 2: Missing EmpID
       {
@@ -306,7 +306,7 @@ async function runTests() {
         eContentPlatform: 'YouTube / Open Platform',
         publicationDate: '2025-03-01',
         url: 'https://youtube.com/watch?v=123',
-        contentType: 'Video Lecture Series'
+        contentType: 'MULTIPLE_MODULE'
       },
       // Row 3: Non-existent EmpID
       {
@@ -315,7 +315,7 @@ async function runTests() {
         eContentPlatform: 'Institutional LMS / Moodle',
         publicationDate: '2025-04-01',
         url: 'https://lms.christ.in/1',
-        contentType: 'E-Text / Digital Learning Modules'
+        contentType: 'SINGLE_MODULE'
       },
       // Row 4: Valid
       {
@@ -324,7 +324,7 @@ async function runTests() {
         eContentPlatform: 'Coursera',
         publicationDate: '2023-08-20',
         url: `https://coursera.org/learn/bulk-b-${Date.now()}`,
-        contentType: 'Complete MOOC Course (4 Quadrants)'
+        contentType: 'ENTIRE_COURSE'
       }
     ];
 

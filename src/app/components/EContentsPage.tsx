@@ -270,7 +270,7 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
     setFormPlatform(platforms[0] || 'SWAYAM / NPTEL');
     setFormPublicationDate('');
     setFormUrl('');
-    setFormContentType(contentTypes[0] || 'Complete MOOC Course (4 Quadrants)');
+    setFormContentType(contentTypes[0] || 'SINGLE_MODULE');
     setFormProofUrl('');
     setFormError('');
     setIsFormOpen(true);
