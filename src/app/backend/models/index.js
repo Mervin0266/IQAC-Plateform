@@ -1,5 +1,7 @@
 const User = require('./User');
 const Achievement = require('./Achievement');
+const Award = require('./Award');
+const EContent = require('./EContent');
 const Document = require('./Document');
 const Patent = require('./Patent');
 const PatentProof = require('./PatentProof');
@@ -211,6 +213,17 @@ InternalResearchFaculty.belongsTo(InternalResearchProject, { foreignKey: 'projec
 InternalResearchFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
 Faculty.hasMany(InternalResearchFaculty, { foreignKey: 'facultyId', as: 'internalResearchAssociations' });
 
+// Achievements -> Awards & E-Contents
+User.hasMany(Award, { foreignKey: 'createdBy', as: 'awards' });
+Award.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+Award.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+Faculty.hasMany(Award, { foreignKey: 'facultyId', as: 'awards' });
+
+User.hasMany(EContent, { foreignKey: 'createdBy', as: 'eContents' });
+EContent.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+EContent.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+Faculty.hasMany(EContent, { foreignKey: 'facultyId', as: 'eContents' });
+
 // System Administration V2.0 Associations
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'assignedRole' });
@@ -227,6 +240,8 @@ FormField.belongsTo(FormDefinition, { foreignKey: 'formId', as: 'form' });
 module.exports = {
   User,
   Achievement,
+  Award,
+  EContent,
   Publication,
   PublicationFaculty,
   CitationImportBatch,

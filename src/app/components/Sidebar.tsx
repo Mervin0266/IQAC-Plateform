@@ -16,6 +16,9 @@ import {
   FlaskConical,
   Building2,
   Settings,
+  Trophy,
+  Award,
+  Video,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
@@ -96,6 +99,15 @@ export function Sidebar({
                 ],
               },
               { label: 'Placements & Internships', key: 'placements-internships', icon: Briefcase },
+            ],
+          },
+          {
+            icon: Trophy,
+            label: 'Achievements',
+            key: 'achievements',
+            children: [
+              { label: 'Awards', key: 'awards', icon: Award },
+              { label: 'E-Contents', key: 'e-contents', icon: Video },
             ],
           },
         ],

@@ -10,6 +10,8 @@ import { hasPageAccess } from './config/permissions';
 // This reduces the initial bundle from ~1,655 KB to ~400 KB.
 const DashboardPage = React.lazy(() => import('./components/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const AchievementsPage = React.lazy(() => import('./components/AchievementsPage').then(m => ({ default: m.AchievementsPage })));
+const AwardsPage = React.lazy(() => import('./components/AwardsPage').then(m => ({ default: m.AwardsPage })));
+const EContentsPage = React.lazy(() => import('./components/EContentsPage').then(m => ({ default: m.EContentsPage })));
 const CourseFilesPage = React.lazy(() => import('./components/CourseFilesPage').then(m => ({ default: m.CourseFilesPage })));
 const PlaceholderPage = React.lazy(() => import('./components/PlaceholderPage').then(m => ({ default: m.PlaceholderPage })));
 const StrategicPlanPage = React.lazy(() => import('./components/StrategicPlanPage').then(m => ({ default: m.StrategicPlanPage })));
@@ -133,6 +135,10 @@ function AppContent() {
         return <DepartmentalActivitiesPage onNavigate={setCurrentPage} />;
       case 'achievements':
         return <AchievementsPage onNavigate={setCurrentPage} />;
+      case 'awards':
+        return <AwardsPage onNavigate={setCurrentPage} />;
+      case 'e-contents':
+        return <EContentsPage onNavigate={setCurrentPage} />;
       case 'course-files':
         return <CourseFilesPage onNavigate={setCurrentPage} />;
       case 'ranking':
