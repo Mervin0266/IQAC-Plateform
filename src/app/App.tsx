@@ -26,7 +26,7 @@ const IndustryConnectsPage = React.lazy(() => import('./components/IndustryConne
 const InternationalInteractionsPage = React.lazy(() => import('./components/InternationalInteractionsPage').then(m => ({ default: m.InternationalInteractionsPage })));
 const CentreExcellencePage = React.lazy(() => import('./components/CentreExcellencePage').then(m => ({ default: m.CentreExcellencePage })));
 const InfrastructureFacilitiesPage = React.lazy(() => import('./components/InfrastructureFacilitiesPage').then(m => ({ default: m.InfrastructureFacilitiesPage })));
-const PlacementsInternshipsPage = React.lazy(() => import('./components/PlacementsInternshipsPage').then(m => ({ default: m.PlacementsInternshipsPage })));
+const CareerOutcomesPage = React.lazy(() => import('./components/CareerOutcomesPage').then(m => ({ default: m.CareerOutcomesPage })));
 const StudentDetailsPage = React.lazy(() => import('./components/StudentDetailsPage').then(m => ({ default: m.StudentDetailsPage })));
 const FacultyDetailsPage = React.lazy(() => import('./components/FacultyDetailsPage').then(m => ({ default: m.FacultyDetailsPage })));
 const DepartmentDetailsPage = React.lazy(() => import('./components/DepartmentDetailsPage').then(m => ({ default: m.DepartmentDetailsPage })));
@@ -161,7 +161,9 @@ function AppContent() {
       case 'infrastructure-facilities':
         return <InfrastructureFacilitiesPage onNavigate={setCurrentPage} />;
       case 'placements-internships':
-        return <PlacementsInternshipsPage onNavigate={setCurrentPage} />;
+      case 'internships':
+      case 'alumni':
+        return <CareerOutcomesPage page={currentPage} onNavigate={setCurrentPage} />;
       case 'strategic-plan':
         return <StrategicPlanPage onNavigate={setCurrentPage} />;
       case 'accreditation':

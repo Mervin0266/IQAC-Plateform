@@ -171,10 +171,26 @@ export const searchIndex: SearchItem[] = [
   {
     id: 'placements',
     title: 'Placements',
-    keywords: ['placements', 'jobs', 'internships', 'recruitment', 'careers'],
-    page: 'placements',
+    keywords: ['placements', 'jobs', 'recruitment', 'careers'],
+    page: 'placements-internships',
     category: 'Research',
-    description: 'Placement and internship records'
+    description: 'Full-time offers and graduate compensation'
+  },
+  {
+    id: 'internships',
+    title: 'Internships',
+    keywords: ['internships', 'summer internship', 'fast-track internship', 'semester 8'],
+    page: 'internships',
+    category: 'Research',
+    description: 'Summer and fast-track internship opportunities'
+  },
+  {
+    id: 'alumni',
+    title: 'Alumni',
+    keywords: ['alumni', 'mentoring', 'industry talks', 'mock interviews'],
+    page: 'alumni',
+    category: 'Research',
+    description: 'Alumni career support and events'
   },
   
   {

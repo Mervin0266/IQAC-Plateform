@@ -203,6 +203,10 @@ export function hasPageAccess(role: UserRole | string, page: string): boolean {
   const permissions = ROLE_PERMISSIONS[targetRole];
   if (!permissions) return true;
 
+  if (page === 'internships' || page === 'alumni') {
+    return permissions.pages.includes('placements-internships');
+  }
+
   // Admin and Institutional Authority have universal view access to all pages
   if (targetRole === 'admin' || targetRole === 'authority') {
     return true;

@@ -12,7 +12,7 @@ import '../../styles/section-experience.css';
 const AchievementsPage = React.lazy(() => import('./AchievementsPage').then(m => ({ default: m.AchievementsPage })));
 const ResearchInnovationPage = React.lazy(() => import('./ResearchInnovationPage').then(m => ({ default: m.ResearchInnovationPage })));
 const RankingPage = React.lazy(() => import('./RankingPage').then(m => ({ default: m.RankingPage })));
-const PlacementsInternshipsPage = React.lazy(() => import('./PlacementsInternshipsPage').then(m => ({ default: m.PlacementsInternshipsPage })));
+const CareerOutcomesPage = React.lazy(() => import('./CareerOutcomesPage').then(m => ({ default: m.CareerOutcomesPage })));
 const InfrastructureFacilitiesPage = React.lazy(() => import('./InfrastructureFacilitiesPage').then(m => ({ default: m.InfrastructureFacilitiesPage })));
 const InternationalInteractionsPage = React.lazy(() => import('./InternationalInteractionsPage').then(m => ({ default: m.InternationalInteractionsPage })));
 const CentreExcellencePage = React.lazy(() => import('./CentreExcellencePage').then(m => ({ default: m.CentreExcellencePage })));
@@ -64,7 +64,9 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
       case 'rankings':
         return <RankingPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'placements-internships':
-        return <PlacementsInternshipsPage onNavigate={navigate} isPublicView={true} hideSidebar />;
+      case 'internships':
+      case 'alumni':
+        return <CareerOutcomesPage page={currentSection} onNavigate={navigate} isPublic />;
       case 'infrastructure':
         return <InfrastructureFacilitiesPage onNavigate={setCurrentSection} isPublicView={true} />;
       case 'international-interactions':

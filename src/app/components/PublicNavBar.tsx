@@ -4,7 +4,7 @@ import christLogo from '../../assets/logo.png';
 const links = [
   ['Home', 'home'], ['About IQAC', '#quality'], ['Resources', '#resources'], ['Institutional profile', '#institution'],
 ];
-const more = [['Achievements', 'achievements'], ['Research', 'research-innovation'], ['Rankings', 'rankings'], ['Placements', 'placements-internships'], ['Infrastructure', 'infrastructure'], ['International', 'international-interactions'], ['Centres of excellence', 'centre-excellence'], ['Incubations', 'incubations'], ['Industry connects', 'industry-connects'], ['Consultancy', 'consultancy-projects']];
+const more = [['Achievements', 'achievements'], ['Research', 'research-innovation'], ['Rankings', 'rankings'], ['Placements', 'placements-internships'], ['Internships', 'internships'], ['Alumni', 'alumni'], ['Infrastructure', 'infrastructure'], ['International', 'international-interactions'], ['Centres of excellence', 'centre-excellence'], ['Incubations', 'incubations'], ['Industry connects', 'industry-connects'], ['Consultancy', 'consultancy-projects']];
 export function PublicNavBar({ currentSection, onNavigate, onLoginClick }: { currentSection: string; onNavigate: (section: string) => void; onLoginClick?: () => void }) {
   const [open, setOpen] = useState(false);
   const details = useRef<HTMLDetailsElement>(null);
