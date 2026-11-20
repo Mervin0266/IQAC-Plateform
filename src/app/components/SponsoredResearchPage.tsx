@@ -20,6 +20,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { AppShell, PageHeader, StatCard } from './design-system';
+import { useExchangeRate, formatRawInrWithUsd } from '../hooks/useExchangeRate';
+import { ExchangeRateConfigDialog } from './ExchangeRateConfigDialog';
 import { calculateProjectDuration } from '../utils/projectDurationHelper';
 
 export interface SponsoredDocumentItem {
@@ -239,6 +241,8 @@ export function SponsoredResearchPage({
   // Clear All Modal
   const [isClearOpen, setIsClearOpen] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
+  const { rate } = useExchangeRate();
+  const [showFxDialog, setShowFxDialog] = useState(false);
 
   // Hierarchy departments
   const { departmentList } = useAcademicHierarchy();
@@ -811,6 +815,16 @@ export function SponsoredResearchPage({
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => setShowFxDialog(true)}
+                  className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-mono h-9 px-3 rounded-xl shadow-xs gap-1.5"
+                  title="Click to view or configure USD conversion rate"
+                >
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>1 USD = ₹{Number(rate).toFixed(2)}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => {
                     setBulkFile(null);
                     setBulkPreview(null);
@@ -849,12 +863,14 @@ export function SponsoredResearchPage({
         <StatCard
           title="Sanctioned Amount"
           value={formatINR(stats?.totalSanctionedAmount || 0)}
+          badge={formatRawInrWithUsd(stats?.totalSanctionedAmount || 0, rate).usd}
           subtitle="Total sanctioned funding"
           icon={DollarSign}
         />
         <StatCard
           title="Funds Received"
           value={formatINR(stats?.totalFundsReceived || 0)}
+          badge={formatRawInrWithUsd(stats?.totalFundsReceived || 0, rate).usd}
           subtitle="Disbursed grant funds"
           icon={Receipt}
         />
@@ -1847,6 +1863,12 @@ export function SponsoredResearchPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* USD / INR Exchange Rate Configuration Dialog */}
+      <ExchangeRateConfigDialog
+        isOpen={showFxDialog}
+        onClose={() => setShowFxDialog(false)}
+      />
     </div>
   );
 

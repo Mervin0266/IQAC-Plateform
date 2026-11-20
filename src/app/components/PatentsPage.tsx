@@ -19,6 +19,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { AppShell, PageHeader, StatCard } from './design-system';
+import { useExchangeRate, formatRawInrWithUsd } from '../hooks/useExchangeRate';
+import { ExchangeRateConfigDialog } from './ExchangeRateConfigDialog';
 
 export interface PatentProofItem {
   id: string;
@@ -234,6 +236,7 @@ export function PatentsPage({
   const [selectedValidationFilter, setSelectedValidationFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const { rate } = useExchangeRate();
 
   // Data & Loading
   const [patents, setPatents] = useState<PatentItem[]>([]);
@@ -972,6 +975,7 @@ export function PatentsPage({
         <StatCard
           title="Revenue Generated"
           value={`₹${(metrics.totalRevenue || 0).toLocaleString('en-IN')}`}
+          badge={formatRawInrWithUsd(metrics.totalRevenue || 0, rate).usd}
           subtitle="Total commercial royalties / revenue"
           icon={DollarSign}
         />

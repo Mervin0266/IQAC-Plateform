@@ -2,10 +2,11 @@ import React, { useState, Suspense } from 'react';
 import { PublicNavBar } from './PublicNavBar';
 import { PublicFooter } from './PublicFooter';
 import { PublicHomePage } from './PublicHomePage';
+import '../../styles/public-website.css';
+import '../../styles/homepage-motion.css';
 
 // ── Lazy-loaded public pages ─────────────────────────────────────
-// These were previously statically imported, preventing code-splitting
-// of AchievementsPage, RankingPage, etc. from App.tsx lazy imports.
+// These are code-split for performance so public users only load what they visit.
 const AchievementsPage = React.lazy(() => import('./AchievementsPage').then(m => ({ default: m.AchievementsPage })));
 const ResearchInnovationPage = React.lazy(() => import('./ResearchInnovationPage').then(m => ({ default: m.ResearchInnovationPage })));
 const RankingPage = React.lazy(() => import('./RankingPage').then(m => ({ default: m.RankingPage })));
@@ -36,48 +37,67 @@ interface PublicWebsiteProps {
 export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
   const [currentSection, setCurrentSection] = useState('home');
 
+  const navigate = (section: string) => {
+    if (section.startsWith('#')) {
+      setCurrentSection('home');
+      requestAnimationFrame(() => {
+        const destination = document.getElementById(section.slice(1));
+        destination?.focus({ preventScroll: true });
+        destination?.scrollIntoView({
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'
+        });
+      });
+      return;
+    }
+    setCurrentSection(section);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    requestAnimationFrame(() => document.getElementById('public-content')?.focus());
+  };
+
   const renderContent = () => {
     switch (currentSection) {
       case 'home':
-        return <PublicHomePage onNavigate={setCurrentSection} />;
+        return <PublicHomePage onNavigate={navigate} onLoginClick={onLoginClick} />;
       case 'achievements':
-        return <AchievementsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <AchievementsPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'research-innovation':
-        return <ResearchInnovationPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <ResearchInnovationPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'rankings':
-        return <RankingPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <RankingPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'placements-internships':
-        return <PlacementsInternshipsPage onNavigate={setCurrentSection} isPublicView={true} />;
+      case 'internships':
+      case 'alumni':
+        return <PlacementsInternshipsPage onNavigate={navigate} isPublicView={true} />;
       case 'infrastructure':
-        return <InfrastructureFacilitiesPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <InfrastructureFacilitiesPage onNavigate={navigate} isPublicView={true} />;
       case 'international-interactions':
-        return <InternationalInteractionsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <InternationalInteractionsPage onNavigate={navigate} isPublicView={true} />;
       case 'centre-excellence':
-        return <CentreExcellencePage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <CentreExcellencePage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'incubations':
-        return <IncubationsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <IncubationsPage onNavigate={navigate} isPublicView={true} />;
       case 'industry-connects':
-        return <IndustryConnectsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <IndustryConnectsPage onNavigate={navigate} isPublicView={true} />;
       case 'consultancy-projects':
-        return <ConsultancyProjectsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <ConsultancyProjectsPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       default:
-        return <PublicHomePage onNavigate={setCurrentSection} />;
+        return <PublicHomePage onNavigate={navigate} onLoginClick={onLoginClick} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="iq-site min-h-screen bg-gray-50 flex flex-col">
       <PublicNavBar 
         currentSection={currentSection} 
-        onNavigate={setCurrentSection} 
+        onNavigate={navigate}
         onLoginClick={onLoginClick}
       />
-      <main className="flex-1">
+      <main id="public-content" tabIndex={-1} className={currentSection === 'home' ? 'flex-1' : 'flex-1 iq-public-section'} key={currentSection}>
         <Suspense fallback={<PublicPageLoading />}>
           {renderContent()}
         </Suspense>
       </main>
-      <PublicFooter onLoginClick={onLoginClick} />
+      <PublicFooter onLoginClick={onLoginClick} onNavigate={navigate} />
     </div>
   );
 }

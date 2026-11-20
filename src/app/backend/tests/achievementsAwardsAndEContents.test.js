@@ -241,10 +241,11 @@ async function runTests() {
         recognisedAgencyType: 'National',
         recognisingAgencyName: 'National Academy'
       },
-      // Row 3: Invalid / Non-existent EmpID (must be skipped)
+      // Row 3: EmpID not found in Faculty Management (now accepted and designated as Guest Faculty)
       {
         employeeId: 'NON_EXISTENT_FACULTY_EMP_999999',
-        nameOfRecognition: 'Invalid EmpID Award',
+        nameOfRecognition: `Guest Faculty Award ${Date.now()}`,
+        facultyName: 'Dr. External Visitor',
         dateOfRecognition: '2025-06-15',
         recognisedAgencyType: 'International',
         recognisingAgencyName: 'Global Society'
@@ -266,23 +267,25 @@ async function runTests() {
     await awardsController.validateBulkAwards({ ...mockAdminReq, body: { rows: bulkAwardRows } }, resValAwards);
     assert.strictEqual(resValAwards.statusCode, 200);
     assert.strictEqual(resValAwards.data.summary.totalRows, 4);
-    assert.strictEqual(resValAwards.data.summary.readyCount, 2, '2 rows should be ready');
-    assert.strictEqual(resValAwards.data.summary.missingEmpIdCount + resValAwards.data.summary.notFoundEmpIdCount, 2, '2 rows should be flagged');
-    console.log(`✓ Bulk Awards Validation passed: Total=4, Ready=2, Flagged=2`);
+    assert.strictEqual(resValAwards.data.summary.readyCount, 3, '3 rows should be ready (including Guest Faculty)');
+    assert.strictEqual(resValAwards.data.summary.missingEmpIdCount, 1, '1 row flagged for missing EmpID');
+    const guestAwardRow = resValAwards.data.rows.find(r => r.employeeId === 'NON_EXISTENT_FACULTY_EMP_999999');
+    assert.strictEqual(guestAwardRow.designation, 'Guest Faculty');
+    assert.strictEqual(guestAwardRow.isGuestFaculty, true);
+    console.log(`✓ Bulk Awards Validation passed: Total=4, Ready=3 (includes Guest Faculty), Flagged=1 (missing EmpID)`);
 
     // Import endpoint
     const resImpAwards = createMockRes();
     await awardsController.bulkImportAwards({ ...mockAdminReq, body: { rows: resValAwards.data.rows } }, resImpAwards);
     assert.strictEqual(resImpAwards.statusCode, 200);
-    assert.strictEqual(resImpAwards.data.summary.importedCount, 2, '2 valid rows should be imported');
+    assert.strictEqual(resImpAwards.data.summary.importedCount, 3, '3 rows should be imported');
     assert.strictEqual(resImpAwards.data.summary.skippedMissingEmpId, 1, '1 row skipped for missing EmpID');
-    assert(resImpAwards.data.summary.skippedInvalidEmpId >= 0, 'skippedInvalidEmpId tracked');
-    console.log('✓ Bulk Awards Import accurately imported 2 records and skipped 2 invalid records with proper category reasons.');
+    console.log('✓ Bulk Awards Import accurately imported 3 records (including Guest Faculty) and skipped 1 missing EmpID row.');
 
     // Clean up imported awards
     await Award.destroy({
       where: {
-        nameOfRecognition: [bulkAwardRows[0].nameOfRecognition, bulkAwardRows[3].nameOfRecognition]
+        employeeId: [testEmpId, 'NON_EXISTENT_FACULTY_EMP_999999']
       }
     });
     console.log('✓ Bulk test awards cleaned up.');
@@ -308,10 +311,11 @@ async function runTests() {
         url: 'https://youtube.com/watch?v=123',
         contentType: 'MULTIPLE_MODULE'
       },
-      // Row 3: Non-existent EmpID
+      // Row 3: EmpID not found in Faculty Management (now accepted and designated as Guest Faculty)
       {
         employeeId: 'UNKNOWN_EMP_777777',
-        title: 'Unfound Faculty E-Content',
+        facultyName: 'Dr. Visiting Scholar',
+        title: `Guest Faculty E-Content ${Date.now()}`,
         eContentPlatform: 'Institutional LMS / Moodle',
         publicationDate: '2025-04-01',
         url: 'https://lms.christ.in/1',
@@ -333,23 +337,25 @@ async function runTests() {
     await eContentsController.validateBulkEContents({ ...mockAdminReq, body: { rows: bulkEconRows } }, resValEcon);
     assert.strictEqual(resValEcon.statusCode, 200);
     assert.strictEqual(resValEcon.data.summary.totalRows, 4);
-    assert.strictEqual(resValEcon.data.summary.readyCount, 2, '2 e-contents should be ready');
-    assert.strictEqual(resValEcon.data.summary.missingEmpIdCount + resValEcon.data.summary.notFoundEmpIdCount, 2, '2 e-contents flagged');
-    console.log(`✓ Bulk E-Contents Validation passed: Total=4, Ready=2, Flagged=2`);
+    assert.strictEqual(resValEcon.data.summary.readyCount, 3, '3 e-contents should be ready (including Guest Faculty)');
+    assert.strictEqual(resValEcon.data.summary.missingEmpIdCount, 1, '1 e-content flagged for missing EmpID');
+    const guestEconRow = resValEcon.data.rows.find(r => r.employeeId === 'UNKNOWN_EMP_777777');
+    assert.strictEqual(guestEconRow.designation, 'Guest Faculty');
+    assert.strictEqual(guestEconRow.isGuestFaculty, true);
+    console.log(`✓ Bulk E-Contents Validation passed: Total=4, Ready=3 (includes Guest Faculty), Flagged=1 (missing EmpID)`);
 
     // Import endpoint
     const resImpEcon = createMockRes();
     await eContentsController.bulkImportEContents({ ...mockAdminReq, body: { rows: resValEcon.data.rows } }, resImpEcon);
     assert.strictEqual(resImpEcon.statusCode, 200);
-    assert.strictEqual(resImpEcon.data.summary.importedCount, 2, '2 valid e-contents imported');
+    assert.strictEqual(resImpEcon.data.summary.importedCount, 3, '3 e-contents imported');
     assert.strictEqual(resImpEcon.data.summary.skippedMissingEmpId, 1, '1 row skipped for missing EmpID');
-    assert(resImpEcon.data.summary.skippedInvalidEmpId >= 0, 'skippedInvalidEmpId tracked');
-    console.log('✓ Bulk E-Contents Import accurately imported 2 records and skipped 2 invalid records with proper category reasons.');
+    console.log('✓ Bulk E-Contents Import accurately imported 3 records (including Guest Faculty) and skipped 1 missing EmpID row.');
 
     // Clean up imported e-contents
     await EContent.destroy({
       where: {
-        title: [bulkEconRows[0].title, bulkEconRows[3].title]
+        employeeId: [testEmpId, 'UNKNOWN_EMP_777777']
       }
     });
     console.log('✓ Bulk test e-contents cleaned up.');

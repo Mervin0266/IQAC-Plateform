@@ -465,10 +465,11 @@ exports.createCopyright = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Title is required.' });
     }
 
-    const parsedEmp = parseAndNormalizeEmpIds(bodyEmpIds !== undefined ? bodyEmpIds : empIdsRaw);
-    if (parsedEmp.empIds.length === 0) {
+    const contributorsInput = req.body.contributors || (bodyEmpIds !== undefined ? bodyEmpIds : empIdsRaw);
+    const parsedEmp = parseAndNormalizeEmpIds(contributorsInput);
+    if (!req.body.contributors && parsedEmp.empIds.length === 0) {
       await t.rollback();
-      return res.status(400).json({ success: false, message: 'At least one Employee ID (EmpId) is required.' });
+      return res.status(400).json({ success: false, message: 'At least one Contributor or Employee ID (EmpId) is required.' });
     }
 
     const isoAppDate = sanitizeDateNoShift(dateOfApplication);
@@ -477,6 +478,22 @@ exports.createCopyright = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Valid Date of Application is required.' });
     }
     const calendarYear = deriveCalendarYear(isoAppDate);
+
+    // Resolve contributors / EmpIDs
+    const resolved = await resolveFacultyAssociationsForEmpIds(
+      Array.isArray(req.body.contributors) ? req.body.contributors : parsedEmp.empIds,
+      isoAppDate,
+      { Faculty, User, UserDepartmentHistory }
+    );
+
+    if (resolved.hasInvalidContributors || resolved.hasInvalidEmpIds) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `Validation Error: Unrecognized EmpID(s) found: ${resolved.invalidEmpIds.join(', ')}. Please verify the EmpIDs or register as Guest Faculty without an EmpID.`,
+        invalidEmpIds: resolved.invalidEmpIds
+      });
+    }
 
     let isoReceiptDate = null;
     if (!isBlankDateValue(dateOfReceipt)) {
@@ -525,13 +542,6 @@ exports.createCopyright = async (req, res) => {
         message: 'A copyright record with matching Title, Date of Application, and associated Employee IDs already exists.'
       });
     }
-
-    // 3. Resolve Faculty associations & immutable historical/creation department snapshots
-    const resolved = await resolveFacultyAssociationsForEmpIds(
-      parsedEmp.empIds,
-      isoAppDate,
-      { Faculty, User, UserDepartmentHistory }
-    );
 
     // Scope enforcement for non-university-wide users (must include at least one valid faculty from their dept unless admin)
     const userScope = await resolveUserDeptScope(req.user);
@@ -584,7 +594,20 @@ exports.createCopyright = async (req, res) => {
     }, { transaction: t });
 
     await CopyrightFaculty.bulkCreate(
-      resolved.associations.map(a => ({ ...a, copyrightId: created.id })),
+      resolved.associations.map(a => ({
+        copyrightId: created.id,
+        facultyId: a.facultyId,
+        employeeId: a.employeeId,
+        normalizedEmployeeId: a.normalizedEmployeeId,
+        facultyName: a.facultyName,
+        designation: a.designation,
+        originalDepartment: a.originalDepartment,
+        originalDepartmentSource: a.originalDepartmentSource,
+        isValid: a.isValid,
+        displayOrder: a.displayOrder,
+        isGuestFaculty: Boolean(a.isGuestFaculty),
+        facultyType: a.facultyType || (a.isGuestFaculty ? 'Guest Faculty' : 'Faculty')
+      })),
       { transaction: t }
     );
 
@@ -690,13 +713,12 @@ exports.updateCopyright = async (req, res) => {
       }
     }
 
-    const parsedEmp = (bodyEmpIds !== undefined || empIdsRaw !== undefined)
-      ? parseAndNormalizeEmpIds(bodyEmpIds !== undefined ? bodyEmpIds : empIdsRaw)
-      : parseAndNormalizeEmpIds(existing.empIdsRaw);
+    const contributorsInput = req.body.contributors || (bodyEmpIds !== undefined ? bodyEmpIds : (empIdsRaw !== undefined ? empIdsRaw : existing.empIdsRaw));
+    const parsedEmp = parseAndNormalizeEmpIds(contributorsInput);
 
-    if (parsedEmp.empIds.length === 0) {
+    if (!req.body.contributors && parsedEmp.empIds.length === 0) {
       await t.rollback();
-      return res.status(400).json({ success: false, message: 'At least one Employee ID (EmpId) is required.' });
+      return res.status(400).json({ success: false, message: 'At least one Contributor or Employee ID (EmpId) is required.' });
     }
 
     // Preserve immutable originalDepartment snapshots for continuing valid associations!
@@ -706,10 +728,19 @@ exports.updateCopyright = async (req, res) => {
     });
 
     const freshResolved = await resolveFacultyAssociationsForEmpIds(
-      parsedEmp.empIds,
+      Array.isArray(req.body.contributors) ? req.body.contributors : parsedEmp.empIds,
       isoAppDate,
       { Faculty, User, UserDepartmentHistory }
     );
+
+    if (freshResolved.hasInvalidContributors || freshResolved.hasInvalidEmpIds) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `Validation Error: Unrecognized EmpID(s) found: ${freshResolved.invalidEmpIds.join(', ')}. Please verify the EmpIDs or register as Guest Faculty without an EmpID.`,
+        invalidEmpIds: freshResolved.invalidEmpIds
+      });
+    }
 
     const mergedAssociations = freshResolved.associations.map(assoc => {
       const prior = prevAssocByNormKey.get(assoc.normalizedEmployeeId);
@@ -777,7 +808,20 @@ exports.updateCopyright = async (req, res) => {
 
     await CopyrightFaculty.destroy({ where: { copyrightId: existing.id }, transaction: t });
     await CopyrightFaculty.bulkCreate(
-      mergedAssociations.map(a => ({ ...a, copyrightId: existing.id })),
+      mergedAssociations.map(a => ({
+        copyrightId: existing.id,
+        facultyId: a.facultyId,
+        employeeId: a.employeeId,
+        normalizedEmployeeId: a.normalizedEmployeeId,
+        facultyName: a.facultyName,
+        designation: a.designation,
+        originalDepartment: a.originalDepartment,
+        originalDepartmentSource: a.originalDepartmentSource,
+        isValid: a.isValid,
+        displayOrder: a.displayOrder,
+        isGuestFaculty: Boolean(a.isGuestFaculty),
+        facultyType: a.facultyType || (a.isGuestFaculty ? 'Guest Faculty' : 'Faculty')
+      })),
       { transaction: t }
     );
 
@@ -1522,7 +1566,20 @@ exports.importBulkUpload = async (req, res) => {
       }, { transaction: t });
 
       await CopyrightFaculty.bulkCreate(
-        n.associations.map(a => ({ ...a, copyrightId: created.id })),
+        n.associations.map(a => ({
+          copyrightId: created.id,
+          facultyId: a.facultyId,
+          employeeId: a.employeeId,
+          normalizedEmployeeId: a.normalizedEmployeeId,
+          facultyName: a.facultyName,
+          designation: a.designation,
+          originalDepartment: a.originalDepartment,
+          originalDepartmentSource: a.originalDepartmentSource,
+          isValid: a.isValid,
+          displayOrder: a.displayOrder,
+          isGuestFaculty: Boolean(a.isGuestFaculty),
+          facultyType: a.facultyType || (a.isGuestFaculty ? 'Guest Faculty' : 'Faculty')
+        })),
         { transaction: t }
       );
 

@@ -27,6 +27,10 @@ const Placement = sequelize.define('Placement', {
     type: DataTypes.STRING,
     allowNull: false
   },
+  academicYear: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   company: {
     type: DataTypes.STRING,
     allowNull: false

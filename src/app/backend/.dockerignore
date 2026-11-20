@@ -1,0 +1,30 @@
+# Dependencies and local caches
+node_modules
+.npm
+.pnpm-store
+
+# Environment files and credentials (CRITICAL: Never embed in image)
+.env
+.env.*
+*.env
+
+# Git version control
+.git
+.gitignore
+
+# Local IDE and editor configurations
+.vscode
+.idea
+
+# Logs and debugging
+*.log
+npm-debug.log*
+
+# Test files and artifacts
+tests/
+*.test.js
+*.spec.js
+coverage/
+
+# Documentation
+*.md

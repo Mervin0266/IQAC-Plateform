@@ -169,7 +169,8 @@ exports.getPublications = async (req, res) => {
       year,
       department,
       status,
-      search
+      search,
+      quartile
     } = req.query;
 
     const where = {};
@@ -179,6 +180,19 @@ exports.getPublications = async (req, res) => {
       where.journalType = {
         [Op.iLike]: `%${journalType.trim()}%`
       };
+    }
+
+    if (quartile && quartile !== 'all') {
+      const qClean = quartile.trim();
+      if (qClean.toLowerCase() === 'unavailable' || qClean.toLowerCase() === 'none') {
+        where[Op.or] = [
+          { quartile: null },
+          { quartile: '' },
+          { quartileStatus: { [Op.in]: ['Not Indexed', 'Not Available', 'Lookup Failed', 'Verification Required', 'Pending'] } }
+        ];
+      } else {
+        where.quartile = qClean.toUpperCase();
+      }
     }
 
     if (selectedYear && selectedYear !== 'all') {
@@ -305,7 +319,17 @@ exports.getPublicationStats = async (req, res) => {
       where.department = { [Op.iLike]: `%${department}%` };
     }
 
-    const allPubs = await Publication.findAll({ where });
+    const allPubs = await Publication.findAll({
+      where,
+      include: [
+        {
+          model: PublicationFaculty,
+          as: 'facultyAssociations',
+          attributes: ['department'],
+          required: false
+        }
+      ]
+    });
 
     let scopusCount = 0;
     let wosCount = 0;
@@ -315,8 +339,48 @@ exports.getPublicationStats = async (req, res) => {
 
     const departmentBreakdown = {};
     const yearBreakdown = {};
+    const quartileDistribution = {
+      Q1: 0,
+      Q2: 0,
+      Q3: 0,
+      Q4: 0,
+      Unavailable: 0
+    };
+    const quartileDepartmentBreakdown = {
+      Q1: {},
+      Q2: {},
+      Q3: {},
+      Q4: {},
+      Unavailable: {}
+    };
 
     allPubs.forEach(p => {
+      // Scopus CiteScore Quartile distribution
+      const q = (p.quartile || '').toUpperCase().trim();
+      const normQ = ['Q1', 'Q2', 'Q3', 'Q4'].includes(q) ? q : 'Unavailable';
+      if (normQ === 'Q1') quartileDistribution.Q1++;
+      else if (normQ === 'Q2') quartileDistribution.Q2++;
+      else if (normQ === 'Q3') quartileDistribution.Q3++;
+      else if (normQ === 'Q4') quartileDistribution.Q4++;
+      else quartileDistribution.Unavailable++;
+
+      // Department-wise quartile attribution (multi-department co-authored papers count once per contributing department)
+      const qDepts = new Set();
+      if (Array.isArray(p.facultyAssociations) && p.facultyAssociations.length > 0) {
+        p.facultyAssociations.forEach(fa => {
+          const d = (fa.department || '').trim();
+          if (d) qDepts.add(d);
+        });
+      }
+      if (qDepts.size === 0) {
+        const d = (p.department || '').trim();
+        if (d) qDepts.add(d);
+        else qDepts.add('Unassigned');
+      }
+      qDepts.forEach(dept => {
+        quartileDepartmentBreakdown[normQ][dept] = (quartileDepartmentBreakdown[normQ][dept] || 0) + 1;
+      });
+
       const type = (p.journalType || '').toLowerCase();
       const isScopus = type.includes('scopus');
       const isWos = type.includes('wos') || type.includes('web of science');
@@ -356,7 +420,9 @@ exports.getPublicationStats = async (req, res) => {
         other: otherCount,
         totalCitations,
         departmentBreakdown,
-        yearBreakdown
+        yearBreakdown,
+        quartileDistribution,
+        quartileDepartmentBreakdown
       }
     });
   } catch (error) {
@@ -603,6 +669,17 @@ exports.createPublication = async (req, res) => {
       req
     );
 
+    // Asynchronously enrich with Scopus CiteScore Quartile and Citations (Non-blocking)
+    setImmediate(async () => {
+      try {
+        const { enrichPublicationQuartile, retrievePublicationCitations } = require('../services/scopusService');
+        await enrichPublicationQuartile(publication.id);
+        await retrievePublicationCitations(publication.id);
+      } catch (err) {
+        console.warn(`[ScopusEnrichment] Async error on create for ${publication.id}:`, err.message);
+      }
+    });
+
     res.status(201).json({
       success: true,
       message: 'Publication recorded successfully',
@@ -701,6 +778,17 @@ exports.updatePublication = async (req, res) => {
       req
     );
 
+    // Asynchronously enrich with Scopus CiteScore Quartile and Citations (Non-blocking)
+    setImmediate(async () => {
+      try {
+        const { enrichPublicationQuartile, retrievePublicationCitations } = require('../services/scopusService');
+        await enrichPublicationQuartile(publication.id);
+        await retrievePublicationCitations(publication.id);
+      } catch (err) {
+        console.warn(`[ScopusEnrichment] Async error on update for ${publication.id}:`, err.message);
+      }
+    });
+
     res.json({
       success: true,
       message: 'Publication updated successfully',
@@ -759,6 +847,35 @@ exports.deletePublication = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete publication',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Refresh Scopus CiteScore Quartile for a single publication
+// @route   POST /api/publications/:id/refresh-quartile
+// @access  Private (Admin, HOD, Coordinator, Faculty)
+exports.refreshQuartile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const publication = await Publication.findByPk(id);
+    if (!publication) {
+      return res.status(404).json({ success: false, message: 'Publication not found.' });
+    }
+
+    const { enrichPublicationQuartile } = require('../services/scopusService');
+    const enriched = await enrichPublicationQuartile(publication.id);
+
+    res.json({
+      success: true,
+      message: 'Scopus CiteScore Quartile lookup completed.',
+      data: enriched || publication
+    });
+  } catch (error) {
+    console.error('Refresh quartile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to refresh Scopus CiteScore Quartile.',
       error: error.message
     });
   }
@@ -1170,6 +1287,26 @@ exports.bulkUploadPublications = async (req, res) => {
             department: effectiveDept
           });
 
+          // Safely update existing publication metadata if new valid non-empty fields are supplied
+          if (existingPub) {
+            const updates = {};
+            if (!existingPub.doi && cleanDoi) updates.doi = cleanDoi;
+            if (!existingPub.issn && cleanIssn) updates.issn = cleanIssn;
+            if (!existingPub.publisher && cleanPublisher) updates.publisher = cleanPublisher;
+            if (!existingPub.paperUrl && cleanLink) updates.paperUrl = cleanLink;
+            if (!existingPub.authorFullNames && cleanFullNames) updates.authorFullNames = cleanFullNames;
+            if (!existingPub.volume && rawVolume) updates.volume = sanitizeStringField(rawVolume);
+            if (!existingPub.issue && rawIssue) updates.issue = sanitizeStringField(rawIssue);
+            if (!existingPub.pageNumber && rawPageNumber) updates.pageNumber = sanitizeStringField(rawPageNumber);
+            if ((existingPub.citationCount === null || existingPub.citationCount === undefined) && cleanCitations !== null) {
+              updates.citationCount = cleanCitations;
+            }
+
+            if (Object.keys(updates).length > 0) {
+              await Publication.update(updates, { where: { id: existingPub.id }, transaction: t });
+            }
+          }
+
           // Check if indexing should be merged to Scopus & WoS
           if (existingPub && normalizedType && existingPub.journalType !== normalizedType) {
             const prevType = (existingPub.journalType || '').toLowerCase();
@@ -1311,6 +1448,39 @@ exports.bulkUploadPublications = async (req, res) => {
       console.warn('Audit logging warning during bulk publications upload:', auditErr.message);
     }
 
+    // Asynchronously enrich with Scopus CiteScore Quartile, Citations, and Centralized Journal Metrics (Non-blocking)
+    if (created && created.length > 0) {
+      setImmediate(async () => {
+        try {
+          const { enrichPublicationQuartile, retrievePublicationCitations, retrieveJournalMetrics } = require('../services/scopusService');
+          for (const pub of created) {
+            try {
+              if (pub.journalName || pub.issn) {
+                const jRes = await retrieveJournalMetrics({
+                  issn: pub.issn,
+                  journalTitle: pub.journalName
+                });
+                if (jRes && jRes.scopusSourceId && !pub.scopusSourceId) {
+                  await Publication.update(
+                    { scopusSourceId: jRes.scopusSourceId },
+                    { where: { id: pub.id } }
+                  );
+                }
+              }
+              await enrichPublicationQuartile(pub.id);
+              if (pub.doi || pub.title) {
+                await retrievePublicationCitations(pub.id);
+              }
+            } catch (pErr) {
+              console.warn(`[ScopusEnrichment] Async notice for pub ${pub.id}:`, pErr.message);
+            }
+          }
+        } catch (err) {
+          console.warn('[ScopusEnrichment] Async error on bulk upload:', err.message);
+        }
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: `Successfully processed publications: ${validPublicationsToCreate.length} new publication(s) created, ${existingLinked.length} faculty link(s) established.` +
@@ -1417,17 +1587,27 @@ exports.validateAndPreviewCitations = async (req, res) => {
     // Fetch existing publications in scope
     const allPubs = await Publication.findAll({
       where: pubScopeWhere,
-      attributes: ['id', 'title', 'doi', 'issn', 'publicationYear', 'academicYear', 'journalName', 'citationCount', 'department'],
+      attributes: ['id', 'title', 'doi', 'issn', 'publicationYear', 'academicYear', 'journalName', 'citationCount', 'department', 'scopusEid'],
       raw: true
     });
 
     // In-memory indexing of publications for fast multi-field matching
+    const pubByDoi = {};
+    const pubByEid = {};
     const pubByTitleIssnYear = {};
     const pubByTitleYearJournal = {};
     const pubByTitleIssn = {};
     const pubByTitle = {};
 
     for (const pub of allPubs) {
+      if (pub.doi) {
+        const cleanD = normalizeDoi(pub.doi);
+        if (cleanD) pubByDoi[cleanD.toLowerCase()] = pub;
+      }
+      if (pub.scopusEid) {
+        const cleanE = String(pub.scopusEid).trim().toLowerCase();
+        if (cleanE) pubByEid[cleanE] = pub;
+      }
       const nTitle = normTitleFn(pub.title);
       const nIssn = normIssnFn(pub.issn);
       const nYear = normYearFn(pub.publicationYear || pub.academicYear);
@@ -1560,7 +1740,27 @@ exports.validateAndPreviewCitations = async (req, res) => {
         let matchMethod = 'none';
         let candidateCount = 0;
 
-        if (nTitle) {
+        // Priority 0: Primary Match via Publication DOI
+        if (rec.doi) {
+          const cleanDoi = normalizeDoi(rec.doi);
+          if (cleanDoi && pubByDoi[cleanDoi.toLowerCase()]) {
+            matchedPub = pubByDoi[cleanDoi.toLowerCase()];
+            matchConfidence = 'high';
+            matchMethod = 'DOI (Direct Exact Match)';
+          }
+        }
+
+        // Priority 0.5: Secondary Match via Scopus EID
+        if (!matchedPub && rec.eid) {
+          const cleanEid = String(rec.eid).trim().toLowerCase();
+          if (cleanEid && pubByEid[cleanEid]) {
+            matchedPub = pubByEid[cleanEid];
+            matchConfidence = 'high';
+            matchMethod = 'Scopus EID Match';
+          }
+        }
+
+        if (!matchedPub && nTitle) {
           // Priority 1: Title + ISSN + Publication Year
           if (nIssn && nYear) {
             const key = `${nTitle}|${nIssn}|${nYear}`;
@@ -1909,6 +2109,7 @@ exports.confirmCitationsUpdate = async (req, res) => {
 
     let updatedCount = 0;
     const updatedPublicationIds = [];
+    const validPeriodRegex = /^([<>≤≥]\s*)?(19\d{2}|20\d{2})$/;
 
     for (const update of confirmedUpdates) {
       if (!update.publicationId) continue;
@@ -1919,57 +2120,119 @@ exports.confirmCitationsUpdate = async (req, res) => {
       }
 
       const previousTotal = (pub.citationCount !== null && pub.citationCount !== undefined) ? pub.citationCount : null;
-      const reportedTotal = parseInt(update.importedTotal ?? update.reportedTotal, 10);
-      if (isNaN(reportedTotal) || reportedTotal < 0) {
-        continue;
-      }
-
       const batchId = (update.sourceFile && batchMap[update.sourceFile]) ? batchMap[update.sourceFile] : null;
 
-      // Idempotency check: see if identical snapshot was already saved
-      const existingSnapshot = await PublicationCitationSnapshot.findOne({
-        where: {
-          publicationId: pub.id,
-          reportedTotal,
-          sourceFile: update.sourceFile || 'unknown'
-        },
+      // Absolute Count Rule (Part E Section 15):
+      // Each upload provides the latest absolute citation count per year (NOT an incremental delta to be added).
+      // Retrieve the latest existing snapshot to preserve omitted years and record previous values.
+      const prevSnapshot = await PublicationCitationSnapshot.findOne({
+        where: { publicationId: pub.id },
+        include: [{ model: CitationYearlyDetail, as: 'yearlyDetails' }],
+        order: [['createdAt', 'DESC']],
         transaction: t
       });
 
-      let snapshotId;
-      if (!existingSnapshot) {
-        const snapshot = await PublicationCitationSnapshot.create({
-          publicationId: pub.id,
-          importBatchId: batchId,
-          sourceFile: update.sourceFile || 'unknown',
-          employeeId: update.employeeId || 'UNKNOWN',
-          facultyName: update.facultyName || null,
-          citationSource: update.citationSource || 'Scopus',
-          reportedTotal,
-          previousTotal,
-          reconciliationStatus: update.reconciliationStatus || 'reconciled',
-          approvalStatus: 'approved'
-        }, { transaction: t });
-        snapshotId = snapshot.id;
+      const mergedPeriodMap = new Map();
 
-        // Save dynamic yearly breakdown
-        if (Array.isArray(update.yearlyDetails) && update.yearlyDetails.length > 0) {
-          const detailRows = update.yearlyDetails.map(yd => ({
-            snapshotId: snapshot.id,
-            period: String(yd.period),
-            citationCount: (yd.citationCount !== null && yd.citationCount !== undefined && !isNaN(yd.citationCount)) ? parseInt(yd.citationCount, 10) : null,
-            periodType: yd.periodType || 'year',
-            status: yd.status || (yd.citationCount !== null ? 'known' : 'unknown')
-          }));
-
-          await CitationYearlyDetail.bulkCreate(detailRows, { transaction: t });
+      // Step A: Preserve omitted years from the previous snapshot
+      if (prevSnapshot && Array.isArray(prevSnapshot.yearlyDetails)) {
+        for (const yd of prevSnapshot.yearlyDetails) {
+          const p = String(yd.period || '').trim();
+          if (p) {
+            mergedPeriodMap.set(p, {
+              period: p,
+              citationCount: yd.citationCount,
+              excludingSelfCount: yd.excludingSelfCount,
+              periodType: yd.periodType || 'year',
+              citationType: yd.citationType || 'all',
+              source: 'Uploaded',
+              status: yd.status || 'known'
+            });
+          }
         }
-      } else {
-        snapshotId = existingSnapshot.id;
       }
 
-      // Update current approved citation count on publication
+      // Step B: Replace specified years with the latest absolute count
+      if (Array.isArray(update.yearlyDetails)) {
+        for (const incoming of update.yearlyDetails) {
+          const p = String(incoming.period || '').trim();
+          if (!p) continue;
+
+          let newCount = null;
+          if (incoming.citationCount !== null && incoming.citationCount !== undefined && incoming.citationCount !== '') {
+            const parsed = parseInt(incoming.citationCount, 10);
+            if (!isNaN(parsed)) {
+              newCount = Math.max(0, parsed); // Absolute count replacement!
+            }
+          }
+
+          let newExclSelf = null;
+          if (incoming.excludingSelfCount !== null && incoming.excludingSelfCount !== undefined && incoming.excludingSelfCount !== '') {
+            const parsed = parseInt(incoming.excludingSelfCount, 10);
+            if (!isNaN(parsed)) {
+              newExclSelf = Math.max(0, parsed);
+            }
+          }
+
+          const existing = mergedPeriodMap.get(p);
+          const finalCount = newCount !== null ? newCount : (existing ? existing.citationCount : null);
+          const finalExcl = newExclSelf !== null ? newExclSelf : (existing ? existing.excludingSelfCount : null);
+
+          mergedPeriodMap.set(p, {
+            period: p,
+            citationCount: finalCount,
+            excludingSelfCount: finalExcl,
+            periodType: incoming.periodType || (existing ? existing.periodType : 'year'),
+            citationType: incoming.citationType || (existing ? existing.citationType : 'all'),
+            source: 'Uploaded',
+            status: finalCount !== null ? 'known' : 'unknown'
+          });
+        }
+      }
+
+      // Step C: Calculate the new absolute total
+      const calculatedAnnualSum = Array.from(mergedPeriodMap.values())
+        .filter(d => d.periodType !== 'subtotal' && validPeriodRegex.test(d.period))
+        .reduce((sum, d) => sum + (d.citationCount || 0), 0);
+
+      const reportedTotal = (update.reportedTotal !== null && update.reportedTotal !== undefined && !isNaN(parseInt(update.reportedTotal, 10)))
+        ? parseInt(update.reportedTotal, 10)
+        : calculatedAnnualSum;
+
+      // Step D: Record historical snapshot for full auditability
+      const snapshot = await PublicationCitationSnapshot.create({
+        publicationId: pub.id,
+        importBatchId: batchId,
+        sourceFile: update.sourceFile || 'Uploaded Citation File',
+        employeeId: update.employeeId || 'UNKNOWN',
+        facultyName: update.facultyName || null,
+        citationSource: 'Uploaded',
+        reportedTotal,
+        previousTotal,
+        reconciliationStatus: update.reconciliationStatus || (calculatedAnnualSum === reportedTotal ? 'reconciled' : 'incomplete'),
+        approvalStatus: 'approved'
+      }, { transaction: t });
+
+      // Step E: Create CitationYearlyDetail rows
+      const detailRows = Array.from(mergedPeriodMap.values()).map(yd => ({
+        snapshotId: snapshot.id,
+        period: yd.period,
+        citationCount: yd.citationCount,
+        excludingSelfCount: yd.excludingSelfCount,
+        periodType: yd.periodType,
+        citationType: yd.citationType,
+        source: 'Uploaded',
+        status: yd.status
+      }));
+
+      if (detailRows.length > 0) {
+        await CitationYearlyDetail.bulkCreate(detailRows, { transaction: t });
+      }
+
+      // Step F: Update publication citation count with the new absolute total
       pub.citationCount = reportedTotal;
+      pub.citationMatchMethod = 'Verified Citation Upload';
+      pub.citationStatus = 'reconciled';
       await pub.save({ transaction: t });
 
       updatedCount++;
@@ -1982,7 +2245,7 @@ exports.confirmCitationsUpdate = async (req, res) => {
       user: req.user,
       action: 'CONFIRM_CITATION_IMPORT',
       title: 'Confirmed Citation Overview Import',
-      remarks: `Updated citation totals and history for ${updatedCount} publications.`,
+      remarks: `Updated citation totals and history for ${updatedCount} publications with absolute counts.`,
       ipAddress: req.ip
     });
 
@@ -2023,11 +2286,40 @@ exports.getPublicationCitations = async (req, res) => {
         {
           model: CitationYearlyDetail,
           as: 'yearlyDetails',
-          attributes: ['id', 'period', 'citationCount', 'periodType', 'status']
+          attributes: ['id', 'period', 'citationCount', 'excludingSelfCount', 'periodType', 'citationType', 'source', 'status']
         }
       ],
       order: [['createdAt', 'DESC']]
     });
+
+    // Look up verified faculty contributor
+    let verifiedFaculty = null;
+    try {
+      const pf = await PublicationFaculty.findOne({
+        where: { publicationId: pub.id },
+        order: [['createdAt', 'ASC']]
+      });
+      if (pf) {
+        verifiedFaculty = {
+          id: pf.facultyId,
+          employeeId: pf.employeeId,
+          name: pf.facultyName,
+          department: pf.department
+        };
+      } else if (pub.createdBy) {
+        const fac = await Faculty.findOne({ where: { userId: pub.createdBy } });
+        if (fac) {
+          verifiedFaculty = {
+            id: fac.id,
+            employeeId: fac.employeeId,
+            name: fac.name,
+            department: fac.department
+          };
+        }
+      }
+    } catch (facErr) {
+      console.warn('[PublicationController] Faculty lookup notice:', facErr.message);
+    }
 
     if (snapshots.length === 0) {
       return res.json({
@@ -2035,51 +2327,114 @@ exports.getPublicationCitations = async (req, res) => {
         publicationId: pub.id,
         currentTotal: pub.citationCount,
         hasHistory: false,
-        message: 'Year-wise citation history not available'
+        message: 'Year-wise citation history not available',
+        scopusIdentifiers: {
+          eid: pub.scopusEid,
+          docId: pub.scopusDocId,
+          scopusUrl: pub.scopusUrl,
+          scopusCitedByUrl: pub.scopusCitedByUrl,
+          matchMethod: pub.citationMatchMethod
+        },
+        verifiedFaculty
       });
     }
 
     const latest = snapshots[0];
     const validPeriodRegex = /^([<>≤≥]\s*)?(19\d{2}|20\d{2})$/;
 
-    const hasCorruptPeriods = (latest.yearlyDetails || []).some(yd =>
+    // Find the snapshot that contains verified yearly breakdown (prefer latest, or fall back to any in historical snapshots)
+    const snapshotWithDetails = (latest.yearlyDetails && latest.yearlyDetails.length > 0)
+      ? latest
+      : (snapshots.find(s => s.yearlyDetails && s.yearlyDetails.length > 0) || latest);
+
+    const activeDetails = (latest.yearlyDetails && latest.yearlyDetails.length > 0)
+      ? latest.yearlyDetails
+      : (snapshotWithDetails?.yearlyDetails || []);
+
+    // Ensure snapshot does not show SCOPUS_API
+    const effectiveEmpId = (latest.employeeId && latest.employeeId !== 'SCOPUS_API')
+      ? latest.employeeId
+      : (verifiedFaculty?.employeeId || 'Institutional Research');
+    const effectiveFacultyName = (latest.facultyName && latest.employeeId !== 'SCOPUS_API')
+      ? latest.facultyName
+      : (verifiedFaculty?.name || null);
+
+    const hasCorruptPeriods = activeDetails.some(yd =>
       yd.periodType !== 'subtotal' && !validPeriodRegex.test(String(yd.period || '').trim())
     );
 
-    const hasValidYearlyBreakdown = (latest.yearlyDetails || []).some(yd =>
+    const hasValidYearlyBreakdown = activeDetails.some(yd =>
       yd.periodType !== 'subtotal' && validPeriodRegex.test(String(yd.period || '').trim())
     );
 
-    // If snapshot contains corrupt non-year labels like '1526' or '1528',
-    // its effective reconciliation is unverified, NOT reconciled!
     const effectiveReconciliationStatus = hasCorruptPeriods
       ? 'unverified'
-      : latest.reconciliationStatus;
+      : (latest.reconciliationStatus || snapshotWithDetails?.reconciliationStatus || 'reconciled');
+
+    // Calculate cumulative series and running totals using active verified details
+    const sortedYearDetails = activeDetails
+      .filter(yd => yd.periodType !== 'subtotal' && validPeriodRegex.test(String(yd.period || '').trim()))
+      .sort((a, b) => parseInt(String(a.period).replace(/\D/g, ''), 10) - parseInt(String(b.period).replace(/\D/g, ''), 10));
+
+    let runAll = 0;
+    let runExSelf = 0;
+    const cumulativeSeries = sortedYearDetails.map(yd => {
+      runAll += (yd.citationCount || 0);
+      if (yd.excludingSelfCount !== null && yd.excludingSelfCount !== undefined) {
+        runExSelf += yd.excludingSelfCount;
+      }
+      return {
+        period: yd.period,
+        annualAll: yd.citationCount || 0,
+        cumulativeAll: runAll,
+        annualExcludingSelf: yd.excludingSelfCount,
+        cumulativeExcludingSelf: yd.excludingSelfCount !== null ? runExSelf : null
+      };
+    });
+
+    const reportedTotal = pub.citationCount ?? latest.reportedTotal ?? 0;
+    const derivedAnnualTotal = runAll;
+    const discrepancy = reportedTotal - derivedAnnualTotal;
 
     return res.json({
       success: true,
       publicationId: pub.id,
-      currentTotal: pub.citationCount,
+      currentTotal: reportedTotal,
       hasHistory: true,
       hasValidYearlyBreakdown,
+      reconciliation: {
+        reportedTotal,
+        derivedAnnualTotal,
+        discrepancy,
+        isReconciled: discrepancy === 0
+      },
+      scopusIdentifiers: {
+        eid: pub.scopusEid,
+        docId: pub.scopusDocId,
+        scopusUrl: pub.scopusUrl,
+        scopusCitedByUrl: pub.scopusCitedByUrl,
+        matchMethod: pub.citationMatchMethod
+      },
+      verifiedFaculty,
+      cumulativeSeries,
       latestSnapshot: {
         id: latest.id,
         sourceFile: latest.sourceFile,
-        employeeId: latest.employeeId,
-        facultyName: latest.facultyName,
+        employeeId: effectiveEmpId,
+        facultyName: effectiveFacultyName,
         citationSource: latest.citationSource,
         reportedTotal: latest.reportedTotal,
         previousTotal: latest.previousTotal,
         reconciliationStatus: effectiveReconciliationStatus,
         hasCorruptPeriods,
         createdAt: latest.createdAt,
-        yearlyDetails: latest.yearlyDetails || []
+        yearlyDetails: activeDetails
       },
       history: snapshots.map(s => ({
         id: s.id,
         sourceFile: s.sourceFile,
-        employeeId: s.employeeId,
-        facultyName: s.facultyName,
+        employeeId: (s.employeeId && s.employeeId !== 'SCOPUS_API') ? s.employeeId : (verifiedFaculty?.employeeId || 'Institutional Research'),
+        facultyName: (s.facultyName && s.employeeId !== 'SCOPUS_API') ? s.facultyName : (verifiedFaculty?.name || null),
         citationSource: s.citationSource,
         reportedTotal: s.reportedTotal,
         previousTotal: s.previousTotal,
@@ -2087,7 +2442,8 @@ exports.getPublicationCitations = async (req, res) => {
         reconciliationStatus: (s.yearlyDetails || []).some(yd => yd.periodType !== 'subtotal' && !validPeriodRegex.test(String(yd.period || '').trim()))
           ? 'unverified'
           : s.reconciliationStatus,
-        createdAt: s.createdAt
+        createdAt: s.createdAt,
+        yearlyDetails: s.yearlyDetails || []
       }))
     });
 
@@ -2429,6 +2785,340 @@ exports.applyAuditedCitationCorrection = async (req, res) => {
       success: false,
       message: error.message || 'Failed to apply citation correction'
     });
+  }
+};
+
+/**
+ * Manually trigger a Scopus citation refresh sweep for eligible/due publications (Admin / Coordinator).
+ * @route POST /api/publications/citations/refresh-all
+ */
+exports.refreshAllCitations = async (req, res) => {
+  try {
+    const { executeCitationRefreshSweep } = require('../services/citationRefreshScheduler');
+    const result = await executeCitationRefreshSweep(50);
+    res.json({
+      success: true,
+      message: 'Scopus citation refresh sweep completed.',
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Manually refresh citations from Scopus for a single publication.
+ * @route POST /api/publications/:id/refresh-citation
+ */
+exports.refreshSingleCitation = async (req, res) => {
+  try {
+    const { retrievePublicationCitations } = require('../services/scopusService');
+    const enriched = await retrievePublicationCitations(req.params.id);
+    if (!enriched) {
+      return res.status(404).json({ success: false, message: 'Publication not found.' });
+    }
+    res.json({
+      success: true,
+      message: `Scopus citation status: ${enriched.citationStatus}. Total citations: ${enriched.citationCount ?? 'N/A'}.`,
+      data: enriched
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Scopus API & weekly scheduler integration diagnostics (Admin).
+ * @route GET /api/publications/citations/diagnostics
+ */
+exports.getCitationDiagnostics = async (req, res) => {
+  try {
+    const { getScopusDiagnosticStatus } = require('../services/scopusService');
+    const { getSchedulerStatus } = require('../services/citationRefreshScheduler');
+    const diag = await getScopusDiagnosticStatus();
+    const sched = getSchedulerStatus();
+    res.json({
+      success: true,
+      diagnostics: diag,
+      scheduler: sched
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Retrieves comprehensive Journal-Level metrics (CiteScores, SJR, SNIP, scholarly output).
+ * @route GET /api/publications/:id/journal-metrics
+ */
+exports.getPublicationJournalMetrics = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pub = await Publication.findByPk(id);
+    if (!pub) {
+      return res.status(404).json({ success: false, message: 'Publication not found.' });
+    }
+
+    const { retrieveJournalMetrics } = require('../services/scopusService');
+    const metrics = await retrieveJournalMetrics({
+      scopusSourceId: pub.scopusSourceId,
+      issn: pub.issn,
+      journalTitle: pub.journalName
+    });
+
+    return res.json({
+      success: true,
+      publicationId: pub.id,
+      journalName: pub.journalName,
+      issn: pub.issn,
+      metrics
+    });
+  } catch (error) {
+    console.error('getPublicationJournalMetrics error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to fetch journal metrics.' });
+  }
+};
+
+/**
+ * Manually refresh journal metrics from Elsevier Serial Title API for a publication's journal.
+ * @route POST /api/publications/:id/refresh-journal-metrics
+ */
+exports.refreshPublicationJournalMetrics = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pub = await Publication.findByPk(id);
+    if (!pub) {
+      return res.status(404).json({ success: false, message: 'Publication not found.' });
+    }
+
+    const { retrieveJournalMetrics } = require('../services/scopusService');
+    const metrics = await retrieveJournalMetrics({
+      scopusSourceId: pub.scopusSourceId,
+      issn: pub.issn,
+      journalTitle: pub.journalName
+    });
+
+    if (metrics.success && metrics.scopusSourceId && !pub.scopusSourceId) {
+      pub.scopusSourceId = metrics.scopusSourceId;
+      await pub.save();
+    }
+
+    return res.json({
+      success: true,
+      message: `Journal metrics refreshed for "${metrics.sourceTitle || pub.journalName}".`,
+      publicationId: pub.id,
+      journalName: pub.journalName,
+      metrics
+    });
+  } catch (error) {
+    console.error('refreshPublicationJournalMetrics error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to refresh journal metrics.' });
+  }
+};
+
+/**
+ * Administrator / Coordinator batch refresh for all unique journal sources.
+ * @route POST /api/publications/journal-sources/refresh-all
+ */
+exports.refreshAllJournalMetrics = async (req, res) => {
+  try {
+    const { refreshDueJournalMetrics } = require('../services/scopusService');
+    const batchLimit = parseInt(req.body?.limit || req.query?.limit || 25, 10);
+    const result = await refreshDueJournalMetrics({ forceAll: true, batchLimit });
+    return res.json({
+      success: true,
+      message: `Refreshed ${result.refreshedCount || 0} journal sources.`,
+      result
+    });
+  } catch (error) {
+    console.error('refreshAllJournalMetrics error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to refresh journal metrics.' });
+  }
+};
+
+/**
+ * Searches Serial Title candidates using Journal Title or ISSN.
+ * @route GET /api/publications/journal-sources/search
+ */
+exports.searchJournals = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || !String(q).trim()) {
+      return res.json({ success: true, candidates: [] });
+    }
+    const { searchJournalCandidates } = require('../services/scopusService');
+    const candidates = await searchJournalCandidates(q);
+    return res.json({ success: true, candidates });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Manually links a verified ScopusSource candidate to a publication.
+ * @route POST /api/publications/:id/link-journal-source
+ */
+exports.linkPublicationJournal = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { scopusSourceId, sourceTitle, issn } = req.body;
+    const pub = await Publication.findByPk(id);
+    if (!pub) {
+      return res.status(404).json({ success: false, message: 'Publication not found.' });
+    }
+    if (scopusSourceId) pub.scopusSourceId = scopusSourceId;
+    if (issn && !pub.issn) pub.issn = issn;
+    await pub.save();
+
+    const { retrieveJournalMetrics } = require('../services/scopusService');
+    const metrics = await retrieveJournalMetrics({
+      scopusSourceId: pub.scopusSourceId,
+      issn: pub.issn,
+      journalTitle: sourceTitle || pub.journalName
+    });
+
+    return res.json({
+      success: true,
+      message: 'Journal source linked successfully.',
+      publication: pub,
+      metrics
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Exports comprehensive publication citation and journal metrics dossier in Excel or JSON.
+ * @route GET /api/publications/:id/export
+ */
+exports.exportPublicationReport = async (req, res) => {
+  try {
+    const XLSX = require('xlsx');
+    const { id } = req.params;
+    const { format = 'excel' } = req.query;
+    const pub = await Publication.findByPk(id, {
+      include: [
+        { model: PublicationFaculty, as: 'facultyAssociations' },
+        {
+          model: PublicationCitationSnapshot,
+          as: 'citationSnapshots',
+          include: [{ model: CitationYearlyDetail, as: 'yearlyDetails' }],
+          order: [['createdAt', 'DESC']]
+        }
+      ]
+    });
+    if (!pub) {
+      return res.status(404).json({ success: false, message: 'Publication not found.' });
+    }
+
+    const { retrieveJournalMetrics } = require('../services/scopusService');
+    const journalData = await retrieveJournalMetrics({
+      scopusSourceId: pub.scopusSourceId,
+      issn: pub.issn,
+      journalTitle: pub.journalName
+    });
+
+    if (format === 'json') {
+      return res.json({ success: true, publication: pub, journalMetrics: journalData });
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Publication Information
+    const sheet1Data = [
+      { Field: 'Publication Title', Value: pub.title },
+      { Field: 'DOI', Value: pub.doi || 'N/A' },
+      { Field: 'Authors', Value: pub.authorName },
+      { Field: 'Journal / Source', Value: pub.journalName },
+      { Field: 'Publication Year', Value: pub.publicationYear || pub.academicYear || 'N/A' },
+      { Field: 'Scopus EID', Value: pub.scopusEid || 'N/A' },
+      { Field: 'Department', Value: pub.department || 'N/A' },
+      { Field: 'Journal Type', Value: pub.journalType || 'Scopus' },
+      { Field: 'Quartile', Value: pub.quartile || 'N/A' },
+      { Field: 'CiteScore', Value: pub.citeScoreValue || 'N/A' },
+      { Field: 'Scopus Record Link', Value: pub.scopusUrl || 'N/A' }
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet1Data), 'Publication Info');
+
+    // Sheet 2: Citation Summary
+    const latestSnapshot = pub.citationSnapshots?.[0];
+    const sheet2Data = [
+      { Metric: 'Total Scopus Citations', Value: pub.citationCount ?? 'N/A' },
+      { Metric: 'Citation Status', Value: pub.citationStatus || 'N/A' },
+      { Metric: 'Match Method', Value: pub.citationMatchMethod || 'DOI' },
+      { Metric: 'Last Scopus Refresh', Value: pub.lastCitationRefreshAt ? new Date(pub.lastCitationRefreshAt).toISOString() : 'N/A' },
+      { Metric: 'Verified Contributor', Value: latestSnapshot?.facultyName ? `${latestSnapshot.facultyName} (${latestSnapshot.employeeId})` : 'N/A' },
+      { Metric: 'Reconciliation Status', Value: latestSnapshot?.reconciliationStatus || 'reconciled' }
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet2Data), 'Citation Summary');
+
+    // Sheet 3: Annual Citation Data
+    const yearlyRows = (latestSnapshot?.yearlyDetails || []).map(yd => ({
+      'Citation Year': yd.period,
+      'All Citations': yd.citationCount ?? 'N/A',
+      'Excluding Self-Citations': yd.excludingSelfCount ?? 'N/A',
+      'Data Availability': yd.status || 'known',
+      'Source': yd.source || 'Scopus'
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(yearlyRows.length > 0 ? yearlyRows : [{ Notice: 'No annual breakdown records available for this publication' }]), 'Annual Citations');
+
+    // Sheet 4: Citation Snapshots
+    const snapshotRows = (pub.citationSnapshots || []).map(s => ({
+      'Snapshot Date': new Date(s.createdAt).toISOString().split('T')[0],
+      'Reported Total': s.reportedTotal,
+      'Previous Total': s.previousTotal ?? 'N/A',
+      'Faculty Member': s.facultyName ? `${s.facultyName} (${s.employeeId})` : (s.employeeId || 'N/A'),
+      'Source File / Channel': s.sourceFile,
+      'Reconciliation': s.reconciliationStatus,
+      'Approval Status': s.approvalStatus
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(snapshotRows.length > 0 ? snapshotRows : [{ Notice: 'No snapshots recorded' }]), 'Citation Snapshots');
+
+    // Sheet 5: Journal Information
+    const sheet5Data = [
+      { Field: 'Journal Title', Value: journalData.sourceTitle || pub.journalName },
+      { Field: 'Scopus Source ID', Value: journalData.scopusSourceId || pub.scopusSourceId || 'N/A' },
+      { Field: 'ISSN', Value: journalData.issn || pub.issn || 'N/A' },
+      { Field: 'E-ISSN', Value: journalData.eIssn || 'N/A' },
+      { Field: 'Publisher', Value: journalData.publisher || pub.publisher || 'N/A' },
+      { Field: 'Source Type', Value: journalData.sourceType || 'Journal' },
+      { Field: 'Current CiteScore', Value: journalData.currentCiteScore?.value ?? 'N/A' },
+      { Field: 'Current Metric Year', Value: journalData.currentCiteScore?.year ?? 'N/A' },
+      { Field: 'CiteScore Tracker', Value: journalData.trackerCiteScore?.value ?? 'N/A' },
+      { Field: 'Tracker Year', Value: journalData.trackerCiteScore?.year ?? 'N/A' },
+      { Field: 'Best Quartile', Value: journalData.currentCiteScore?.bestQuartile || pub.quartile || 'N/A' },
+      { Field: 'Scopus Source URL', Value: journalData.scopusUrl || 'N/A' }
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet5Data), 'Journal Info');
+
+    // Sheet 6: Journal Metrics
+    const metricRows = [];
+    const csYears = journalData.citeScoresByYear || {};
+    Object.keys(csYears).sort((a, b) => b - a).forEach(yr => {
+      const info = csYears[yr];
+      metricRows.push({
+        'Metric': info.status === 'In-Progress' ? 'CiteScore Tracker' : 'CiteScore',
+        'Metric Year': yr,
+        'Value': info.citeScore,
+        'Status': info.status,
+        'Scholarly Output': journalData.scholarlyOutputByYear?.[yr] ?? 'N/A',
+        'SJR': journalData.sjrByYear?.[yr] ?? 'N/A',
+        'SNIP': journalData.snipByYear?.[yr] ?? 'N/A',
+        'Categories / Ranks': (info.categories || []).map(c => `${c.category}: Rank ${c.rank} (${c.percentile}th percentile, ${c.quartile})`).join('; ')
+      });
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(metricRows.length > 0 ? metricRows : [{ Notice: 'No historical journal metrics available' }]), 'Journal Metrics');
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const safeTitle = (pub.title || 'Publication_Report').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}_Scopus_Dossier.xlsx"`);
+    return res.send(buf);
+
+  } catch (err) {
+    console.error('exportPublicationReport error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 

@@ -1,0 +1,61 @@
+# Dependencies and local caches
+node_modules
+*/node_modules
+*/*/node_modules
+*/*/*/node_modules
+.npm
+.pnpm-store
+
+# Environment files and credentials (CRITICAL: Never embed in image)
+.env
+.env.*
+*.env
+src/app/backend/.env
+src/app/backend/.env.*
+
+# Git version control
+.git
+.gitignore
+.gitattributes
+
+# Local IDE and editor configurations
+.vscode
+.idea
+*.swp
+*.swo
+
+# Build outputs and frontend assets (not needed in backend container)
+dist
+build
+coverage
+.cache
+
+# Logs and debugging
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test artifacts and reports
+coverage/
+tests/
+*.test.js
+*.spec.js
+src/app/backend/tests/
+
+# Platform and temporary data
+.system_generated
+.user_uploaded
+scratch
+tmp
+temp
+Thumbs.db
+.DS_Store
+
+# Documentation and markdown files
+*.md
+DEPLOYMENT_*.md
+DOCKER_*.md
+RENDER_*.md
+PRODUCTION_*.md

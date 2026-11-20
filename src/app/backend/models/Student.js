@@ -107,6 +107,10 @@ const Student = sequelize.define('Student', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  permanentCountry: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   parentMobileNo: {
     type: DataTypes.STRING,
     allowNull: true
@@ -148,7 +152,23 @@ const Student = sequelize.define('Student', {
   }
 }, {
   tableName: 'students',
-  timestamps: true
+  timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['registerNumber'],
+      name: 'idx_students_regno_unique'
+    },
+    {
+      fields: ['name']
+    },
+    {
+      fields: ['gender']
+    },
+    {
+      fields: ['department']
+    }
+  ]
 });
 
 module.exports = Student;

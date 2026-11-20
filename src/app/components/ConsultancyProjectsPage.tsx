@@ -21,6 +21,8 @@ import { BulkUploadDialog } from './BulkUploadDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { AppShell, PageHeader, StatCard } from './design-system';
+import { useExchangeRate, formatInrLakhsWithUsd } from '../hooks/useExchangeRate';
+import { ExchangeRateConfigDialog } from './ExchangeRateConfigDialog';
 import {
   calculateProjectDuration,
   deriveConsultancyStartYear,
@@ -227,6 +229,8 @@ export function ConsultancyProjectsPage({
   const [selectedProjectStatus, setSelectedProjectStatus] = useState('all');
   const [selectedProjectType, setSelectedProjectType] = useState('all');
   const [viewMode, setViewMode] = useState<'table' | 'cards' | 'department' | 'projectType'>('table');
+  const { rate } = useExchangeRate();
+  const [showFxDialog, setShowFxDialog] = useState(false);
 
   // Modals & Drawers
   const [showForm, setShowForm] = useState(false);
@@ -1028,6 +1032,17 @@ export function ConsultancyProjectsPage({
               <span>Excel</span>
             </Button>
 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFxDialog(true)}
+              className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-mono h-9 px-3 rounded-lg shadow-xs gap-1.5"
+              title="Click to view or configure USD conversion rate"
+            >
+              <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+              <span>1 USD = ₹{Number(rate).toFixed(2)}</span>
+            </Button>
+
             {canBulkUpload && (
               <Button
                 variant="outline"
@@ -1065,6 +1080,7 @@ export function ConsultancyProjectsPage({
         <StatCard
           title="Total Revenue"
           value={`₹${totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}L`}
+          badge={formatInrLakhsWithUsd(totalRevenue, rate).usd}
           subtitle="Earned via external contracts"
           icon={DollarSign}
         />
@@ -1084,6 +1100,7 @@ export function ConsultancyProjectsPage({
         <StatCard
           title="Avg / Project"
           value={`₹${avgRevenuePerProject.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}L`}
+          badge={formatInrLakhsWithUsd(avgRevenuePerProject, rate).usd}
           subtitle="Average contract size"
           icon={TrendingUp}
         />
@@ -2432,6 +2449,12 @@ export function ConsultancyProjectsPage({
           uploadType="consultancy"
         />
       )}
+
+      {/* USD / INR Exchange Rate Configuration Dialog */}
+      <ExchangeRateConfigDialog
+        isOpen={showFxDialog}
+        onClose={() => setShowFxDialog(false)}
+      />
     </div>
   );
 

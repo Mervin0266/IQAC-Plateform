@@ -99,6 +99,69 @@ const Publication = sequelize.define('Publication', {
     type: DataTypes.STRING(50),
     defaultValue: 'approved'
   },
+  quartile: {
+    type: DataTypes.STRING(10),
+    allowNull: true
+  },
+  quartileStatus: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    defaultValue: 'Pending'
+  },
+  scopusSourceId: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  citeScoreYear: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  citeScoreValue: {
+    type: DataTypes.DECIMAL(6, 2),
+    allowNull: true
+  },
+  scopusEid: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  scopusDocId: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  scopusUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  scopusCitedByUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  citationMatchMethod: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  citationStatus: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    defaultValue: 'Pending'
+  },
+  lastCitationRefreshAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  nextCitationRefreshAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  citationError: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  scopusEnrichment: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: null
+  },
   customFields: {
     type: DataTypes.JSONB,
     allowNull: false,
@@ -117,6 +180,11 @@ const Publication = sequelize.define('Publication', {
     { fields: ['publicationYear'] },
     { fields: ['department'] },
     { fields: ['doi'] },
+    { fields: ['quartile'] },
+    { fields: ['quartileStatus'] },
+    { fields: ['scopusEid'] },
+    { fields: ['citationStatus'] },
+    { fields: ['nextCitationRefreshAt'] },
     { fields: ['createdBy'] }
   ]
 });

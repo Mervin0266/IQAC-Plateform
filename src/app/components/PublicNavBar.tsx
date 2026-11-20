@@ -1,154 +1,33 @@
-import React, { useState, useEffect } from "react";
-import { Menu, X } from "lucide-react";
-import { ImageWithFallback } from "./figma/ImageWithFallback";
-import christLogo from "figma:asset/e4f652b12ffea64be11193ae1ce02c65502fc8ea.png";
-
-interface PublicNavBarProps {
-  currentSection: string;
-  onNavigate: (section: string) => void;
-  onLoginClick?: () => void;
-}
-
-export function PublicNavBar({
-  currentSection,
-  onNavigate,
-  onLoginClick,
-}: PublicNavBarProps) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] =
-    useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
-
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowUpRight, Menu, X, ChevronDown } from 'lucide-react';
+import christLogo from '../../assets/logo.png';
+const links = [
+  ['Home', 'home'], ['About IQAC', '#quality'], ['Resources', '#resources'], ['Institutional profile', '#institution'],
+];
+const more = [['Achievements', 'achievements'], ['Research', 'research-innovation'], ['Rankings', 'rankings'], ['Placements', 'placements-internships'], ['Internships', 'internships'], ['Alumni', 'alumni'], ['Infrastructure', 'infrastructure'], ['International', 'international-interactions'], ['Centres of excellence', 'centre-excellence'], ['Incubations', 'incubations'], ['Industry connects', 'industry-connects'], ['Consultancy', 'consultancy-projects']];
+export function PublicNavBar({ currentSection, onNavigate, onLoginClick }: { currentSection: string; onNavigate: (section: string) => void; onLoginClick?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const details = useRef<HTMLDetailsElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 40);
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (details.current?.open) {
+        details.current.open = false;
+        details.current.querySelector('summary')?.focus();
+      }
+      if (open) { setOpen(false); toggle.current?.focus(); }
     };
-
-    window.addEventListener("scroll", handleScroll);
-    return () =>
-      window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const navLinks = [
-    { key: "home", label: "Home" },
-    { key: "achievements", label: "Achievements" },
-    {
-      key: "research-innovation",
-      label: "Research & Innovation",
-    },
-    { key: "rankings", label: "Rankings" },
-    { key: "placements-internships", label: "Placements" },
-    { key: "infrastructure", label: "Infrastructure" },
-    {
-      key: "international-interactions",
-      label: "International",
-    },
-    { key: "centre-excellence", label: "CoE" },
-    { key: "incubations", label: "Incubations" },
-    { key: "industry-connects", label: "Industry" },
-    { key: "consultancy-projects", label: "Consultancy" },
-  ];
-
-  const handleNavClick = (key: string) => {
-    onNavigate(key);
-    setIsMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  return (
-    <nav className="sticky top-0 z-50 bg-[#0B132B] border-b border-slate-800 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo and University Name */}
-          <div
-            className="flex items-center space-x-3 cursor-pointer"
-            onClick={() => handleNavClick("home")}
-          >
-            <ImageWithFallback
-              src={christLogo}
-              alt="CHRIST (Deemed to be University) Logo"
-              className="w-10 h-10 object-contain flex-shrink-0"
-            />
-            <div>
-              <h1 className="font-bold text-white text-sm sm:text-base leading-tight">
-                CHRIST
-              </h1>
-              <p className="text-[10px] text-[#E8C84A] font-semibold tracking-wider uppercase">
-                IQAC Platform
-              </p>
-            </div>
-          </div>
-
-          {/* Desktop Navigation - hidden on screens under 960px */}
-          <div className="hidden min-[960px]:flex items-center space-x-1">
-            {navLinks.map((link) => (
-              <button
-                key={link.key}
-                onClick={() => handleNavClick(link.key)}
-                className={`px-3 py-1.5 rounded-md text-xs transition-all ${
-                  currentSection === link.key
-                    ? "text-[#E8C84A] bg-white/10 font-bold shadow-2xs"
-                    : "text-slate-300 hover:bg-white/10 hover:text-white font-medium"
-                }`}
-              >
-                {link.label}
-              </button>
-            ))}
-
-            {onLoginClick && (
-              <button
-                onClick={onLoginClick}
-                className="ml-3 px-3.5 py-1.5 rounded-lg text-xs font-bold text-[#0B132B] bg-[#E8C84A] hover:bg-[#F3D768] transition-all shadow-xs flex items-center gap-1.5"
-              >
-                <span>Staff Sign In</span>
-              </button>
-            )}
-          </div>
-
-          {/* Mobile menu button */}
-          <div className="min-[960px]:hidden">
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 rounded-md hover:bg-white/10 text-white transition-all"
-            >
-              {isMobileMenuOpen ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Menu className="h-5 w-5" />
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Navigation Menu */}
-      {isMobileMenuOpen && (
-        <div className="min-[960px]:hidden bg-[#0B132B] border-t border-slate-800 px-4 py-3 space-y-1">
-          {navLinks.map((link) => (
-            <button
-              key={link.key}
-              onClick={() => handleNavClick(link.key)}
-              className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                currentSection === link.key
-                  ? "bg-white/10 text-[#E8C84A] font-bold"
-                  : "text-slate-300 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              {link.label}
-            </button>
-          ))}
-          {onLoginClick && (
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                onLoginClick();
-              }}
-              className="w-full mt-2 text-center py-2 px-3 rounded-lg text-xs font-bold text-[#0B132B] bg-[#E8C84A] hover:bg-[#F3D768] transition-all"
-            >
-              Staff Sign In
-            </button>
-          )}
-        </div>
-      )}
-    </nav>
-  );
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [open]);
+  const navigate = (key: string) => { setOpen(false); if (details.current) details.current.open = false; onNavigate(key); };
+  return <>
+    <a className="iq-skip" href="#public-content">Skip to content</a>
+    <div className="iq-utility"><div className="iq-container"><span>CHRIST (Deemed to be University)</span><a href="https://christuniversity.in" target="_blank" rel="noopener noreferrer">University website <ArrowUpRight size={12} /></a></div></div>
+    <header className="iq-header"><div className="iq-container iq-header-inner"><button className="iq-brand" onClick={() => navigate('home')} aria-label="CHRIST IQAC home"><img src={christLogo} alt="CHRIST (Deemed to be University)" width="170" height="60" /><span className="iq-brand-divider" /><span><strong>IQAC</strong><small>Quality. With purpose.</small></span></button>
+      <nav aria-label="Primary navigation" className="iq-desktop-nav">{links.map(([label,key]) => <button key={key} onClick={() => navigate(key)} aria-current={currentSection === key ? 'page' : undefined}>{label}</button>)}<details ref={details} className="iq-more"><summary>Explore <ChevronDown size={13} /></summary><div>{more.map(([label,key]) => <button key={key} onClick={() => navigate(key)}>{label}</button>)}</div></details><button className="iq-nav-login" onClick={onLoginClick}>Institutional login <ArrowUpRight size={14} /></button></nav>
+      <button ref={toggle} className="iq-menu-toggle" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls="iq-mobile-nav" aria-label={open ? 'Close navigation' : 'Open navigation'}>{open ? <X /> : <Menu />}</button>
+    </div>{open && <nav id="iq-mobile-nav" aria-label="Mobile navigation" className="iq-mobile-nav">{[...links, ...more].map(([label,key]) => <button key={key} onClick={() => navigate(key)} aria-current={currentSection === key ? 'page' : undefined}>{label}</button>)}<button onClick={() => { setOpen(false); onLoginClick?.(); }}>Institutional login <ArrowUpRight size={15} /></button></nav>}</header>
+  </>;
 }

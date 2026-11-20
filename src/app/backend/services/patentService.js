@@ -379,16 +379,17 @@ function generatePatentDuplicateKeys({ applicationNo, title, filedDate, empIds }
  * Resolves a list of normalized EmpIds against existing Faculty Management & History models.
  */
 async function resolveFacultyAssociationsForEmpIds(
-  empIds,
+  contributorsOrEmpIds,
   referenceDate,
   { Faculty, User, UserDepartmentHistory } = {},
   preloadedFacultyRows = null
 ) {
-  if (!Array.isArray(empIds) || empIds.length === 0) {
+  if (!Array.isArray(contributorsOrEmpIds) || contributorsOrEmpIds.length === 0) {
     return {
       associations: [],
       invalidEmpIds: [],
-      hasInvalidEmpIds: false
+      hasInvalidEmpIds: false,
+      hasInvalidContributors: false
     };
   }
 
@@ -411,26 +412,82 @@ async function resolveFacultyAssociationsForEmpIds(
 
   const associations = [];
   const invalidEmpIds = [];
+  let hasInvalidContributors = false;
 
-  empIds.forEach((empId, idx) => {
-    const normKey = normalizeEmpIdKey(empId);
+  contributorsOrEmpIds.forEach((item, idx) => {
+    let rawEmpId = '';
+    let manualName = '';
+    let manualDept = '';
+    let manualDesig = '';
+
+    if (typeof item === 'object' && item !== null) {
+      rawEmpId = String(item.employeeId || item.empId || '').trim();
+      manualName = String(item.name || item.facultyName || '').trim();
+      manualDept = String(item.department || '').trim();
+      manualDesig = String(item.designation || '').trim();
+    } else {
+      rawEmpId = String(item ?? '').trim();
+    }
+
+    // Case B & D: Blank EmpId
+    if (!rawEmpId || rawEmpId.toLowerCase() === 'nil' || rawEmpId.toLowerCase() === 'n/a') {
+      if (manualName && manualName.toLowerCase() !== 'nil' && manualName.toLowerCase() !== 'n/a') {
+        // Case B: Blank EmpID + valid Name -> classified as Guest Faculty
+        associations.push({
+          facultyId: null,
+          employeeId: null,
+          normalizedEmployeeId: null,
+          facultyName: manualName,
+          designation: manualDesig || 'Guest Faculty',
+          originalDepartment: manualDept || null,
+          originalDepartmentSource: 'guest_contributor',
+          isGuestFaculty: true,
+          facultyType: 'Guest Faculty',
+          isValid: true,
+          displayOrder: idx
+        });
+      } else {
+        // Case D: Missing both EmpID and Name
+        hasInvalidContributors = true;
+        associations.push({
+          facultyId: null,
+          employeeId: null,
+          normalizedEmployeeId: null,
+          facultyName: null,
+          designation: null,
+          originalDepartment: null,
+          originalDepartmentSource: 'unrecognized',
+          isGuestFaculty: false,
+          facultyType: 'Faculty',
+          isValid: false,
+          displayOrder: idx
+        });
+      }
+      return;
+    }
+
+    // Non-empty EmpId:
+    const normKey = normalizeEmpIdKey(rawEmpId);
     const matchingRows = facultyByNormKey.get(normKey) || [];
 
     if (matchingRows.length === 0) {
-      invalidEmpIds.push(empId);
+      // Case C: Non-empty invalid EmpID (not found in Faculty Management)
+      invalidEmpIds.push(rawEmpId);
       associations.push({
         facultyId: null,
-        employeeId: empId,
+        employeeId: rawEmpId,
         normalizedEmployeeId: normKey,
-        facultyName: null,
+        facultyName: manualName || null,
         designation: null,
         originalDepartment: null,
         originalDepartmentSource: 'unrecognized',
+        isGuestFaculty: false,
+        facultyType: 'Faculty',
         isValid: false,
         displayOrder: idx
       });
     } else {
-      // Latest profile for canonical current info
+      // Case A: Valid EmpID in Faculty Management -> authoritative faculty data overrides manual name
       const sortedDesc = [...matchingRows].sort((a, b) => {
         const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -440,12 +497,14 @@ async function resolveFacultyAssociationsForEmpIds(
 
       associations.push({
         facultyId: fac.id || null,
-        employeeId: fac.employeeId ? String(fac.employeeId).trim() : empId,
+        employeeId: fac.employeeId ? String(fac.employeeId).trim() : rawEmpId,
         normalizedEmployeeId: normKey,
-        facultyName: fac.name || null,
+        facultyName: fac.name || null, // Authoritative Name from Faculty Management
         designation: fac.designation || null,
         originalDepartment: fac.department || null,
         originalDepartmentSource: 'creation_snapshot',
+        isGuestFaculty: false,
+        facultyType: 'Faculty',
         isValid: true,
         displayOrder: idx
       });
@@ -455,7 +514,8 @@ async function resolveFacultyAssociationsForEmpIds(
   return {
     associations,
     invalidEmpIds,
-    hasInvalidEmpIds: invalidEmpIds.length > 0
+    hasInvalidEmpIds: invalidEmpIds.length > 0,
+    hasInvalidContributors: hasInvalidContributors || invalidEmpIds.length > 0
   };
 }
 
@@ -474,18 +534,21 @@ function enrichPatentRecord(record, liveFacultyById = new Map(), liveFacultyByEm
   const internalFacultyNames = [];
 
   const facultyDetails = rawAssocs.map(assoc => {
-    const live =
+    const isGuest = Boolean(assoc.isGuestFaculty || assoc.facultyType === 'Guest Faculty');
+    const live = !isGuest ? (
       (assoc.facultyId ? liveFacultyById.get(assoc.facultyId) : null) ||
       liveFacultyByEmpKey.get(assoc.normalizedEmployeeId || normalizeEmpIdKey(assoc.employeeId)) ||
-      null;
+      null
+    ) : null;
 
     const isValid = Boolean(assoc.isValid);
     const originalDept = assoc.originalDepartment || null;
     const currentDept = isValid ? (live?.department || originalDept || null) : null;
-    const facultyName = isValid ? (live?.name || assoc.facultyName || null) : null;
-    const designation = isValid ? (live?.designation || assoc.designation || null) : null;
+    const facultyName = isValid ? (isGuest ? (assoc.facultyName || 'Guest Faculty') : (live?.name || assoc.facultyName || null)) : null;
+    const designation = isValid ? (isGuest ? (assoc.designation || 'Guest Faculty') : (live?.designation || assoc.designation || null)) : null;
     const transferred = Boolean(
       isValid &&
+      !isGuest &&
       originalDept &&
       currentDept &&
       normalizeDeptKey(originalDept) !== normalizeDeptKey(currentDept)
@@ -502,20 +565,22 @@ function enrichPatentRecord(record, liveFacultyById = new Map(), liveFacultyByEm
         originalDepartmentsSet.add(originalDept);
       }
     } else {
-      invalidEmpIds.push(assoc.employeeId);
+      if (assoc.employeeId) invalidEmpIds.push(assoc.employeeId);
     }
 
     return {
       id: assoc.id,
       facultyId: live?.id || assoc.facultyId || null,
-      employeeId: assoc.employeeId,
-      normalizedEmployeeId: assoc.normalizedEmployeeId || normalizeEmpIdKey(assoc.employeeId),
+      employeeId: assoc.employeeId || null,
+      normalizedEmployeeId: assoc.normalizedEmployeeId || normalizeEmpIdKey(assoc.employeeId) || null,
       facultyName,
       designation,
       originalDepartment: originalDept,
-      originalDepartmentSource: assoc.originalDepartmentSource || 'creation_snapshot',
+      originalDepartmentSource: assoc.originalDepartmentSource || (isGuest ? 'guest_contributor' : 'creation_snapshot'),
       currentDepartment: currentDept,
       departmentTransferred: transferred,
+      isGuestFaculty: isGuest,
+      facultyType: isGuest ? 'Guest Faculty' : 'Faculty',
       isValid,
       email: live?.email || null
     };

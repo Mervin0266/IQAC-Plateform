@@ -18,4 +18,19 @@ router.get('/dashboard-stats', auth, systemController.getDashboardStats);
 // @access  Private
 router.get('/runtime-config', auth, systemController.getRuntimeConfig);
 
+// @route   GET /api/system/exchange-rate
+// @desc    Get effective USD to INR exchange rate
+// @access  Private
+router.get('/exchange-rate', auth, systemController.getExchangeRate);
+
+// @route   POST /api/system/exchange-rate/override
+// @desc    Set manual administrator override for exchange rate
+// @access  Private (Admin)
+router.post('/exchange-rate/override', auth, authorize('admin'), systemController.overrideExchangeRate);
+
+// @route   POST /api/system/exchange-rate/reset
+// @desc    Reset manual override to automated reference exchange rate
+// @access  Private (Admin)
+router.post('/exchange-rate/reset', auth, authorize('admin'), systemController.resetExchangeRate);
+
 module.exports = router;

@@ -13,7 +13,7 @@ export interface BulkFilenameValidationResult {
 
 export const MODULE_ALLOWED_EXTENSIONS: Record<BulkUploadModule, string[]> = {
   publications: ['xlsx', 'xls', 'csv'],
-  citations: ['csv', 'xlsx'],
+  citations: ['xlsx', 'xls', 'csv'],
 };
 
 const RESERVED_NON_ID_TOKENS = new Set([
@@ -109,18 +109,11 @@ export function validateBulkFilename(
     if (trailingLower === 'citations' || trailingLower === 'citation') {
       return makeInvalid(
         'wrong_module',
-        `Incorrect module identifier "_${trailingToken}" in "${baseFilename}" for Publications upload. Expected "_Publications" (e.g., ${exampleName}).`,
+        `File "${baseFilename}" appears to be a citation file. Please upload it via the Citation Upload section.`,
         { extension, moduleFound: trailingLower }
       );
     }
-    if (trailingLower === 'publication') {
-      return makeInvalid(
-        'invalid_module_identifier',
-        `Invalid module identifier "_${trailingToken}" in "${baseFilename}". Module identifier must be "_Publications" (e.g., ${exampleName}).`,
-        { extension, moduleFound: trailingLower }
-      );
-    }
-    if (trailingLower !== 'publications') {
+    if (trailingLower !== 'publications' && trailingLower !== 'publication') {
       return makeInvalid(
         'missing_module_identifier',
         `Missing required module identifier "_Publications" in "${baseFilename}". Expected: EmpID_FacultyName_Publications.${extension} (e.g., ${exampleName}).`,
@@ -131,18 +124,11 @@ export function validateBulkFilename(
     if (trailingLower === 'publications' || trailingLower === 'publication') {
       return makeInvalid(
         'wrong_module',
-        `Incorrect module identifier "_${trailingToken}" in "${baseFilename}" for Citations upload. Expected "_Citations" (e.g., ${exampleName}).`,
+        `File "${baseFilename}" appears to be a publication file. Expected citation file ending with "_Citations" (e.g., ${exampleName}).`,
         { extension, moduleFound: trailingLower }
       );
     }
-    if (trailingLower === 'citation') {
-      return makeInvalid(
-        'invalid_module_identifier',
-        `Invalid module identifier "_${trailingToken}" in "${baseFilename}". Module identifier must be "_Citations" (e.g., ${exampleName}).`,
-        { extension, moduleFound: trailingLower }
-      );
-    }
-    if (trailingLower !== 'citations') {
+    if (trailingLower !== 'citations' && trailingLower !== 'citation') {
       return makeInvalid(
         'missing_module_identifier',
         `Missing required module identifier "_Citations" in "${baseFilename}". Expected: EmpID_FacultyName_Citations.${extension} (e.g., ${exampleName}).`,

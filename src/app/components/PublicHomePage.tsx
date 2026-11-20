@@ -1,453 +1,262 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Award, BookOpen, TrendingUp, Briefcase, Users, Building, Globe, Target, ChevronRight, CheckCircle, Star, ChevronDown } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import {
+  ArrowUpRight, ArrowRight, ClipboardCheck, Award, GraduationCap, BookOpen,
+  Target, FileText, Check, Search, X, Users, FlaskConical, Building2, Globe2,
+  Lightbulb, BriefcaseBusiness, Network, ChartNoAxesCombined, ShieldCheck,
+  Layers3, Compass,
+} from 'lucide-react';
+import communityImage from '../../assets/iqac-community.webp';
+import libraryImage from '../../assets/iqac-library.webp';
 
-interface PublicHomePageProps {
+import { motion, MotionConfig } from 'motion/react';
+import { QuietMotion, Reveal } from './HomepageMotion';
+
+const IQAC = 'https://christuniversity.in/center/C/IQAC2026';
+const external = { target: '_blank', rel: 'noopener noreferrer' } as const;
+
+const verticals = [
+  { title: 'Documentation & audits', detail: 'Academic reviews, institutional evidence, and quality audits.', icon: ClipboardCheck, href: IQAC + '/annual-academic-audit' },
+  { title: 'Rankings & accreditation', detail: 'National and international benchmarks for institutional quality.', icon: Award, href: IQAC + '/naac' },
+  { title: 'Training & development', detail: 'Building the capabilities of our academic and administrative community.', icon: GraduationCap, href: 'https://christuniversity.in/center/C/iqac2026' },
+  { title: 'IQAC publications', detail: 'Reports and insights that document our progress and shared learning.', icon: BookOpen, href: IQAC + '/iqac-report' },
+  { title: 'Strategic initiatives', detail: 'Connecting institutional priorities with meaningful action.', icon: Target, href: IQAC + '/strategic-initiatives' },
+];
+
+const services = [
+  { title: 'Achievements', detail: 'Awards, recognitions, and institutional milestones.', key: 'achievements', category: 'Academic life', icon: Award },
+  { title: 'Research & innovation', detail: 'Explore publications, patents, and research activity.', key: 'research-innovation', category: 'Research & enterprise', icon: FlaskConical },
+  { title: 'Rankings', detail: 'National and international institutional benchmarks.', key: 'rankings', category: 'Academic life', icon: ChartNoAxesCombined },
+  { title: 'Placements', detail: 'Full-time offers and graduate compensation.', key: 'placements-internships', category: 'Academic life', icon: BriefcaseBusiness },
+  { title: 'Internships', detail: 'Summer placements and fast-track opportunities in semester eight.', key: 'internships', category: 'Academic life', icon: BriefcaseBusiness },
+  { title: 'Alumni', detail: 'Career mentoring, mock interviews, and industry talks.', key: 'alumni', category: 'Academic life', icon: BriefcaseBusiness },
+  { title: 'Infrastructure', detail: 'The spaces and facilities that support learning.', key: 'infrastructure', category: 'Academic life', icon: Building2 },
+  { title: 'International engagement', detail: 'Academic partnerships and connections across borders.', key: 'international-interactions', category: 'Partnerships', icon: Globe2 },
+  { title: 'Centres of excellence', detail: 'Focused expertise and interdisciplinary exploration.', key: 'centre-excellence', category: 'Research & enterprise', icon: Target },
+  { title: 'Incubations', detail: 'Entrepreneurship, emerging ideas, and startup initiatives.', key: 'incubations', category: 'Research & enterprise', icon: Lightbulb },
+  { title: 'Industry connects', detail: 'Collaboration between the University and industry.', key: 'industry-connects', category: 'Partnerships', icon: Network },
+  { title: 'Consultancy projects', detail: 'Applying institutional expertise to real-world challenges.', key: 'consultancy-projects', category: 'Research & enterprise', icon: Users },
+];
+const categories = ['All areas', 'Academic life', 'Research & enterprise', 'Partnerships'];
+const resources = [
+  { type: 'REVIEW & REFLECTION', title: 'Annual Academic Audit', description: 'Understand the review process and the practices that support academic quality.', href: IQAC + '/annual-academic-audit', cover: 'Academic', sub: 'Audit', icon: ClipboardCheck },
+  { type: 'DOCUMENTATION & INSIGHTS', title: 'The IQAC Report', description: 'Explore the initiatives and institutional learning behind continuous improvement.', href: IQAC + '/iqac-report', cover: 'Quality', sub: 'Report', icon: FileText },
+  { type: 'PLANNING & DIRECTION', title: 'Strategic Initiatives', description: 'Discover the priorities connecting our quality agenda with institutional development.', href: IQAC + '/strategic-initiatives', cover: 'Strategic', sub: 'Initiatives', icon: Compass },
+];
+const stages = [
+  { name: 'Plan', title: 'Set a shared direction.', detail: 'Identify priorities, define quality benchmarks, and bring academic and administrative teams together around clear objectives.', evidence: 'Priorities & quality benchmarks', icon: Target },
+  { name: 'Implement', title: 'Turn priorities into practice.', detail: 'Support departments and centres as they put quality initiatives into action, document their work, and build institutional capability.', evidence: 'Initiatives & documented practice', icon: Layers3 },
+  { name: 'Review', title: 'Learn from the evidence.', detail: 'Bring together institutional data, academic audits, and stakeholder feedback to understand progress and identify areas for improvement.', evidence: 'Audits, evidence & feedback', icon: ClipboardCheck },
+  { name: 'Improve', title: 'Make the next cycle stronger.', detail: 'Use the findings of review to refine processes, share effective practices, and inform the next round of institutional planning.', evidence: 'Action plans & shared learning', icon: ChartNoAxesCombined },
+];
+
+export function PublicHomePage({ onNavigate, onLoginClick }: {
   onNavigate: (section: string) => void;
-}
-
-export function PublicHomePage({ onNavigate }: PublicHomePageProps) {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [isStatsVisible, setIsStatsVisible] = useState(false);
-  const statsRef = useRef<HTMLDivElement>(null);
-
-  const heroImages = [
-    'https://images.unsplash.com/photo-1562774053-701939374585?w=1600&q=80',
-    'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1600&q=80',
-    'https://images.unsplash.com/photo-1607237138185-eedd9c632b0b?w=1600&q=80',
-    'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=1600&q=80'
-  ];
-
-  // Hero slideshow
+  onLoginClick: () => void;
+}) {
+  const [prefersReduced, setPrefersReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length);
-    }, 5000);
-    return () => clearInterval(interval);
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setPrefersReduced(preference.matches);
+    preference.addEventListener('change', update);
+    update();
+    return () => preference.removeEventListener('change', update);
   }, []);
-
-  // Intersection Observer for stats animation
+  const [paused, setPaused] = useState(false);
+  const quiet = !!prefersReduced || paused;
+  const root = useRef<HTMLDivElement>(null);
+  const [resourceIndex, setResourceIndex] = useState(0);
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsStatsVisible(true);
-          }
-        });
-      },
-      { threshold: 0.2 }
-    );
-
-    if (statsRef.current) {
-      observer.observe(statsRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
-  // Animated counter hook
-  const useCounter = (end: number, duration: number = 2000) => {
-    const [count, setCount] = useState(0);
-
-    useEffect(() => {
-      if (!isStatsVisible) return;
-
-      let startTime: number;
-      const step = (timestamp: number) => {
-        if (!startTime) startTime = timestamp;
-        const progress = Math.min((timestamp - startTime) / duration, 1);
-        setCount(Math.floor(progress * end));
-        if (progress < 1) {
-          requestAnimationFrame(step);
-        }
-      };
-      requestAnimationFrame(step);
-    }, [isStatsVisible, end, duration]);
-
-    return count;
-  };
-
-  const researchCount = useCounter(312);
-  const patentsCount = useCounter(48);
-  const placementRate = useCounter(92);
-  const partnersCount = useCounter(186);
-  const mouCount = useCounter(24);
-
-  const quickLinks = [
-    { icon: Award, label: 'Achievements', key: 'achievements', color: 'bg-blue-500' },
-    { icon: BookOpen, label: 'Research & Innovation', key: 'research-innovation', color: 'bg-purple-500' },
-    { icon: TrendingUp, label: 'Rankings', key: 'rankings', color: 'bg-green-500' },
-    { icon: Users, label: 'Placements', key: 'placements-internships', color: 'bg-orange-500' },
-    { icon: Building, label: 'Infrastructure', key: 'infrastructure', color: 'bg-red-500' },
-    { icon: Globe, label: 'International', key: 'international-interactions', color: 'bg-cyan-500' },
-    { icon: Star, label: 'Centre of Excellence', key: 'centre-excellence', color: 'bg-indigo-500' },
-    { icon: Briefcase, label: 'Industry Connects', key: 'industry-connects', color: 'bg-teal-500' }
-  ];
-
-  const latestNews = [
-    {
-      title: 'NAAC A++ Accreditation Renewed',
-      description: 'Christ University maintains its NAAC A++ accreditation with highest CGPA score.',
-      date: '2024-03-15',
-      category: 'Accreditation'
-    },
-    {
-      title: 'Research Excellence Award 2024',
-      description: 'Faculty members receive prestigious research grants totaling ₹5 Crore.',
-      date: '2024-03-10',
-      category: 'Research'
-    },
-    {
-      title: 'International Partnership Signed',
-      description: 'New MoU with Oxford University for collaborative research programs.',
-      date: '2024-03-05',
-      category: 'International'
-    },
-    {
-      title: '100% Placement Achievement',
-      description: 'Engineering batch 2024 achieves 100% placement with top companies.',
-      date: '2024-02-28',
-      category: 'Placements'
-    }
-  ];
+    if (quiet || !window.matchMedia('(min-width: 981px) and (pointer: fine)').matches) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      root.current?.style.setProperty('--hero-drift', Math.min(window.scrollY * .10, 55) + 'px');
+    };
+    const scroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    window.addEventListener('scroll', scroll, { passive: true });
+    update();
+    return () => {
+      window.removeEventListener('scroll', scroll);
+      cancelAnimationFrame(frame);
+      root.current?.style.setProperty('--hero-drift', '0px');
+    };
+  }, [quiet]);
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('All areas');
+  const [stage, setStage] = useState(0);
+  const matchingServices = services.filter(service =>
+    (category === 'All areas' || service.category === category) &&
+    (service.title + ' ' + service.detail + ' ' + service.category).toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  const activeStage = stages[stage];
+  const StageIcon = activeStage.icon;
 
   return (
-    <div className="w-full">
-      {/* Hero Section with Slideshow */}
-      <section className="relative h-screen w-full overflow-hidden">
-        {/* Gold left edge bar */}
-        <div className="absolute left-0 top-0 bottom-0 w-[5px] bg-[#e8c84a] z-20" />
-
-        {/* Slideshow backgrounds */}
-        {heroImages.map((image, index) => (
-          <div
-            key={index}
-            className="absolute inset-0 transition-opacity duration-[1200ms]"
-            style={{
-              opacity: index === currentImageIndex ? 1 : 0,
-              backgroundImage: `url(${image})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center'
-            }}
-          />
-        ))}
-
-        {/* Gradient overlay */}
-        <div
-          className="absolute inset-0 z-10"
-          style={{
-            background: 'linear-gradient(to bottom, rgba(10,16,60,0.88), rgba(10,16,60,0.6))'
-          }}
-        />
-
-        {/* Content */}
-        <div className="relative z-10 h-full flex flex-col items-center justify-center text-white px-4">
-          <div className="max-w-4xl mx-auto text-center">
-            <h1
-              className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight"
-              style={{
-                animation: 'fadeSlideIn 0.8s ease-out 0s both'
-              }}
-            >
-              Internal Quality Assurance Cell
-            </h1>
-            <p
-              className="text-xl md:text-2xl text-blue-100 mb-4 font-medium"
-              style={{
-                animation: 'fadeSlideIn 0.8s ease-out 0.15s both'
-              }}
-            >
-              Christ University — Committed to Excellence in Education
-            </p>
-            <p
-              className="text-lg text-blue-200 max-w-3xl mx-auto leading-relaxed"
-              style={{
-                animation: 'fadeSlideIn 0.8s ease-out 0.3s both'
-              }}
-            >
-              The IQAC at Christ University is dedicated to ensuring quality enhancement through systematic planning,
-              implementation, and monitoring of academic and administrative activities.
-            </p>
+    <QuietMotion.Provider value={quiet}><MotionConfig reducedMotion={quiet ? "always" : "never"}><div ref={root} className={`iq-home${quiet ? ' iq-motion-off' : ''}`}>
+      <section className="iq-hero" aria-labelledby="iq-hero-title">
+        <img className="iq-hero-photo" src={communityImage} alt="Students collaborating on the CHRIST University campus" width="1600" height="773" fetchPriority="high" />
+        <div className="iq-hero-shade" />
+        <svg className="iq-hero-traces" viewBox="0 0 600 600" fill="none" aria-hidden="true">
+          <circle cx="300" cy="300" r="235" /><circle cx="300" cy="300" r="190" />
+          <path d="M65 300H535M300 65V535" /><g className="iq-trace-orbit"><circle cx="300" cy="65" r="5" /><circle cx="300" cy="535" r="3" /></g>
+        </svg>
+        <button className="iq-motion-toggle" aria-pressed={paused} disabled={!!prefersReduced} onClick={() => setPaused(value => !value)}>
+          {prefersReduced ? 'Reduced motion enabled' : paused ? 'Resume decorative motion' : 'Pause decorative motion'}
+        </button>
+        <div className="iq-container iq-hero-inner">
+          <div className="iq-hero-copy">
+            <p className="iq-eyebrow"><span /> INTERNAL QUALITY ASSURANCE CELL</p>
+            <h1 id="iq-hero-title"><span className="iq-title-line"><span>Quality in</span></span><span className="iq-title-line"><em>every endeavour.</em></span></h1>
+            <p className="iq-hero-description">A shared commitment to better learning, meaningful research, and continuous improvement at CHRIST.</p>
+            <div className="iq-actions">
+              <a className="iq-button iq-gold" href="#quality">Discover IQAC <ArrowRight size={18} /></a>
+              <a className="iq-text-link" href="#institution">Explore the institution <ArrowUpRight size={17} /></a>
+            </div>
+            <p className="iq-hero-note"><span className="iq-note-line" /> EXCELLENCE AND SERVICE</p>
           </div>
+          <a className="iq-hero-seal" href={IQAC + '/naac'} {...external}>
+            <Award size={24} strokeWidth={1.4} />
+            <span><strong>A+ <small>NAAC ACCREDITED</small></strong><span>A commitment to quality, recognised.</span></span>
+            <ArrowUpRight size={17} />
+          </a>
+        </div>
+      </section>
 
-          {/* Dot indicators */}
-          <div
-            className="flex space-x-2 mt-12"
-            style={{
-              animation: 'fadeSlideIn 0.8s ease-out 0.45s both'
-            }}
-          >
-            {heroImages.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentImageIndex(index)}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  index === currentImageIndex
-                    ? 'bg-[#e8c84a] w-8'
-                    : 'bg-white/50 hover:bg-white/80'
-                }`}
-              />
+      <Reveal className="iq-container iq-access iq-stagger" delay={.08}>
+        <button onClick={onLoginClick}>
+          <span className="iq-access-icon"><Users size={23} /></span>
+          <span><small>FOR FACULTY & ADMINISTRATION</small><strong>Institutional workspace</strong><span>Document, review, and collaborate</span></span>
+          <ArrowUpRight size={19} />
+        </button>
+        <a href="#resources">
+          <span className="iq-access-icon"><BookOpen size={23} /></span>
+          <span><small>REPORTS & DOCUMENTATION</small><strong>Quality resources</strong><span>Find audits, reports, and initiatives</span></span>
+          <ArrowUpRight size={19} />
+        </a>
+        <a href="#institution">
+          <span className="iq-access-icon"><Compass size={23} /></span>
+          <span><small>EXPLORE CHRIST</small><strong>Institutional profile</strong><span>Research, achievements, and more</span></span>
+          <ArrowUpRight size={19} />
+        </a>
+      </Reveal>
+
+      <section className="iq-facts" aria-label="Institutional overview">
+        <Reveal className="iq-container iq-facts-grid iq-stagger" delay={.12}>
+          <div><strong>2003</strong><span>IQAC constituted</span></div>
+          <div><strong>5</strong><span>Quality verticals</span></div>
+          <a href={IQAC + '/naac'} {...external}><strong>A+</strong><span>NAAC accreditation <ArrowUpRight size={14} /></span></a>
+          <a href={IQAC + '/naac'} {...external}><strong>3.42<span>/4</span></strong><span>NAAC CGPA</span></a>
+        </Reveal>
+      </section>
+
+      <section id="quality" tabIndex={-1} className="iq-section iq-container">
+        <Reveal className="iq-about-grid">
+          <div className="iq-about-copy">
+            <p className="iq-eyebrow">ABOUT THE IQAC</p>
+            <h2>Excellence is a culture.<br /><em>We help it grow.</em></h2>
+            <p>Established in 2003, the Internal Quality Assurance Cell brings together the people, processes, and evidence that strengthen academic and administrative quality at CHRIST.</p>
+            <p>Through audits, collaboration, and review, we support a shared approach to improvement across departments, centres, and administrative teams.</p>
+            <a className="iq-inline-link" href="https://christuniversity.in/center/C/iqac2026" {...external}>Meet the IQAC <ArrowUpRight size={17} /></a>
+          </div>
+          <figure className="iq-about-photo">
+            <img src={libraryImage} alt="A CHRIST student reading in the University library" width="900" height="435" loading="lazy" decoding="async" />
+            <figcaption><span>OUR PURPOSE</span><strong>Better processes.<br />Greater possibilities.</strong><BookOpen size={30} strokeWidth={1.2} /></figcaption>
+          </figure>
+        </Reveal>
+        <div className="iq-subheading"><h3>Five verticals. One shared purpose.</h3><span>OUR AREAS OF FOCUS</span></div>
+        <Reveal className="iq-vertical-grid iq-stagger" delay={.05}>
+          {verticals.map(({ title, detail, icon: Icon, href }, index) => (
+            <a className="iq-vertical" href={href} {...external} key={title}>
+              <div className="iq-card-top"><Icon size={25} strokeWidth={1.5} /><span>0{index + 1}</span></div>
+              <h3>{title}</h3><p>{detail}</p><ArrowUpRight className="iq-card-arrow" size={20} />
+            </a>
+          ))}
+        </Reveal>
+      </section>
+
+      <section className="iq-accreditation" aria-labelledby="accreditation-title">
+        <Reveal className="iq-container iq-accreditation-grid">
+          <div className="iq-grade-art"><div className="iq-grade-ring"><Award size={30} strokeWidth={1.3} /><strong>A+</strong><span>NAAC ACCREDITED</span></div></div>
+          <div>
+            <p className="iq-eyebrow">INSTITUTIONAL RECOGNITION</p>
+            <h2 id="accreditation-title">Recognised for quality.<br /><em>Committed to what comes next.</em></h2>
+            <p className="iq-accreditation-copy">Our NAAC accreditation reflects a commitment to academic excellence, governance, and institutional quality. Every review is an opportunity to build on that foundation.</p>
+            <div className="iq-accreditation-meta"><span><Check size={16} /> CGPA 3.42 out of 4</span><span><Check size={16} /> Valid until 25 October 2027</span></div>
+            <a className="iq-inline-link" href={IQAC + '/naac'} {...external}>View accreditation details <ArrowUpRight size={17} /></a>
+          </div>
+        </Reveal>
+      </section>
+
+      <section id="institution" tabIndex={-1} className="iq-directory">
+        <div className="iq-container">
+          <Reveal className="iq-section-intro">
+            <div><p className="iq-eyebrow">THE INSTITUTION, CONNECTED</p><h2>Discover the work.<br /><em>Explore the impact.</em></h2></div>
+            <p className="iq-intro-body">Your gateway to the University&apos;s achievements, academic activity, research, and partnerships. Find the area you want to explore.</p>
+          </Reveal>
+          <div className="iq-directory-toolbar">
+            <div className="iq-filters" role="group" aria-label="Filter institutional areas">
+              {categories.map(item => <button key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}
+            </div>
+            <div className="iq-search"><Search size={17} aria-hidden="true" /><input aria-label="Search institutional areas" placeholder="Search areas..." type="search" value={query} onChange={event => setQuery(event.target.value)} />{query && <button aria-label="Clear search" onClick={() => setQuery('')}><X size={16} /></button>}</div>
+          </div>
+          <p className="iq-directory-count" role="status">{matchingServices.length} {matchingServices.length === 1 ? 'area' : 'areas'} to explore{query.trim() && <> for &ldquo;{query.trim()}&rdquo;</>}</p>
+          <div className="iq-services">
+            {matchingServices.map(({ title, detail, key, category: group, icon: Icon }, index) => (
+              <motion.button layout={!quiet ? 'position' : false} initial={quiet ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: quiet ? 0 : .38, delay: quiet ? 0 : Math.min(index * .045, .25), ease: [.22, 1, .36, 1] }} className={['iq-service', key === 'achievements' ? 'iq-service-featured' : ''].filter(Boolean).join(' ')} key={key} onClick={() => onNavigate(key)}>
+                <div className="iq-service-top"><span className="iq-service-icon"><Icon size={23} strokeWidth={1.5} /></span><ArrowUpRight size={18} /></div>
+                <small>{group}</small><h3>{title}</h3><p>{detail}</p>
+                <span className="iq-service-open">Explore area <ArrowRight size={15} /></span>
+              </motion.button>
             ))}
           </div>
-
-          {/* Bouncing scroll cue */}
-          <div className="absolute bottom-8 animate-bounce">
-            <ChevronDown className="w-8 h-8 text-white/80" />
-          </div>
+          {matchingServices.length === 0 && <div className="iq-empty"><Search size={30} /><h3>No matching areas</h3><p>Try a different search or explore all institutional areas.</p><button className="iq-button iq-navy" onClick={() => { setQuery(''); setCategory('All areas'); }}>Reset filters <ArrowRight size={16} /></button></div>}
         </div>
       </section>
 
-      {/* Animated Stats Bar */}
-      <section ref={statsRef} className="bg-[#0f1746] text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold mb-2 text-[#e8c84a]">
-                {researchCount}+
+      <section id="resources" tabIndex={-1} className="iq-section iq-container">
+        <Reveal className="iq-section-intro">
+          <div><p className="iq-eyebrow">THE RESOURCE DESK</p><h2>Evidence. Insight.<br /><em>A clearer way forward.</em></h2></div>
+          <div className="iq-intro-body"><p>Go straight to the official IQAC resources that inform review, reporting, and institutional planning.</p><a className="iq-inline-link" href={IQAC} {...external}>Visit the official IQAC website <ArrowUpRight size={17} /></a></div>
+        </Reveal>
+        <div className="iq-resource-meter" aria-hidden="true"><span>THE QUALITY COLLECTION</span><div>{resources.map((item, i) => <i key={item.title} className={resourceIndex === i ? 'active' : ''} />)}</div><span>0{resourceIndex + 1} / 03</span></div>
+        <Reveal className="iq-resource-grid iq-stagger" delay={.04}>
+          {resources.map(({ icon: Icon, ...item }, index) => (
+            <a key={item.title} href={item.href} {...external} className="iq-resource" onMouseEnter={() => setResourceIndex(index)} onFocus={() => setResourceIndex(index)}>
+              <div className={'iq-resource-art resource-art-' + index} aria-hidden="true">
+                <span className="iq-cover-brand">CHRIST <span>/ IQAC</span></span>
+                <div className="iq-cover-title">{item.cover}<br /><em>{item.sub}</em></div>
+                <Icon className="iq-cover-icon" size={90} strokeWidth={.7} />
+                <span className="iq-cover-footer">QUALITY RESOURCE <ArrowUpRight size={15} /></span>
               </div>
-              <div className="text-sm text-blue-200">Research Papers</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold mb-2 text-[#e8c84a]">
-                {patentsCount}
-              </div>
-              <div className="text-sm text-blue-200">Patents Filed</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold mb-2 text-[#e8c84a]">
-                {placementRate}%
-              </div>
-              <div className="text-sm text-blue-200">Placement Rate</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold mb-2 text-[#e8c84a]">
-                {partnersCount}+
-              </div>
-              <div className="text-sm text-blue-200">Industry Partners</div>
-            </div>
-            <div className="text-center col-span-2 md:col-span-1">
-              <div className="text-3xl md:text-4xl font-bold mb-2 text-[#e8c84a]">
-                {mouCount}
-              </div>
-              <div className="text-sm text-blue-200">International MoUs</div>
-            </div>
-          </div>
-        </div>
+              <div className="iq-resource-body"><small>{item.type}</small><h3>{item.title}</h3><p>{item.description}</p><span className="iq-resource-link">Open resource <ArrowUpRight size={16} /></span></div>
+            </a>
+          ))}
+        </Reveal>
       </section>
 
-      {/* NAAC & NBA Accreditation Status */}
-      <FadeInSection>
-        <section className="py-16 bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Accreditation Status</h2>
-              <p className="text-lg text-gray-600">Our commitment to quality recognized by national accreditation bodies</p>
+      <section className="iq-process" aria-labelledby="process-title">
+        <Reveal className="iq-container iq-process-layout">
+          <div className="iq-process-heading"><p className="iq-eyebrow">CONTINUOUS IMPROVEMENT</p><h2 id="process-title">Quality is a process.<br /><em>Not a destination.</em></h2><p>From intention to evidence, every stage informs the next. Explore the cycle behind our approach.</p><div className="iq-process-symbol" aria-hidden="true"><span /><span /><span /><ShieldCheck size={48} strokeWidth={1} /></div></div>
+          <div className="iq-process-interactive">
+            <div className="iq-stage-track" aria-hidden="true"><motion.span initial={false} animate={{ scaleX: (stage + 1) / 4 }} transition={{ duration: quiet ? 0 : .5 }} /></div>
+            <div className="iq-process-steps" role="group" aria-label="Quality improvement stages">
+              {stages.map((item, index) => <button key={item.name} aria-pressed={stage === index} aria-controls="iq-stage-detail" onClick={() => setStage(index)}><span>0{index + 1}</span>{item.name}</button>)}
             </div>
-
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* NAAC Card */}
-              <Card className="border-2 border-[#2f4692] shadow-lg hover:-translate-y-1 transition-transform duration-300">
-                <CardHeader className="bg-[#0B132B] text-white">
-                  <CardTitle className="text-2xl">NAAC Accreditation</CardTitle>
-                  <CardDescription className="text-blue-100">
-                    National Assessment and Accreditation Council
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 font-medium">Grade:</span>
-                      <span className="text-2xl font-bold text-green-600">A++</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 font-medium">CGPA:</span>
-                      <span className="text-2xl font-bold text-[#2f4692]">3.69</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 font-medium">Valid Until:</span>
-                      <span className="text-lg font-semibold text-gray-700">2028</span>
-                    </div>
-                    <div className="pt-4 border-t">
-                      <div className="flex items-start space-x-2">
-                        <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-gray-600">
-                          Highest accreditation grade demonstrating excellence in teaching, learning, research, and governance.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* NBA Card */}
-              <Card className="border-2 border-[#2f4692] shadow-lg hover:-translate-y-1 transition-transform duration-300">
-                <CardHeader className="bg-[#0B132B] text-white">
-                  <CardTitle className="text-2xl">NBA Accreditation</CardTitle>
-                  <CardDescription className="text-blue-100">
-                    National Board of Accreditation
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 font-medium">Programs Accredited:</span>
-                      <span className="text-2xl font-bold text-[#2f4692]">8</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 font-medium">Compliance Rate:</span>
-                      <span className="text-2xl font-bold text-green-600">97%</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 font-medium">Status:</span>
-                      <span className="text-lg font-semibold text-green-600 flex items-center">
-                        <CheckCircle className="w-5 h-5 mr-1" /> Active
-                      </span>
-                    </div>
-                    <div className="pt-4 border-t">
-                      <div className="flex items-start space-x-2">
-                        <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-gray-600">
-                          All engineering programs meet NBA quality standards ensuring industry-relevant curriculum and outcomes.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <div id="iq-stage-detail" className="iq-process-detail" aria-live="polite" aria-atomic="true"><motion.article key={stage} initial={quiet ? false : { opacity: .2, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: quiet ? 0 : .3 }}>
+              <StageIcon size={30} strokeWidth={1.3} /><small>0{stage + 1} / {activeStage.name.toUpperCase()}</small><h3>{activeStage.title}</h3><p>{activeStage.detail}</p><div><Check size={15} />{activeStage.evidence}</div></motion.article>
             </div>
+            <button className="iq-process-next" onClick={() => setStage((stage + 1) % stages.length)}>Next: {stages[(stage + 1) % stages.length].name}<ArrowRight size={16} /></button>
           </div>
-        </section>
-      </FadeInSection>
+        </Reveal>
+      </section>
 
-      {/* Latest News & Events */}
-      <FadeInSection>
-        <section className="py-16 bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Latest News & Events</h2>
-              <p className="text-lg text-gray-600">Stay updated with recent achievements and milestones</p>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {latestNews.map((news, index) => (
-                <Card
-                  key={index}
-                  className="hover:shadow-lg transition-all cursor-pointer hover:-translate-y-1 duration-300"
-                  style={{
-                    animation: `fadeInUp 0.6s ease-out ${index * 0.06}s both`
-                  }}
-                >
-                  <CardHeader>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-[#2f4692] bg-blue-50 px-2 py-1 rounded">
-                        {news.category}
-                      </span>
-                      <span className="text-xs text-gray-500">{news.date}</span>
-                    </div>
-                    <CardTitle className="text-lg leading-tight">{news.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600 leading-relaxed">{news.description}</p>
-                    <button className="mt-4 text-sm text-[#2f4692] font-medium flex items-center hover:underline">
-                      Read More <ChevronRight className="w-4 h-4 ml-1" />
-                    </button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </section>
-      </FadeInSection>
-
-      {/* Quick Links */}
-      <FadeInSection>
-        <section className="py-16 bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Explore IQAC</h2>
-              <p className="text-lg text-gray-600">Quick access to all major sections</p>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {quickLinks.map((link, index) => {
-                const Icon = link.icon;
-                return (
-                  <button
-                    key={link.key}
-                    onClick={() => onNavigate(link.key)}
-                    className="group bg-white rounded-lg p-6 shadow-md hover:shadow-xl transition-all transform hover:-translate-y-1"
-                    style={{
-                      animation: `fadeInUp 0.6s ease-out ${index * 0.06}s both`
-                    }}
-                  >
-                    <div className={`${link.color} w-12 h-12 rounded-lg flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform`}>
-                      <Icon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-gray-900 text-center">{link.label}</h3>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      </FadeInSection>
-
-      {/* Call to Action */}
-      <FadeInSection>
-        <section className="bg-[#0B132B] text-white py-16">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl font-bold mb-4">Quality is Our Commitment</h2>
-            <p className="text-xl text-blue-100 mb-8">
-              Join us in our mission to maintain and enhance educational excellence at Christ University
-            </p>
-            <button
-              onClick={() => onNavigate('achievements')}
-              className="bg-white text-[#2f4692] px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors inline-flex items-center"
-            >
-              Explore Our Achievements <ChevronRight className="w-5 h-5 ml-2" />
-            </button>
-          </div>
-        </section>
-      </FadeInSection>
-    </div>
-  );
-}
-
-// FadeInSection component using IntersectionObserver
-function FadeInSection({ children }: { children: React.ReactNode }) {
-  const [isVisible, setIsVisible] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsVisible(true);
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-
-    if (ref.current) {
-      observer.observe(ref.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      style={{
-        opacity: isVisible ? 1 : 0,
-        transform: isVisible ? 'translateY(0)' : 'translateY(28px)',
-        transition: 'opacity 0.6s ease-out, transform 0.6s ease-out'
-      }}
-    >
-      {children}
-    </div>
+      <div className="iq-marquee" aria-label="Quality in practice: Learning, Discovery, Collaboration, Progress">
+        <div className="iq-marquee-track" aria-hidden="true">{[0,1].map(copy => <div key={copy}><span>Learning</span><i>+</i><span>Discovery</span><i>+</i><span>Collaboration</span><i>+</i><span>Progress</span><i>+</i></div>)}</div>
+      </div>
+      <section className="iq-closing"><Reveal className="iq-cta iq-container">
+        <div><p className="iq-eyebrow">FOR THE CHRIST COMMUNITY</p><h2>Your contribution.<br /><em>Our collective progress.</em></h2><p>Access your institutional workspace to document and advance quality initiatives.</p></div>
+        <button className="iq-button iq-gold" onClick={onLoginClick}>Institutional login <ArrowRight size={17} /></button>
+      </Reveal></section>
+    </div></MotionConfig></QuietMotion.Provider>
   );
 }

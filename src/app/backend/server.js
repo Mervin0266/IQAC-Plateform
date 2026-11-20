@@ -5,7 +5,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config(); // Fallback to root or current working directory
 
 const { sequelize, testConnection } = require('./config/database');
 
@@ -148,6 +149,9 @@ app.use('/api/patents', require('./routes/patents'));
 app.use('/api/copyrights', require('./routes/copyrights'));
 app.use('/api/awards', require('./routes/awards'));
 app.use('/api/e-contents', require('./routes/eContents'));
+app.use('/api/professional-developments', require('./routes/professionalDevelopments'));
+app.use('/api/invited-talks', require('./routes/invitedTalks'));
+app.use('/api/periodicals', require('./routes/periodicals'));
 app.use('/api/placements', require('./routes/placements'));
 app.use('/api/strategic-plans', require('./routes/strategicPlans'));
 app.use('/api/edit-requests', require('./routes/editRequests'));
@@ -208,6 +212,8 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '0.0.0.0';
+let server;
 
 // Database connection and server start
 const startServer = async () => {
@@ -264,16 +270,53 @@ const startServer = async () => {
       console.warn('⚠️ Schema migration runner notice (non-fatal):', migErr.message);
     }
 
-    // Start server
-    app.listen(PORT, () => {
-      console.log(`✓ Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-      console.log(`✓ Health check: http://localhost:${PORT}/health`);
+    // Start server binding explicitly to configured HOST (0.0.0.0 for Docker / cloud environments)
+    server = app.listen(PORT, HOST, () => {
+      console.log(`✓ Server running in ${process.env.NODE_ENV} mode on ${HOST}:${PORT}`);
+      console.log(`✓ Health check: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}/health`);
+
+      // Initialize Scopus Weekly Citation Background Scheduler
+      try {
+        const { initCitationScheduler } = require('./services/citationRefreshScheduler');
+        initCitationScheduler();
+      } catch (schedErr) {
+        console.warn('⚠️ Citation background scheduler init notice:', schedErr.message);
+      }
     });
   } catch (error) {
     console.error('✗ Failed to start server:', error);
     process.exit(1);
   }
 };
+
+// Graceful shutdown handling for container lifecycles (SIGTERM & SIGINT)
+const gracefulShutdown = async (signal) => {
+  console.log(`\n✓ Received ${signal}. Initiating graceful shutdown...`);
+  if (server) {
+    server.close(async () => {
+      console.log('✓ HTTP server closed. Stopped accepting new connections.');
+      try {
+        await sequelize.close();
+        console.log('✓ Database connection pool closed.');
+        process.exit(0);
+      } catch (err) {
+        console.error('✗ Error closing database connections during shutdown:', err);
+        process.exit(1);
+      }
+    });
+
+    // Enforce 10-second timeout if keep-alive connections do not drain
+    setTimeout(() => {
+      console.error('✗ Graceful shutdown timeout (10s) exceeded. Forcing process exit.');
+      process.exit(1);
+    }, 10000).unref();
+  } else {
+    process.exit(0);
+  }
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Export Express application for Supertest integration tests
 module.exports = app;

@@ -14,7 +14,25 @@ const {
   previewReport,
   exportReport,
   getIprAnalytics,
-  getIprDrilldown
+  getIprDrilldown,
+  getFacultyDirectory,
+  builderPreview,
+  builderExport,
+  getSavedConfigs,
+  saveConfig,
+  deleteSavedConfig,
+  getReportHistory,
+  deleteReportHistory,
+  getMetricCatalog,
+  queryAnalytics,
+  compareAnalytics,
+  getGovernanceData,
+  getCustomDashboards,
+  createCustomDashboard,
+  updateCustomDashboard,
+  deleteCustomDashboard,
+  createCustomMetric,
+  deleteCustomMetric
 } = require('../controllers/institutionalAnalyticsController');
 
 // All endpoints require authentication
@@ -30,10 +48,36 @@ router.get('/ipr/drilldown', getIprDrilldown);
 // Report configuration metadata
 router.get('/report-config', getReportConfig);
 
-// Interactive preview
+// Interactive preview (legacy)
 router.post('/preview', previewReport);
 
-// Export (Excel, PDF, Word)
+// Export (legacy Excel, PDF, Word)
 router.post('/export', exportReport);
+
+// Institutional Report Builder API Endpoints
+router.get('/faculty-directory', getFacultyDirectory);
+router.post('/builder-preview', builderPreview);
+router.post('/builder-export', builderExport);
+router.get('/saved-configs', getSavedConfigs);
+router.post('/saved-configs', saveConfig);
+router.delete('/saved-configs/:id', deleteSavedConfig);
+router.get('/history', getReportHistory);
+router.delete('/history/:id', deleteReportHistory);
+
+// Dynamic Institutional Analytics Engine Endpoints
+router.get('/metric-catalog', getMetricCatalog);
+router.post('/query', queryAnalytics);
+router.post('/compare', compareAnalytics);
+router.get('/governance', getGovernanceData);
+
+// Custom Dashboards CRUD
+router.get('/custom-dashboards', getCustomDashboards);
+router.post('/custom-dashboards', createCustomDashboard);
+router.put('/custom-dashboards/:id', updateCustomDashboard);
+router.delete('/custom-dashboards/:id', deleteCustomDashboard);
+
+// Custom Metrics CRUD
+router.post('/custom-metrics', createCustomMetric);
+router.delete('/custom-metrics/:id', deleteCustomMetric);
 
 module.exports = router;

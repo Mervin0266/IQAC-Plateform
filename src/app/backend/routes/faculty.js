@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getFaculty,
   getFacultyStats,
+  getFacultyContributions,
   createFaculty,
   bulkCreateFaculty,
   updateFaculty,
@@ -23,6 +24,8 @@ router.route('/')
 
 router.route('/bulk')
   .post(authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('faculty-details'), bulkCreateFaculty);
+
+router.get('/:id/contributions', getFacultyContributions);
 
 router.route('/:id')
   .put(authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('faculty-details'), validateFormSubmission('faculty-profile-form', false), updateFaculty)

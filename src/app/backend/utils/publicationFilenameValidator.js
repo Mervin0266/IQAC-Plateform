@@ -1,6 +1,8 @@
+'use strict';
+
 const MODULE_ALLOWED_EXTENSIONS = {
   publications: ['xlsx', 'xls', 'csv'],
-  citations: ['csv', 'xlsx'],
+  citations: ['xlsx', 'xls', 'csv'],
 };
 
 const RESERVED_NON_ID_TOKENS = new Set([
@@ -20,17 +22,19 @@ const RESERVED_NON_ID_TOKENS = new Set([
 
 /**
  * Validates standardized IQAC faculty-wise bulk-upload filenames:
- *   - Publications: <EmpID>_<FacultyName>_Publications.<xlsx|xls|csv>
- *   - Citations:    <EmpID>_<FacultyName>_Citations.<csv|xlsx>
+ *   - Publications: <EmpID>_<Faculty_Name>_PUBLICATION.<xlsx|xls|csv>
+ *     (Supports case-insensitive: publication, publications, PUBLICATION, etc.)
+ *
+ * Suffix check:
+ *   - If someone uploads an obsolete _CITATIONS / _CITATION file, returns an explicit
+ *     rejection message that manual citation upload is no longer supported and citation
+ *     details are retrieved automatically from Scopus.
  *
  * Returns structured metadata and a deterministic file-level error when invalid.
  */
-function validateBulkFilename(filename, expectedModule) {
-  const expectedCap = expectedModule === 'citations' ? 'Citations' : 'Publications';
+function validateBulkFilename(filename, expectedModule = 'publications') {
   const allowedExts = MODULE_ALLOWED_EXTENSIONS[expectedModule] || MODULE_ALLOWED_EXTENSIONS.publications;
-  const exampleName = expectedModule === 'citations'
-    ? '3489_Suresh_K_Citations.csv'
-    : '2043_Adarsh_S_V_Publications.xlsx';
+  const exampleName = '12345_Suresh_Kishore_PUBLICATION.xlsx';
 
   const makeInvalid = (reasonCode, error, extra = {}) => ({
     valid: false,
@@ -46,7 +50,7 @@ function validateBulkFilename(filename, expectedModule) {
   if (!filename || typeof filename !== 'string') {
     return makeInvalid(
       'missing_filename',
-      `Filename is missing. Expected: EmpID_FacultyName_${expectedCap}.${allowedExts[0]} (e.g., ${exampleName}).`
+      `Filename is missing. Expected: EMPID_FACULTY_NAME_PUBLICATION.xlsx (e.g., ${exampleName}).`
     );
   }
 
@@ -67,10 +71,11 @@ function validateBulkFilename(filename, expectedModule) {
   const extension = baseFilename.slice(lastDotIdx + 1).toLowerCase();
   const baseWithoutExt = baseFilename.slice(0, lastDotIdx).trim();
 
+  // Validate extension (must be .xlsx, .xls, or .csv)
   if (!allowedExts.includes(extension)) {
     return makeInvalid(
       'invalid_extension',
-      `Unsupported extension ".${extension}" in "${baseFilename}". Allowed for ${expectedCap}: ${allowedExts.map(e => `.${e}`).join(', ')}.`,
+      `Unsupported extension ".${extension}" in "${baseFilename}". Allowed for Publications: ${allowedExts.map(e => `.${e}`).join(', ')}.`,
       { extension }
     );
   }
@@ -80,7 +85,7 @@ function validateBulkFilename(filename, expectedModule) {
   if (lastUnderscoreIdx === -1) {
     return makeInvalid(
       'missing_module_identifier',
-      `Invalid filename "${baseFilename}". Expected: EmpID_FacultyName_${expectedCap}.${extension} (e.g., ${exampleName}).`,
+      `Invalid filename "${baseFilename}". Expected format: EMPID_FACULTY_NAME_${expectedModule === 'citations' ? 'CITATIONS' : 'PUBLICATION'}.${extension} (e.g., ${exampleName}).`,
       { extension }
     );
   }
@@ -89,65 +94,46 @@ function validateBulkFilename(filename, expectedModule) {
   const trailingLower = trailingToken.toLowerCase();
   const remainderBeforeModule = baseWithoutExt.slice(0, lastUnderscoreIdx).trim();
 
-  if (expectedModule === 'publications') {
-    if (trailingLower === 'citations' || trailingLower === 'citation') {
+  // Validate module suffix based on expectedModule
+  if (expectedModule === 'citations') {
+    if (trailingLower !== 'citations' && trailingLower !== 'citation') {
       return makeInvalid(
         'wrong_module',
-        `Incorrect module identifier "_${trailingToken}" in "${baseFilename}" for Publications upload. Expected "_Publications" (e.g., ${exampleName}).`,
+        `File "${baseFilename}" is not a citation file. Expected filename ending with "_CITATIONS" (e.g., 12345_Faculty_Name_CITATIONS.${extension}).`,
         { extension, moduleFound: trailingLower }
-      );
-    }
-    if (trailingLower === 'publication') {
-      return makeInvalid(
-        'invalid_module_identifier',
-        `Invalid module identifier "_${trailingToken}" in "${baseFilename}". Module identifier must be "_Publications" (e.g., ${exampleName}).`,
-        { extension, moduleFound: trailingLower }
-      );
-    }
-    if (trailingLower !== 'publications') {
-      return makeInvalid(
-        'missing_module_identifier',
-        `Missing required module identifier "_Publications" in "${baseFilename}". Expected: EmpID_FacultyName_Publications.${extension} (e.g., ${exampleName}).`,
-        { extension, moduleFound: trailingLower || null }
       );
     }
   } else {
-    if (trailingLower === 'publications' || trailingLower === 'publication') {
+    // Expected publications
+    if (trailingLower === 'citations' || trailingLower === 'citation') {
       return makeInvalid(
         'wrong_module',
-        `Incorrect module identifier "_${trailingToken}" in "${baseFilename}" for Citations upload. Expected "_Citations" (e.g., ${exampleName}).`,
+        `File "${baseFilename}" appears to be a citation file. Please upload it via the Citation Upload section.`,
         { extension, moduleFound: trailingLower }
       );
     }
-    if (trailingLower === 'citation') {
-      return makeInvalid(
-        'invalid_module_identifier',
-        `Invalid module identifier "_${trailingToken}" in "${baseFilename}". Module identifier must be "_Citations" (e.g., ${exampleName}).`,
-        { extension, moduleFound: trailingLower }
-      );
-    }
-    if (trailingLower !== 'citations') {
+    if (trailingLower !== 'publication' && trailingLower !== 'publications') {
       return makeInvalid(
         'missing_module_identifier',
-        `Missing required module identifier "_Citations" in "${baseFilename}". Expected: EmpID_FacultyName_Citations.${extension} (e.g., ${exampleName}).`,
+        `Missing required module identifier "_PUBLICATION" in "${baseFilename}". Expected: EMPID_FACULTY_NAME_PUBLICATION.${extension} (e.g., ${exampleName}).`,
         { extension, moduleFound: trailingLower || null }
       );
     }
   }
 
-  // Parse <EmpID>_<FacultyName> from remainderBeforeModule
+  // Parse <EmpID> from the first segment before the first underscore in remainderBeforeModule
   if (!remainderBeforeModule) {
     return makeInvalid(
       'missing_employee_id',
-      `Employee ID and faculty name are missing in "${baseFilename}". Expected: EmpID_FacultyName_${expectedCap}.${extension} (e.g., ${exampleName}).`,
+      `Employee ID and faculty name are missing in "${baseFilename}". Expected: EMPID_FACULTY_NAME_PUBLICATION.xlsx (e.g., ${exampleName}).`,
       { extension, moduleFound: trailingLower }
     );
   }
 
-  // Support optional underscore inside department-prefixed ID like F_5432_John_Doe
   let rawEmpId = '';
   let rawFacultySegment = '';
 
+  // Support department-prefixed ID like F_5432_John_Doe or CU-991_Dr_Smith
   const prefixedWithUnderscoreMatch = remainderBeforeModule.match(/^([A-Za-z]{1,4}_\d+)_(.+)$/);
   if (prefixedWithUnderscoreMatch) {
     rawEmpId = prefixedWithUnderscoreMatch[1].trim();
@@ -155,11 +141,11 @@ function validateBulkFilename(filename, expectedModule) {
   } else {
     const firstUnderscoreIdx = remainderBeforeModule.indexOf('_');
     if (firstUnderscoreIdx === -1) {
-      // Only a single token exists before _Module (e.g. 3489_Publications.xlsx or Suresh_Publications.xlsx)
+      // Only a single token exists before _PUBLICATION
       if (/\d/.test(remainderBeforeModule) && /^[A-Za-z0-9][A-Za-z0-9-]*$/.test(remainderBeforeModule)) {
         return makeInvalid(
           'missing_faculty_name',
-          `Faculty name is missing in "${baseFilename}". Expected: EmpID_FacultyName_${expectedCap}.${extension} (e.g., ${exampleName}).`,
+          `Faculty name is missing in "${baseFilename}". Expected: EMPID_FACULTY_NAME_PUBLICATION.xlsx (e.g., ${exampleName}).`,
           { extension, employeeId: remainderBeforeModule, moduleFound: trailingLower }
         );
       }
@@ -179,14 +165,14 @@ function validateBulkFilename(filename, expectedModule) {
     if (RESERVED_NON_ID_TOKENS.has(token.toLowerCase())) return false;
     if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(token)) return false;
     if (token.endsWith('-') || token.endsWith('_')) return false;
-    // Employee IDs contain at least one digit (e.g. 3489, 00123, EMP001, CU-991)
+    // Employee IDs contain at least one digit (e.g. 12345, 3489, 00123, EMP001, CU-991)
     return /\d/.test(token);
   };
 
   if (!isValidEmpIdToken(rawEmpId)) {
     return makeInvalid(
       'missing_employee_id',
-      `Employee ID is missing or invalid in "${baseFilename}". Filename must start with Employee ID (e.g., ${exampleName}).`,
+      `Employee ID is missing or invalid in "${baseFilename}". Filename must start with EmpID (e.g., ${exampleName}).`,
       { extension, moduleFound: trailingLower }
     );
   }
@@ -199,14 +185,14 @@ function validateBulkFilename(filename, expectedModule) {
   if (!normalizedFacultyName || !/[A-Za-z]/.test(normalizedFacultyName)) {
     return makeInvalid(
       'missing_faculty_name',
-      `Faculty name is missing in "${baseFilename}". Expected: EmpID_FacultyName_${expectedCap}.${extension} (e.g., ${exampleName}).`,
+      `Faculty name is missing in "${baseFilename}". Expected: EMPID_FACULTY_NAME_PUBLICATION.xlsx (e.g., ${exampleName}).`,
       { extension, employeeId: rawEmpId, moduleFound: trailingLower }
     );
   }
 
   return {
     valid: true,
-    employeeId: rawEmpId,
+    employeeId: String(rawEmpId).trim(), // Preserves leading zeros as string
     facultyNameFromFile: normalizedFacultyName,
     moduleFound: trailingLower,
     expectedModule,
@@ -220,4 +206,3 @@ module.exports = {
   MODULE_ALLOWED_EXTENSIONS,
   validateBulkFilename,
 };
-

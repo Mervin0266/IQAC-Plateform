@@ -38,17 +38,28 @@ const PatentFaculty = sequelize.define('PatentFaculty', {
   },
   employeeId: {
     type: DataTypes.STRING(64),
-    allowNull: false,
-    comment: 'Actual trimmed Employee ID preserving leading zeros'
+    allowNull: true,
+    comment: 'Actual trimmed Employee ID preserving leading zeros (null for Guest Faculty)'
   },
   normalizedEmployeeId: {
     type: DataTypes.STRING(64),
-    allowNull: false,
-    comment: 'Uppercased trimmed Employee ID key for deduplication and matching'
+    allowNull: true,
+    comment: 'Uppercased trimmed Employee ID key for deduplication and matching (null for Guest Faculty)'
   },
   facultyName: {
     type: DataTypes.TEXT,
     allowNull: true
+  },
+  isGuestFaculty: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  facultyType: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    defaultValue: 'Faculty',
+    comment: 'Faculty | Guest Faculty'
   },
   designation: {
     type: DataTypes.STRING(255),

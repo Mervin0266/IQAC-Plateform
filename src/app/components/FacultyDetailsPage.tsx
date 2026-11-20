@@ -32,7 +32,15 @@ import {
   Calendar,
   Layers,
   FileSpreadsheet,
-  AlertCircle
+  AlertCircle,
+  Video,
+  Mic,
+  Newspaper,
+  DollarSign,
+  FlaskConical,
+  FileCheck,
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { BulkUploadDialog } from './BulkUploadDialog';
@@ -152,13 +160,34 @@ export interface Faculty {
   highestQualification?: string;
   cuExpYears?: string;
   cuExpMonths?: string;
+  totalCurrentExpYears?: string;
+  totalCurrentExpMonths?: string;
   email?: string;
+  officialEmailId?: string;
   phone?: string;
   qualifications?: Qualifications;
   specialization?: string;
+  nationality?: string;
+  permanentCity?: string;
+  permanentState?: string;
+  permanentCountry?: string;
+  age?: number;
   status?: 'Active' | 'On Sabbatical' | 'Relieved';
   publicationsCount?: number;
   patentsCount?: number;
+}
+
+function calculateAge(dateOfBirth?: string | null): number | null {
+  if (!dateOfBirth) return null;
+  const dob = new Date(dateOfBirth);
+  if (isNaN(dob.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age >= 0 && age < 120 ? age : null;
 }
 
 function parseExpValue(val: any): number | null {
@@ -220,6 +249,19 @@ function computeFacultyExperience(f: Faculty) {
     const cum = parseExpValue(f.cuExpMonths);
     if (cuy !== null || cum !== null) {
       cuMonths = (cuy ?? 0) * 12 + (cum ?? 0);
+    } else if (f.dateOfJoining) {
+      // Dynamic CU Experience from Date of Joining
+      const doj = new Date(f.dateOfJoining);
+      if (!isNaN(doj.getTime())) {
+        const today = new Date();
+        let y = today.getFullYear() - doj.getFullYear();
+        let m = today.getMonth() - doj.getMonth();
+        if (today.getDate() < doj.getDate()) m--;
+        if (m < 0) { y--; m += 12; }
+        if (y >= 0) {
+          cuMonths = y * 12 + m;
+        }
+      }
     }
   }
 
@@ -245,7 +287,11 @@ function computeFacultyExperience(f: Faculty) {
   }
 
   let totalMonths: number | null = null;
-  if (rawTotalMonths !== null) {
+  const totY = parseExpValue(f.totalCurrentExpYears);
+  const totM = parseExpValue(f.totalCurrentExpMonths);
+  if (totY !== null || totM !== null) {
+    totalMonths = (totY ?? 0) * 12 + (totM ?? 0);
+  } else if (rawTotalMonths !== null) {
     totalMonths = rawTotalMonths;
     if (otherMonths === null && cuMonths !== null && totalMonths >= cuMonths) {
       otherMonths = totalMonths - cuMonths;
@@ -297,6 +343,8 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
 
   const [departmentCounts, setDepartmentCounts] = useState<Record<string, number>>({});
   const [designationCounts, setDesignationCounts] = useState<Record<string, number>>({});
+  const [stateDiversityCounts, setStateDiversityCounts] = useState<Record<string, number>>({});
+  const [countryDiversityCounts, setCountryDiversityCounts] = useState<Record<string, number>>({});
   const [dbAcademicYears, setDbAcademicYears] = useState<string[]>([]);
 
   // Filters & Search State
@@ -314,6 +362,61 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
   const [isClearOpen, setIsClearOpen] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
+
+  // Faculty Full Profile Contributions State
+  const [contributionsData, setContributionsData] = useState<any>(null);
+  const [loadingContribs, setLoadingContribs] = useState(false);
+  const [activeContribTab, setActiveContribTab] = useState<string>('publications');
+
+  useEffect(() => {
+    if (!viewingFaculty) {
+      setContributionsData(null);
+      return;
+    }
+    let isCancelled = false;
+    const fetchContributions = async () => {
+      setLoadingContribs(true);
+      try {
+        const token = user?.token || (() => {
+          try {
+            const u = localStorage.getItem('iqac_user');
+            return u ? JSON.parse(u)?.token : null;
+          } catch {
+            return null;
+          }
+        })() || localStorage.getItem('token');
+        if (!token) {
+          setLoadingContribs(false);
+          return;
+        }
+        const res = await fetch(`${API_BASE}/api/faculty/${viewingFaculty.id}/contributions`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          }
+        });
+        const data = await res.json();
+        if (!isCancelled && data.success) {
+          setContributionsData(data);
+        } else if (!isCancelled) {
+          setContributionsData(null);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          console.error('Failed to fetch faculty contributions:', err);
+          setContributionsData(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoadingContribs(false);
+        }
+      }
+    };
+    fetchContributions();
+    return () => {
+      isCancelled = true;
+    };
+  }, [viewingFaculty]);
 
   // Close drawer on Escape key and lock body scroll
   useEffect(() => {
@@ -351,6 +454,13 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
     highestQualification: '',
     cuExpYears: '0',
     cuExpMonths: '0',
+    totalCurrentExpYears: '0',
+    totalCurrentExpMonths: '0',
+    nationality: 'Indian',
+    officialEmailId: '',
+    permanentCity: '',
+    permanentState: '',
+    permanentCountry: 'India',
     status: 'Active'
   });
 
@@ -433,6 +543,8 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
           if (data.distribution.departments) setDepartmentCounts(data.distribution.departments);
           if (data.distribution.designations) setDesignationCounts(data.distribution.designations);
           if (data.distribution.academicYears) setDbAcademicYears(data.distribution.academicYears);
+          if (data.distribution.stateDiversity) setStateDiversityCounts(data.distribution.stateDiversity);
+          if (data.distribution.countryDiversity) setCountryDiversityCounts(data.distribution.countryDiversity);
         }
       }
     } catch (err) {
@@ -486,6 +598,13 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
       highestQualification: '',
       cuExpYears: '0',
       cuExpMonths: '0',
+      totalCurrentExpYears: '0',
+      totalCurrentExpMonths: '0',
+      nationality: 'Indian',
+      officialEmailId: '',
+      permanentCity: '',
+      permanentState: '',
+      permanentCountry: 'India',
       status: 'Active'
     });
   };
@@ -1266,6 +1385,106 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                   })}
                 </div>
               </div>
+
+              {/* Permanent State-wise Diversity */}
+              <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Permanent State-wise Diversity</h3>
+                    <p className="text-xs text-slate-500">Geographic distribution of faculty home states</p>
+                  </div>
+                  <MapPin className="w-4 h-4 text-emerald-600" />
+                </div>
+
+                <div className="space-y-3">
+                  {Object.entries(
+                    Object.keys(stateDiversityCounts).length > 0
+                      ? stateDiversityCounts
+                      : (() => {
+                          const m: Record<string, number> = {};
+                          facultyList.forEach(f => {
+                            const s = f.permanentState?.trim();
+                            if (s && s.toLowerCase() !== 'nil' && s.toLowerCase() !== 'n/a') m[s] = (m[s] || 0) + 1;
+                          });
+                          return m;
+                        })()
+                  )
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 10)
+                    .map(([st, count]) => {
+                      const totalSum = stats.total || facultyList.length || 1;
+                      const pct = ((count / totalSum) * 100).toFixed(0);
+                      return (
+                        <div key={st} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-slate-700 truncate pr-2">{st}</span>
+                            <span className="font-semibold text-slate-900 tabular-nums">{count} ({pct}%)</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div className="bg-emerald-600 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {Object.keys(stateDiversityCounts).length === 0 && !facultyList.some(f => f.permanentState) && (
+                    <p className="text-xs text-slate-400 italic">No permanent state records recorded yet.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Permanent Country & Nationality Diversity */}
+              <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Country & International Diversity</h3>
+                    <p className="text-xs text-slate-500">Distribution across nationalities and origin countries</p>
+                  </div>
+                  <Building2 className="w-4 h-4 text-indigo-600" />
+                </div>
+
+                <div className="space-y-3">
+                  {Object.entries(
+                    Object.keys(countryDiversityCounts).length > 0
+                      ? countryDiversityCounts
+                      : (() => {
+                          const m: Record<string, number> = {};
+                          facultyList.forEach(f => {
+                            const c = (f.permanentCountry || f.nationality || '').trim();
+                            if (c && c.toLowerCase() !== 'nil' && c.toLowerCase() !== 'n/a') m[c] = (m[c] || 0) + 1;
+                          });
+                          return m;
+                        })()
+                  )
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 10)
+                    .map(([ctry, count]) => {
+                      const totalSum = stats.total || facultyList.length || 1;
+                      const pct = ((count / totalSum) * 100).toFixed(0);
+                      return (
+                        <div key={ctry} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-slate-700 truncate pr-2">{ctry}</span>
+                            <span className="font-semibold text-slate-900 tabular-nums">{count} ({pct}%)</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div className="bg-indigo-600 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {Object.keys(countryDiversityCounts).length === 0 && !facultyList.some(f => f.permanentCountry || f.nationality) && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-slate-700">India</span>
+                        <span className="font-semibold text-slate-900 tabular-nums">{stats.total || facultyList.length} (100%)</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div className="bg-indigo-600 h-1.5 rounded-full" style={{ width: '100%' }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1305,7 +1524,7 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
             {/* Right-side Drawer Panel */}
             <div className="fixed inset-y-0 right-0 flex max-w-full pointer-events-none pl-4 sm:pl-10">
               <div
-                className="w-screen sm:max-w-[580px] pointer-events-auto bg-[#F5F7FB] shadow-2xl flex flex-col border-l border-[#E2E8F0] transform transition-transform duration-200 ease-out"
+                className="w-screen sm:max-w-[780px] lg:max-w-[940px] xl:max-w-[1040px] pointer-events-auto bg-[#F5F7FB] shadow-2xl flex flex-col border-l border-[#E2E8F0] transform transition-transform duration-200 ease-out"
               >
                 {/* STICKY PROFILE HEADER (PHASE 4) */}
                 <div className="sticky top-0 z-10 bg-white border-b border-[#E2E8F0] px-5 sm:px-6 py-4 sm:py-5 shadow-2xs">
@@ -1374,18 +1593,29 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                         <p className="text-sm font-semibold text-slate-900 mt-0.5">{viewingFaculty.gender || '—'}</p>
                       </div>
                       <div>
+                        <p className="text-[11px] font-medium text-slate-500">Age</p>
+                        <p className="text-sm font-semibold text-slate-900 mt-0.5">
+                          {viewingFaculty.age !== undefined && viewingFaculty.age !== null
+                            ? `${viewingFaculty.age} years`
+                            : (() => {
+                                const a = calculateAge(viewingFaculty.dateOfBirth);
+                                return a !== null ? `${a} years` : '—';
+                              })()}
+                        </p>
+                      </div>
+                      <div>
                         <p className="text-[11px] font-medium text-slate-500">Nationality</p>
-                        <p className="text-sm font-semibold text-slate-900 mt-0.5">{(viewingFaculty as any).nationality || 'Indian'}</p>
+                        <p className="text-sm font-semibold text-slate-900 mt-0.5">{viewingFaculty.nationality || 'Indian'}</p>
                       </div>
                       <div>
                         <p className="text-[11px] font-medium text-slate-500">Official Email</p>
-                        {viewingFaculty.email ? (
+                        {viewingFaculty.officialEmailId || viewingFaculty.email ? (
                           <a
-                            href={`mailto:${viewingFaculty.email}`}
+                            href={`mailto:${viewingFaculty.officialEmailId || viewingFaculty.email}`}
                             className="text-sm font-semibold text-[#2855B9] hover:underline mt-0.5 block truncate"
-                            title={viewingFaculty.email}
+                            title={viewingFaculty.officialEmailId || viewingFaculty.email}
                           >
-                            {viewingFaculty.email}
+                            {viewingFaculty.officialEmailId || viewingFaculty.email}
                           </a>
                         ) : (
                           <p className="text-sm font-semibold text-slate-900 mt-0.5">—</p>
@@ -1574,33 +1804,425 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                     )}
                   </div>
 
-                  {/* SECTION 5 (OPTIONAL) — PERMANENT ADDRESS */}
-                  {hasPermanentAddress && (
-                    <div className="bg-white rounded-xl p-4 sm:p-5 border border-[#E2E8F0] shadow-2xs">
-                      <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3.5">
-                        <div className="w-6 h-6 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center">
-                          <MapPin className="w-3.5 h-3.5" />
-                        </div>
-                        <h3 className="text-xs font-bold text-[#172B4D] uppercase tracking-wider">
-                          Permanent Address
-                        </h3>
+                  {/* SECTION 5 — PERMANENT ADDRESS */}
+                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-[#E2E8F0] shadow-2xs">
+                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3.5">
+                      <div className="w-6 h-6 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center">
+                        <MapPin className="w-3.5 h-3.5" />
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
-                        <div>
-                          <p className="text-[11px] font-medium text-slate-500">Permanent City</p>
-                          <p className="text-sm font-semibold text-slate-900 mt-0.5">{(viewingFaculty as any).permanentCity || '—'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-medium text-slate-500">Permanent State</p>
-                          <p className="text-sm font-semibold text-slate-900 mt-0.5">{(viewingFaculty as any).permanentState || '—'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-medium text-slate-500">Permanent Country</p>
-                          <p className="text-sm font-semibold text-slate-900 mt-0.5">{(viewingFaculty as any).permanentCountry || 'India'}</p>
-                        </div>
+                      <h3 className="text-xs font-bold text-[#172B4D] uppercase tracking-wider">
+                        Permanent Address & Location
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
+                      <div>
+                        <p className="text-[11px] font-medium text-slate-500">Permanent City</p>
+                        <p className="text-sm font-semibold text-slate-900 mt-0.5">{viewingFaculty.permanentCity || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-medium text-slate-500">Permanent State</p>
+                        <p className="text-sm font-semibold text-slate-900 mt-0.5">{viewingFaculty.permanentState || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-medium text-slate-500">Permanent Country</p>
+                        <p className="text-sm font-semibold text-slate-900 mt-0.5">{viewingFaculty.permanentCountry || 'India'}</p>
                       </div>
                     </div>
-                  )}
+                  </div>
+
+                  {/* SECTION 6 — CONSOLIDATED CONTRIBUTIONS SUMMARY (12 CARDS) */}
+                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-[#E2E8F0] shadow-2xs">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-blue-50 text-[#2855B9] flex items-center justify-center">
+                          <Layers className="w-3.5 h-3.5" />
+                        </div>
+                        <h3 className="text-xs font-bold text-[#172B4D] uppercase tracking-wider">
+                          Consolidated Academic & Research Portfolio
+                        </h3>
+                      </div>
+                      {loadingContribs && (
+                        <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2855B9]" />
+                          Loading...
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                      {[
+                        { id: 'publications', label: 'Publications', icon: BookOpen, count: contributionsData?.summary?.publications ?? 0, color: 'text-blue-600 bg-blue-50' },
+                        { id: 'citations', label: 'Citations', icon: Sparkles, count: contributionsData?.summary?.citations ?? 0, color: 'text-amber-600 bg-amber-50' },
+                        { id: 'consultancy', label: 'Consultancy', icon: Briefcase, count: contributionsData?.summary?.consultancy ?? 0, color: 'text-emerald-600 bg-emerald-50' },
+                        { id: 'sponsoredResearch', label: 'Ext. Research', icon: DollarSign, count: contributionsData?.summary?.sponsoredResearch ?? 0, color: 'text-indigo-600 bg-indigo-50' },
+                        { id: 'internalResearch', label: 'Int. Research', icon: FlaskConical, count: contributionsData?.summary?.internalResearch ?? 0, color: 'text-violet-600 bg-violet-50' },
+                        { id: 'patents', label: 'Patents', icon: ShieldCheck, count: contributionsData?.summary?.patents ?? 0, color: 'text-rose-600 bg-rose-50' },
+                        { id: 'copyrights', label: 'Copyrights', icon: FileCheck, count: contributionsData?.summary?.copyrights ?? 0, color: 'text-cyan-600 bg-cyan-50' },
+                        { id: 'awards', label: 'Awards', icon: Award, count: contributionsData?.summary?.awards ?? 0, color: 'text-yellow-600 bg-yellow-50' },
+                        { id: 'eContents', label: 'E-Contents', icon: Video, count: contributionsData?.summary?.eContents ?? 0, color: 'text-purple-600 bg-purple-50' },
+                        { id: 'professionalDevelopments', label: 'Prof. Dev', icon: GraduationCap, count: contributionsData?.summary?.professionalDevelopments ?? 0, color: 'text-sky-600 bg-sky-50' },
+                        { id: 'invitedTalks', label: 'Invited Talks', icon: Mic, count: contributionsData?.summary?.invitedTalks ?? 0, color: 'text-pink-600 bg-pink-50' },
+                        { id: 'periodicals', label: 'Periodicals', icon: Newspaper, count: contributionsData?.summary?.periodicals ?? 0, color: 'text-teal-600 bg-teal-50' }
+                      ].map(card => {
+                        const Icon = card.icon;
+                        const isSelected = activeContribTab === card.id;
+                        return (
+                          <button
+                            key={card.id}
+                            type="button"
+                            onClick={() => setActiveContribTab(card.id)}
+                            className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                              isSelected
+                                ? 'bg-blue-50/60 border-[#2855B9] ring-2 ring-[#2855B9]/20'
+                                : 'bg-[#F8FAFC] border-slate-200 hover:border-slate-300 hover:bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${card.color}`}>
+                                <Icon className="w-4 h-4" />
+                              </span>
+                              <span className={`text-base font-bold font-mono ${isSelected ? 'text-[#2855B9]' : 'text-slate-800'}`}>
+                                {card.count}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-semibold text-slate-700 truncate block">
+                              {card.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION 7 — DETAILED CONTRIBUTION RECORDS TAB */}
+                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-[#E2E8F0] shadow-2xs">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+                          <TableIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <h3 className="text-xs font-bold text-[#172B4D] uppercase tracking-wider">
+                          Contribution Details: <span className="text-[#2855B9] normal-case">{activeContribTab.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
+                        </h3>
+                      </div>
+                      <span className="text-xs text-slate-500 font-medium">
+                        Showing recorded entries
+                      </span>
+                    </div>
+
+                    {/* Consolidated Bibliometric & Scopus Research Summary (Part H) */}
+                    {(activeContribTab === 'publications' || activeContribTab === 'citations') && contributionsData?.summary?.portfolioMetrics && (
+                      <div className="mb-4 p-3.5 rounded-xl bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-amber-50/50 border border-blue-100/80">
+                        <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-blue-100/60">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-[#1E3A8A]">
+                            <Sparkles className="w-4 h-4 text-amber-500" />
+                            <span>Scopus Research & Citation Portfolio Summary</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-medium bg-white/80 px-2 py-0.5 rounded-full border border-blue-200/50">
+                            Weekly Auto-Refreshed via Elsevier API
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                          {/* Card 1: Total Publications */}
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block">Total Publications</span>
+                            <span className="text-base font-bold text-[#1E3A8A] font-mono mt-0.5 block">
+                              {contributionsData.summary.portfolioMetrics.totalPublications}
+                            </span>
+                            <span className="text-[10px] text-slate-400">Deduplicated across all files</span>
+                          </div>
+
+                          {/* Card 2: Total Scopus Citations */}
+                          <div className="bg-white p-2.5 rounded-lg border border-amber-200/80 shadow-2xs">
+                            <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide block">Total Scopus Citations</span>
+                            <span className="text-base font-bold text-amber-600 font-mono mt-0.5 block">
+                              {contributionsData.summary.portfolioMetrics.totalScopusCitations}
+                            </span>
+                            <span className="text-[10px] text-slate-400">Cited by in Scopus</span>
+                          </div>
+
+                          {/* Card 3: Avg Citations / Publication */}
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block">Avg Citations / Pub</span>
+                            <span className="text-base font-bold text-slate-800 font-mono mt-0.5 block">
+                              {contributionsData.summary.portfolioMetrics.avgCitationsPerPublication}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              Across {contributionsData.summary.portfolioMetrics.publicationsIncludedInAverage} indexed pub{contributionsData.summary.portfolioMetrics.publicationsIncludedInAverage !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+
+                          {/* Card 4: Most Cited Publication */}
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block">Most Cited Publication</span>
+                            {contributionsData.summary.portfolioMetrics.mostCitedPublication ? (
+                              <div className="mt-0.5">
+                                <span className="text-base font-bold text-emerald-600 font-mono block">
+                                  {contributionsData.summary.portfolioMetrics.mostCitedPublication.citationCount} Citations
+                                </span>
+                                <span className="text-[10px] text-slate-600 truncate block mt-0.5 font-medium" title={contributionsData.summary.portfolioMetrics.mostCitedPublication.title}>
+                                  {contributionsData.summary.portfolioMetrics.mostCitedPublication.title}
+                                </span>
+                                {contributionsData.summary.portfolioMetrics.mostCitedPublication.scopusUrl && (
+                                  <a
+                                    href={contributionsData.summary.portfolioMetrics.mostCitedPublication.scopusUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] text-[#2855B9] hover:underline flex items-center gap-0.5 mt-0.5 font-semibold"
+                                  >
+                                    View in Scopus <ExternalLink className="w-2.5 h-2.5" />
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400 mt-1 block">No citation data</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {loadingContribs ? (
+                      <div className="py-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="w-6 h-6 animate-spin text-[#2855B9]" />
+                        <span className="text-xs font-medium">Fetching verified contribution records...</span>
+                      </div>
+                    ) : (() => {
+                      const recordsObj = contributionsData?.contributions || {};
+                      let items = recordsObj[activeContribTab] || [];
+                      
+                      // For citations tab, show publications with citations
+                      if (activeContribTab === 'citations') {
+                        items = (recordsObj.publications || []).filter((p: any) => (parseInt(p.citationCount || p.citations || p.scopusCitations || 0, 10) > 0));
+                      }
+
+                      if (!items || items.length === 0) {
+                        return (
+                          <div className="py-10 text-center rounded-xl bg-slate-50/60 border border-dashed border-slate-200">
+                            <p className="text-xs font-semibold text-slate-600">No records found</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              This faculty member has no recorded entries under {activeContribTab.replace(/([A-Z])/g, ' $1').toLowerCase()}.
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-3">
+                          {items.map((item: any, idx: number) => {
+                            const contributorRole = item.contributorRole || item.role || item.authorRole || (item.isGuestFaculty ? 'Guest Faculty' : 'Faculty Contributor');
+                            const isGuest = item.isGuestFaculty || String(contributorRole).toLowerCase().includes('guest');
+                            
+                            return (
+                              <div
+                                key={item.id || idx}
+                                className="p-3.5 rounded-xl border border-slate-200 bg-[#FAFCFF] hover:bg-white hover:border-blue-200 transition-colors shadow-2xs"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                                      {item.title || item.name || item.projectTitle || item.periodicalName || 'Untitled Record'}
+                                    </h4>
+                                    
+                                    <div className="flex items-center gap-2 flex-wrap mt-2 text-[11px] text-slate-600">
+                                      {/* Contributor Role / Type Badge */}
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                                        isGuest 
+                                          ? 'bg-amber-50 text-amber-800 border-amber-200' 
+                                          : 'bg-blue-50 text-[#2855B9] border-blue-200'
+                                      }`}>
+                                        {contributorRole}
+                                      </span>
+
+                                      {/* Contextual metadata depending on module */}
+                                      {activeContribTab === 'publications' && (
+                                        <>
+                                          {(item.authorName || item.authorFullNames) && <span>• Authors: <strong className="text-slate-800">{item.authorName || item.authorFullNames}</strong></span>}
+                                          {item.journalName && <span>• Journal: <strong className="text-slate-800">{item.journalName}</strong></span>}
+                                          {(item.publicationYear || item.year) && <span>• Year: <strong className="text-slate-800">{item.publicationYear || item.year}</strong></span>}
+                                          {item.doi && (
+                                            <span>
+                                              • DOI:{' '}
+                                              <a
+                                                href={`https://doi.org/${encodeURIComponent(item.doi.replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, ''))}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[#2855B9] font-mono hover:underline"
+                                              >
+                                                {item.doi}
+                                              </a>
+                                            </span>
+                                          )}
+                                          {item.scopusEid && <span>• EID: <span className="font-mono text-slate-600">{item.scopusEid}</span></span>}
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-semibold">
+                                            Cited by in Scopus: {item.citationCount !== null && item.citationCount !== undefined ? item.citationCount : (item.citationStatus || 'Pending')}
+                                          </span>
+                                          {item.scopusUrl && (
+                                            <a
+                                              href={item.scopusUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-[#1E3A8A] border border-blue-200 text-[10px] font-semibold hover:bg-blue-100"
+                                            >
+                                              Scopus Record <ExternalLink className="w-2.5 h-2.5" />
+                                            </a>
+                                          )}
+                                          {item.scopusCitedByUrl && (
+                                            <a
+                                              href={item.scopusCitedByUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-semibold hover:bg-indigo-100"
+                                            >
+                                              Citing Articles <ExternalLink className="w-2.5 h-2.5" />
+                                            </a>
+                                          )}
+                                          {item.indexing && <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px]">{item.indexing}</span>}
+                                        </>
+                                      )}
+
+                                      {activeContribTab === 'citations' && (
+                                        <>
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold">
+                                            Cited by in Scopus: {item.citationCount !== null && item.citationCount !== undefined ? item.citationCount : (item.citationStatus || 'Pending')}
+                                          </span>
+                                          {item.journalName && <span>• Journal: <strong className="text-slate-800">{item.journalName}</strong></span>}
+                                          {(item.publicationYear || item.year) && <span>• Year: <strong className="text-slate-800">{item.publicationYear || item.year}</strong></span>}
+                                          {item.doi && (
+                                            <span>
+                                              • DOI:{' '}
+                                              <a
+                                                href={`https://doi.org/${encodeURIComponent(item.doi.replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, ''))}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[#2855B9] font-mono hover:underline"
+                                              >
+                                                {item.doi}
+                                              </a>
+                                            </span>
+                                          )}
+                                          {item.scopusUrl && (
+                                            <a
+                                              href={item.scopusUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-[#1E3A8A] border border-blue-200 text-[10px] font-semibold hover:bg-blue-100"
+                                            >
+                                              View in Scopus <ExternalLink className="w-2.5 h-2.5" />
+                                            </a>
+                                          )}
+                                          {item.scopusCitedByUrl && (
+                                            <a
+                                              href={item.scopusCitedByUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-semibold hover:bg-indigo-100"
+                                            >
+                                              Citing Articles <ExternalLink className="w-2.5 h-2.5" />
+                                            </a>
+                                          )}
+                                        </>
+                                      )}
+
+                                      {activeContribTab === 'consultancy' && (
+                                        <>
+                                          {item.fundingAgency && <span>• Client: <strong className="text-slate-800">{item.fundingAgency}</strong></span>}
+                                          {item.financialYear && <span>• FY: <strong className="text-slate-800">{item.financialYear}</strong></span>}
+                                          {item.amount && <span>• Amount: <strong className="text-emerald-700 font-semibold">₹{Number(item.amount).toLocaleString('en-IN')}</strong></span>}
+                                        </>
+                                      )}
+
+                                      {(activeContribTab === 'sponsoredResearch' || activeContribTab === 'internalResearch') && (
+                                        <>
+                                          {item.fundingAgency && <span>• Agency: <strong className="text-slate-800">{item.fundingAgency}</strong></span>}
+                                          {item.schemeName && <span>• Scheme: <strong className="text-slate-800">{item.schemeName}</strong></span>}
+                                          {item.financialYear && <span>• FY: <strong className="text-slate-800">{item.financialYear}</strong></span>}
+                                          {item.amount && <span>• Grant: <strong className="text-indigo-700 font-semibold">₹{Number(item.amount).toLocaleString('en-IN')}</strong></span>}
+                                        </>
+                                      )}
+
+                                      {activeContribTab === 'patents' && (
+                                        <>
+                                          {item.applicationNumber && <span>• App No: <strong className="font-mono text-slate-800">{item.applicationNumber}</strong></span>}
+                                          {item.status && <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold text-[10px]">{item.status}</span>}
+                                          {item.filingDate && <span>• Filed: {formatDateSafe(item.filingDate)}</span>}
+                                        </>
+                                      )}
+
+                                      {activeContribTab === 'copyrights' && (
+                                        <>
+                                          {item.diaryNumber && <span>• Diary No: <strong className="font-mono text-slate-800">{item.diaryNumber}</strong></span>}
+                                          {item.status && <span className="px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 font-semibold text-[10px]">{item.status}</span>}
+                                          {item.dateOfFiling && <span>• Filed: {formatDateSafe(item.dateOfFiling)}</span>}
+                                        </>
+                                      )}
+
+                                      {activeContribTab === 'awards' && (
+                                        <>
+                                          {item.awardingAgency && <span>• Organization: <strong className="text-slate-800">{item.awardingAgency}</strong></span>}
+                                          {item.awardLevel && <span className="px-1.5 py-0.5 rounded bg-yellow-50 text-yellow-800 font-semibold text-[10px]">{item.awardLevel}</span>}
+                                          {item.dateOfRecognition && <span>• Date: {formatDateSafe(item.dateOfRecognition)}</span>}
+                                        </>
+                                      )}
+
+                                      {activeContribTab === 'eContents' && (
+                                        <>
+                                          {item.eContentPlatform && <span>• Platform: <strong className="text-slate-800">{item.eContentPlatform}</strong></span>}
+                                          {item.contentType && <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px]">{item.contentType}</span>}
+                                          {item.publicationDate && <span>• Date: {formatDateSafe(item.publicationDate)}</span>}
+                                        </>
+                                      )}
+
+                                      {activeContribTab === 'professionalDevelopments' && (
+                                        <>
+                                          {item.programType && <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 font-semibold text-[10px]">{item.programType}</span>}
+                                          {item.organizingInstitute && <span>• Org: <strong className="text-slate-800">{item.organizingInstitute}</strong></span>}
+                                          {item.startDate && <span>• Period: {formatDateSafe(item.startDate)}{item.endDate ? ` to ${formatDateSafe(item.endDate)}` : ''}</span>}
+                                          {item.durationDays && <span>• ({item.durationDays} days)</span>}
+                                        </>
+                                      )}
+
+                                      {/* STRICT INVARIANT: INVITED TALKS HAS NO DATE OR YEAR */}
+                                      {activeContribTab === 'invitedTalks' && (
+                                        <>
+                                          {item.programType && <span className="px-1.5 py-0.5 rounded bg-pink-50 text-pink-700 font-semibold text-[10px]">{item.programType}</span>}
+                                          {item.organizingAgency && <span>• Organizer: <strong className="text-slate-800">{item.organizingAgency}</strong></span>}
+                                          {item.media && <span>• Media: <strong className="text-slate-800">{item.media}</strong></span>}
+                                        </>
+                                      )}
+
+                                      {activeContribTab === 'periodicals' && (
+                                        <>
+                                          {item.articleTitle && <span>• Article: <strong className="text-slate-800">{item.articleTitle}</strong></span>}
+                                          {item.publicationType && <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 font-semibold text-[10px]">{item.publicationType}</span>}
+                                          {item.publicationDate && <span>• Published: {formatDateSafe(item.publicationDate)}</span>}
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Action / Link Button */}
+                                  {(item.url || item.onlineUrl || item.proofUrl || item.proof) && (
+                                    <a
+                                      href={item.url || item.onlineUrl || item.proofUrl || item.proof}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[#2855B9] bg-blue-50/80 hover:bg-blue-100/80 rounded-lg transition-colors border border-blue-200/60 shrink-0"
+                                      title="Open published link or proof"
+                                    >
+                                      <span>Link</span>
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
 
                 {/* STICKY FOOTER (PHASE 10) */}
@@ -1697,6 +2319,49 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
               onChange={e => setFormData({ ...formData, dateOfJoining: e.target.value })}
             />
           </FormField>
+          <FormField label="Official Email">
+            <FormInput 
+              type="email"
+              value={formData.officialEmailId || ''} 
+              onChange={e => setFormData({ ...formData, officialEmailId: e.target.value })} 
+              placeholder="e.g. jane.smith@christuniversity.in"
+            />
+          </FormField>
+          <FormField label="Date of Birth">
+            <FormInput
+              type="date"
+              value={formData.dateOfBirth || ''}
+              onChange={e => setFormData({ ...formData, dateOfBirth: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Nationality">
+            <FormInput 
+              value={formData.nationality || ''} 
+              onChange={e => setFormData({ ...formData, nationality: e.target.value })} 
+              placeholder="e.g. Indian"
+            />
+          </FormField>
+          <FormField label="Permanent City">
+            <FormInput 
+              value={formData.permanentCity || ''} 
+              onChange={e => setFormData({ ...formData, permanentCity: e.target.value })} 
+              placeholder="e.g. Bengaluru"
+            />
+          </FormField>
+          <FormField label="Permanent State">
+            <FormInput 
+              value={formData.permanentState || ''} 
+              onChange={e => setFormData({ ...formData, permanentState: e.target.value })} 
+              placeholder="e.g. Karnataka"
+            />
+          </FormField>
+          <FormField label="Permanent Country">
+            <FormInput 
+              value={formData.permanentCountry || ''} 
+              onChange={e => setFormData({ ...formData, permanentCountry: e.target.value })} 
+              placeholder="e.g. India"
+            />
+          </FormField>
         </div>
       </FormModal>
 
@@ -1780,6 +2445,49 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
               <FormInput 
                 value={editingFaculty.cuExpYears || '0'} 
                 onChange={e => setEditingFaculty({ ...editingFaculty, cuExpYears: e.target.value })} 
+              />
+            </FormField>
+            <FormField label="Official Email">
+              <FormInput 
+                type="email"
+                value={editingFaculty.officialEmailId || editingFaculty.email || ''} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, officialEmailId: e.target.value })} 
+                placeholder="e.g. jane.smith@christuniversity.in"
+              />
+            </FormField>
+            <FormField label="Date of Birth">
+              <FormInput
+                type="date"
+                value={editingFaculty.dateOfBirth || ''}
+                onChange={e => setEditingFaculty({ ...editingFaculty, dateOfBirth: e.target.value })}
+              />
+            </FormField>
+            <FormField label="Nationality">
+              <FormInput 
+                value={editingFaculty.nationality || ''} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, nationality: e.target.value })} 
+                placeholder="e.g. Indian"
+              />
+            </FormField>
+            <FormField label="Permanent City">
+              <FormInput 
+                value={editingFaculty.permanentCity || ''} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, permanentCity: e.target.value })} 
+                placeholder="e.g. Bengaluru"
+              />
+            </FormField>
+            <FormField label="Permanent State">
+              <FormInput 
+                value={editingFaculty.permanentState || ''} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, permanentState: e.target.value })} 
+                placeholder="e.g. Karnataka"
+              />
+            </FormField>
+            <FormField label="Permanent Country">
+              <FormInput 
+                value={editingFaculty.permanentCountry || ''} 
+                onChange={e => setEditingFaculty({ ...editingFaculty, permanentCountry: e.target.value })} 
+                placeholder="e.g. India"
               />
             </FormField>
           </div>

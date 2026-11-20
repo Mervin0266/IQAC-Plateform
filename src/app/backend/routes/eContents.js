@@ -18,6 +18,7 @@ router.get('/', auth, eContentsController.getEContents);
 router.get('/:id', auth, eContentsController.getEContentById);
 router.post('/', auth, eContentsController.createEContent);
 router.put('/:id', auth, eContentsController.updateEContent);
+router.delete('/clear-all', auth, eContentsController.clearAllEContents);
 router.delete('/:id', auth, eContentsController.deleteEContent);
 
 module.exports = router;

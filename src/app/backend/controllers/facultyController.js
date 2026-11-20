@@ -277,6 +277,8 @@ exports.getFaculty = async (req, res) => {
     let totalExpYears = 0;
     const deptCounts = {};
     const desigCounts = {};
+    const stateDiversity = {};
+    const countryDiversity = {};
 
     for (const f of canonicalRecords) {
       const qualLevel = (f.qualificationLevel || '').toUpperCase().replace(/\./g, '');
@@ -302,6 +304,16 @@ exports.getFaculty = async (req, res) => {
 
       if (f.designation && f.designation !== 'NIL' && f.designation !== 'N/A') {
         desigCounts[f.designation] = (desigCounts[f.designation] || 0) + 1;
+      }
+
+      const state = (f.permanentState || '').trim();
+      if (state && state.toLowerCase() !== 'nil' && state.toLowerCase() !== 'n/a') {
+        stateDiversity[state] = (stateDiversity[state] || 0) + 1;
+      }
+
+      const country = (f.permanentCountry || f.nationality || '').trim();
+      if (country && country.toLowerCase() !== 'nil' && country.toLowerCase() !== 'n/a') {
+        countryDiversity[country] = (countryDiversity[country] || 0) + 1;
       }
     }
 
@@ -337,7 +349,9 @@ exports.getFaculty = async (req, res) => {
     responsePayload.distribution = {
       departments: deptCounts,
       designations: desigCounts,
-      academicYears: allYearsRows.map(r => r.academicYear).filter(Boolean)
+      academicYears: allYearsRows.map(r => r.academicYear).filter(Boolean),
+      stateDiversity,
+      countryDiversity
     };
 
     res.json(responsePayload);
@@ -371,6 +385,8 @@ exports.getFacultyStats = async (req, res) => {
     let totalExpYears = 0;
     const deptCounts = {};
     const desigCounts = {};
+    const stateDiversity = {};
+    const countryDiversity = {};
 
     for (const f of canonicalRecords) {
       const qualLevel = (f.qualificationLevel || '').toUpperCase().replace(/\./g, '');
@@ -396,6 +412,16 @@ exports.getFacultyStats = async (req, res) => {
 
       if (f.designation && f.designation !== 'NIL' && f.designation !== 'N/A') {
         desigCounts[f.designation] = (desigCounts[f.designation] || 0) + 1;
+      }
+
+      const state = (f.permanentState || '').trim();
+      if (state && state.toLowerCase() !== 'nil' && state.toLowerCase() !== 'n/a') {
+        stateDiversity[state] = (stateDiversity[state] || 0) + 1;
+      }
+
+      const country = (f.permanentCountry || f.nationality || '').trim();
+      if (country && country.toLowerCase() !== 'nil' && country.toLowerCase() !== 'n/a') {
+        countryDiversity[country] = (countryDiversity[country] || 0) + 1;
       }
     }
 
@@ -423,7 +449,9 @@ exports.getFacultyStats = async (req, res) => {
       distribution: {
         departments: deptCounts,
         designations: desigCounts,
-        academicYears: allYearsRows.map(r => r.academicYear).filter(Boolean)
+        academicYears: allYearsRows.map(r => r.academicYear).filter(Boolean),
+        stateDiversity,
+        countryDiversity
       }
     });
   } catch (error) {
@@ -503,7 +531,7 @@ const sanitizeFacultyRecord = (raw, isNew = true) => {
   }
 
   // Nullable string fields
-  ['panCardNo', 'qualificationLevel', 'highestQualification', 'specialization', 'email', 'phone'].forEach(k => {
+  ['panCardNo', 'qualificationLevel', 'highestQualification', 'specialization', 'email', 'phone', 'nationality', 'permanentCity', 'permanentState', 'permanentCountry', 'officialEmailId'].forEach(k => {
     if (record[k] !== undefined) {
       const val = String(record[k] || '').trim();
       record[k] = val && val.toLowerCase() !== 'nil' && val.toLowerCase() !== 'n/a' ? val : null;
@@ -511,7 +539,7 @@ const sanitizeFacultyRecord = (raw, isNew = true) => {
   });
 
   // Experience number strings
-  ['prevTeachingExpYears', 'prevTeachingExpMonths', 'prevIndustryExpYears', 'prevIndustryExpMonths', 'cuExpYears', 'cuExpMonths'].forEach(k => {
+  ['prevTeachingExpYears', 'prevTeachingExpMonths', 'prevIndustryExpYears', 'prevIndustryExpMonths', 'cuExpYears', 'cuExpMonths', 'totalCurrentExpYears', 'totalCurrentExpMonths'].forEach(k => {
     if (record[k] !== undefined) {
       const val = String(record[k] || '').trim();
       if (!val || isNaN(Number(val))) {
@@ -523,6 +551,58 @@ const sanitizeFacultyRecord = (raw, isNew = true) => {
       record[k] = '0';
     }
   });
+
+  // Dynamic Age calculation from dateOfBirth (or preserve entered age)
+  if (record.dateOfBirth) {
+    const dob = new Date(record.dateOfBirth);
+    if (!isNaN(dob.getTime())) {
+      const today = new Date();
+      let calculatedAge = today.getFullYear() - dob.getFullYear();
+      const m = today.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+        calculatedAge--;
+      }
+      if (calculatedAge >= 0 && calculatedAge < 120) {
+        record.age = calculatedAge;
+      }
+    }
+  } else if (record.age !== undefined && record.age !== null && record.age !== '') {
+    const parsedAge = parseInt(record.age, 10);
+    record.age = !isNaN(parsedAge) ? parsedAge : null;
+  }
+
+  // Dynamic CU Experience calculation from dateOfJoining if not explicitly given
+  if (record.dateOfJoining && (!record.cuExpYears || record.cuExpYears === '0')) {
+    const doj = new Date(record.dateOfJoining);
+    if (!isNaN(doj.getTime())) {
+      const today = new Date();
+      let y = today.getFullYear() - doj.getFullYear();
+      let m = today.getMonth() - doj.getMonth();
+      if (today.getDate() < doj.getDate()) {
+        m--;
+      }
+      if (m < 0) {
+        y--;
+        m += 12;
+      }
+      if (y >= 0) {
+        record.cuExpYears = String(y);
+        record.cuExpMonths = String(m);
+      }
+    }
+  }
+
+  // Calculate Total Current Experience if not explicitly given
+  if (!record.totalCurrentExpYears || record.totalCurrentExpYears === '0') {
+    const prevTeachM = (parseInt(record.prevTeachingExpYears || '0', 10) * 12) + parseInt(record.prevTeachingExpMonths || '0', 10);
+    const prevIndM = (parseInt(record.prevIndustryExpYears || '0', 10) * 12) + parseInt(record.prevIndustryExpMonths || '0', 10);
+    const cuM = (parseInt(record.cuExpYears || '0', 10) * 12) + parseInt(record.cuExpMonths || '0', 10);
+    const totalM = prevTeachM + prevIndM + cuM;
+    if (totalM > 0) {
+      record.totalCurrentExpYears = String(Math.floor(totalM / 12));
+      record.totalCurrentExpMonths = String(totalM % 12);
+    }
+  }
 
   if (isNew && (record.customFields === undefined || record.customFields === null || typeof record.customFields !== 'object')) {
     record.customFields = {};
@@ -892,6 +972,387 @@ exports.clearAllFaculty = async (req, res) => {
       success: false,
       message: error.message || 'Server error'
     });
+  }
+};
+
+// GET /api/faculty/:id/contributions
+exports.getFacultyContributions = async (req, res) => {
+  try {
+    const target = req.params.id;
+    if (!target) {
+      return res.status(400).json({ success: false, message: 'Faculty ID or EmpID is required.' });
+    }
+
+    const {
+      Publication,
+      PublicationFaculty,
+      ConsultancyProject,
+      ConsultancyProjectFaculty,
+      SponsoredProject,
+      SponsoredProjectFaculty,
+      InternalResearchProject,
+      InternalResearchFaculty,
+      Patent,
+      PatentFaculty,
+      Copyright,
+      CopyrightFaculty,
+      Award,
+      AwardFaculty,
+      EContent,
+      EContentFaculty,
+      ProfessionalDevelopment,
+      ProfessionalDevelopmentFaculty,
+      InvitedTalk,
+      InvitedTalkFaculty,
+      Periodical,
+      PeriodicalFaculty
+    } = require('../models');
+
+    let faculty = null;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(target)) {
+      faculty = await Faculty.findByPk(target);
+    }
+    if (!faculty) {
+      faculty = await Faculty.findOne({
+        where: {
+          [Op.or]: [
+            { employeeId: target },
+            sequelize.where(sequelize.fn('UPPER', sequelize.col('employeeId')), String(target).trim().toUpperCase())
+          ]
+        }
+      });
+    }
+
+    if (!faculty) {
+      return res.status(404).json({ success: false, message: 'Faculty member not found.' });
+    }
+
+    const fid = faculty.id;
+    const empId = faculty.employeeId;
+    const normEmp = String(empId || '').trim().toUpperCase();
+
+    const [
+      pubsByAssoc,
+      consByAssoc,
+      sponsByAssoc,
+      internalByAssoc,
+      patentsByAssoc,
+      copyrightsByAssoc,
+      awardsByAssoc,
+      econtentsByAssoc,
+      pdByAssoc,
+      talksByAssoc,
+      periodicalsByAssoc
+    ] = await Promise.all([
+      PublicationFaculty ? PublicationFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: Publication, as: 'publication' }]
+      }).catch(() => []) : Promise.resolve([]),
+
+      ConsultancyProjectFaculty ? ConsultancyProjectFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: ConsultancyProject, as: 'project' }]
+      }).catch(() => []) : Promise.resolve([]),
+
+      SponsoredProjectFaculty ? SponsoredProjectFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: SponsoredProject, as: 'project' }]
+      }).catch(() => []) : Promise.resolve([]),
+
+      InternalResearchFaculty ? InternalResearchFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: InternalResearchProject, as: 'project' }]
+      }).catch(() => []) : Promise.resolve([]),
+
+      PatentFaculty ? PatentFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: Patent, as: 'patent' }]
+      }).catch(() => []) : Promise.resolve([]),
+
+      CopyrightFaculty ? CopyrightFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: Copyright, as: 'copyright' }]
+      }).catch(() => []) : Promise.resolve([]),
+
+      AwardFaculty ? AwardFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: Award, as: 'award' }]
+      }).catch(() => []) : Promise.resolve([]),
+
+      EContentFaculty ? EContentFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: EContent, as: 'econtent' }]
+      }).catch(() => []) : Promise.resolve([]),
+
+      ProfessionalDevelopmentFaculty ? ProfessionalDevelopmentFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: ProfessionalDevelopment, as: 'professionalDevelopment' }]
+      }).catch(() => []) : Promise.resolve([]),
+
+      InvitedTalkFaculty ? InvitedTalkFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: InvitedTalk, as: 'invitedTalk' }]
+      }).catch(() => []) : Promise.resolve([]),
+
+      PeriodicalFaculty ? PeriodicalFaculty.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null,
+            normEmp ? { normalizedEmployeeId: normEmp } : null
+          ].filter(Boolean)
+        },
+        include: [{ model: Periodical, as: 'periodical' }]
+      }).catch(() => []) : Promise.resolve([])
+    ]);
+
+    // Parent direct matches
+    const [
+      directAwards,
+      directEContents,
+      directPatents,
+      directCopyrights
+    ] = await Promise.all([
+      Award ? Award.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null
+          ].filter(Boolean)
+        }
+      }).catch(() => []) : Promise.resolve([]),
+      EContent ? EContent.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null
+          ].filter(Boolean)
+        }
+      }).catch(() => []) : Promise.resolve([]),
+      Patent ? Patent.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null
+          ].filter(Boolean)
+        }
+      }).catch(() => []) : Promise.resolve([]),
+      Copyright ? Copyright.findAll({
+        where: {
+          [Op.or]: [
+            fid ? { facultyId: fid } : null,
+            empId ? { employeeId: empId } : null
+          ].filter(Boolean)
+        }
+      }).catch(() => []) : Promise.resolve([])
+    ]);
+
+    const dedup = (items) => {
+      const seen = new Set();
+      const res = [];
+      for (const item of items) {
+        if (!item || !item.id) continue;
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          res.push(item);
+        }
+      }
+      return res;
+    };
+
+    const publications = dedup(pubsByAssoc.map(a => a.publication ? { ...a.publication.toJSON(), contributorRole: a.authorRole || a.contributorRole } : null));
+
+    // Calculate Academic & Research Portfolio Citation Metrics (Part H)
+    let totalCitations = 0;
+    let availableCitationsCount = 0;
+    let unavailableCitationsCount = 0;
+    let maxCitations = -1;
+    let mostCitedPublications = [];
+
+    publications.forEach(p => {
+      const hasValidCount = p.citationCount !== null && p.citationCount !== undefined && !isNaN(parseInt(p.citationCount, 10));
+      if (hasValidCount) {
+        const count = parseInt(p.citationCount, 10);
+        totalCitations += count;
+        availableCitationsCount++;
+
+        if (count > maxCitations) {
+          maxCitations = count;
+          mostCitedPublications = [p];
+        } else if (count === maxCitations && count > 0) {
+          mostCitedPublications.push(p);
+        }
+      } else {
+        unavailableCitationsCount++;
+      }
+    });
+
+    const avgCitationsPerPublication = availableCitationsCount > 0
+      ? parseFloat((totalCitations / availableCitationsCount).toFixed(2))
+      : 0;
+
+    const portfolioMetrics = {
+      totalPublications: publications.length,
+      totalScopusCitations: totalCitations,
+      avgCitationsPerPublication,
+      publicationsIncludedInAverage: availableCitationsCount,
+      publicationsWithUnavailableCitations: unavailableCitationsCount,
+      mostCitedPublication: mostCitedPublications.length > 0 ? {
+        citationCount: maxCitations,
+        title: mostCitedPublications[0].title,
+        journalName: mostCitedPublications[0].journalName,
+        publicationYear: mostCitedPublications[0].publicationYear || mostCitedPublications[0].academicYear,
+        scopusUrl: mostCitedPublications[0].scopusUrl,
+        tiedCount: mostCitedPublications.length,
+        tiedPublications: mostCitedPublications.map(tp => ({
+          id: tp.id,
+          title: tp.title,
+          journalName: tp.journalName,
+          publicationYear: tp.publicationYear || tp.academicYear,
+          citationCount: tp.citationCount,
+          scopusUrl: tp.scopusUrl
+        }))
+      } : null
+    };
+
+    const consultancy = dedup(consByAssoc.map(a => a.project ? { ...a.project.toJSON(), contributorRole: a.role || a.contributorRole } : null));
+    const sponsoredResearch = dedup(sponsByAssoc.map(a => a.project ? { ...a.project.toJSON(), contributorRole: a.role || a.contributorRole } : null));
+    const internalResearch = dedup(internalByAssoc.map(a => a.project ? { ...a.project.toJSON(), contributorRole: a.role || a.contributorRole } : null));
+
+    const patentsMerged = [
+      ...patentsByAssoc.map(a => a.patent ? { ...a.patent.toJSON(), contributorRole: a.contributorRole || 'Inventor' } : null),
+      ...directPatents.map(p => p.toJSON())
+    ];
+    const patents = dedup(patentsMerged);
+
+    const copyrightsMerged = [
+      ...copyrightsByAssoc.map(a => a.copyright ? { ...a.copyright.toJSON(), contributorRole: a.contributorRole || 'Author' } : null),
+      ...directCopyrights.map(c => c.toJSON())
+    ];
+    const copyrights = dedup(copyrightsMerged);
+
+    const awardsMerged = [
+      ...awardsByAssoc.map(a => a.award ? { ...a.award.toJSON(), contributorRole: a.contributorRole || 'Awardee' } : null),
+      ...directAwards.map(a => a.toJSON())
+    ];
+    const awards = dedup(awardsMerged);
+
+    const econtentsMerged = [
+      ...econtentsByAssoc.map(a => a.econtent ? { ...a.econtent.toJSON(), contributorRole: a.contributorRole || 'Developer' } : null),
+      ...directEContents.map(e => e.toJSON())
+    ];
+    const eContents = dedup(econtentsMerged);
+
+    const professionalDevelopments = dedup(pdByAssoc.map(a => a.professionalDevelopment ? { ...a.professionalDevelopment.toJSON(), contributorRole: a.role || a.contributorRole } : null));
+    const invitedTalks = dedup(talksByAssoc.map(a => a.invitedTalk ? { ...a.invitedTalk.toJSON(), contributorRole: a.role || a.contributorRole } : null));
+    const periodicals = dedup(periodicalsByAssoc.map(a => a.periodical ? { ...a.periodical.toJSON(), contributorRole: a.role || a.contributorRole } : null));
+
+    res.json({
+      success: true,
+      faculty: {
+        id: faculty.id,
+        employeeId: faculty.employeeId,
+        name: faculty.name,
+        designation: faculty.designation,
+        department: faculty.department,
+        school: faculty.school,
+        campus: faculty.campus,
+        email: faculty.email,
+        phone: faculty.phone,
+        status: faculty.status
+      },
+      summary: {
+        publications: publications.length,
+        citations: totalCitations,
+        portfolioMetrics,
+        consultancy: consultancy.length,
+        sponsoredResearch: sponsoredResearch.length,
+        internalResearch: internalResearch.length,
+        patents: patents.length,
+        copyrights: copyrights.length,
+        awards: awards.length,
+        eContents: eContents.length,
+        professionalDevelopments: professionalDevelopments.length,
+        invitedTalks: invitedTalks.length,
+        periodicals: periodicals.length
+      },
+      contributions: {
+        publications,
+        consultancy,
+        sponsoredResearch,
+        internalResearch,
+        patents,
+        copyrights,
+        awards,
+        eContents,
+        professionalDevelopments,
+        invitedTalks,
+        periodicals
+      }
+    });
+  } catch (error) {
+    console.error('Get faculty contributions error:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve faculty contributions.', error: error.message });
   }
 };
 

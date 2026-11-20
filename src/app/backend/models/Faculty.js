@@ -39,6 +39,38 @@ const Faculty = sequelize.define('Faculty', {
     type: DataTypes.DATEONLY,
     allowNull: true
   },
+  age: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  nationality: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  permanentCity: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  permanentState: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  permanentCountry: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  officialEmailId: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  totalCurrentExpYears: {
+    type: DataTypes.STRING,
+    defaultValue: '0'
+  },
+  totalCurrentExpMonths: {
+    type: DataTypes.STRING,
+    defaultValue: '0'
+  },
   panCardNo: {
     type: DataTypes.STRING,
     allowNull: true

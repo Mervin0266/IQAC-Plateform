@@ -19,6 +19,8 @@ import {
   Trophy,
   Award,
   Video,
+  Mic,
+  Newspaper,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
@@ -64,11 +66,30 @@ export function Sidebar({
         groupTitle: 'ACADEMICS & RESEARCH',
         items: [
           {
+            icon: Trophy,
+            label: 'Achievements',
+            key: 'achievements',
+            children: [
+              { label: 'Awards', key: 'awards', icon: Award },
+              { label: 'Periodicals', key: 'periodicals', icon: Newspaper },
+            ],
+          },
+          {
             icon: GraduationCap,
             label: 'Academics',
             key: 'academics',
             children: [
-              { label: 'Faculty Management', key: 'faculty-details', icon: Users },
+              {
+                icon: Users,
+                label: 'Faculty Management',
+                key: 'faculty-management',
+                children: [
+                  { label: 'Faculty Details', key: 'faculty-details', icon: Users },
+                  { label: 'Professional Developments', key: 'professional-developments', icon: TrendingUp },
+                  { label: 'Invited Talks', key: 'invited-talks', icon: Mic },
+                  { label: 'E-Contents', key: 'e-contents', icon: Video },
+                ],
+              },
               { label: 'Student Details', key: 'student-details', icon: BookOpen },
               { label: 'Department Details', key: 'department-details', icon: Building2 },
               { label: 'Departmental Activities', key: 'departmental-activities', icon: Calendar },
@@ -98,18 +119,18 @@ export function Sidebar({
                   },
                 ],
               },
-              { label: 'Placements & Internships', key: 'placements-internships', icon: Briefcase },
+              {
+                label: 'Placements & Internships',
+                key: 'placements-internships-group',
+                icon: Briefcase,
+                children: [
+                  { label: 'Placements', key: 'placements' },
+                  { label: 'Internships', key: 'internships' },
+                ],
+              },
             ],
           },
-          {
-            icon: Trophy,
-            label: 'Achievements',
-            key: 'achievements',
-            children: [
-              { label: 'Awards', key: 'awards', icon: Award },
-              { label: 'E-Contents', key: 'e-contents', icon: Video },
-            ],
-          },
+          
         ],
       },
       {

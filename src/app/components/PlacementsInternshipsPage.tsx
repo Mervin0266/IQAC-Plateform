@@ -18,6 +18,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
 import { BulkUploadDialog } from './BulkUploadDialog';
+import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName, normalizeAcademicYear } from './FacultyDetailsPage';
 import { AppShell, PageHeader, StatCard } from './design-system';
@@ -30,6 +31,7 @@ interface PlacementsInternshipsPageProps {
   hideSidebar?: boolean;
   token?: string;
   userRole?: string;
+  mode?: 'placement' | 'internship' | 'all';
 }
 
 export interface PlacementItem {
@@ -39,6 +41,7 @@ export interface PlacementItem {
   department: string;
   course?: string;
   batch: string;
+  academicYear?: string;
   company: string;
   role?: string;
   package: number | string | null;
@@ -85,12 +88,87 @@ const EMPTY_FORM = {
   location: ''
 };
 
+interface KpiCardWithPopoverProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon?: any;
+  popoverTitle: string;
+  children: React.ReactNode;
+}
+
+function KpiCardWithPopover({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  popoverTitle,
+  children
+}: KpiCardWithPopoverProps) {
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnter = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    timerRef.current = setTimeout(() => {
+      setOpen(false);
+    }, 180);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          tabIndex={0}
+          role="button"
+          aria-label={`${title}: ${value}. Click or hover to inspect details.`}
+          className="outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A] rounded-xl transition-all cursor-pointer group select-none text-left"
+        >
+          <StatCard
+            title={title}
+            value={value}
+            subtitle={subtitle}
+            icon={Icon}
+            className="group-hover:border-slate-300 group-hover:shadow-sm"
+          />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="start"
+        sideOffset={6}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className="w-80 sm:w-96 p-4 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl rounded-xl z-50 text-xs space-y-3"
+      >
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-1.5 font-bold text-slate-900">
+            {Icon && <Icon className="w-4 h-4 text-[#1E3A8A]" />}
+            <span>{popoverTitle}</span>
+          </div>
+          <span className="text-[10px] text-slate-400 font-mono">KPI Breakdown</span>
+        </div>
+        {children}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function PlacementsInternshipsPage({
   onNavigate,
   isPublicView = false,
   hideSidebar = false,
   token: propToken,
-  userRole: propUserRole
+  userRole: propUserRole,
+  mode = 'all'
 }: PlacementsInternshipsPageProps) {
   const { user, logout } = useAuth();
   const { academicYears: runtimeAcademicYears } = useSystemConfig();
@@ -109,7 +187,9 @@ export function PlacementsInternshipsPage({
 
   // Filtering & View Mode State
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedType, setSelectedType] = useState<'all' | 'placement' | 'internship'>('all');
+  const [selectedType, setSelectedType] = useState<'all' | 'placement' | 'internship'>(
+    mode === 'placement' ? 'placement' : mode === 'internship' ? 'internship' : 'all'
+  );
   const [selectedDept, setSelectedDept] = useState('all');
   const [selectedCourse, setSelectedCourse] = useState('all');
   const [selectedBatch, setSelectedBatch] = useState('all');
@@ -127,6 +207,11 @@ export function PlacementsInternshipsPage({
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+  const [lookingUpStudent, setLookingUpStudent] = useState(false);
+  const [studentLookupStatus, setStudentLookupStatus] = useState<{
+    verified: boolean;
+    message?: string;
+  } | null>(null);
 
   const [viewingItem, setViewingItem] = useState<PlacementItem | null>(null);
   const [offerLetterLoading, setOfferLetterLoading] = useState(false);
@@ -370,18 +455,20 @@ export function PlacementsInternshipsPage({
 
   // Format Stipend
   const formatStipend = (val: number | string | null | undefined) => {
-    if (val === null || val === undefined || val === '') return 'Not Provided';
+    if (val === null || val === undefined || val === '') return 'Unpaid';
     const num = parseFloat(String(val));
-    if (isNaN(num)) return 'Not Provided';
+    if (isNaN(num)) return 'Unpaid';
     if (num === 0) return '₹0 (Unpaid)';
+    if (num >= 1000) return `₹ ${(num / 1000).toFixed(1)}K/mo`;
     return `₹ ${Math.round(num).toLocaleString('en-IN')} /mo`;
   };
 
   // Filtered Placements & Internships
   const filteredRecords = useMemo(() => {
     return placements.filter(item => {
-      // Type Filter
-      if (selectedType !== 'all' && item.placementType !== selectedType) {
+      // Type Filter (or locked mode)
+      const effectiveType = mode === 'placement' ? 'placement' : mode === 'internship' ? 'internship' : selectedType;
+      if (effectiveType !== 'all' && item.placementType !== effectiveType) {
         return false;
       }
 
@@ -450,38 +537,242 @@ export function PlacementsInternshipsPage({
     return sortedRecords.slice(start, start + recordsPerPage);
   }, [sortedRecords, currentPage, recordsPerPage]);
 
-  // Dynamic KPI Stats calculated from filtered records
+  // Dynamic KPI Stats calculated from filtered records using standardized per-student values
   const kpiStats = useMemo(() => {
     const placementList = filteredRecords.filter(p => p.placementType === 'placement');
     const internshipList = filteredRecords.filter(p => p.placementType === 'internship');
 
-    const validPackages = placementList
-      .map(p => parseFloat(String(p.package || 0)))
+    // Group placements by unique student (highest valid package per studentId)
+    const studentPlacementMap = new Map<string, {
+      studentId: string;
+      studentName: string;
+      department: string;
+      course?: string;
+      school?: string;
+      batch: string;
+      offers: PlacementItem[];
+      highestOffer: PlacementItem;
+      maxPackage: number;
+    }>();
+
+    placementList.forEach(p => {
+      const regNo = (p.studentId || '').trim() || p.id;
+      const rawPkg = typeof p.package === 'number' ? p.package : parseFloat(String(p.package || 0));
+      const pkg = (!isNaN(rawPkg) && rawPkg > 0) ? rawPkg : 0;
+
+      const existing = studentPlacementMap.get(regNo);
+      if (!existing) {
+        studentPlacementMap.set(regNo, {
+          studentId: p.studentId || regNo,
+          studentName: p.studentName || 'Student',
+          department: normalizeDepartmentName(p.department || 'Other'),
+          course: p.course || '',
+          school: p.school || '',
+          batch: p.batch || '',
+          offers: [p],
+          highestOffer: p,
+          maxPackage: pkg
+        });
+      } else {
+        existing.offers.push(p);
+        if (pkg > existing.maxPackage) {
+          existing.maxPackage = pkg;
+          existing.highestOffer = p;
+        }
+      }
+    });
+
+    const uniquePlacedStudents = Array.from(studentPlacementMap.values());
+    const totalPlacedCount = uniquePlacedStudents.length;
+    const totalOffersCount = placementList.length;
+    const multiOfferCount = uniquePlacedStudents.filter(s => s.offers.length > 1).length;
+
+    // Valid positive packages derived strictly per unique student
+    const validStudentPackages = uniquePlacedStudents
+      .map(s => s.maxPackage)
       .filter(p => p > 0);
 
-    const avgPkg = validPackages.length > 0
-      ? validPackages.reduce((sum, val) => sum + val, 0) / validPackages.length
-      : 0;
-    const maxPkg = validPackages.length > 0 ? Math.max(...validPackages) : 0;
-    const minPkg = validPackages.length > 0 ? Math.min(...validPackages) : 0;
+    const validStudentsCount = validStudentPackages.length;
 
+    // 1. Mean CTC (LPA) across unique students
+    const avgPkg = validStudentsCount > 0
+      ? validStudentPackages.reduce((sum, val) => sum + val, 0) / validStudentsCount
+      : 0;
+
+    // 2. Highest CTC (LPA) across unique students
+    const maxPkg = validStudentsCount > 0 ? Math.max(...validStudentPackages) : 0;
+
+    // Tied students for highest package
+    const tiedStudents = maxPkg > 0
+      ? uniquePlacedStudents.filter(s => Math.abs(s.maxPackage - maxPkg) < 0.001)
+      : [];
+
+    const topCompaniesForMax = Array.from(new Set(tiedStudents.map(s => s.highestOffer.company).filter(Boolean)));
+
+    // Top 3 unique highest packages
+    const topPackagesDesc = Array.from(new Set(validStudentPackages))
+      .sort((a, b) => b - a)
+      .slice(0, 3);
+
+    // 3. Median Package across unique students (sorted ascending)
+    const sortedPackages = [...validStudentPackages].sort((a, b) => a - b);
+    let medianPkg = 0;
+    let q1Pkg = 0;
+    let q3Pkg = 0;
+    let iqrPkg = 0;
+
+    if (validStudentsCount > 0) {
+      const mid = Math.floor(validStudentsCount / 2);
+      if (validStudentsCount % 2 === 1) {
+        medianPkg = sortedPackages[mid];
+      } else {
+        medianPkg = (sortedPackages[mid - 1] + sortedPackages[mid]) / 2;
+      }
+
+      if (validStudentsCount >= 4) {
+        const q1Idx = Math.floor(validStudentsCount * 0.25);
+        const q3Idx = Math.floor(validStudentsCount * 0.75);
+        q1Pkg = sortedPackages[q1Idx];
+        q3Pkg = sortedPackages[q3Idx];
+        iqrPkg = q3Pkg - q1Pkg;
+      }
+    }
+
+    // Package Distribution ranges (<5, 5-10, 10-15, 15+)
+    const distBelow5 = validStudentPackages.filter(p => p < 5).length;
+    const dist5to10 = validStudentPackages.filter(p => p >= 5 && p < 10).length;
+    const dist10to15 = validStudentPackages.filter(p => p >= 10 && p < 15).length;
+    const dist15Plus = validStudentPackages.filter(p => p >= 15).length;
+
+    // Department-wise placed students & averages
+    const deptStudentMap: Record<string, { count: number; packages: number[] }> = {};
+    uniquePlacedStudents.forEach(s => {
+      const d = s.department || 'Other';
+      if (!deptStudentMap[d]) deptStudentMap[d] = { count: 0, packages: [] };
+      deptStudentMap[d].count++;
+      if (s.maxPackage > 0) deptStudentMap[d].packages.push(s.maxPackage);
+    });
+
+    const topDeptsByCount = Object.entries(deptStudentMap)
+      .map(([name, data]) => ({ name, count: data.count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    const topDeptsByAvg = Object.entries(deptStudentMap)
+      .filter(([_, data]) => data.packages.length > 0)
+      .map(([name, data]) => ({
+        name,
+        avg: data.packages.reduce((a, b) => a + b, 0) / data.packages.length,
+        count: data.packages.length
+      }))
+      .sort((a, b) => b.avg - a.avg)
+      .slice(0, 5);
+
+    // Department whose median is closest to overall median
+    let closestDeptToMedian = '';
+    let minDiffToMedian = Infinity;
+    Object.entries(deptStudentMap).forEach(([name, data]) => {
+      if (data.packages.length > 0) {
+        const sorted = [...data.packages].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        const deptMed = sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        const diff = Math.abs(deptMed - medianPkg);
+        if (diff < minDiffToMedian) {
+          minDiffToMedian = diff;
+          closestDeptToMedian = `${name} (${deptMed.toFixed(2)} LPA)`;
+        }
+      }
+    });
+
+    // Recruiters analytics
+    const companyStatsMap: Record<string, { placedCount: number; offersCount: number; maxPkg: number; totalPkg: number; pkgCount: number }> = {};
+    filteredRecords.forEach(r => {
+      const comp = (r.company || '').trim();
+      if (!comp) return;
+      if (!companyStatsMap[comp]) {
+        companyStatsMap[comp] = { placedCount: 0, offersCount: 0, maxPkg: 0, totalPkg: 0, pkgCount: 0 };
+      }
+      companyStatsMap[comp].offersCount++;
+      const pNum = typeof r.package === 'number' ? r.package : parseFloat(String(r.package || 0));
+      if (!isNaN(pNum) && pNum > 0) {
+        if (pNum > companyStatsMap[comp].maxPkg) companyStatsMap[comp].maxPkg = pNum;
+        companyStatsMap[comp].totalPkg += pNum;
+        companyStatsMap[comp].pkgCount++;
+      }
+    });
+
+    uniquePlacedStudents.forEach(s => {
+      const compSet = new Set(s.offers.map(o => (o.company || '').trim()).filter(Boolean));
+      compSet.forEach(comp => {
+        if (companyStatsMap[comp]) companyStatsMap[comp].placedCount++;
+      });
+    });
+
+    const totalCompanies = Object.keys(companyStatsMap).length;
+    const topRecruiters = Object.entries(companyStatsMap)
+      .map(([name, stat]) => ({
+        name,
+        placedCount: stat.placedCount || stat.offersCount,
+        avgPkg: stat.pkgCount > 0 ? stat.totalPkg / stat.pkgCount : 0,
+        maxPkg: stat.maxPkg
+      }))
+      .sort((a, b) => b.placedCount - a.placedCount)
+      .slice(0, 5);
+
+    const marqueeCompanies = Object.values(companyStatsMap).filter(c => c.maxPkg >= 15).length;
+    const dreamCompanies = Object.values(companyStatsMap).filter(c => c.maxPkg >= 8 && c.maxPkg < 15).length;
+    const regularCompanies = Object.values(companyStatsMap).filter(c => c.maxPkg < 8).length;
+    const multiOfferCompanies = Object.values(companyStatsMap).filter(c => c.offersCount > 1).length;
+
+    // Internships statistics (isolated from placements LPA)
     const validStipends = internshipList
       .map(p => parseFloat(String(p.package || 0)))
       .filter(s => s > 0);
     const avgStipend = validStipends.length > 0
       ? validStipends.reduce((sum, val) => sum + val, 0) / validStipends.length
       : 0;
-
-    const companies = new Set(filteredRecords.map(p => (p.company || '').trim()).filter(Boolean));
+    const maxStipend = validStipends.length > 0 ? Math.max(...validStipends) : 0;
+    const uniqueInternStudents = new Set(internshipList.map(p => (p.studentId || '').trim() || p.id)).size;
+    const paidInternsCount = validStipends.length;
+    const unpaidInternsCount = internshipList.length - paidInternsCount;
+    const internCompanies = Array.from(new Set(internshipList.map(p => p.company).filter(Boolean)));
 
     return {
-      totalPlacements: placementList.length,
-      totalInternships: internshipList.length,
+      totalPlacements: totalPlacedCount,
+      totalOffers: totalOffersCount,
+      multiOfferCount,
+      uniquePlacedStudents,
       avgPackageLPA: avgPkg,
       maxPackageLPA: maxPkg,
-      minPackageLPA: minPkg,
-      avgStipend: avgStipend,
-      totalCompanies: companies.size,
+      tiedStudents,
+      topCompaniesForMax,
+      topPackagesDesc,
+      medianPackageLPA: medianPkg,
+      q1Pkg,
+      q3Pkg,
+      iqrPkg,
+      closestDeptToMedian,
+      distBelow5,
+      dist5to10,
+      dist10to15,
+      dist15Plus,
+      validStudentsCount,
+      topDeptsByCount,
+      topDeptsByAvg,
+      totalCompanies,
+      topRecruiters,
+      marqueeCompanies,
+      dreamCompanies,
+      regularCompanies,
+      multiOfferCompanies,
+      // Internship stats
+      totalInternships: internshipList.length,
+      avgStipend,
+      maxStipend,
+      uniqueInternStudents,
+      paidInternsCount,
+      unpaidInternsCount,
+      internCompaniesCount: internCompanies.length,
       totalRecords: filteredRecords.length
     };
   }, [filteredRecords]);
@@ -526,7 +817,7 @@ export function PlacementsInternshipsPage({
   // Reset Filters
   const handleResetFilters = () => {
     setSearchQuery('');
-    setSelectedType('all');
+    setSelectedType(mode === 'placement' ? 'placement' : mode === 'internship' ? 'internship' : 'all');
     setSelectedDept('all');
     setSelectedCourse('all');
     setSelectedBatch('all');
@@ -534,15 +825,67 @@ export function PlacementsInternshipsPage({
     setCurrentPage(1);
   };
 
+  const handleStudentLookup = async (regNo: string, targetAY: string) => {
+    const cleanReg = (regNo || '').trim();
+    if (!cleanReg || cleanReg.length < 3) {
+      setStudentLookupStatus(null);
+      return;
+    }
+    setLookingUpStudent(true);
+    setStudentLookupStatus(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/students/lookup/${encodeURIComponent(cleanReg)}?academicYear=${encodeURIComponent(targetAY)}`, {
+        headers: { Authorization: `Bearer ${effectiveToken}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.data) {
+        const student = data.data;
+        const targetEnrollment = data.targetEnrollment;
+        const resolvedDept = (targetEnrollment && targetEnrollment.department) || student.department || '';
+        const resolvedCourse = (targetEnrollment && targetEnrollment.course) || student.course || '';
+        setFormData(prev => ({
+          ...prev,
+          studentName: student.name || prev.studentName,
+          department: resolvedDept || prev.department,
+          course: resolvedCourse || prev.course
+        }));
+        setStudentLookupStatus({
+          verified: true,
+          message: `Verified in ${targetAY}: ${student.name} (${resolvedDept})`
+        });
+        setFormError('');
+      } else {
+        const errMsg = data.message || `No enrollment found for "${cleanReg}" in ${targetAY}.`;
+        setStudentLookupStatus({
+          verified: false,
+          message: errMsg
+        });
+        if (mode === 'internship') {
+          setFormError(errMsg);
+        }
+      }
+    } catch (err: any) {
+      setStudentLookupStatus({
+        verified: false,
+        message: 'Could not connect to student registry.'
+      });
+    } finally {
+      setLookingUpStudent(false);
+    }
+  };
+
   // Open Form for Create
   const handleOpenCreate = () => {
     setEditingItem(null);
+    const initialType = mode === 'internship' ? 'internship' : 'placement';
     setFormData({
       ...EMPTY_FORM,
+      placementType: initialType,
       department: uniqueDepartments[0] || 'AI and Data Science Engineering'
     });
     setCustomFieldValues({});
     setFormError('');
+    setStudentLookupStatus(null);
     setShowFormModal(true);
   };
 
@@ -564,14 +907,26 @@ export function PlacementsInternshipsPage({
     });
     setCustomFieldValues(item.customFields && typeof item.customFields === 'object' ? { ...item.customFields } : {});
     setFormError('');
+    setStudentLookupStatus({
+      verified: true,
+      message: `Enrolled: ${item.studentName} (${item.department})`
+    });
     setShowFormModal(true);
   };
 
   // Save Placement/Internship Form
   const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.studentName.trim() || !formData.studentId.trim() || !formData.company.trim() || !formData.package) {
-      setFormError('Please fill in Student Name, Register No, Company, and Package / Stipend.');
+    if (!formData.studentName.trim() || !formData.studentId.trim() || !formData.company.trim()) {
+      setFormError('Please fill in Student Name, Register Number, and Company.');
+      return;
+    }
+    if (formData.placementType === 'placement' && (!formData.package || String(formData.package).trim() === '')) {
+      setFormError('Please enter the Annual Salary Package (LPA).');
+      return;
+    }
+    if (formData.placementType === 'internship' && studentLookupStatus && studentLookupStatus.verified === false) {
+      setFormError(studentLookupStatus.message || 'Student must be enrolled in the selected academic year.');
       return;
     }
 
@@ -599,6 +954,12 @@ export function PlacementsInternshipsPage({
         body: JSON.stringify(payload)
       });
 
+      if (response.status === 401) {
+        logout();
+        alert('Your authentication session has expired or is invalid. Please sign in again.');
+        return;
+      }
+
       const data = await response.json();
       if (data.success) {
         setShowFormModal(false);
@@ -624,6 +985,11 @@ export function PlacementsInternshipsPage({
           'Authorization': `Bearer ${effectiveToken}`
         }
       });
+      if (response.status === 401) {
+        logout();
+        alert('Your authentication session has expired or is invalid. Please sign in again.');
+        return;
+      }
       const data = await response.json();
       if (data.success) {
         setDeletingId(null);
@@ -706,11 +1072,17 @@ export function PlacementsInternshipsPage({
           <PageHeader
             breadcrumbs={[
               { label: 'Performance' },
-              { label: 'Placements & Internships' }
+              { label: mode === 'placement' ? 'Placements' : mode === 'internship' ? 'Internships' : 'Placements & Internships' }
             ]}
-            title="Placements & Internships"
+            title={mode === 'placement' ? 'Campus Placements' : mode === 'internship' ? 'Internships & Industry Traineeships' : 'Placements & Internships'}
             badge={`${filteredRecords.length.toLocaleString()} Records`}
-            description="Comprehensive repository for student campus placements, corporate internships, compensation analytics, and recruiters data."
+            description={
+              mode === 'placement'
+                ? 'Institutional corporate placements, recruitment drives, salary packages (LPA), and career outcomes.'
+                : mode === 'internship'
+                ? 'Student industry internships, practical training, corporate traineeships, and monthly stipend records.'
+                : 'Comprehensive repository for student campus placements, corporate internships, compensation analytics, and recruiters data.'
+            }
             actions={
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -718,7 +1090,7 @@ export function PlacementsInternshipsPage({
                   size="sm"
                   onClick={fetchPlacements}
                   className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
-                  title="Refresh Placements & Internships"
+                  title="Refresh Records"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
                   <span>Refresh</span>
@@ -750,7 +1122,7 @@ export function PlacementsInternshipsPage({
                     size="sm"
                     onClick={() => setIsClearOpen(true)}
                     className="border-rose-200 bg-white text-rose-700 hover:bg-rose-50 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
-                    title="Clear All Placements Data"
+                    title={`Clear All ${mode === 'internship' ? 'Internship' : 'Placement'} Data`}
                   >
                     <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                     <span>Clear Data</span>
@@ -776,7 +1148,7 @@ export function PlacementsInternshipsPage({
                     className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs"
                   >
                     <Plus className="w-4 h-4 mr-1.5" />
-                    <span>Add Placement</span>
+                    <span>{mode === 'internship' ? 'Add Internship' : 'Add Placement'}</span>
                   </Button>
                 )}
               </div>
@@ -784,40 +1156,373 @@ export function PlacementsInternshipsPage({
           />
 
           {/* ========================================================================= */}
-          {/* 2. KPI METRIC CARDS (5 KPI METRICS)                                       */}
+          {/* 2. KPI METRIC CARDS WITH INTERACTIVE HOVER / FOCUS POPOVERS                */}
           {/* ========================================================================= */}
+          {mode === 'internship' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <KpiCardWithPopover
+                title="Total Internships"
+                value={kpiStats.totalInternships}
+                subtitle={`${kpiStats.uniqueInternStudents || kpiStats.totalInternships} unique student interns`}
+                icon={Briefcase}
+                popoverTitle="Internship Records"
+              >
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-[10px] text-slate-500 uppercase block font-semibold">Total Offers</span>
+                      <span className="text-base font-bold text-slate-900 font-mono">{kpiStats.totalInternships}</span>
+                    </div>
+                    <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-[10px] text-slate-500 uppercase block font-semibold">Unique Interns</span>
+                      <span className="text-base font-bold text-blue-700 font-mono">{kpiStats.uniqueInternStudents || kpiStats.totalInternships}</span>
+                    </div>
+                  </div>
+                </div>
+              </KpiCardWithPopover>
+
+              <KpiCardWithPopover
+                title="Paid Internships"
+                value={kpiStats.paidInternsCount || 0}
+                subtitle={kpiStats.totalInternships > 0 ? `${Math.round(((kpiStats.paidInternsCount || 0) / kpiStats.totalInternships) * 100)}% stipend-bearing` : '0%'}
+                icon={Award}
+                popoverTitle="Stipend-Bearing Internships"
+              >
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between py-1 border-b">
+                    <span className="text-slate-600">Paid Trainees:</span>
+                    <span className="font-mono font-bold text-emerald-700">{kpiStats.paidInternsCount || 0}</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-slate-600">Unpaid / Academic:</span>
+                    <span className="font-mono font-bold text-slate-600">{kpiStats.unpaidInternsCount || 0}</span>
+                  </div>
+                </div>
+              </KpiCardWithPopover>
+
+              <KpiCardWithPopover
+                title="Avg Monthly Stipend"
+                value={kpiStats.avgStipend > 0 ? `₹${(kpiStats.avgStipend / 1000).toFixed(1)}K/mo` : 'Unpaid'}
+                subtitle="Mean stipend across paid interns"
+                icon={DollarSign}
+                popoverTitle="Average Monthly Stipend"
+              >
+                <div className="p-2.5 bg-blue-50/60 rounded-lg border border-blue-100">
+                  <span className="text-[10px] text-blue-700 font-semibold uppercase block">Mean Monthly Stipend</span>
+                  <span className="text-base font-bold text-blue-900 font-mono">
+                    ₹{Math.round(kpiStats.avgStipend).toLocaleString('en-IN')}/mo
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-1">Calculated across {kpiStats.paidInternsCount || 0} stipend-bearing records</span>
+                </div>
+              </KpiCardWithPopover>
+
+              <KpiCardWithPopover
+                title="Highest Stipend"
+                value={kpiStats.maxStipend > 0 ? `₹${(kpiStats.maxStipend / 1000).toFixed(1)}K/mo` : 'N/A'}
+                subtitle="Peak monthly stipend offer"
+                icon={TrendingUp}
+                popoverTitle="Highest Monthly Stipend"
+              >
+                <div className="p-2.5 bg-emerald-50/60 rounded-lg border border-emerald-100">
+                  <span className="text-[10px] text-emerald-700 font-semibold uppercase block">Max Monthly Stipend</span>
+                  <span className="text-base font-bold text-emerald-900 font-mono">
+                    ₹{Math.round(kpiStats.maxStipend || 0).toLocaleString('en-IN')}/mo
+                  </span>
+                </div>
+              </KpiCardWithPopover>
+
+              <KpiCardWithPopover
+                title="Host Companies"
+                value={kpiStats.internCompaniesCount || 0}
+                subtitle="Active internship partners"
+                icon={Building2}
+                popoverTitle="Internship Partner Organizations"
+              >
+                <p className="text-slate-600 text-xs">
+                  {kpiStats.internCompaniesCount || 0} industry organizations have engaged students for technical and professional internships.
+                </p>
+              </KpiCardWithPopover>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <StatCard
+            {/* Card 1: Total Placed */}
+            <KpiCardWithPopover
               title="Total Placed"
               value={kpiStats.totalPlacements}
-              subtitle="Campus recruitment offers"
+              subtitle={kpiStats.totalOffers > 0 ? `${kpiStats.totalOffers} offers (${kpiStats.multiOfferCount} multi-offer)` : 'Campus recruitment offers'}
               icon={UserCheck}
-            />
-            <StatCard
+              popoverTitle="Total Placed Students"
+            >
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                    <span className="text-[10px] text-slate-500 uppercase block font-semibold">Placed</span>
+                    <span className="text-base font-bold text-slate-900 font-mono">{kpiStats.totalPlacements}</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                    <span className="text-[10px] text-slate-500 uppercase block font-semibold">Offers</span>
+                    <span className="text-base font-bold text-blue-700 font-mono">{kpiStats.totalOffers}</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                    <span className="text-[10px] text-slate-500 uppercase block font-semibold">2+ Offers</span>
+                    <span className="text-base font-bold text-emerald-700 font-mono">{kpiStats.multiOfferCount}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-700 block mb-1.5">Top Departments by Placed Students</span>
+                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                    {kpiStats.topDeptsByCount.length > 0 ? (
+                      kpiStats.topDeptsByCount.map(d => (
+                        <div key={d.name} className="flex items-center justify-between py-0.5 text-[11px]">
+                          <span className="text-slate-600 truncate max-w-[200px]" title={d.name}>{d.name}</span>
+                          <span className="font-semibold text-slate-900 font-mono shrink-0">{d.count}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-slate-400 italic">No department data</span>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-100">
+                  * Offers exceed placed count when students receive multiple placement selections.
+                </p>
+              </div>
+            </KpiCardWithPopover>
+
+            {/* Card 2: Avg Package */}
+            <KpiCardWithPopover
               title="Avg Package"
               value={formatLPA(kpiStats.avgPackageLPA)}
-              subtitle="Mean CTC across departments"
+              subtitle="Mean CTC (per student)"
               icon={DollarSign}
-            />
-            <StatCard
+              popoverTitle="Average Compensation (CTC)"
+            >
+              <div className="space-y-3">
+                <div className="p-2.5 bg-blue-50/60 rounded-lg border border-blue-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-blue-700 font-semibold uppercase block">Mean Package</span>
+                    <span className="text-base font-bold text-blue-900 font-mono">{kpiStats.avgPackageLPA.toFixed(2)} LPA</span>
+                  </div>
+                  <span className="text-[11px] text-blue-600 font-medium font-mono">
+                    {kpiStats.validStudentsCount} students
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-700 block mb-1.5">Package Distribution</span>
+                  <div className="space-y-1 text-[11px]">
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="text-slate-600">&lt; 5 LPA:</span>
+                      <span className="font-mono font-medium text-slate-800">
+                        {kpiStats.distBelow5} ({kpiStats.validStudentsCount > 0 ? ((kpiStats.distBelow5 / kpiStats.validStudentsCount) * 100).toFixed(1) : 0}%)
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="text-slate-600">5 – 10 LPA:</span>
+                      <span className="font-mono font-medium text-slate-800">
+                        {kpiStats.dist5to10} ({kpiStats.validStudentsCount > 0 ? ((kpiStats.dist5to10 / kpiStats.validStudentsCount) * 100).toFixed(1) : 0}%)
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="text-slate-600">10 – 15 LPA:</span>
+                      <span className="font-mono font-medium text-slate-800">
+                        {kpiStats.dist10to15} ({kpiStats.validStudentsCount > 0 ? ((kpiStats.dist10to15 / kpiStats.validStudentsCount) * 100).toFixed(1) : 0}%)
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="text-slate-600">15+ LPA:</span>
+                      <span className="font-mono font-semibold text-emerald-700">
+                        {kpiStats.dist15Plus} ({kpiStats.validStudentsCount > 0 ? ((kpiStats.dist15Plus / kpiStats.validStudentsCount) * 100).toFixed(1) : 0}%)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-700 block mb-1">Top Departments by Average CTC</span>
+                  <div className="space-y-0.5">
+                    {kpiStats.topDeptsByAvg.slice(0, 3).map(d => (
+                      <div key={d.name} className="flex justify-between items-center text-[11px]">
+                        <span className="text-slate-600 truncate max-w-[200px]" title={d.name}>{d.name}</span>
+                        <span className="font-mono font-semibold text-slate-800">{d.avg.toFixed(2)} LPA</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-100">
+                  * Calculated strictly using each student's highest placement offer.
+                </p>
+              </div>
+            </KpiCardWithPopover>
+
+            {/* Card 3: Highest Package */}
+            <KpiCardWithPopover
               title="Highest Package"
               value={formatLPA(kpiStats.maxPackageLPA)}
-              subtitle="Marquee corporate offer"
+              subtitle={kpiStats.topCompaniesForMax.length > 1 ? `${kpiStats.topCompaniesForMax.length} Companies (Tied)` : (kpiStats.topCompaniesForMax[0] || 'Marquee corporate offer')}
               icon={Award}
-            />
-            <StatCard
-              title="Internships"
-              value={kpiStats.totalInternships}
-              subtitle={kpiStats.avgStipend > 0 ? `Avg: ${formatStipend(kpiStats.avgStipend)}` : 'Corporate internships'}
-              icon={Briefcase}
-            />
-            <StatCard
+              popoverTitle="Highest Placement Offer"
+            >
+              <div className="space-y-3">
+                <div className="p-2.5 bg-amber-50/70 rounded-lg border border-amber-200/80 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-amber-800 font-semibold uppercase block">Peak Compensation</span>
+                    <span className="text-lg font-bold text-amber-900 font-mono">{kpiStats.maxPackageLPA.toFixed(2)} LPA</span>
+                  </div>
+                  <span className="text-[10px] text-amber-700 font-semibold px-2 py-0.5 bg-white rounded border border-amber-200">
+                    {kpiStats.tiedStudents.length} student{kpiStats.tiedStudents.length > 1 ? 's tied' : ''}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-700 block mb-1.5">Top Placed Candidate(s)</span>
+                  <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                    {kpiStats.tiedStudents.slice(0, 3).map((st, i) => (
+                      <div key={st.studentId + i} className="p-2 bg-slate-50 rounded border border-slate-100 text-[11px]">
+                        <div className="flex justify-between font-semibold text-slate-900">
+                          <span className="truncate max-w-[170px]">{st.studentName}</span>
+                          <span className="font-mono text-slate-500">{st.studentId}</span>
+                        </div>
+                        <div className="text-slate-600 truncate mt-0.5">
+                          {st.highestOffer.company} {st.highestOffer.role ? `• ${st.highestOffer.role}` : ''}
+                        </div>
+                        <div className="text-[10px] text-slate-400 truncate">
+                          {st.department} {st.course ? `(${st.course})` : ''}
+                        </div>
+                      </div>
+                    ))}
+                    {kpiStats.tiedStudents.length > 3 && (
+                      <div className="text-[10px] text-slate-500 text-center font-medium">
+                        ...and {kpiStats.tiedStudents.length - 3} more student(s) at {kpiStats.maxPackageLPA.toFixed(2)} LPA
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {kpiStats.topPackagesDesc.length > 1 && (
+                  <div className="pt-1 border-t border-slate-100">
+                    <span className="text-[10px] text-slate-500 font-semibold uppercase block mb-1">Top Tier Packages</span>
+                    <div className="flex items-center gap-2 font-mono text-[11px]">
+                      {kpiStats.topPackagesDesc.map((pkg, idx) => (
+                        <span key={pkg} className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-800">
+                          #{idx + 1}: {pkg.toFixed(1)} LPA
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </KpiCardWithPopover>
+
+            {/* Card 4: Median Package (REPLACES INTERNSHIP CARD) */}
+            <KpiCardWithPopover
+              title="Median Package"
+              value={formatLPA(kpiStats.medianPackageLPA)}
+              subtitle="50th percentile CTC"
+              icon={TrendingUp}
+              popoverTitle="Median Compensation (50th %ile)"
+            >
+              <div className="space-y-3">
+                <div className="p-2.5 bg-emerald-50/70 rounded-lg border border-emerald-200/80 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-emerald-800 font-semibold uppercase block">Median CTC</span>
+                    <span className="text-lg font-bold text-emerald-900 font-mono">{kpiStats.medianPackageLPA.toFixed(2)} LPA</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200 font-medium">
+                    Midpoint CTC
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-1.5 bg-slate-50 rounded border border-slate-100">
+                    <span className="text-[9px] text-slate-500 uppercase block font-semibold">Q1 (25th)</span>
+                    <span className="text-xs font-bold text-slate-800 font-mono">{kpiStats.q1Pkg.toFixed(2)} LPA</span>
+                  </div>
+                  <div className="p-1.5 bg-slate-50 rounded border border-slate-100">
+                    <span className="text-[9px] text-slate-500 uppercase block font-semibold">Q3 (75th)</span>
+                    <span className="text-xs font-bold text-slate-800 font-mono">{kpiStats.q3Pkg.toFixed(2)} LPA</span>
+                  </div>
+                  <div className="p-1.5 bg-slate-50 rounded border border-slate-100">
+                    <span className="text-[9px] text-slate-500 uppercase block font-semibold">IQR</span>
+                    <span className="text-xs font-bold text-slate-800 font-mono">{kpiStats.iqrPkg.toFixed(2)} LPA</span>
+                  </div>
+                </div>
+
+                <div className="p-2 bg-slate-50/80 rounded border border-slate-100 text-[11px] space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Mean vs Median:</span>
+                    <span className="font-mono font-semibold text-slate-900">
+                      {kpiStats.avgPackageLPA.toFixed(2)} vs {kpiStats.medianPackageLPA.toFixed(2)} LPA
+                    </span>
+                  </div>
+                  {kpiStats.closestDeptToMedian && (
+                    <div className="flex justify-between text-[10px] pt-1 border-t border-slate-200/50">
+                      <span className="text-slate-500">Closest Dept:</span>
+                      <span className="font-semibold text-slate-700 truncate max-w-[160px]" title={kpiStats.closestDeptToMedian}>
+                        {kpiStats.closestDeptToMedian}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-100">
+                  * 50% of placed students received a package of at least this amount. Unaffected by extreme high/low salary outliers.
+                </p>
+              </div>
+            </KpiCardWithPopover>
+
+            {/* Card 5: Recruiters */}
+            <KpiCardWithPopover
               title="Recruiters"
               value={kpiStats.totalCompanies}
               subtitle="Corporate hiring partners"
               icon={Building2}
-            />
+              popoverTitle="Corporate Recruiters"
+            >
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                  <div className="p-1.5 bg-slate-50 rounded border border-slate-100">
+                    <span className="text-slate-500 block">Marquee &ge;15</span>
+                    <span className="font-bold font-mono text-emerald-700 text-xs">{kpiStats.marqueeCompanies}</span>
+                  </div>
+                  <div className="p-1.5 bg-slate-50 rounded border border-slate-100">
+                    <span className="text-slate-500 block">Dream 8-15</span>
+                    <span className="font-bold font-mono text-blue-700 text-xs">{kpiStats.dreamCompanies}</span>
+                  </div>
+                  <div className="p-1.5 bg-slate-50 rounded border border-slate-100">
+                    <span className="text-slate-500 block">Regular &lt;8</span>
+                    <span className="font-bold font-mono text-slate-700 text-xs">{kpiStats.regularCompanies}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-700 block mb-1.5">Top Hiring Partners</span>
+                  <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                    {kpiStats.topRecruiters.map(r => (
+                      <div key={r.name} className="flex justify-between items-center text-[11px] py-0.5">
+                        <span className="text-slate-700 truncate max-w-[180px]" title={r.name}>{r.name}</span>
+                        <div className="flex items-center gap-1.5 shrink-0 font-mono">
+                          <span className="font-semibold text-slate-900">{r.placedCount} placed</span>
+                          {r.avgPkg > 0 && (
+                            <span className="text-[10px] text-slate-400">({r.avgPkg.toFixed(1)} LPA)</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-1 border-t border-slate-100 text-[10px] text-slate-500 flex justify-between">
+                  <span>Multiple offers made:</span>
+                  <span className="font-semibold text-slate-700 font-mono">{kpiStats.multiOfferCompanies} organizations</span>
+                </div>
+              </div>
+            </KpiCardWithPopover>
           </div>
+          )}
 
           {/* ========================================================================= */}
           {/* 3. SINGLE UNIFIED FILTER & VIEW TOOLBAR (CLEAN, NO DUPLICATES)            */}
@@ -1036,11 +1741,15 @@ export function PlacementsInternshipsPage({
                   <thead>
                     <tr className="bg-slate-50 border-b border-[#E2E8F0] text-xs font-semibold text-slate-700 tracking-normal">
                       <th className="py-3 px-4">Student Details</th>
-                      <th className="py-3 px-3">Type</th>
+                      {mode === 'placement' || mode === 'internship' ? (
+                        <th className="py-3 px-3">Academic Year</th>
+                      ) : (
+                        <th className="py-3 px-3">Type</th>
+                      )}
                       <th className="py-3 px-3">Department & Course</th>
-                      <th className="py-3 px-3">AY (Batch)</th>
-                      <th className="py-3 px-4">Recruiting Company & Role</th>
-                      <th className="py-3 px-3">Package / Stipend</th>
+                      {mode === 'all' && <th className="py-3 px-3">AY (Batch)</th>}
+                      <th className="py-3 px-4">{mode === 'internship' ? 'Host Company & Role' : 'Recruiting Company & Role'}</th>
+                      <th className="py-3 px-3">{mode === 'internship' ? 'Monthly Stipend' : 'Package (LPA)'}</th>
                       <th className="py-3 px-3">Date</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
@@ -1063,20 +1772,26 @@ export function PlacementsInternshipsPage({
                           </div>
                         </td>
 
-                        {/* Type Badge */}
-                        <td className="py-3 px-3">
-                          {item.placementType === 'placement' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2]">
-                              <UserCheck className="w-3 h-3" />
-                              <span>Placement</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-[#EAF1FD] text-[#2855B9] border border-[#C8DCFB]">
-                              <Briefcase className="w-3 h-3" />
-                              <span>Internship</span>
-                            </span>
-                          )}
-                        </td>
+                        {/* Column 2: Academic Year when in dedicated mode, or Type Badge when in all mode */}
+                        {mode === 'placement' || mode === 'internship' ? (
+                          <td className="py-3 px-3 font-mono font-medium text-slate-700">
+                            {item.academicYear || item.batch}
+                          </td>
+                        ) : (
+                          <td className="py-3 px-3">
+                            {item.placementType === 'placement' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-[#E8F5ED] text-[#167447] border border-[#C6E7D2]">
+                                <UserCheck className="w-3 h-3" />
+                                <span>Placement</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-[#EAF1FD] text-[#2855B9] border border-[#C8DCFB]">
+                                <Briefcase className="w-3 h-3" />
+                                <span>Internship</span>
+                              </span>
+                            )}
+                          </td>
+                        )}
 
                         {/* Department & Course */}
                         <td className="py-3.5 px-3 max-w-[200px]">
@@ -1088,10 +1803,12 @@ export function PlacementsInternshipsPage({
                           </div>
                         </td>
 
-                        {/* Academic Year */}
-                        <td className="py-3.5 px-3 font-mono text-slate-600">
-                          {item.batch}
-                        </td>
+                        {/* Batch/AY if in all mode */}
+                        {mode === 'all' && (
+                          <td className="py-3.5 px-3 font-mono text-slate-600">
+                            {item.batch}
+                          </td>
+                        )}
 
                         {/* Company & Role */}
                         <td className="py-3.5 px-4">
@@ -1113,7 +1830,7 @@ export function PlacementsInternshipsPage({
                               {formatLPA(item.package)}
                             </span>
                           ) : (
-                            <span className="text-purple-700 bg-purple-50/80 px-2 py-0.5 rounded-md border border-purple-100">
+                            <span className="text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-md border border-blue-100">
                               {formatStipend(item.package)}
                             </span>
                           )}
@@ -1377,10 +2094,16 @@ export function PlacementsInternshipsPage({
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
               <Plus className="w-5 h-5 text-emerald-600" />
-              <span>{editingItem ? 'Edit Placement / Internship Record' : 'Add New Placement / Internship Record'}</span>
+              <span>
+                {editingItem
+                  ? `Edit ${formData.placementType === 'internship' ? 'Internship' : 'Placement'} Record`
+                  : `Add New ${formData.placementType === 'internship' ? 'Internship' : 'Placement'} Record`}
+              </span>
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Enter official campus placement or corporate internship details for verification.
+              {formData.placementType === 'internship'
+                ? 'Enter student industry internship and corporate training details with exact academic year verification.'
+                : 'Enter official campus recruitment and placement details for institutional records.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1392,41 +2115,120 @@ export function PlacementsInternshipsPage({
           )}
 
           <form onSubmit={handleSaveForm} className="space-y-4 pt-2">
-            {/* Record Type Toggle */}
-            <div>
-              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5 block">
-                Type of Opportunity *
-              </Label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, placementType: 'placement' })}
-                  className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-                    formData.placementType === 'placement'
-                      ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-1 ring-emerald-500'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <UserCheck className="w-4 h-4" />
-                  <span>Campus Placement</span>
-                </button>
+            {/* Record Type Toggle - only show if mode === 'all' */}
+            {mode === 'all' && (
+              <div>
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5 block">
+                  Type of Opportunity *
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, placementType: 'placement' })}
+                    className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                      formData.placementType === 'placement'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-1 ring-emerald-500'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>Campus Placement</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, placementType: 'internship' })}
-                  className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-                    formData.placementType === 'internship'
-                      ? 'bg-purple-50 border-purple-500 text-purple-700 ring-1 ring-purple-500'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <Briefcase className="w-4 h-4" />
-                  <span>Corporate Internship</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, placementType: 'internship' })}
+                    className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                      formData.placementType === 'internship'
+                        ? 'bg-purple-50 border-purple-500 text-purple-700 ring-1 ring-purple-500'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Briefcase className="w-4 h-4" />
+                    <span>Corporate Internship</span>
+                  </button>
+                </div>
               </div>
+            )}
+
+            {/* Academic Year Selection */}
+            <div>
+              <Label className="text-xs font-semibold text-slate-700 mb-1 block">
+                Academic Year (AY) *
+              </Label>
+              <Select
+                value={formData.batch}
+                onValueChange={(val) => {
+                  setFormData({ ...formData, batch: val });
+                  if (formData.studentId.trim()) {
+                    handleStudentLookup(formData.studentId, val);
+                  }
+                }}
+              >
+                <SelectTrigger className="h-9 text-xs rounded-xl">
+                  <SelectValue placeholder="Select Academic Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {configuredAcademicYears.map(yr => (
+                    <SelectItem key={yr} value={yr}>{yr}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Student Name & Register No */}
+            {/* Student ID / Register Number Lookup */}
+            <div>
+              <Label className="text-xs font-semibold text-slate-700 mb-1 block">
+                Student Register Number *
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  value={formData.studentId}
+                  onChange={(e) => {
+                    setFormData({ ...formData, studentId: e.target.value });
+                    setStudentLookupStatus(null);
+                  }}
+                  onBlur={() => {
+                    if (formData.studentId.trim()) {
+                      handleStudentLookup(formData.studentId, formData.batch);
+                    }
+                  }}
+                  placeholder="e.g. 2160350"
+                  className="h-9 text-xs rounded-xl font-mono flex-1"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleStudentLookup(formData.studentId, formData.batch)}
+                  disabled={lookingUpStudent || !formData.studentId.trim()}
+                  className="h-9 text-xs px-3 rounded-xl border-slate-200 shrink-0"
+                >
+                  {lookingUpStudent ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                  ) : (
+                    <span>Verify</span>
+                  )}
+                </Button>
+              </div>
+              {studentLookupStatus && (
+                <div className={`mt-1.5 p-2 rounded-lg text-[11px] flex items-center gap-1.5 ${
+                  studentLookupStatus.verified
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border border-rose-200 text-rose-800'
+                }`}>
+                  {studentLookupStatus.verified ? (
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                  )}
+                  <span>{studentLookupStatus.message}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Student Full Name & Degree Program */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs font-semibold text-slate-700 mb-1 block">
@@ -1435,45 +2237,10 @@ export function PlacementsInternshipsPage({
                 <Input
                   value={formData.studentName}
                   onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
-                  placeholder="e.g. John Doe"
+                  placeholder="Student name"
                   className="h-9 text-xs rounded-xl"
                   required
                 />
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold text-slate-700 mb-1 block">
-                  Register Number / Student ID *
-                </Label>
-                <Input
-                  value={formData.studentId}
-                  onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
-                  placeholder="e.g. 2160350"
-                  className="h-9 text-xs rounded-xl font-mono"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Department & Course */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-semibold text-slate-700 mb-1 block">
-                  Department *
-                </Label>
-                <Select
-                  value={formData.department}
-                  onValueChange={(val) => setFormData({ ...formData, department: val })}
-                >
-                  <SelectTrigger className="h-9 text-xs rounded-xl">
-                    <SelectValue placeholder="Select Department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {uniqueDepartments.map(d => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               <div>
@@ -1489,11 +2256,31 @@ export function PlacementsInternshipsPage({
               </div>
             </div>
 
+            {/* Department */}
+            <div>
+              <Label className="text-xs font-semibold text-slate-700 mb-1 block">
+                Department *
+              </Label>
+              <Select
+                value={formData.department}
+                onValueChange={(val) => setFormData({ ...formData, department: val })}
+              >
+                <SelectTrigger className="h-9 text-xs rounded-xl">
+                  <SelectValue placeholder="Select Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {uniqueDepartments.map(d => (
+                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Company & Role */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs font-semibold text-slate-700 mb-1 block">
-                  Recruiting Company *
+                  {formData.placementType === 'internship' ? 'Host Company / Organization *' : 'Recruiting Company *'}
                 </Label>
                 <Input
                   value={formData.company}
@@ -1506,56 +2293,44 @@ export function PlacementsInternshipsPage({
 
               <div>
                 <Label className="text-xs font-semibold text-slate-700 mb-1 block">
-                  Role / Job Profile
+                  {formData.placementType === 'internship' ? 'Trainee Role / Domain' : 'Job Designation / Role'}
                 </Label>
                 <Input
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  placeholder="e.g. Software Engineer, Data Analyst"
+                  placeholder={formData.placementType === 'internship' ? 'e.g. ML Intern, Trainee' : 'e.g. Software Engineer'}
                   className="h-9 text-xs rounded-xl"
                 />
               </div>
             </div>
 
-            {/* Package / Stipend & Academic Year */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Package / Stipend & Date */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs font-semibold text-slate-700 mb-1 block">
-                  {formData.placementType === 'placement' ? 'Package (₹ in LPA) *' : 'Stipend (₹/month) *'}
+                  {formData.placementType === 'placement'
+                    ? 'Annual Package (₹ in LPA) *'
+                    : 'Monthly Stipend (Full INR, Optional)'}
                 </Label>
                 <Input
                   type="number"
                   step="0.01"
                   value={formData.package}
                   onChange={(e) => setFormData({ ...formData, package: e.target.value })}
-                  placeholder={formData.placementType === 'placement' ? 'e.g. 14.5' : 'e.g. 35000'}
+                  placeholder={formData.placementType === 'placement' ? 'e.g. 8.5' : 'e.g. 15000 (leave blank for unpaid)'}
                   className="h-9 text-xs rounded-xl font-mono"
-                  required
+                  required={formData.placementType === 'placement'}
                 />
+                {formData.placementType === 'internship' && (
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    Entered in full INR (e.g. 15000), displayed as ₹15.0K/mo. Leave blank if unpaid.
+                  </span>
+                )}
               </div>
 
               <div>
                 <Label className="text-xs font-semibold text-slate-700 mb-1 block">
-                  Academic Year (AY) *
-                </Label>
-                <Select
-                  value={formData.batch}
-                  onValueChange={(val) => setFormData({ ...formData, batch: val })}
-                >
-                  <SelectTrigger className="h-9 text-xs rounded-xl">
-                    <SelectValue placeholder="Select AY" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {configuredAcademicYears.map(yr => (
-                      <SelectItem key={yr} value={yr}>{yr}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold text-slate-700 mb-1 block">
-                  Placement / Offer Date
+                  {formData.placementType === 'internship' ? 'Commencement Date' : 'Offer / Placement Date'}
                 </Label>
                 <Input
                   type="date"
@@ -1841,6 +2616,7 @@ export function PlacementsInternshipsPage({
         token={effectiveToken}
         onSuccess={fetchPlacements}
         uploadType="placements"
+        defaultPlacementType={mode === 'internship' ? 'internship' : 'placement'}
       />
 
       {/* Clear Placements Confirmation Dialog */}

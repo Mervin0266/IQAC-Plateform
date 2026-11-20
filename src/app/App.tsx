@@ -12,6 +12,9 @@ const DashboardPage = React.lazy(() => import('./components/DashboardPage').then
 const AchievementsPage = React.lazy(() => import('./components/AchievementsPage').then(m => ({ default: m.AchievementsPage })));
 const AwardsPage = React.lazy(() => import('./components/AwardsPage').then(m => ({ default: m.AwardsPage })));
 const EContentsPage = React.lazy(() => import('./components/EContentsPage').then(m => ({ default: m.EContentsPage })));
+const ProfessionalDevelopmentsPage = React.lazy(() => import('./components/ProfessionalDevelopmentsPage').then(m => ({ default: m.ProfessionalDevelopmentsPage })));
+const InvitedTalksPage = React.lazy(() => import('./components/InvitedTalksPage').then(m => ({ default: m.InvitedTalksPage })));
+const PeriodicalsPage = React.lazy(() => import('./components/PeriodicalsPage').then(m => ({ default: m.PeriodicalsPage })));
 const CourseFilesPage = React.lazy(() => import('./components/CourseFilesPage').then(m => ({ default: m.CourseFilesPage })));
 const PlaceholderPage = React.lazy(() => import('./components/PlaceholderPage').then(m => ({ default: m.PlaceholderPage })));
 const StrategicPlanPage = React.lazy(() => import('./components/StrategicPlanPage').then(m => ({ default: m.StrategicPlanPage })));
@@ -79,8 +82,15 @@ function AppContent() {
         setShowLogin(true);
       }
     };
+    const handleAuthLogout = () => {
+      setShowLogin(true);
+    };
     window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
+    window.addEventListener('iqac-auth-logout', handleAuthLogout);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('iqac-auth-logout', handleAuthLogout);
+    };
   }, []);
 
   // Check if user has access to current page (Hook called unconditionally at top level)
@@ -127,6 +137,12 @@ function AppContent() {
         return <DashboardPage onNavigate={setCurrentPage} />;
       case 'faculty-details':
         return <FacultyDetailsPage onNavigate={setCurrentPage} />;
+      case 'professional-developments':
+        return <ProfessionalDevelopmentsPage onNavigate={setCurrentPage} />;
+      case 'invited-talks':
+        return <InvitedTalksPage onNavigate={setCurrentPage} />;
+      case 'periodicals':
+        return <PeriodicalsPage onNavigate={setCurrentPage} />;
       case 'student-details':
         return <StudentDetailsPage onNavigate={setCurrentPage} />;
       case 'department-details':
@@ -170,8 +186,12 @@ function AppContent() {
         return <CentreExcellencePage onNavigate={setCurrentPage} />;
       case 'infrastructure-facilities':
         return <InfrastructureFacilitiesPage onNavigate={setCurrentPage} />;
+      case 'placements':
+        return <PlacementsInternshipsPage onNavigate={setCurrentPage} mode="placement" />;
+      case 'internships':
+        return <PlacementsInternshipsPage onNavigate={setCurrentPage} mode="internship" />;
       case 'placements-internships':
-        return <PlacementsInternshipsPage onNavigate={setCurrentPage} />;
+        return <PlacementsInternshipsPage onNavigate={setCurrentPage} mode="all" />;
       case 'strategic-plan':
         return <StrategicPlanPage onNavigate={setCurrentPage} />;
       case 'accreditation':

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Card, CardContent } from './ui/card';
 import {
@@ -12,11 +12,13 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { Label } from './ui/label';
+import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { useAuth } from '../contexts/AuthContext';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { AppShell, PageHeader, StatCard } from './design-system';
 import { BulkUploadDialog } from './BulkUploadDialog';
+import { ClearModuleDataDialog } from './ClearModuleDataDialog';
 
 export interface EContentItem {
   id: string;
@@ -78,6 +80,92 @@ const DEFAULT_STATS: EContentStats = {
   activeDepartmentsCount: 0
 };
 
+const formatContentType = (raw: string) => {
+  if (!raw) return 'Unknown';
+  if (raw === 'SINGLE_MODULE') return 'Single Module';
+  if (raw === 'ENTIRE_COURSE') return 'Entire Course';
+  if (raw === 'MULTIPLE_MODULE') return 'Multiple Modules';
+  if (raw.length > 30) return raw.slice(0, 28) + '...';
+  return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+};
+
+interface KpiCardWithPopoverProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  badge?: string;
+  icon?: any;
+  popoverTitle: string;
+  children: React.ReactNode;
+}
+
+function KpiCardWithPopover({
+  title,
+  value,
+  subtitle,
+  badge,
+  icon: Icon,
+  popoverTitle,
+  children
+}: KpiCardWithPopoverProps) {
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnter = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    timerRef.current = setTimeout(() => {
+      setOpen(false);
+    }, 180);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          tabIndex={0}
+          role="button"
+          aria-label={`${title}: ${value}. Click or hover to inspect details.`}
+          className="outline-none focus-visible:ring-2 focus-visible:ring-[#2855B9] rounded-xl transition-all cursor-pointer group select-none text-left"
+        >
+          <StatCard
+            title={title}
+            value={value}
+            badge={badge}
+            subtitle={subtitle}
+            icon={Icon}
+            className="group-hover:border-slate-300 group-hover:shadow-sm"
+          />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="start"
+        sideOffset={6}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className="w-80 sm:w-96 p-4 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl rounded-xl z-50 text-xs space-y-3"
+      >
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-1.5 font-bold text-slate-900">
+            {Icon && <Icon className="w-4 h-4 text-[#2855B9]" />}
+            <span>{popoverTitle}</span>
+          </div>
+          <span className="text-[10px] text-slate-400 font-mono">KPI Breakdown</span>
+        </div>
+        {children}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function EContentsPage({ onNavigate, hideSidebar = false, token: propToken, userRole }: EContentsPageProps) {
   const { user } = useAuth();
   const token = propToken || user?.token || localStorage.getItem('token') || '';
@@ -122,6 +210,7 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
   const [editingItem, setEditingItem] = useState<EContentItem | null>(null);
   const [viewingItem, setViewingItem] = useState<EContentItem | null>(null);
   const [isBulkOpen, setIsBulkOpen] = useState<boolean>(false);
+  const [isClearDataOpen, setIsClearDataOpen] = useState<boolean>(false);
   const [formLoading, setFormLoading] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>('');
 
@@ -513,6 +602,18 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
                 <span className="hidden sm:inline">Export CSV</span>
               </Button>
 
+              {user?.role === 'admin' && (
+                <Button
+                  onClick={() => setIsClearDataOpen(true)}
+                  variant="outline"
+                  size="sm"
+                  className="border-red-300 text-red-600 bg-red-50/50 hover:bg-red-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-2xs gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                  <span>Clear Data</span>
+                </Button>
+              )}
+
               <Button
                 onClick={() => setIsBulkOpen(true)}
                 variant="outline"
@@ -535,36 +636,161 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
           }
         />
 
-        {/* Dashboard KPI Overview */}
+        {/* Dashboard KPI Overview with Popovers */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
+          <KpiCardWithPopover
             title="Total E-Contents"
             value={stats.totalEContents}
             badge="Digital Learning"
             subtitle={`${stats.activeDepartmentsCount} active departments`}
             icon={Video}
-          />
-          <StatCard
+            popoverTitle="Total E-Contents Overview"
+          >
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 text-[11px] p-2.5 bg-slate-50 rounded-lg">
+                <div>
+                  <span className="text-slate-500 block">Total Modules:</span>
+                  <span className="font-semibold text-slate-800">{stats.totalEContents}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Academic Depts:</span>
+                  <span className="font-semibold text-slate-800">{stats.activeDepartmentsCount}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Platforms:</span>
+                  <span className="font-semibold text-slate-800">{Object.keys(stats.platformWise).length}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Content Types:</span>
+                  <span className="font-semibold text-slate-800">{Object.keys(stats.contentTypeWise).length}</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-semibold text-slate-700 block">Top Hosting Platforms:</span>
+                {Object.entries(stats.platformWise).slice(0, 4).map(([platform, count]) => {
+                  const pct = stats.totalEContents > 0 ? Math.round((count / stats.totalEContents) * 100) : 0;
+                  return (
+                    <div key={platform} className="space-y-0.5">
+                      <div className="flex justify-between text-[11px] text-slate-600">
+                        <span className="truncate max-w-[190px]">{platform}</span>
+                        <span className="font-mono text-slate-500">{count} ({pct}%)</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#2855B9] rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-slate-400 italic">
+                Reflects all distinct institutional digital learning assets matching active filters.
+              </p>
+            </div>
+          </KpiCardWithPopover>
+
+          <KpiCardWithPopover
             title="Current Year Published"
             value={stats.yearWise[new Date().getFullYear()] || 0}
             badge={String(new Date().getFullYear())}
             subtitle="Derived publication calendar year"
             icon={Calendar}
-          />
-          <StatCard
+            popoverTitle="Publication Year Distribution"
+          >
+            <div className="space-y-3">
+              <div className="p-2.5 bg-blue-50/70 border border-blue-100 rounded-lg text-[11px]">
+                <span className="text-[#2855B9] font-medium block">
+                  Current Year ({new Date().getFullYear()}): <span className="font-bold">{stats.yearWise[new Date().getFullYear()] || 0} releases</span>
+                </span>
+                <span className="text-slate-500 text-[10px] block mt-0.5">Strictly derived from publication date.</span>
+              </div>
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-semibold text-slate-700 block">Recent Calendar Years:</span>
+                {Object.entries(stats.yearWise)
+                  .sort(([a], [b]) => Number(b) - Number(a))
+                  .slice(0, 5)
+                  .map(([year, count]) => {
+                    const pct = stats.totalEContents > 0 ? Math.round((count / stats.totalEContents) * 100) : 0;
+                    return (
+                      <div key={year} className="space-y-0.5">
+                        <div className="flex justify-between text-[11px] text-slate-600">
+                          <span className="font-mono font-medium">{year}</span>
+                          <span className="font-mono text-slate-500">{count} ({pct}%)</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </KpiCardWithPopover>
+
+          <KpiCardWithPopover
             title="Active Platforms"
             value={Object.keys(stats.platformWise).length}
             badge="Platforms"
             subtitle="SWAYAM, Coursera, YouTube, etc."
             icon={Globe}
-          />
-          <StatCard
+            popoverTitle="Platform Breakdown"
+          >
+            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+              <span className="text-[11px] font-semibold text-slate-700 block">All Hosting Platforms:</span>
+              {Object.keys(stats.platformWise).length === 0 ? (
+                <p className="text-[11px] text-slate-400">No platform records available.</p>
+              ) : (
+                Object.entries(stats.platformWise)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([platform, count]) => {
+                    const pct = stats.totalEContents > 0 ? Math.round((count / stats.totalEContents) * 100) : 0;
+                    return (
+                      <div key={platform} className="p-2 bg-slate-50/80 rounded-lg space-y-1">
+                        <div className="flex justify-between text-[11px] text-slate-700">
+                          <span className="font-medium truncate max-w-[200px]">{platform}</span>
+                          <span className="font-mono font-semibold text-[#2855B9]">{count} ({pct}%)</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-200/70 rounded-full overflow-hidden">
+                          <div className="h-full bg-[#2855B9] rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          </KpiCardWithPopover>
+
+          <KpiCardWithPopover
             title="Top Content Type"
             value={Object.values(stats.contentTypeWise)[0] || 0}
-            badge={Object.keys(stats.contentTypeWise)[0] ? `${Object.keys(stats.contentTypeWise)[0].slice(0, 16)}...` : 'None'}
+            badge={Object.keys(stats.contentTypeWise)[0] ? `${formatContentType(Object.keys(stats.contentTypeWise)[0]).slice(0, 16)}...` : 'None'}
             subtitle="Most common content format"
             icon={BookOpen}
-          />
+            popoverTitle="Content Format Distribution"
+          >
+            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+              <span className="text-[11px] font-semibold text-slate-700 block">All Content Formats:</span>
+              {Object.keys(stats.contentTypeWise).length === 0 ? (
+                <p className="text-[11px] text-slate-400">No content format records found.</p>
+              ) : (
+                Object.entries(stats.contentTypeWise)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([type, count]) => {
+                    const pct = stats.totalEContents > 0 ? Math.round((count / stats.totalEContents) * 100) : 0;
+                    return (
+                      <div key={type} className="p-2 bg-slate-50/80 rounded-lg space-y-1">
+                        <div className="flex justify-between text-[11px] text-slate-700">
+                          <span className="font-medium truncate max-w-[200px]">{formatContentType(type)}</span>
+                          <span className="font-mono font-semibold text-[#2855B9]">{count} ({pct}%)</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-200/70 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          </KpiCardWithPopover>
         </div>
 
         {/* Filter and Search Bar */}
@@ -702,6 +928,9 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
                         </div>
                         <div className="text-[10px] text-slate-500 font-mono">
                           EmpID: <span className="font-bold text-slate-700">{item.employeeId}</span>
+                          {(item.designation || item.faculty?.designation) && (
+                            <span className="text-slate-400 font-sans ml-1">• {item.designation || item.faculty?.designation}</span>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-3.5">
@@ -1152,6 +1381,19 @@ export function EContentsPage({ onNavigate, hideSidebar = false, token: propToke
             fetchStats();
           }}
           uploadType="e-contents"
+        />
+
+        {/* Clear All Data Dialog (Admin Only) */}
+        <ClearModuleDataDialog
+          isOpen={isClearDataOpen}
+          onClose={() => setIsClearDataOpen(false)}
+          moduleName="E-Contents"
+          apiEndpoint="/api/e-contents/clear-all"
+          token={token || ''}
+          onSuccess={() => {
+            fetchEContents();
+            fetchStats();
+          }}
         />
       </div>
     </AppShell>

@@ -19,6 +19,7 @@ router.get('/', auth, awardsController.getAwards);
 router.get('/:id', auth, awardsController.getAwardById);
 router.post('/', auth, awardsController.createAward);
 router.put('/:id', auth, awardsController.updateAward);
+router.delete('/clear-all', auth, awardsController.clearAllAwards);
 router.delete('/:id', auth, awardsController.deleteAward);
 
 module.exports = router;

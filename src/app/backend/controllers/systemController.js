@@ -359,3 +359,73 @@ exports.getRuntimeConfig = async (req, res) => {
     });
   }
 };
+
+// @route   GET /api/system/exchange-rate
+// @desc    Get effective USD to INR exchange rate
+// @access  Private
+exports.getExchangeRate = async (req, res) => {
+  try {
+    const exchangeRateService = require('../services/exchangeRateService');
+    const data = await exchangeRateService.getEffectiveRate();
+    res.json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error fetching exchange rate:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve exchange rate.'
+    });
+  }
+};
+
+// @route   POST /api/system/exchange-rate/override
+// @desc    Set manual administrator override for USD to INR exchange rate
+// @access  Private (Admin)
+exports.overrideExchangeRate = async (req, res) => {
+  try {
+    const { rate, notes } = req.body;
+    if (!rate || isNaN(parseFloat(rate))) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid positive numerical exchange rate is required.'
+      });
+    }
+
+    const exchangeRateService = require('../services/exchangeRateService');
+    const data = await exchangeRateService.setManualOverride(rate, notes, req.user);
+    res.json({
+      success: true,
+      message: 'Exchange rate manual override configured successfully.',
+      data
+    });
+  } catch (error) {
+    console.error('Error setting exchange rate override:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to set exchange rate override.'
+    });
+  }
+};
+
+// @route   POST /api/system/exchange-rate/reset
+// @desc    Reset manual override to revert to automated reference exchange rate
+// @access  Private (Admin)
+exports.resetExchangeRate = async (req, res) => {
+  try {
+    const exchangeRateService = require('../services/exchangeRateService');
+    const data = await exchangeRateService.resetManualOverride(req.user);
+    res.json({
+      success: true,
+      message: 'Exchange rate manual override reset to automated reference rate.',
+      data
+    });
+  } catch (error) {
+    console.error('Error resetting exchange rate override:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to reset exchange rate override.'
+    });
+  }
+};

@@ -1,0 +1,11 @@
+$kind: http-request
+name: https://api.elsevier.com/content/serial/title/issn/0011748X
+description: ""
+url: https://api.elsevier.com/content/serial/title/issn/0011748X?view=CITESCORE
+method: GET
+headers:
+  X-ELS-APIKey: ef915348b07ca4a6df274842b2957e90
+  Accept: application/json
+queryParams:
+  view: CITESCORE
+order: 1000

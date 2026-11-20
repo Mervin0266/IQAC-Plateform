@@ -5,9 +5,13 @@ const {
   getStudentStats,
   createStudent,
   bulkCreateStudent,
+  validateBulkStudents,
   updateStudent,
   deleteStudent,
   lookupStudentByRegNo,
+  getDuplicateCandidates,
+  consolidateDuplicates,
+  getStudentAnalytics,
   clearAllStudents
 } = require('../controllers/studentController');
 const { auth, authorize } = require('../middleware/auth');
@@ -17,6 +21,9 @@ router.use(auth);
 
 router.delete('/clear-all', authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('student-details'), clearAllStudents);
 router.get('/stats', getStudentStats);
+router.get('/analytics', getStudentAnalytics);
+router.get('/duplicates', authorize('admin', 'coordinator'), getDuplicateCandidates);
+router.post('/consolidate', authorize('admin', 'coordinator'), consolidateDuplicates);
 
 router.route('/')
   .get(getStudents)
@@ -24,6 +31,8 @@ router.route('/')
 
 router.route('/bulk')
   .post(authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('student-details'), bulkCreateStudent);
+
+router.post('/bulk/validate', authorize('admin', 'coordinator', 'hod'), requireModuleEnabled('student-details'), validateBulkStudents);
 
 router.get('/lookup/:regNo', lookupStudentByRegNo);
 

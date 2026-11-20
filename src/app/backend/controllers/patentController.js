@@ -1057,9 +1057,9 @@ exports.createPatent = async (req, res) => {
     const missing = [];
     if (!title || !String(title).trim()) missing.push('Patent Title');
 
-    const rawEmpInput = empIdsRaw !== undefined && empIdsRaw !== null
+    const rawEmpInput = req.body.contributors || (empIdsRaw !== undefined && empIdsRaw !== null
       ? empIdsRaw
-      : empIds;
+      : empIds);
     const parsedEmp = parseAndNormalizeEmpIds(rawEmpInput);
 
     if (missing.length > 0) {
@@ -1074,10 +1074,19 @@ exports.createPatent = async (req, res) => {
     // Resolve Faculty Associations against Faculty Management
     const dateForSnapshot = filedDate || publishedDate || new Date();
     const resolvedFaculty = await resolveFacultyAssociationsForEmpIds(
-      parsedEmp.empIds,
+      Array.isArray(req.body.contributors) ? req.body.contributors : parsedEmp.empIds,
       dateForSnapshot,
       { Faculty }
     );
+
+    if (resolvedFaculty.hasInvalidContributors || resolvedFaculty.hasInvalidEmpIds) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `Validation Error: Unrecognized EmpID(s) found: ${resolvedFaculty.invalidEmpIds.join(', ')}. Please verify the EmpIDs or register as Guest Faculty without an EmpID.`,
+        invalidEmpIds: resolvedFaculty.invalidEmpIds
+      });
+    }
 
     // External inventors (name, institution)
     let parsedExternalInventors = [];
@@ -1193,7 +1202,9 @@ exports.createPatent = async (req, res) => {
           originalDepartment: assoc.originalDepartment,
           originalDepartmentSource: assoc.originalDepartmentSource,
           isValid: assoc.isValid,
-          displayOrder: assoc.displayOrder
+          displayOrder: assoc.displayOrder,
+          isGuestFaculty: Boolean(assoc.isGuestFaculty),
+          facultyType: assoc.facultyType || (assoc.isGuestFaculty ? 'Guest Faculty' : 'Faculty')
         })),
         { transaction }
       );
@@ -1381,15 +1392,24 @@ exports.updatePatent = async (req, res) => {
     if (shouldUpdateFaculty) {
       const rawEmpInput = req.body.empIdsRaw !== undefined && req.body.empIdsRaw !== null
         ? req.body.empIdsRaw
-        : (req.body.empIds !== undefined ? req.body.empIds : patent.empIdsRaw);
+        : (req.body.contributors || (req.body.empIds !== undefined ? req.body.empIds : patent.empIdsRaw));
       parsedEmp = parseAndNormalizeEmpIds(rawEmpInput);
 
       const dateForSnapshot = req.body.filedDate || patent.publishedDate || patent.filedDate || new Date();
       resolvedFaculty = await resolveFacultyAssociationsForEmpIds(
-        parsedEmp.empIds,
+        Array.isArray(req.body.contributors) ? req.body.contributors : parsedEmp.empIds,
         dateForSnapshot,
         { Faculty }
       );
+
+      if (resolvedFaculty.hasInvalidContributors || resolvedFaculty.hasInvalidEmpIds) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Validation Error: Unrecognized EmpID(s) found: ${resolvedFaculty.invalidEmpIds.join(', ')}. Please verify the EmpIDs or register as Guest Faculty without an EmpID.`,
+          invalidEmpIds: resolvedFaculty.invalidEmpIds
+        });
+      }
 
       if (req.body.externalInventors !== undefined) {
         parsedExternalInventors = Array.isArray(req.body.externalInventors)
@@ -1416,7 +1436,9 @@ exports.updatePatent = async (req, res) => {
             originalDepartment: assoc.originalDepartment,
             originalDepartmentSource: assoc.originalDepartmentSource,
             isValid: assoc.isValid,
-            displayOrder: assoc.displayOrder
+            displayOrder: assoc.displayOrder,
+            isGuestFaculty: Boolean(assoc.isGuestFaculty),
+            facultyType: assoc.facultyType || (assoc.isGuestFaculty ? 'Guest Faculty' : 'Faculty')
           })),
           { transaction }
         );

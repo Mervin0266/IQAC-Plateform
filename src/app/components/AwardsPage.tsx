@@ -18,6 +18,7 @@ import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { AppShell, PageHeader, StatCard } from './design-system';
 import { BulkUploadDialog } from './BulkUploadDialog';
+import { ClearModuleDataDialog } from './ClearModuleDataDialog';
 
 export interface AwardItem {
   id: string;
@@ -122,6 +123,7 @@ export function AwardsPage({ onNavigate, hideSidebar = false, token: propToken, 
   const [editingAward, setEditingAward] = useState<AwardItem | null>(null);
   const [viewingAward, setViewingAward] = useState<AwardItem | null>(null);
   const [isBulkOpen, setIsBulkOpen] = useState<boolean>(false);
+  const [isClearDataOpen, setIsClearDataOpen] = useState<boolean>(false);
   const [formLoading, setFormLoading] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>('');
 
@@ -512,6 +514,18 @@ export function AwardsPage({ onNavigate, hideSidebar = false, token: propToken, 
                 <span className="hidden sm:inline">Export CSV</span>
               </Button>
 
+              {user?.role === 'admin' && (
+                <Button
+                  onClick={() => setIsClearDataOpen(true)}
+                  variant="outline"
+                  size="sm"
+                  className="border-red-300 text-red-600 bg-red-50/50 hover:bg-red-50 text-xs font-semibold h-9 px-3.5 rounded-xl shadow-2xs gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                  <span>Clear Data</span>
+                </Button>
+              )}
+
               <Button
                 onClick={() => setIsBulkOpen(true)}
                 variant="outline"
@@ -686,6 +700,9 @@ export function AwardsPage({ onNavigate, hideSidebar = false, token: propToken, 
                         </div>
                         <div className="text-[10px] text-slate-500 font-mono">
                           EmpID: <span className="font-bold text-slate-700">{award.employeeId}</span>
+                          {(award.designation || award.faculty?.designation) && (
+                            <span className="text-slate-400 font-sans ml-1">• {award.designation || award.faculty?.designation}</span>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-3.5">
@@ -1108,6 +1125,19 @@ export function AwardsPage({ onNavigate, hideSidebar = false, token: propToken, 
             fetchStats();
           }}
           uploadType="awards"
+        />
+
+        {/* Clear All Data Dialog (Admin Only) */}
+        <ClearModuleDataDialog
+          isOpen={isClearDataOpen}
+          onClose={() => setIsClearDataOpen(false)}
+          moduleName="Awards"
+          apiEndpoint="/api/awards/clear-all"
+          token={token || ''}
+          onSuccess={() => {
+            fetchAwards();
+            fetchStats();
+          }}
         />
       </div>
     </AppShell>

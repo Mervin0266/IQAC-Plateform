@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { Placement, User, Student } = require('../models');
+const { Placement, User, Student, StudentEnrollment } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { resolveDepartmentScope } = require('../utils/scopeHelper');
@@ -13,7 +13,7 @@ const googleDriveService = require('../services/googleDriveService');
 
 // Allowed fields for regular placement updates
 const ALLOWED_PLACEMENT_FIELDS = [
-  'studentId', 'studentName', 'batch', 'course', 'company', 'role',
+  'studentId', 'studentName', 'batch', 'academicYear', 'course', 'company', 'role',
   'package', 'placementType', 'placementDate', 'location',
   'campus', 'school', 'offerLetterUrl', 'offerLetterFileName', 'offerLetterDriveId',
   'customFields'
@@ -114,7 +114,7 @@ function parseCompensation(rawVal, placementType) {
  * 5. Compensation semantics (LPA vs monthly stipend)
  */
 async function verifyPlacementBatch(records, options = {}) {
-  const { academicYear, placementType, campus, school, user } = options;
+  const { academicYear, placementType, campus, school, user, autoRegisterStudents } = options;
   if (!Array.isArray(records)) {
     return { summary: { total: 0, ready: 0, needsReview: 0, invalid: 0, duplicates: 0 }, records: [] };
   }
@@ -146,7 +146,15 @@ async function verifyPlacementBatch(records, options = {}) {
         where: {
           registerNumber: { [Op.in]: uniqueRegNos }
         },
-        attributes: ['id', 'registerNumber', 'name', 'department', 'course', 'campus', 'school']
+        include: [
+          {
+            model: StudentEnrollment,
+            as: 'enrollments',
+            attributes: ['id', 'academicYear', 'department', 'course', 'status'],
+            required: false
+          }
+        ],
+        attributes: ['id', 'registerNumber', 'name', 'department', 'course', 'campus', 'school', 'academicYear']
       });
 
       existingStudents.forEach(st => {
@@ -235,8 +243,12 @@ async function verifyPlacementBatch(records, options = {}) {
     // Student Details existence verification
     const studentRecord = studentId ? studentMap[normalizeCompKey(studentId)] : null;
     if (studentId && !studentRecord) {
-      issues.push(`Register Number "${studentId}" does not exist in Student Details.`);
-      rowStatus = 'invalid';
+      if (autoRegisterStudents === true) {
+        issues.push(`Student profile "${studentId}" will be auto-registered in Student Details upon import.`);
+      } else {
+        issues.push(`Register Number "${studentId}" does not exist in Student Details.`);
+        rowStatus = 'invalid';
+      }
     }
 
     let resolvedCourse = course || (studentRecord && studentRecord.course ? studentRecord.course : '');
@@ -270,6 +282,17 @@ async function verifyPlacementBatch(records, options = {}) {
       if (normRegName && normStudentName && normRegName !== normStudentName && !normStudentName.includes(normRegName) && !normRegName.includes(normStudentName)) {
         issues.push(`Student name "${studentName}" differs from Student Details profile ("${studentRecord.name}").`);
         if (rowStatus === 'ready') rowStatus = 'needs_review';
+      }
+
+      // Exact Academic Year enrollment validation for internships
+      if (targetType === 'internship' && targetAY) {
+        const enrollments = studentRecord.enrollments || [];
+        const isEnrolledInAY = enrollments.some(e => (e.academicYear || '').trim().toLowerCase() === targetAY.toLowerCase()) ||
+          (studentRecord.academicYear || '').trim().toLowerCase() === targetAY.toLowerCase();
+        if (!isEnrolledInAY) {
+          issues.push(`Student "${studentId}" has no active enrollment record in academic year "${targetAY}".`);
+          rowStatus = 'invalid';
+        }
       }
     }
 
@@ -456,6 +479,32 @@ exports.createPlacement = async (req, res) => {
     });
     record.department = dept;
     record.createdBy = req.user.id;
+    if (!record.academicYear && record.batch) {
+      record.academicYear = record.batch;
+    } else if (!record.batch && record.academicYear) {
+      record.batch = record.academicYear;
+    }
+
+    // Exact Academic Year enrollment validation for internships
+    if (record.placementType === 'internship' && record.studentId) {
+      const targetAY = record.academicYear || record.batch;
+      if (targetAY) {
+        const student = await Student.findOne({
+          where: { registerNumber: record.studentId },
+          include: [{ model: StudentEnrollment, as: 'enrollments' }]
+        });
+        if (student) {
+          const isEnrolled = (student.enrollments && student.enrollments.some(e => (e.academicYear || '').trim().toLowerCase() === targetAY.toLowerCase())) ||
+            (student.academicYear || '').trim().toLowerCase() === targetAY.toLowerCase();
+          if (!isEnrolled) {
+            return res.status(400).json({
+              success: false,
+              message: `Student "${record.studentId}" is not enrolled in the selected Academic Year "${targetAY}".`
+            });
+          }
+        }
+      }
+    }
 
     const placement = await Placement.create(record);
 
@@ -591,7 +640,7 @@ exports.deletePlacement = async (req, res) => {
 // @access  Private (Admin, Coordinator, HOD)
 exports.verifyBulkPlacements = async (req, res) => {
   try {
-    const { placements, academicYear, placementType, campus, school } = req.body;
+    const { placements, academicYear, placementType, campus, school, autoRegisterStudents = true } = req.body;
 
     if (!Array.isArray(placements)) {
       return res.status(400).json({
@@ -605,7 +654,8 @@ exports.verifyBulkPlacements = async (req, res) => {
       placementType,
       campus,
       school,
-      user: req.user
+      user: req.user,
+      autoRegisterStudents: autoRegisterStudents !== false
     });
 
     res.json({
@@ -627,7 +677,7 @@ exports.verifyBulkPlacements = async (req, res) => {
 // @access  Private (Admin, Coordinator, HOD)
 exports.bulkCreatePlacements = async (req, res) => {
   try {
-    const { placements, academicYear, placementType, campus, school } = req.body;
+    const { placements, academicYear, placementType, campus, school, autoRegisterStudents = true } = req.body;
 
     if (!Array.isArray(placements) || placements.length === 0) {
       return res.status(400).json({
@@ -642,7 +692,8 @@ exports.bulkCreatePlacements = async (req, res) => {
       placementType,
       campus,
       school,
-      user: req.user
+      user: req.user,
+      autoRegisterStudents: autoRegisterStudents !== false
     });
 
     // Only "ready" records are eligible for persistent database insertion
@@ -664,6 +715,92 @@ exports.bulkCreatePlacements = async (req, res) => {
 
     let createdRecords = [];
     await sequelize.transaction(async (t) => {
+      // 1. Auto-provision students if they do not yet exist in Student Details
+      const targetAY = academicYear || '2023-2024';
+      const readyRegNos = Array.from(new Set(readyRecords.map(r => r.studentId).filter(Boolean)));
+      if (readyRegNos.length > 0) {
+        const existingStudents = await Student.findAll({
+          where: { registerNumber: { [Op.in]: readyRegNos } },
+          attributes: ['id', 'registerNumber'],
+          transaction: t
+        });
+        const existingRegSet = new Set(existingStudents.map(s => String(s.registerNumber).trim().toLowerCase()));
+
+        const studentsToCreate = [];
+        const seenReg = new Set();
+        readyRecords.forEach(r => {
+          const reg = String(r.studentId || '').trim();
+          const regLower = reg.toLowerCase();
+          if (reg && !existingRegSet.has(regLower) && !seenReg.has(regLower)) {
+            seenReg.add(regLower);
+            studentsToCreate.push({
+              registerNumber: reg,
+              name: r.studentName,
+              department: r.department,
+              course: r.course,
+              batch: r.batch || targetAY,
+              academicYear: r.batch || targetAY,
+              campus: r.campus || campus || null,
+              school: r.school || school || null,
+              status: 'Active'
+            });
+          }
+        });
+
+        if (studentsToCreate.length > 0) {
+          await Student.bulkCreate(studentsToCreate, {
+            ignoreDuplicates: true,
+            transaction: t
+          });
+        }
+
+        // Also ensure StudentEnrollment is provisioned
+        const { StudentEnrollment } = require('../models');
+        if (StudentEnrollment) {
+          const allStudents = await Student.findAll({
+            where: { registerNumber: { [Op.in]: readyRegNos } },
+            attributes: ['id', 'registerNumber', 'department', 'course'],
+            transaction: t
+          });
+          const studentMapByReg = new Map();
+          allStudents.forEach(st => {
+            studentMapByReg.set(String(st.registerNumber).trim().toLowerCase(), st);
+          });
+
+          const enrollmentsToCreate = [];
+          const seenEnrollments = new Set();
+          readyRecords.forEach(r => {
+            const reg = String(r.studentId || '').trim();
+            const st = studentMapByReg.get(reg.toLowerCase());
+            const ay = r.batch || targetAY;
+            if (st && ay) {
+              const eKey = `${st.id}::${ay}`;
+              if (!seenEnrollments.has(eKey)) {
+                seenEnrollments.add(eKey);
+                enrollmentsToCreate.push({
+                  studentId: st.id,
+                  registerNumber: reg,
+                  academicYear: ay,
+                  department: r.department || st.department,
+                  course: r.course || st.course,
+                  program: r.course || st.course,
+                  campus: r.campus || campus || null,
+                  school: r.school || school || null
+                });
+              }
+            }
+          });
+
+          if (enrollmentsToCreate.length > 0) {
+            await StudentEnrollment.bulkCreate(enrollmentsToCreate, {
+              ignoreDuplicates: true,
+              transaction: t
+            });
+          }
+        }
+      }
+
+      // 2. Insert placement records
       const recordsToInsert = readyRecords.map(r => ({
         studentName: r.studentName,
         studentId: r.studentId,

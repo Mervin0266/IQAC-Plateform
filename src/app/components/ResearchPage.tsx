@@ -25,6 +25,7 @@ import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { Button } from './ui/button';
 import { AppShell, PageHeader, StatCard } from './design-system';
+import { useExchangeRate, formatInrLakhsWithUsd } from '../hooks/useExchangeRate';
 
 interface ResearchPageProps {
   onNavigate: (page: string) => void;
@@ -33,6 +34,7 @@ interface ResearchPageProps {
 
 export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
   const { user } = useAuth();
+  const { rate } = useExchangeRate();
   const [isReportGeneratorOpen, setIsReportGeneratorOpen] = useState(false);
   
   // Navigation sync helper
@@ -808,14 +810,14 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                 title="Sponsored Grants"
                 value={`₹${Number(gridTotals.externalProjectsAmount).toFixed(2)}L`}
                 badge={`${gridTotals.externalProjectsCount} Projects`}
-                subtitle="Total external grants sanctioned"
+                subtitle={`Total grants (${formatInrLakhsWithUsd(Number(gridTotals.externalProjectsAmount), rate).usd})`}
                 icon={TrendingUp}
               />
               <StatCard
                 title="Consultancy Revenue"
                 value={`₹${Number(gridTotals.consultancyAmount).toFixed(2)}L`}
                 badge={`${gridTotals.consultancyCount} Contracts`}
-                subtitle="Industry contracts & advisory"
+                subtitle={`Advisory (${formatInrLakhsWithUsd(Number(gridTotals.consultancyAmount), rate).usd})`}
                 icon={Briefcase}
               />
             </div>

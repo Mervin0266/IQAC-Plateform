@@ -178,12 +178,14 @@ export interface FacultyDirectoryMember {
   hasConflict?: boolean;
 }
 
-interface BulkUploadDialogProps {
+export interface BulkUploadDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  token: string;
+  token?: string;
   onSuccess: () => void;
-  uploadType?: 'achievements' | 'placements' | 'faculty' | 'students' | 'departments' | 'consultancy' | 'departmental-activities' | 'publications' | 'patents' | 'sponsored-projects' | 'sponsored-research' | 'awards' | 'e-contents';
+  uploadType?: 'achievements' | 'placements' | 'faculty' | 'students' | 'departments' | 'consultancy' | 'departmental-activities' | 'publications' | 'citations' | 'patents' | 'sponsored-projects' | 'sponsored-research' | 'awards' | 'e-contents' | 'professional-developments' | 'invited-talks' | 'periodicals';
+  initialMode?: 'publications' | 'citations';
+  defaultPlacementType?: 'placement' | 'internship';
 }
 
 const AWARDS_HEADERS = [
@@ -220,6 +222,89 @@ const ECON_REQUIRED = [
   'Publication Date',
   'Content Type'
 ];
+
+export interface ModuleUploadColumn {
+  header: string;
+  mandatory?: boolean;
+}
+
+export interface ModuleUploadConfig {
+  key: string;
+  label: string;
+  columns: ModuleUploadColumn[];
+  sampleRow1: any[];
+  sampleRow2?: any[];
+  csvFileName: string;
+  excelFileName: string;
+}
+
+export const MODULE_UPLOAD_CONFIGS: Record<string, ModuleUploadConfig> = {
+  'professional-developments': {
+    key: 'professional-developments',
+    label: 'Professional Developments',
+    columns: [
+      { header: 'Name', mandatory: false },
+      { header: 'EmpID', mandatory: false },
+      { header: 'Name of the Programme', mandatory: true },
+      { header: 'Start Date', mandatory: true },
+      { header: 'End Date', mandatory: false },
+      { header: 'Duration (In Days)', mandatory: false },
+      { header: 'Organized By', mandatory: false },
+      { header: 'Organisation Name', mandatory: false },
+      { header: 'Programme Type', mandatory: false },
+      { header: 'Role', mandatory: false },
+      { header: 'Proof URL', mandatory: false }
+    ],
+    sampleRow1: ['Dr. Rajesh Kumar', '1028', 'Advanced Faculty Development Programme in AI & Machine Learning', '2024-06-10', '2024-06-21', 12, 'Center for Research', 'IIT Madras', 'Faculty Development Programme (FDP)', 'Participant', 'https://example.com/proof/fdp1.pdf'],
+    sampleRow2: ['Dr. Guest Scholar', '', 'Workshop on Cloud Native Architecture', '2024-08-15', '', 1, 'Department of CSE', 'CHRIST (Deemed to be University)', 'Workshop', 'Resource Person', ''],
+    csvFileName: 'professional_developments_bulk_template.csv',
+    excelFileName: 'professional_developments_bulk_template.xlsx'
+  },
+  'invited-talks': {
+    key: 'invited-talks',
+    label: 'Invited Talks',
+    columns: [
+      { header: 'Name', mandatory: false },
+      { header: 'EmpID', mandatory: false },
+      { header: 'Title', mandatory: true },
+      { header: 'Type of Program', mandatory: false },
+      { header: 'Organization', mandatory: false },
+      { header: 'Media', mandatory: false },
+      { header: 'Proof URL', mandatory: false }
+    ],
+    sampleRow1: ['Dr. Rajesh Kumar', '1028', 'Keynote on Future of Edge Computing in Smart Cities', 'Keynote Address', 'IEEE International Conference on Edge AI', 'In-Person / Offline', 'https://example.com/proof/keynote1.pdf'],
+    sampleRow2: ['Prof. Elena Smith', '', 'Guest Lecture on Ethical AI in Higher Education', 'Guest Lecture', 'Oxford Academic Forum', 'Virtual / Online', ''],
+    csvFileName: 'invited_talks_bulk_template.csv',
+    excelFileName: 'invited_talks_bulk_template.xlsx'
+  },
+  'periodicals': {
+    key: 'periodicals',
+    label: 'Periodicals',
+    columns: [
+      { header: 'Name', mandatory: false },
+      { header: 'EmpID', mandatory: false },
+      { header: 'Periodical Name', mandatory: true },
+      { header: 'Publication Date', mandatory: true },
+      { header: 'Publication Type', mandatory: false },
+      { header: 'Type of Periodical', mandatory: false },
+      { header: 'URL', mandatory: false },
+      { header: 'Proof URL', mandatory: false }
+    ],
+    sampleRow1: ['Dr. Rajesh Kumar', '1028', 'The Hindu - National Daily', '2024-07-14', 'Newspaper Article / Op-Ed', 'National', 'https://www.thehindu.com/opinion/op-ed/ai-in-education', 'https://example.com/proof/thehindu_article.pdf'],
+    sampleRow2: ['Dr. Guest Writer', '', 'Times Higher Education Campus Insight', '2024-10-02', 'Magazine Feature', 'International', 'https://technologymagazine.com/green-data', ''],
+    csvFileName: 'periodicals_bulk_template.csv',
+    excelFileName: 'periodicals_bulk_template.xlsx'
+  }
+};
+
+const PROF_DEV_HEADERS = MODULE_UPLOAD_CONFIGS['professional-developments'].columns.map(c => c.header);
+const PROF_DEV_REQUIRED = MODULE_UPLOAD_CONFIGS['professional-developments'].columns.filter(c => c.mandatory).map(c => c.header);
+
+const INVITED_TALKS_HEADERS = MODULE_UPLOAD_CONFIGS['invited-talks'].columns.map(c => c.header);
+const INVITED_TALKS_REQUIRED = MODULE_UPLOAD_CONFIGS['invited-talks'].columns.filter(c => c.mandatory).map(c => c.header);
+
+const PERIODICALS_HEADERS = MODULE_UPLOAD_CONFIGS['periodicals'].columns.map(c => c.header);
+const PERIODICALS_REQUIRED = MODULE_UPLOAD_CONFIGS['periodicals'].columns.filter(c => c.mandatory).map(c => c.header);
 
 const SPONSORED_RESEARCH_HEADERS = [
   'Project Title',
@@ -473,7 +558,16 @@ const UPLOAD_STAGES: { id: UploadStage; label: string; number: number }[] = [
   { id: 'summary', label: '5. Summary', number: 5 },
 ];
 
-export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType = 'achievements' }: BulkUploadDialogProps) {
+export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess, uploadType = 'achievements', initialMode, defaultPlacementType }: BulkUploadDialogProps) {
+  const rawToken = propToken || localStorage.getItem('token') || (() => {
+    try {
+      const u = localStorage.getItem('iqac_user');
+      return u ? JSON.parse(u)?.token : null;
+    } catch {
+      return null;
+    }
+  })() || '';
+  const token = rawToken && rawToken !== 'undefined' && rawToken !== 'null' ? rawToken : '';
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [parseError, setParseError] = useState('');
@@ -529,7 +623,22 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const [previewFilter, setPreviewFilter] = useState<'all' | 'ready' | 'needs_review' | 'duplicate' | 'invalid'>('all');
   const [editingPublicationRow, setEditingPublicationRow] = useState<{ index: number; data: any } | null>(null);
   const [viewingPublicationRow, setViewingPublicationRow] = useState<{ index: number; data: any } | null>(null);
-  const [publicationUploadMode, setPublicationUploadMode] = useState<'publications' | 'citations'>('publications');
+  const [publicationUploadMode, setPublicationUploadMode] = useState<'publications' | 'citations'>(
+    initialMode || (uploadType === 'citations' ? 'citations' : 'publications')
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialMode) {
+        setPublicationUploadMode(initialMode);
+      } else if (uploadType === 'citations') {
+        setPublicationUploadMode('citations');
+      }
+      if (defaultPlacementType) {
+        setSelectedPlacementType(defaultPlacementType);
+      }
+    }
+  }, [isOpen, initialMode, uploadType, defaultPlacementType]);
 
   // Placements & Internships V2.1 state
   const [selectedPlacementType, setSelectedPlacementType] = useState<'placement' | 'internship'>('placement');
@@ -551,12 +660,15 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const isDepartment = uploadType === 'departments';
   const isConsultancy = uploadType === 'consultancy';
   const isDepartmentalActivity = uploadType === 'departmental-activities';
-  const isPublication = uploadType === 'publications';
+  const isPublication = uploadType === 'publications' || uploadType === 'citations';
   const isPatent = uploadType === 'patents';
   const isSponsored = uploadType === 'sponsored-projects' || uploadType === 'sponsored-research';
   const isAwards = uploadType === 'awards';
   const isEContent = uploadType === 'e-contents';
-  const isModernUpload = isPublication || isAwards || isEContent;
+  const isProfessionalDevelopment = uploadType === 'professional-developments';
+  const isInvitedTalk = uploadType === 'invited-talks';
+  const isPeriodical = uploadType === 'periodicals';
+  const isModernUpload = isPublication || isAwards || isEContent || isProfessionalDevelopment || isInvitedTalk || isPeriodical;
 
   // Load verified faculty lookup directory on open for publications upload
   useEffect(() => {
@@ -583,7 +695,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
   const resetState = () => {
     setFile(null);
     setPublicationFiles([]);
-    setPublicationUploadMode('publications');
+    setPublicationUploadMode(initialMode || (uploadType === 'citations' ? 'citations' : 'publications'));
     setPreviewData([]);
     setParseError('');
     setUploadError('');
@@ -692,6 +804,18 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         `"1028","Advanced Deep Learning and Neural Networks","SWAYAM / NPTEL","2024-09-15","https://swayam.gov.in/courses/deep-learning","ENTIRE_COURSE","https://example.com/proof/cert1.pdf"\n` +
         `"914","Structural Engineering Virtual Lab Simulations","Institutional LMS / Moodle","2025-01-10","https://lms.christuniversity.in/course/view.php?id=102","SINGLE_MODULE",""`;
       fileName = 'e_contents_bulk_template.csv';
+    } else if (isProfessionalDevelopment || isInvitedTalk || isPeriodical) {
+      const cfgKey = isProfessionalDevelopment
+        ? 'professional-developments'
+        : isInvitedTalk
+          ? 'invited-talks'
+          : 'periodicals';
+      const cfg = MODULE_UPLOAD_CONFIGS[cfgKey];
+      const headerLine = cfg.columns.map(c => `"${c.header}"`).join(',');
+      const row1Line = cfg.sampleRow1.map(v => typeof v === 'number' ? v : `"${v}"`).join(',');
+      const row2Line = cfg.sampleRow2 ? cfg.sampleRow2.map(v => typeof v === 'number' ? v : `"${v}"`).join(',') : '';
+      csvContent = headerLine + '\n' + row1Line + (row2Line ? '\n' + row2Line : '');
+      fileName = cfg.csvFileName;
     } else if (isPublication) {
       csvContent =
         PUBLICATIONS_HEADERS.map(h => `"${h}"`).join(',') + '\n' +
@@ -801,6 +925,19 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         ['914', 'Structural Engineering Virtual Lab Simulations', 'Institutional LMS / Moodle', '2025-01-10', 'https://lms.christuniversity.in/course/view.php?id=102', 'SINGLE_MODULE', '']
       ];
       fileName = 'e_contents_bulk_template.xlsx';
+    } else if (isProfessionalDevelopment || isInvitedTalk || isPeriodical) {
+      const cfgKey = isProfessionalDevelopment
+        ? 'professional-developments'
+        : isInvitedTalk
+          ? 'invited-talks'
+          : 'periodicals';
+      const cfg = MODULE_UPLOAD_CONFIGS[cfgKey];
+      headers = cfg.columns.map(c => c.header);
+      sampleRows = [
+        cfg.sampleRow1,
+        ...(cfg.sampleRow2 ? [cfg.sampleRow2] : [])
+      ];
+      fileName = cfg.excelFileName;
     } else if (isPublication) {
       headers = PUBLICATIONS_HEADERS;
       sampleRows = [
@@ -1628,6 +1765,42 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         }
         return false;
       }));
+    } else if (isProfessionalDevelopment) {
+      missing = PROF_DEV_REQUIRED.filter(field => !headers.some(h => {
+        const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanF = field.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanH === cleanF) return true;
+        if (field === 'Name of Programme') {
+          return cleanH.includes('programme') || cleanH.includes('program') || cleanH.includes('title') || cleanH.includes('name');
+        }
+        if (field === 'Start Date') {
+          return cleanH.includes('start') || cleanH.includes('from') || cleanH.includes('date');
+        }
+        return false;
+      }));
+    } else if (isInvitedTalk) {
+      missing = INVITED_TALKS_REQUIRED.filter(field => !headers.some(h => {
+        const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanF = field.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanH === cleanF) return true;
+        if (field === 'Title') {
+          return cleanH.includes('title') || cleanH.includes('talk') || cleanH.includes('topic') || cleanH.includes('lecture');
+        }
+        return false;
+      }));
+    } else if (isPeriodical) {
+      missing = PERIODICALS_REQUIRED.filter(field => !headers.some(h => {
+        const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanF = field.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanH === cleanF) return true;
+        if (field === 'Periodical Name') {
+          return cleanH.includes('periodical') || cleanH.includes('article') || cleanH.includes('title') || cleanH.includes('name');
+        }
+        if (field === 'Publication Date') {
+          return cleanH.includes('date') || cleanH.includes('pub') || cleanH === 'year';
+        }
+        return false;
+      }));
     } else if (isPublication) {
       const hasTitle = headers.some(h => {
         const lh = h.toLowerCase().trim();
@@ -1915,7 +2088,77 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             } else {
               record[header] = cleanVal;
             }
-    } else if (isPublication) {
+          } else if (isProfessionalDevelopment) {
+            const cleanH = header.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cleanVal = val !== undefined && val !== null ? String(val).trim() : '';
+            if (cleanH.includes('empid') || cleanH.includes('employeeid') || cleanH.includes('facultyid') || cleanH.includes('empno') || cleanH === 'id') {
+              record['employeeId'] = cleanVal;
+            } else if (cleanH.includes('programmetype') || cleanH.includes('programtype') || cleanH.includes('typeofprogram') || cleanH === 'type') {
+              record['programType'] = cleanVal;
+            } else if (cleanH.includes('facultyname') || cleanH.includes('teachername') || cleanH.includes('speaker') || (cleanH.includes('name') && !cleanH.includes('programme') && !cleanH.includes('program'))) {
+              record['facultyName'] = cleanVal;
+            } else if (cleanH.includes('programme') || cleanH.includes('program') || cleanH.includes('title')) {
+              record['title'] = cleanVal;
+            } else if (cleanH.includes('start') || (cleanH.includes('date') && !cleanH.includes('end'))) {
+              record['startDate'] = cleanVal;
+            } else if (cleanH.includes('end')) {
+              record['endDate'] = cleanVal;
+            } else if (cleanH.includes('duration') || cleanH.includes('days')) {
+              record['durationDays'] = cleanVal;
+            } else if (cleanH.includes('organizedby') || cleanH === 'organized') {
+              record['organizedBy'] = cleanVal;
+            } else if (cleanH.includes('organisation') || cleanH.includes('organization') || cleanH.includes('host') || cleanH.includes('institute')) {
+              record['organizationName'] = cleanVal;
+            } else if (cleanH.includes('role')) {
+              record['role'] = cleanVal;
+            } else if (cleanH.includes('proof') || cleanH.includes('evidence') || cleanH.includes('cert')) {
+              record['proofUrl'] = cleanVal;
+            } else {
+              record[header] = cleanVal;
+            }
+          } else if (isInvitedTalk) {
+            const cleanH = header.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cleanVal = val !== undefined && val !== null ? String(val).trim() : '';
+            if (cleanH.includes('empid') || cleanH.includes('employeeid') || cleanH.includes('facultyid') || cleanH.includes('empno') || cleanH === 'id') {
+              record['employeeId'] = cleanVal;
+            } else if (cleanH.includes('facultyname') || cleanH.includes('teachername') || cleanH.includes('speaker') || (cleanH.includes('name') && !cleanH.includes('talk') && !cleanH.includes('title'))) {
+              record['facultyName'] = cleanVal;
+            } else if (cleanH.includes('title') || cleanH.includes('talk') || cleanH.includes('lecture') || cleanH.includes('topic')) {
+              record['title'] = cleanVal;
+            } else if (cleanH.includes('programtype') || cleanH.includes('typeofprogram') || (cleanH.includes('type') && !cleanH.includes('media'))) {
+              record['programType'] = cleanVal;
+            } else if (cleanH.includes('org') || cleanH.includes('host') || cleanH.includes('institute') || cleanH.includes('university')) {
+              record['organization'] = cleanVal;
+            } else if (cleanH.includes('media') || cleanH.includes('mode')) {
+              record['media'] = cleanVal;
+            } else if (cleanH.includes('proof') || cleanH.includes('evidence') || cleanH.includes('link')) {
+              record['proofUrl'] = cleanVal;
+            } else {
+              record[header] = cleanVal;
+            }
+          } else if (isPeriodical) {
+            const cleanH = header.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cleanVal = val !== undefined && val !== null ? String(val).trim() : '';
+            if (cleanH.includes('empid') || cleanH.includes('employeeid') || cleanH.includes('facultyid') || cleanH.includes('empno') || cleanH === 'id') {
+              record['employeeId'] = cleanVal;
+            } else if (cleanH.includes('facultyname') || cleanH.includes('teachername') || cleanH.includes('author') || (cleanH.includes('name') && !cleanH.includes('periodical') && !cleanH.includes('article'))) {
+              record['facultyName'] = cleanVal;
+            } else if (cleanH.includes('periodical') || cleanH.includes('article') || cleanH.includes('title')) {
+              record['periodicalName'] = cleanVal;
+            } else if (cleanH.includes('date') || cleanH.includes('pubdate')) {
+              record['publicationDate'] = cleanVal;
+            } else if (cleanH.includes('publicationtype') || cleanH === 'type') {
+              record['publicationType'] = cleanVal;
+            } else if (cleanH.includes('periodicaltype') || cleanH.includes('scope')) {
+              record['periodicalType'] = cleanVal;
+            } else if (cleanH === 'url' || cleanH.includes('articleurl') || cleanH.includes('link') || cleanH.includes('website')) {
+              record['url'] = cleanVal;
+            } else if (cleanH.includes('proof') || cleanH.includes('evidence')) {
+              record['proofUrl'] = cleanVal;
+            } else {
+              record[header] = cleanVal;
+            }
+          } else if (isPublication) {
             const cleanH = header.trim();
             const lh = cleanH.toLowerCase();
             const cleanVal = val !== undefined && val !== null ? String(val).trim() : '';
@@ -2162,6 +2405,155 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           rec._rowStatus = 'ready';
         }
       });
+    } else if (isInvitedTalk) {
+      records.forEach((rec, idx) => {
+        rec._rowNumber = idx + 1;
+        const tit = String(rec.title || rec['Title'] || '').trim();
+        const issues: string[] = [];
+        if (!tit) {
+          issues.push('Title of Invited Talk is required.');
+          rec._rowStatus = 'needs_review';
+          rec._issues = issues;
+        } else {
+          rec._rowStatus = 'ready';
+        }
+      });
+    } else if (isProfessionalDevelopment) {
+      records.forEach((rec, idx) => {
+        rec._rowNumber = idx + 1;
+        const prog = String(rec.nameOfTheProgramme || rec.programName || rec['Name of the Programme'] || '').trim();
+        const start = String(rec.startDate || rec['Start Date'] || '').trim();
+        const issues: string[] = [];
+        if (!prog) issues.push('Name of the Programme is required.');
+        if (!start) issues.push('Start Date is required.');
+        if (issues.length > 0) {
+          rec._rowStatus = 'needs_review';
+          rec._issues = issues;
+        } else {
+          rec._rowStatus = 'ready';
+        }
+      });
+    } else if (isPlacement) {
+      records.forEach((rec, idx) => {
+        rec._rowNumber = idx + 1;
+        rec._tempId = `offer-${idx + 1}-${rec.studentId || 'unassigned'}-${Date.now()}`;
+        const hasId = Boolean(rec.studentId);
+        const hasName = Boolean(rec.studentName);
+        const hasDept = Boolean(rec.department);
+        const hasCompany = Boolean(rec.company);
+        if (hasId && hasName && hasDept && hasCompany) {
+          rec._rowStatus = 'ready';
+        } else {
+          rec._rowStatus = 'needs_review';
+          const issues = [];
+          if (!hasId) issues.push('Missing Register Number');
+          if (!hasName) issues.push('Missing Name');
+          if (!hasDept) issues.push('Missing Department');
+          if (!hasCompany) issues.push('Missing Company');
+          rec._issues = issues;
+        }
+      });
+    } else if (isPeriodical) {
+      records.forEach((rec, idx) => {
+        rec._rowNumber = idx + 1;
+        const pName = String(rec.periodicalName || rec['Periodical Name'] || '').trim();
+        const pDate = String(rec.publicationDate || rec['Publication Date'] || '').trim();
+        const issues: string[] = [];
+        if (!pName) issues.push('Periodical Name is required.');
+        if (!pDate) issues.push('Publication Date is required.');
+        if (issues.length > 0) {
+          rec._rowStatus = 'needs_review';
+          rec._issues = issues;
+        } else {
+          rec._rowStatus = 'ready';
+        }
+      });
+    } else if (isPlacement) {
+      records.forEach((rec, idx) => {
+        rec._rowNumber = idx + 1;
+        rec._tempId = `offer-${idx + 1}-${rec.studentId || 'unassigned'}-${Date.now()}`;
+        const hasId = Boolean(rec.studentId);
+        const hasName = Boolean(rec.studentName);
+        const hasDept = Boolean(rec.department);
+        const hasCompany = Boolean(rec.company);
+        if (hasId && hasName && hasDept && hasCompany) {
+          rec._rowStatus = 'ready';
+        } else {
+          rec._rowStatus = 'needs_review';
+          const issues = [];
+          if (!hasId) issues.push('Missing Register Number');
+          if (!hasName) issues.push('Missing Name');
+          if (!hasDept) issues.push('Missing Department');
+          if (!hasCompany) issues.push('Missing Company');
+          rec._issues = issues;
+        }
+      });
+    } else if (isAwards) {
+      records.forEach((rec, idx) => {
+        rec._rowNumber = idx + 1;
+        const aName = String(rec.awardName || rec['Name of the Award'] || '').trim();
+        const issues: string[] = [];
+        if (!aName) issues.push('Name of the Award is required.');
+        if (issues.length > 0) {
+          rec._rowStatus = 'needs_review';
+          rec._issues = issues;
+        } else {
+          rec._rowStatus = 'ready';
+        }
+      });
+    } else if (isPlacement) {
+      records.forEach((rec, idx) => {
+        rec._rowNumber = idx + 1;
+        rec._tempId = `offer-${idx + 1}-${rec.studentId || 'unassigned'}-${Date.now()}`;
+        const hasId = Boolean(rec.studentId);
+        const hasName = Boolean(rec.studentName);
+        const hasDept = Boolean(rec.department);
+        const hasCompany = Boolean(rec.company);
+        if (hasId && hasName && hasDept && hasCompany) {
+          rec._rowStatus = 'ready';
+        } else {
+          rec._rowStatus = 'needs_review';
+          const issues = [];
+          if (!hasId) issues.push('Missing Register Number');
+          if (!hasName) issues.push('Missing Name');
+          if (!hasDept) issues.push('Missing Department');
+          if (!hasCompany) issues.push('Missing Company');
+          rec._issues = issues;
+        }
+      });
+    } else if (isEContent) {
+      records.forEach((rec, idx) => {
+        rec._rowNumber = idx + 1;
+        const mName = String(rec.moduleName || rec['Name of the Module'] || '').trim();
+        const issues: string[] = [];
+        if (!mName) issues.push('Name of the Module is required.');
+        if (issues.length > 0) {
+          rec._rowStatus = 'needs_review';
+          rec._issues = issues;
+        } else {
+          rec._rowStatus = 'ready';
+        }
+      });
+    } else if (isPlacement) {
+      records.forEach((rec, idx) => {
+        rec._rowNumber = idx + 1;
+        rec._tempId = `offer-${idx + 1}-${rec.studentId || 'unassigned'}-${Date.now()}`;
+        const hasId = Boolean(rec.studentId);
+        const hasName = Boolean(rec.studentName);
+        const hasDept = Boolean(rec.department);
+        const hasCompany = Boolean(rec.company);
+        if (hasId && hasName && hasDept && hasCompany) {
+          rec._rowStatus = 'ready';
+        } else {
+          rec._rowStatus = 'needs_review';
+          const issues = [];
+          if (!hasId) issues.push('Missing Register Number');
+          if (!hasName) issues.push('Missing Name');
+          if (!hasDept) issues.push('Missing Department');
+          if (!hasCompany) issues.push('Missing Company');
+          rec._issues = issues;
+        }
+      });
     }
 
     if (records.length === 0) {
@@ -2180,8 +2572,17 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     }
 
     setPreviewData(records);
-    if ((isAwards || isEContent) && token) {
-      validateAchievementsBatch(records, isAwards ? 'awards' : 'e-contents');
+    if ((isAwards || isEContent || isProfessionalDevelopment || isInvitedTalk || isPeriodical) && token) {
+      const typeKey = isAwards
+        ? 'awards'
+        : isEContent
+          ? 'e-contents'
+          : isProfessionalDevelopment
+            ? 'professional-developments'
+            : isInvitedTalk
+              ? 'invited-talks'
+              : 'periodicals';
+      validateModernBatch(records, typeKey);
     } else if (isPlacement && token) {
       verifyPlacementsBatch(records, {
         ay: selectedAcademicYear,
@@ -2192,13 +2593,21 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     }
   };
 
-  const validateAchievementsBatch = async (rowsToValidate: any[], type: 'awards' | 'e-contents') => {
+  const validateModernBatch = async (rowsToValidate: any[], type: 'awards' | 'e-contents' | 'professional-developments' | 'invited-talks' | 'periodicals') => {
     if (!token || rowsToValidate.length === 0) return;
     setIsVerifyingPlacements(true);
     try {
       const rawApi = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const baseUrl = rawApi.replace(/\/+$/, '');
-      const endpoint = type === 'awards' ? `${baseUrl}/api/awards/bulk/validate` : `${baseUrl}/api/e-contents/bulk/validate`;
+      const endpoint = type === 'awards'
+        ? `${baseUrl}/api/awards/bulk/validate`
+        : type === 'e-contents'
+          ? `${baseUrl}/api/e-contents/bulk/validate`
+          : type === 'professional-developments'
+            ? `${baseUrl}/api/professional-developments/bulk/validate`
+            : type === 'invited-talks'
+              ? `${baseUrl}/api/invited-talks/bulk/validate`
+              : `${baseUrl}/api/periodicals/bulk/validate`;
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -2207,12 +2616,16 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         },
         body: JSON.stringify({ rows: rowsToValidate })
       });
+      if (res.status === 401) {
+        setUploadError('Your authentication session has expired or is invalid. Please log in again.');
+        return;
+      }
       const data = await res.json();
       if (data.success && data.rows) {
         setPreviewData(data.rows);
       }
     } catch (err) {
-      console.error('Failed to validate achievements batch:', err);
+      console.error('Failed to validate modern batch:', err);
     } finally {
       setIsVerifyingPlacements(false);
     }
@@ -2238,7 +2651,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
           academicYear: options?.ay || selectedAcademicYear,
           placementType: options?.type || selectedPlacementType,
           campus: options?.campus || selectedCampus,
-          school: options?.school || selectedSchool
+          school: options?.school || selectedSchool,
+          autoRegisterStudents: true
         })
       });
       const data = await res.json();
@@ -2310,35 +2724,43 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       ? `${baseUrl}/api/awards/bulk/import`
       : isEContent
         ? `${baseUrl}/api/e-contents/bulk/import`
-        : isDepartmentalActivity
-          ? `${baseUrl}/api/departmental-activities/bulk`
-          : isPublication
-            ? `${baseUrl}/api/publications/bulk`
-            : isPatent
-              ? `${baseUrl}/api/patents/bulk`
-              : isSponsored
-                ? `${baseUrl}/api/sponsored-projects/bulk`
-                : isConsultancy
-                  ? `${baseUrl}/api/consultancy-projects/bulk`
-                  : isFaculty
-                    ? `${baseUrl}/api/faculty/bulk`
-                    : isPlacement
-                      ? `${baseUrl}/api/placements/bulk`
-                      : isStudent
-                        ? `${baseUrl}/api/students/bulk`
-                        : isDepartment
-                          ? `${baseUrl}/api/departments/bulk`
-                          : `${baseUrl}/api/achievements/bulk`;
+        : isProfessionalDevelopment
+          ? `${baseUrl}/api/professional-developments/bulk/import`
+          : isInvitedTalk
+            ? `${baseUrl}/api/invited-talks/bulk/import`
+            : isPeriodical
+              ? `${baseUrl}/api/periodicals/bulk/import`
+              : isDepartmentalActivity
+                ? `${baseUrl}/api/departmental-activities/bulk`
+                : isPublication
+                  ? `${baseUrl}/api/publications/bulk`
+                  : isPatent
+                    ? `${baseUrl}/api/patents/bulk`
+                    : isSponsored
+                      ? `${baseUrl}/api/sponsored-projects/bulk`
+                      : isConsultancy
+                        ? `${baseUrl}/api/consultancy-projects/bulk`
+                        : isFaculty
+                          ? `${baseUrl}/api/faculty/bulk`
+                          : isPlacement
+                            ? `${baseUrl}/api/placements/bulk`
+                            : isStudent
+                              ? `${baseUrl}/api/students/bulk`
+                              : isDepartment
+                                ? `${baseUrl}/api/departments/bulk`
+                                : `${baseUrl}/api/achievements/bulk`;
 
     // Enrich preview records with common batch metadata selected in the upload dialog
+    const isCleanLayout = isConsultancy || isAwards || isEContent || isProfessionalDevelopment || isInvitedTalk || isPeriodical;
+
     const dataWithCommonFields = previewData.map(record => {
       const item: Record<string, any> = {
-        ...(isPatent || isConsultancy || isAwards || isEContent ? {} : { academicYear: selectedAcademicYear }),
-        ...(!isConsultancy && !isAwards && !isEContent ? { campus: selectedCampus, school: selectedSchool } : {}),
+        ...(isPatent || isCleanLayout ? {} : { academicYear: selectedAcademicYear }),
+        ...(!isCleanLayout ? { campus: selectedCampus, school: selectedSchool } : {}),
         ...record,
-        ...(isPatent || isConsultancy || isAwards || isEContent || record.academicYear ? {} : { academicYear: selectedAcademicYear }),
-        ...(record.campus || isConsultancy || isAwards || isEContent ? {} : { campus: selectedCampus }),
-        ...(record.school || isConsultancy || isAwards || isEContent ? {} : { school: selectedSchool }),
+        ...(isPatent || isCleanLayout || record.academicYear ? {} : { academicYear: selectedAcademicYear }),
+        ...(record.campus || isCleanLayout ? {} : { campus: selectedCampus }),
+        ...(record.school || isCleanLayout ? {} : { school: selectedSchool }),
         ...(isPublication || isPatent || isSponsored ? { department: record.department || selectedDepartment } : (record.department ? { department: record.department } : {}))
       };
 
@@ -2353,7 +2775,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         }
       }
 
-      if (isAwards || isEContent) {
+      if (isCleanLayout) {
         delete item.academicYear;
         delete item.campus;
         delete item.school;
@@ -2383,25 +2805,25 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
       return item;
     });
 
-    const readyRecords = (isPublication || isAwards || isEContent)
+    const isModernBatch = isPublication || isAwards || isEContent || isProfessionalDevelopment || isInvitedTalk || isPeriodical;
+
+    const readyRecords = isModernBatch
       ? dataWithCommonFields.filter(r => r._rowStatus === 'ready')
       : isPlacement
         ? dataWithCommonFields.filter(r => (r._rowStatus === 'ready' || r.status === 'ready'))
         : dataWithCommonFields;
 
-    if ((isPublication || isPlacement || isAwards || isEContent) && readyRecords.length === 0) {
+    if ((isModernBatch || isPlacement) && readyRecords.length === 0) {
       setLoading(false);
       setUploadError(isPlacement
         ? 'No valid "Ready" placement records found to import. Unregistered students and duplicate records cannot be imported.'
-        : (isAwards || isEContent)
-          ? 'No valid "Ready" records found to import. Please review and resolve flagged rows before importing.'
-          : 'No valid "Ready" publication records found to import. Please review and resolve flagged rows before importing.'
+        : 'No valid "Ready" records found to import. Please review and resolve flagged rows before importing.'
       );
       return;
     }
 
-    const bodyPayload = (isAwards || isEContent)
-      ? { rows: dataWithCommonFields }
+    const bodyPayload = (isAwards || isEContent || isProfessionalDevelopment || isInvitedTalk || isPeriodical)
+      ? { rows: readyRecords.length > 0 ? readyRecords : dataWithCommonFields }
       : isDepartmentalActivity
         ? { activities: dataWithCommonFields }
         : isPublication
@@ -2426,7 +2848,8 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                         academicYear: selectedAcademicYear,
                         placementType: selectedPlacementType,
                         campus: selectedCampus,
-                        school: selectedSchool
+                        school: selectedSchool,
+                        autoRegisterStudents: true
                       }
                     : isStudent
                       ? { students: dataWithCommonFields }
@@ -2528,25 +2951,34 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
         ? 'Awards & Recognitions'
         : isEContent
           ? 'E-Contents Development'
-          : isPublication
-            ? 'Publications (Scopus / WoS)'
-            : isConsultancy
-              ? 'Consultancy Projects (NIRF)'
-              : isFaculty
-                ? 'Faculty Details'
-                : isStudent
-                  ? 'Student Details'
-                  : isDepartment
-                    ? 'Department Details'
-                    : isPlacement
-                      ? 'Placements & Internships'
-                      : 'Achievements';
+          : isProfessionalDevelopment
+            ? 'Professional Developments'
+            : isInvitedTalk
+              ? 'Invited Talks'
+              : isPeriodical
+                ? 'Periodicals'
+                : isPublication
+                  ? 'Publications (Scopus / WoS)'
+                  : isConsultancy
+                    ? 'Consultancy Projects (NIRF)'
+                    : isFaculty
+                      ? 'Faculty Details'
+                      : isStudent
+                        ? 'Student Details'
+                        : isDepartment
+                          ? 'Department Details'
+                          : isPlacement
+                            ? 'Placements & Internships'
+                            : 'Achievements';
 
   const requiredHeaders = React.useMemo(() => {
     if (isSponsored) return SPONSORED_RESEARCH_REQUIRED;
     if (isPatent) return PATENTS_REQUIRED;
     if (isAwards) return AWARDS_REQUIRED;
     if (isEContent) return ECON_REQUIRED;
+    if (isProfessionalDevelopment) return PROF_DEV_REQUIRED;
+    if (isInvitedTalk) return INVITED_TALKS_REQUIRED;
+    if (isPeriodical) return PERIODICALS_REQUIRED;
     if (isPublication) return PUBLICATIONS_REQUIRED;
     if (isConsultancy) return CONSULTANCY_REQUIRED;
     if (isFaculty) return FACULTY_REQUIRED;
@@ -2555,7 +2987,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
     if (isPlacement) return ['Register Number', 'Name', 'Department', 'Program', 'Designation/Role', 'Company', 'Package'];
     if (isDepartmentalActivity) return ['Department'];
     return ['title', 'category', 'date', 'year'];
-  }, [isSponsored, isPatent, isAwards, isEContent, isPublication, isConsultancy, isFaculty, isStudent, isDepartment, isPlacement, isDepartmentalActivity]);
+  }, [isSponsored, isPatent, isAwards, isEContent, isProfessionalDevelopment, isInvitedTalk, isPeriodical, isPublication, isConsultancy, isFaculty, isStudent, isDepartment, isPlacement, isDepartmentalActivity]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -2714,6 +3146,18 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               ) : isEContent ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
                   EmpId**, Title**, E-Content Platform**, Publication Date**, Content Type** (Allowed: SINGLE_MODULE, ENTIRE_COURSE, MULTIPLE_MODULE), URL, Proof URL
+                </p>
+              ) : isProfessionalDevelopment ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  {MODULE_UPLOAD_CONFIGS['professional-developments'].columns.map(c => c.mandatory ? `${c.header}**` : c.header).join(', ')}
+                </p>
+              ) : isInvitedTalk ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  {MODULE_UPLOAD_CONFIGS['invited-talks'].columns.map(c => c.mandatory ? `${c.header}**` : c.header).join(', ')}
+                </p>
+              ) : isPeriodical ? (
+                <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
+                  {MODULE_UPLOAD_CONFIGS['periodicals'].columns.map(c => c.mandatory ? `${c.header}**` : c.header).join(', ')}
                 </p>
               ) : isPublication ? (
                 <p className="font-mono bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all break-all text-[11px] leading-relaxed">
@@ -2996,7 +3440,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
             </div>
           ) : (
             <div className="space-y-4">
-              {!isConsultancy && !isAwards && !isEContent && (
+              {!isConsultancy && !isAwards && !isEContent && !isProfessionalDevelopment && !isInvitedTalk && !isPeriodical && (
                 <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
                   <h4 className="font-semibold text-xs text-[#2f4692] uppercase tracking-wider flex items-center gap-1.5">
                     <FileSpreadsheet className="w-4 h-4 text-[#2f4692]" />
@@ -3834,6 +4278,251 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                           })}
                       </tbody>
                     </>
+                  ) : isProfessionalDevelopment ? (
+                    <>
+                      <thead>
+                        <tr className="bg-slate-100/80 border-b border-slate-200 font-semibold text-slate-700 text-xs">
+                          <th className="py-2.5 px-3 whitespace-nowrap text-center w-12">#</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[120px]">Validation Status</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[170px]">Faculty / Emp ID</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[220px]">Programme Name</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[180px]">Type & Role</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap text-center min-w-[120px]">Dates & Duration</th>
+                          <th className="py-2.5 px-3 min-w-[200px]">Remarks / Issues</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {previewData
+                          .filter(r => {
+                            if (previewFilter === 'ready') return r._rowStatus === 'ready';
+                            if (previewFilter === 'needs_review') return r._rowStatus === 'needs_review';
+                            if (previewFilter === 'duplicate') return r._rowStatus === 'duplicate';
+                            if (previewFilter === 'invalid') return r._rowStatus === 'invalid';
+                            return true;
+                          })
+                          .slice(0, 100)
+                          .map((row, idx) => {
+                            const isReady = row._rowStatus === 'ready';
+                            const isDup = row._rowStatus === 'duplicate';
+                            const isInvalid = row._rowStatus === 'invalid';
+                            const isReview = row._rowStatus === 'needs_review';
+                            return (
+                              <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
+                                <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
+                                <td className="py-2.5 px-3 whitespace-nowrap">
+                                  {isReady && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                      <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
+                                    </span>
+                                  )}
+                                  {isReview && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
+                                      <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
+                                    </span>
+                                  )}
+                                  {isDup && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
+                                      <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
+                                    </span>
+                                  )}
+                                  {isInvalid && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
+                                      <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3">
+                                  <div className="font-semibold text-slate-900">{row.facultyName || row.name || (row.isGuestFaculty ? 'Guest Faculty' : 'Faculty')}</div>
+                                  <div className="text-[10px] font-mono text-slate-500">{row.employeeId || 'No EmpID'}</div>
+                                </td>
+                                <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[220px]">
+                                  <span className="line-clamp-2" title={row.title}>{row.title || '—'}</span>
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
+                                  <div className="font-medium truncate">{row.programType || '—'}</div>
+                                  <div className="text-[10px] text-slate-400">Role: {row.role || 'Participant'}</div>
+                                </td>
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                  <div className="font-mono text-slate-800">{row.startDate || '—'}</div>
+                                  <div className="text-[10px] font-bold text-[#2855B9]">{row.durationDays ? `${row.durationDays} Days` : 'Year: ' + (row.calendarYear || '—')}</div>
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
+                                  {row._duplicateReason ? (
+                                    <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
+                                  ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
+                                    <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
+                                  ) : (
+                                    <span className="text-emerald-700 text-[10px]">Valid record</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </>
+                  ) : isInvitedTalk ? (
+                    <>
+                      <thead>
+                        <tr className="bg-slate-100/80 border-b border-slate-200 font-semibold text-slate-700 text-xs">
+                          <th className="py-2.5 px-3 whitespace-nowrap text-center w-12">#</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[120px]">Validation Status</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[170px]">Speaker / Emp ID</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[240px]">Lecture / Talk Title</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[160px]">Program Type</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[180px]">Organization & Media</th>
+                          <th className="py-2.5 px-3 min-w-[200px]">Remarks / Issues</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {previewData
+                          .filter(r => {
+                            if (previewFilter === 'ready') return r._rowStatus === 'ready';
+                            if (previewFilter === 'needs_review') return r._rowStatus === 'needs_review';
+                            if (previewFilter === 'duplicate') return r._rowStatus === 'duplicate';
+                            if (previewFilter === 'invalid') return r._rowStatus === 'invalid';
+                            return true;
+                          })
+                          .slice(0, 100)
+                          .map((row, idx) => {
+                            const isReady = row._rowStatus === 'ready';
+                            const isDup = row._rowStatus === 'duplicate';
+                            const isInvalid = row._rowStatus === 'invalid';
+                            const isReview = row._rowStatus === 'needs_review';
+                            return (
+                              <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
+                                <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
+                                <td className="py-2.5 px-3 whitespace-nowrap">
+                                  {isReady && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                      <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
+                                    </span>
+                                  )}
+                                  {isReview && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
+                                      <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
+                                    </span>
+                                  )}
+                                  {isDup && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
+                                      <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
+                                    </span>
+                                  )}
+                                  {isInvalid && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
+                                      <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3">
+                                  <div className="font-semibold text-slate-900">{row.facultyName || row.name || (row.isGuestFaculty ? 'Guest Faculty' : 'Speaker')}</div>
+                                  <div className="text-[10px] font-mono text-slate-500">{row.employeeId || 'No EmpID'}</div>
+                                </td>
+                                <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[240px]">
+                                  <span className="line-clamp-2" title={row.title}>{row.title || '—'}</span>
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-700">
+                                  <div className="font-medium">{row.programType || '—'}</div>
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
+                                  <div className="font-medium truncate" title={row.organization}>{row.organization || '—'}</div>
+                                  <div className="text-[10px] text-slate-400">{row.media || '—'}</div>
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
+                                  {row._duplicateReason ? (
+                                    <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
+                                  ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
+                                    <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
+                                  ) : (
+                                    <span className="text-emerald-700 text-[10px]">Valid record</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </>
+                  ) : isPeriodical ? (
+                    <>
+                      <thead>
+                        <tr className="bg-slate-100/80 border-b border-slate-200 font-semibold text-slate-700 text-xs">
+                          <th className="py-2.5 px-3 whitespace-nowrap text-center w-12">#</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[120px]">Validation Status</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[170px]">Author / Emp ID</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[220px]">Periodical / Article</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap min-w-[180px]">Scope & Type</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap text-center min-w-[100px]">Date & Year</th>
+                          <th className="py-2.5 px-3 min-w-[200px]">Remarks / Issues</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {previewData
+                          .filter(r => {
+                            if (previewFilter === 'ready') return r._rowStatus === 'ready';
+                            if (previewFilter === 'needs_review') return r._rowStatus === 'needs_review';
+                            if (previewFilter === 'duplicate') return r._rowStatus === 'duplicate';
+                            if (previewFilter === 'invalid') return r._rowStatus === 'invalid';
+                            return true;
+                          })
+                          .slice(0, 100)
+                          .map((row, idx) => {
+                            const isReady = row._rowStatus === 'ready';
+                            const isDup = row._rowStatus === 'duplicate';
+                            const isInvalid = row._rowStatus === 'invalid';
+                            const isReview = row._rowStatus === 'needs_review';
+                            return (
+                              <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
+                                <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
+                                <td className="py-2.5 px-3 whitespace-nowrap">
+                                  {isReady && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                      <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
+                                    </span>
+                                  )}
+                                  {isReview && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
+                                      <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
+                                    </span>
+                                  )}
+                                  {isDup && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
+                                      <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
+                                    </span>
+                                  )}
+                                  {isInvalid && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
+                                      <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3">
+                                  <div className="font-semibold text-slate-900">{row.facultyName || row.name || (row.isGuestFaculty ? 'Guest Faculty' : 'Author')}</div>
+                                  <div className="text-[10px] font-mono text-slate-500">{row.employeeId || 'No EmpID'}</div>
+                                </td>
+                                <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[220px]">
+                                  <span className="line-clamp-2" title={row.periodicalName}>{row.periodicalName || '—'}</span>
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
+                                  <div className="font-medium truncate">{row.periodicalType || '—'}</div>
+                                  <div className="text-[10px] text-slate-400">{row.publicationType || '—'}</div>
+                                </td>
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                  <div className="font-mono text-slate-800">{row.publicationDate || '—'}</div>
+                                  <div className="text-[10px] font-bold text-[#2855B9]">Year: {row.calendarYear || '—'}</div>
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
+                                  {row._duplicateReason ? (
+                                    <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
+                                  ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
+                                    <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
+                                  ) : (
+                                    <span className="text-emerald-700 text-[10px]">Valid record</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </>
                   ) : isPublication ? (
                     <>
                       <thead>
@@ -4036,7 +4725,7 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                           ({previewData.filter(r => r._rowStatus === 'needs_review').length} incomplete, {previewData.filter(r => r._rowStatus === 'duplicate').length} duplicates will be excluded)
                         </span>
                       </div>
-                    ) : (isAwards || isEContent) ? (
+                    ) : (isAwards || isEContent || isProfessionalDevelopment || isInvitedTalk || isPeriodical) ? (
                       <div>
                         <span className="font-bold text-emerald-700 text-base font-mono mt-0.5 block">
                           {previewData.filter(r => r._rowStatus === 'ready').length} Ready Records
@@ -4051,10 +4740,10 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   </div>
                   <div className="p-3 bg-white rounded-xl border border-slate-200">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      {isPublication ? 'Department & Scope' : isPatent ? 'Publication Year' : (isAwards || isEContent) ? 'Calendar Year & Scope' : 'Academic Year'}
+                      {isPublication ? 'Department & Scope' : isInvitedTalk ? 'Institutional Scope' : (isAwards || isEContent || isProfessionalDevelopment || isPeriodical) ? 'Calendar Year & Scope' : isPatent ? 'Publication Year' : 'Academic Year'}
                     </span>
                     <span className="font-bold text-[#2F4692] mt-0.5 block">
-                      {isPublication ? 'Derived from Verified Faculty Profiles' : isPatent ? 'Auto-derived from Publication Date' : (isAwards || isEContent) ? 'Derived from Event / Publication Date' : selectedAcademicYear}
+                      {isPublication ? 'Derived from Verified Faculty Profiles' : isInvitedTalk ? 'Institutional / Department Level' : (isAwards || isEContent || isProfessionalDevelopment || isPeriodical) ? 'Derived from Event / Publication Date' : isPatent ? 'Auto-derived from Publication Date' : selectedAcademicYear}
                     </span>
                   </div>
                 </div>
@@ -4081,17 +4770,40 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
                   </div>
                 )}
                 {/* Warning when 0 records are ready to import */}
-                {((isPublication || isPlacement || isAwards || isEContent) && previewData.filter(r => r._rowStatus === 'ready').length === 0) && (
-                  <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs space-y-1.5">
-                    <div className="flex items-center gap-1.5 font-bold text-rose-900">
-                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>Cannot Execute Import — 0 Ready Records</span>
+                {((isModernUpload || isPlacement) && previewData.filter(r => r._rowStatus === 'ready').length === 0) && (() => {
+                  const dupCount = previewData.filter(r => r._rowStatus === 'duplicate').length;
+                  const reviewCount = previewData.filter(r => r._rowStatus === 'needs_review').length;
+                  const invalidCount = previewData.filter(r => r._rowStatus === 'invalid').length;
+                  const isAllDuplicates = dupCount === previewData.length;
+
+                  return (
+                    <div className={`p-4 rounded-xl text-xs space-y-1.5 ${
+                      isAllDuplicates || dupCount > 0
+                        ? 'bg-amber-50 border border-amber-200 text-amber-900'
+                        : 'bg-rose-50 border border-rose-200 text-rose-800'
+                    }`}>
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <AlertTriangle className={`w-4 h-4 shrink-0 ${
+                          isAllDuplicates || dupCount > 0 ? 'text-amber-600' : 'text-rose-600'
+                        }`} />
+                        <span>
+                          {isAllDuplicates
+                            ? `All ${previewData.length} Records Already Stored in Database`
+                            : dupCount > 0
+                              ? `Cannot Execute Import — 0 New Records (${dupCount} Duplicates)`
+                              : 'Cannot Execute Import — 0 Ready Records'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed">
+                        {isAllDuplicates
+                          ? `All ${previewData.length} records in this file have already been recorded in the CHRIST University IQAC database for ${selectedAcademicYear}. Duplicate detection prevented identical records from being re-inserted.`
+                          : dupCount > 0
+                            ? `${dupCount} of ${previewData.length} records are exact duplicates already stored in the database for ${selectedAcademicYear}${reviewCount > 0 ? `, and ${reviewCount} require review` : ''}${invalidCount > 0 ? `, and ${invalidCount} are invalid` : ''}. Please click "← Back to Preview" to inspect each row.`
+                            : `All ${previewData.length} records in this file were flagged with validation errors or duplicates. Please click "← Back to Preview" to inspect each row's specific errors.`}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-rose-700 leading-relaxed">
-                      All {previewData.length} records in this file were flagged with validation errors or duplicates. Please click <strong>"← Back to Preview"</strong> to inspect each row's specific errors.
-                    </p>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {uploadError && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
@@ -4336,14 +5048,14 @@ export function BulkUploadDialog({ isOpen, onClose, token, onSuccess, uploadType
               <Button
                 type="button"
                 onClick={handleUploadSubmit}
-                disabled={loading || ((isPublication || isPlacement || isAwards || isEContent) && previewData.filter(r => r._rowStatus === 'ready').length === 0)}
+                disabled={loading || ((isModernUpload || isPlacement) && previewData.filter(r => r._rowStatus === 'ready').length === 0)}
                 className={`text-white text-xs font-bold h-9 px-5 rounded-xl shadow-xs flex items-center gap-1.5 transition-colors ${
-                  ((isPublication || isPlacement || isAwards || isEContent) && previewData.filter(r => r._rowStatus === 'ready').length === 0)
+                  ((isModernUpload || isPlacement) && previewData.filter(r => r._rowStatus === 'ready').length === 0)
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                     : 'bg-emerald-700 hover:bg-emerald-800'
                 }`}
                 title={
-                  ((isPublication || isPlacement || isAwards || isEContent) && previewData.filter(r => r._rowStatus === 'ready').length === 0)
+                  ((isModernUpload || isPlacement) && previewData.filter(r => r._rowStatus === 'ready').length === 0)
                     ? 'Cannot import: 0 ready records found.'
                     : 'Confirm and execute import'
                 }

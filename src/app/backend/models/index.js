@@ -1,7 +1,15 @@
 const User = require('./User');
 const Achievement = require('./Achievement');
 const Award = require('./Award');
+const AwardFaculty = require('./AwardFaculty');
 const EContent = require('./EContent');
+const EContentFaculty = require('./EContentFaculty');
+const ProfessionalDevelopment = require('./ProfessionalDevelopment');
+const ProfessionalDevelopmentFaculty = require('./ProfessionalDevelopmentFaculty');
+const InvitedTalk = require('./InvitedTalk');
+const InvitedTalkFaculty = require('./InvitedTalkFaculty');
+const Periodical = require('./Periodical');
+const PeriodicalFaculty = require('./PeriodicalFaculty');
 const Document = require('./Document');
 const Patent = require('./Patent');
 const PatentProof = require('./PatentProof');
@@ -14,6 +22,7 @@ const EditRequest = require('./EditRequest');
 const AuditLog = require('./AuditLog');
 const Notification = require('./Notification');
 const Student = require('./Student');
+const StudentEnrollment = require('./StudentEnrollment');
 const Faculty = require('./Faculty');
 const Department = require('./Department');
 const ResearchMetric = require('./ResearchMetric');
@@ -42,6 +51,13 @@ const SystemConfiguration = require('./SystemConfiguration');
 const ModuleConfig = require('./ModuleConfig');
 const ConfigurationVersion = require('./ConfigurationVersion');
 const ConfigurationBackup = require('./ConfigurationBackup');
+const ScopusSource = require('./ScopusSource');
+const SavedReportConfig = require('./SavedReportConfig');
+const ReportHistory = require('./ReportHistory');
+const ExchangeRate = require('./ExchangeRate');
+const CustomDashboard = require('./CustomDashboard');
+const CustomMetric = require('./CustomMetric');
+const AnalyticsPreset = require('./AnalyticsPreset');
 
 // ══════════════════════════════════════════════════════════════════
 // Associations
@@ -93,6 +109,36 @@ Copyright.hasMany(CopyrightFaculty, { foreignKey: 'copyrightId', as: 'facultyAss
 CopyrightFaculty.belongsTo(Copyright, { foreignKey: 'copyrightId', as: 'copyright' });
 Faculty.hasMany(CopyrightFaculty, { foreignKey: 'facultyId', as: 'copyrightAssociations' });
 CopyrightFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+
+// Awards & Faculty Associations
+Award.hasMany(AwardFaculty, { foreignKey: 'awardId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+AwardFaculty.belongsTo(Award, { foreignKey: 'awardId', as: 'award' });
+Faculty.hasMany(AwardFaculty, { foreignKey: 'facultyId', as: 'awardAssociations' });
+AwardFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+
+// E-Contents & Faculty Associations
+EContent.hasMany(EContentFaculty, { foreignKey: 'econtentId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+EContentFaculty.belongsTo(EContent, { foreignKey: 'econtentId', as: 'econtent' });
+Faculty.hasMany(EContentFaculty, { foreignKey: 'facultyId', as: 'econtentAssociations' });
+EContentFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+
+// Professional Developments & Faculty Associations
+ProfessionalDevelopment.hasMany(ProfessionalDevelopmentFaculty, { foreignKey: 'professionalDevelopmentId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+ProfessionalDevelopmentFaculty.belongsTo(ProfessionalDevelopment, { foreignKey: 'professionalDevelopmentId', as: 'professionalDevelopment' });
+Faculty.hasMany(ProfessionalDevelopmentFaculty, { foreignKey: 'facultyId', as: 'professionalDevelopmentAssociations' });
+ProfessionalDevelopmentFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+
+// Invited Talks & Faculty Associations
+InvitedTalk.hasMany(InvitedTalkFaculty, { foreignKey: 'invitedTalkId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+InvitedTalkFaculty.belongsTo(InvitedTalk, { foreignKey: 'invitedTalkId', as: 'invitedTalk' });
+Faculty.hasMany(InvitedTalkFaculty, { foreignKey: 'facultyId', as: 'invitedTalkAssociations' });
+InvitedTalkFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
+
+// Periodicals & Faculty Associations
+Periodical.hasMany(PeriodicalFaculty, { foreignKey: 'periodicalId', as: 'facultyAssociations', onDelete: 'CASCADE' });
+PeriodicalFaculty.belongsTo(Periodical, { foreignKey: 'periodicalId', as: 'periodical' });
+Faculty.hasMany(PeriodicalFaculty, { foreignKey: 'facultyId', as: 'periodicalAssociations' });
+PeriodicalFaculty.belongsTo(Faculty, { foreignKey: 'facultyId', as: 'faculty' });
 
 User.hasMany(Placement, { foreignKey: 'createdBy', as: 'placements' });
 Placement.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
@@ -237,11 +283,29 @@ UserOrganizationalScope.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 FormDefinition.hasMany(FormField, { foreignKey: 'formId', as: 'fields', onDelete: 'CASCADE' });
 FormField.belongsTo(FormDefinition, { foreignKey: 'formId', as: 'form' });
 
+// Student Details V3.0 Associations
+Student.hasMany(StudentEnrollment, { foreignKey: 'studentId', as: 'enrollments', onDelete: 'CASCADE' });
+StudentEnrollment.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
+
+// Institutional Report Builder Associations
+User.hasMany(SavedReportConfig, { foreignKey: 'createdBy', as: 'savedReportConfigs' });
+SavedReportConfig.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+User.hasMany(ReportHistory, { foreignKey: 'createdBy', as: 'generatedReports' });
+ReportHistory.belongsTo(User, { foreignKey: 'createdBy', as: 'generator' });
+
 module.exports = {
   User,
   Achievement,
   Award,
+  AwardFaculty,
   EContent,
+  EContentFaculty,
+  ProfessionalDevelopment,
+  ProfessionalDevelopmentFaculty,
+  InvitedTalk,
+  InvitedTalkFaculty,
+  Periodical,
+  PeriodicalFaculty,
   Publication,
   PublicationFaculty,
   CitationImportBatch,
@@ -265,6 +329,7 @@ module.exports = {
   AuditLog,
   Notification,
   Student,
+  StudentEnrollment,
   Faculty,
   Department,
   ResearchMetric,
@@ -291,6 +356,13 @@ module.exports = {
   SystemConfiguration,
   ModuleConfig,
   ConfigurationVersion,
-  ConfigurationBackup
+  ConfigurationBackup,
+  ScopusSource,
+  SavedReportConfig,
+  ReportHistory,
+  ExchangeRate,
+  CustomDashboard,
+  CustomMetric,
+  AnalyticsPreset
 };
 

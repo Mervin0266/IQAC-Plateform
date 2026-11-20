@@ -1,8 +1,13 @@
 'use strict';
 
 const { Op } = require('sequelize');
-const { EContent, Faculty, User, School, Department, SystemConfiguration } = require('../models');
+const { EContent, EContentFaculty, Faculty, User, School, Department, SystemConfiguration } = require('../models');
 const { sequelize } = require('../config/database');
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isValidUuid(id) {
+  return typeof id === 'string' && UUID_REGEX.test(id);
+}
 
 const normalizeDeptKey = (val) => String(val || '').trim().toLowerCase().replace(/\s+/g, ' ');
 const normalizeEmpId = (val) => String(val || '').trim().toUpperCase();
@@ -654,6 +659,23 @@ exports.createEContent = async (req, res) => {
       createdBy: req.user?.id || null
     });
 
+    try {
+      await EContentFaculty.create({
+        econtentId: newRecord.id,
+        facultyId: faculty.id,
+        employeeId: cleanEmpId,
+        normalizedEmployeeId: normEmpId,
+        facultyName: faculty.name,
+        designation: faculty.designation,
+        department: faculty.department,
+        contributorType: 'Verified Faculty',
+        isGuestFaculty: false,
+        displayOrder: 0
+      });
+    } catch (efErr) {
+      console.warn('Failed to insert into econtent_faculties for single create:', efErr.message);
+    }
+
     res.status(201).json({
       success: true,
       message: 'E-Content record created successfully.',
@@ -823,6 +845,44 @@ exports.deleteEContent = async (req, res) => {
   }
 };
 
+// DELETE /api/e-contents/clear-all
+// @desc    Clear all e-contents records (Admin only)
+exports.clearAllEContents = async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Forbidden: Only administrators can clear all E-Content records.' });
+    }
+
+    let deletedCount = 0;
+    await sequelize.transaction(async (t) => {
+      await EContentFaculty.destroy({ where: {}, transaction: t });
+      deletedCount = await EContent.destroy({ where: {}, transaction: t });
+    });
+
+    try {
+      const { logActionSafe } = require('../middleware/auditLogger');
+      await logActionSafe({
+        user: req.user,
+        action: 'CLEAR_ALL_E_CONTENTS',
+        title: 'Cleared E-Contents records',
+        remarks: `Permanently deleted ${deletedCount} e-contents and related faculty associations.`,
+        ipAddress: req.ip
+      });
+    } catch (e) {
+      console.warn('Audit log error on clear e-contents:', e);
+    }
+
+    res.json({
+      success: true,
+      message: `All E-Contents records (${deletedCount}) cleared successfully.`,
+      count: deletedCount
+    });
+  } catch (error) {
+    console.error('Clear all e-contents error:', error);
+    res.status(500).json({ success: false, message: 'Failed to clear e-contents records.' });
+  }
+};
+
 // POST /api/e-contents/bulk/validate
 exports.validateBulkEContents = async (req, res) => {
   try {
@@ -891,6 +951,8 @@ exports.validateBulkEContents = async (req, res) => {
     rows.forEach((r, idx) => {
       const rowNum = idx + 1;
       const rawEmpId = String(r.employeeId || r.empId || r.EmpId || r.EmpID || '').trim();
+      const rawFacultyName = String(r.facultyName || r.FacultyName || r['Faculty Name'] || r.teacherName || r['Teacher Name'] || '').trim();
+      const rawDept = String(r.department || r.Department || r['Department'] || '').trim();
       const title = String(r.title || r.Title || r['Title'] || r.moduleTitle || r['Module Title'] || r.name || r['Name'] || '').trim();
       const platform = String(r.eContentPlatform || r.EContentPlatform || r['E-Content Platform'] || r.platform || r['Platform'] || '').trim();
       const rawDate = r.publicationDate || r.PublicationDate || r['Publication Date'] || r.date || r.Date || r.launchDate || r['Launch Date'] || '';
@@ -903,6 +965,7 @@ exports.validateBulkEContents = async (req, res) => {
       let failureCategory = null;
 
       // 1. EmpID
+      let isGuestFaculty = false;
       if (!rawEmpId || rawEmpId.toLowerCase() === 'nil' || rawEmpId.toLowerCase() === 'n/a') {
         errors.push('EmpID is missing or blank.');
         rowStatus = 'needs_review';
@@ -912,10 +975,8 @@ exports.validateBulkEContents = async (req, res) => {
         const norm = normalizeEmpId(rawEmpId);
         const faculty = facultyMap.get(norm);
         if (!faculty) {
-          errors.push(`EmpID "${rawEmpId}" not found in Faculty Management.`);
-          rowStatus = 'needs_review';
-          failureCategory = 'empid_not_found';
-          notFoundEmpIdCount++;
+          isGuestFaculty = true;
+          // When EmpID is not found in existing data, include them as Guest Faculty
         }
       }
 
@@ -989,6 +1050,10 @@ exports.validateBulkEContents = async (req, res) => {
       }
 
       const faculty = facultyMap.get(normalizeEmpId(rawEmpId));
+      const effectiveFacultyName = faculty ? faculty.name : (rawFacultyName || 'Guest Faculty');
+      const effectiveDesignation = faculty ? (faculty.designation || 'Faculty') : 'Guest Faculty';
+      const effectiveDept = faculty ? faculty.department : (rawDept || null);
+
       validatedRows.push({
         _rowNumber: rowNum,
         _rowStatus: rowStatus,
@@ -996,9 +1061,10 @@ exports.validateBulkEContents = async (req, res) => {
         _errors: errors,
         _issues: errors,
         employeeId: rawEmpId,
-        facultyName: faculty ? faculty.name : null,
-        department: faculty ? faculty.department : null,
-        designation: faculty ? faculty.designation : null,
+        facultyName: effectiveFacultyName,
+        department: effectiveDept,
+        designation: effectiveDesignation,
+        isGuestFaculty,
         title,
         eContentPlatform: effectivePlatform || platform,
         publicationDate: isoDate || rawDate,
@@ -1030,11 +1096,9 @@ exports.validateBulkEContents = async (req, res) => {
 
 // POST /api/e-contents/bulk/import
 exports.bulkImportEContents = async (req, res) => {
-  const transaction = await sequelize.transaction();
   try {
     const { rows } = req.body;
     if (!Array.isArray(rows) || rows.length === 0) {
-      await transaction.rollback();
       return res.status(400).json({ success: false, message: 'No rows provided for import.' });
     }
 
@@ -1064,8 +1128,7 @@ exports.bulkImportEContents = async (req, res) => {
               })
             ]
           },
-          attributes: ['id', 'employeeId', 'name', 'designation', 'department'],
-          transaction
+          attributes: ['id', 'employeeId', 'name', 'designation', 'department']
         })
       : [];
 
@@ -1076,8 +1139,7 @@ exports.bulkImportEContents = async (req, res) => {
 
     const existingRecords = await EContent.findAll({
       attributes: ['normalizedEmployeeId', 'title', 'publicationDate', 'url'],
-      raw: true,
-      transaction
+      raw: true
     });
 
     const existingKeys = new Set(
@@ -1100,6 +1162,8 @@ exports.bulkImportEContents = async (req, res) => {
     rows.forEach((r, idx) => {
       const rowNum = idx + 1;
       const rawEmpId = String(r.employeeId || r.empId || r.EmpId || r.EmpID || '').trim();
+      const rawFacultyName = String(r.facultyName || r.FacultyName || r['Faculty Name'] || r.teacherName || r['Teacher Name'] || '').trim();
+      const rawDept = String(r.department || r.Department || r['Department'] || '').trim();
       const title = String(r.title || r.Title || r['Title'] || r.moduleTitle || r['Module Title'] || r.name || r['Name'] || '').trim();
       const platform = String(r.eContentPlatform || r.EContentPlatform || r['E-Content Platform'] || r.platform || r['Platform'] || '').trim();
       const rawDate = r.publicationDate || r.PublicationDate || r['Publication Date'] || r.date || r.Date || r.launchDate || r['Launch Date'] || '';
@@ -1121,17 +1185,7 @@ exports.bulkImportEContents = async (req, res) => {
 
       const normEmp = normalizeEmpId(rawEmpId);
       const faculty = facultyMap.get(normEmp);
-      if (!faculty) {
-        skippedNotFound++;
-        skippedRecords.push({
-          rowNumber: rowNum,
-          employeeId: rawEmpId,
-          title: title || 'N/A',
-          problematicField: 'EmpId',
-          reason: `EmpID(s) not found in Faculty Management: "${rawEmpId}". Entire row skipped.`
-        });
-        return;
-      }
+      const isGuestFaculty = !faculty;
 
       if (!title || title.toLowerCase() === 'nil') {
         rejectedOther++;
@@ -1173,7 +1227,7 @@ exports.bulkImportEContents = async (req, res) => {
         return;
       }
 
-      const derivedYear = deriveCalendarYear(isoDate);
+      const derivedYear = deriveCalendarYear(isoDate) || new Date().getFullYear();
 
       let effectiveUrl = null;
       if (url && url.toLowerCase() !== 'nil' && url.toLowerCase() !== 'n/a') {
@@ -1240,35 +1294,70 @@ exports.bulkImportEContents = async (req, res) => {
 
       seenInBatch.add(dedupKey);
 
+      const effectiveFacultyName = faculty ? faculty.name : (rawFacultyName || 'Guest Faculty');
+      const effectiveDesignation = faculty ? (faculty.designation || 'Faculty') : 'Guest Faculty';
+      const effectiveDept = faculty ? faculty.department : (rawDept || null);
+
       validToInsert.push({
-        facultyId: faculty.id,
-        employeeId: rawEmpId,
-        normalizedEmployeeId: normEmp,
-        facultyName: faculty.name,
-        designation: faculty.designation,
-        department: faculty.department,
-        originalDepartment: faculty.department,
+        _rowNumber: rowNum,
+        facultyId: faculty ? faculty.id : null,
+        employeeId: String(rawEmpId).substring(0, 64),
+        normalizedEmployeeId: String(normEmp).substring(0, 64),
+        facultyName: effectiveFacultyName,
+        designation: effectiveDesignation ? String(effectiveDesignation).substring(0, 255) : 'Guest Faculty',
+        department: effectiveDept ? String(effectiveDept).substring(0, 255) : null,
+        originalDepartment: effectiveDept ? String(effectiveDept).substring(0, 255) : null,
         originalDepartmentSource: 'creation_snapshot',
-        school: faculty.school || null,
-        campus: faculty.campus || null,
-        title,
-        eContentPlatform: effectivePlatform,
+        school: faculty ? (faculty.school ? String(faculty.school).substring(0, 255) : null) : null,
+        campus: faculty ? (faculty.campus ? String(faculty.campus).substring(0, 255) : null) : null,
+        title: String(title),
+        eContentPlatform: String(effectivePlatform).substring(0, 150),
         publicationDate: isoDate,
-        url: effectiveUrl,
-        contentType: effectiveContentType,
-        proofUrl: cleanProof,
-        calendarYear: derivedYear,
+        url: effectiveUrl || null,
+        contentType: String(effectiveContentType).substring(0, 150),
+        proofUrl: cleanProof || null,
+        calendarYear: parseInt(derivedYear, 10),
         customFields: {},
-        createdBy: req.user?.id || null
+        createdBy: (req.user && req.user.id && isValidUuid(req.user.id)) ? req.user.id : null
       });
     });
 
     let insertedRecords = [];
     if (validToInsert.length > 0) {
-      insertedRecords = await EContent.bulkCreate(validToInsert, { transaction });
-    }
+      for (const item of validToInsert) {
+        try {
+          const { _rowNumber, ...cleanItem } = item;
+          const created = await EContent.create(cleanItem);
+          insertedRecords.push(created);
 
-    await transaction.commit();
+          try {
+            await EContentFaculty.create({
+              econtentId: created.id,
+              facultyId: created.facultyId,
+              employeeId: created.employeeId,
+              normalizedEmployeeId: created.normalizedEmployeeId,
+              facultyName: created.facultyName,
+              designation: created.designation,
+              department: created.department,
+              contributorType: created.facultyId ? 'Verified Faculty' : 'Guest Faculty',
+              isGuestFaculty: !created.facultyId,
+              displayOrder: 0
+            });
+          } catch (efErr) {
+            console.warn('Failed to insert into econtent_faculties for bulk row:', efErr.message);
+          }
+        } catch (rowErr) {
+          rejectedOther++;
+          skippedRecords.push({
+            rowNumber: item._rowNumber || 0,
+            employeeId: item.employeeId || 'N/A',
+            title: item.title || 'N/A',
+            problematicField: 'Database Record',
+            reason: `Failed to insert record: ${rowErr.message}`
+          });
+        }
+      }
+    }
 
     res.json({
       success: true,
@@ -1286,8 +1375,12 @@ exports.bulkImportEContents = async (req, res) => {
       skippedRecords
     });
   } catch (error) {
-    await transaction.rollback();
     console.error('Bulk import e-contents error:', error);
-    res.status(500).json({ success: false, message: 'Failed to execute bulk e-contents import.' });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to execute bulk e-contents import.',
+      error: error.message,
+      detail: error.message
+    });
   }
 };

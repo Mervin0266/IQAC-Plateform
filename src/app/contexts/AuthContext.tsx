@@ -41,17 +41,70 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
-  // Load user from localStorage on mount
+  const logout = React.useCallback(() => {
+    setUser(null);
+    localStorage.removeItem('iqac_user');
+    localStorage.removeItem('token');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('iqac-auth-logout'));
+      try {
+        window.history.pushState({}, '', '/login');
+      } catch (e) {}
+    }
+  }, []);
+
+  // Global fetch interceptor to catch any 401 Unauthorized responses (token expired / revoked)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const originalFetch = window.fetch;
+      window.fetch = async (...args) => {
+        const response = await originalFetch(...args);
+        if (response.status === 401) {
+          const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request)?.url || '';
+          if (!url.includes('/api/auth/login')) {
+            console.warn('[IQAC Auth] Received 401 Unauthorized from', url, '- session invalid or expired. Resetting session.');
+            logout();
+          }
+        }
+        return response;
+      };
+      return () => {
+        window.fetch = originalFetch;
+      };
+    }
+  }, [logout]);
+
+  // Load user from localStorage on mount and verify session validity
   useEffect(() => {
     const storedUser = localStorage.getItem('iqac_user');
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        const parsed = JSON.parse(storedUser);
+        setUser(parsed);
+        if (parsed?.token) {
+          localStorage.setItem('token', parsed.token);
+          // Verify token validity against backend
+          const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+          const isProductionHost = typeof window !== 'undefined' &&
+            window.location.hostname !== 'localhost' &&
+            window.location.hostname !== '127.0.0.1';
+          const baseUrl = rawApiUrl || (isProductionHost ? '' : 'http://localhost:5000');
+          fetch(`${baseUrl}/api/auth/me`, {
+            headers: { Authorization: `Bearer ${parsed.token}` }
+          }).then(res => {
+            if (res.status === 401 || res.status === 403) {
+              console.warn('[IQAC Auth] Stored session is invalid or expired. Resetting session.');
+              logout();
+            }
+          }).catch(err => {
+            console.warn('[IQAC Auth] Auth session verification notice:', err);
+          });
+        }
       } catch (e) {
-        localStorage.removeItem('iqac_user');
+        logout();
       }
     }
-  }, []);
+  }, [logout]);
 
   const login = async (email: string, password: string, role: UserRole): Promise<LoginResult> => {
     const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
@@ -172,6 +225,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       setUser(newUser);
       localStorage.setItem('iqac_user', JSON.stringify(newUser));
+      if (newUser.token) {
+        localStorage.setItem('token', newUser.token);
+      }
       return { success: true };
     }
 
@@ -179,11 +235,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       success: false,
       error: data?.message || 'Login failed. Please verify credentials.'
     };
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('iqac_user');
   };
 
   return (
