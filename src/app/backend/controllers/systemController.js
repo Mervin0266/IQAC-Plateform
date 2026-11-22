@@ -175,7 +175,7 @@ exports.getDashboardStats = async (req, res) => {
       courseCount
     ] = await Promise.all([
       Student ? Student.count().catch(() => 0) : 0,
-      Faculty ? Faculty.count().catch(() => 0) : 0,
+      Faculty ? Faculty.count({ distinct: true, col: 'employeeId', where: { status: 'Active' } }).catch(() => 0) : 0,
       Achievement ? Achievement.count().catch(() => 0) : 0,
       Patent ? Patent.count().catch(() => 0) : 0,
       Publication ? Publication.count().catch(() => 0) : 0,
@@ -276,22 +276,31 @@ exports.getDashboardStats = async (req, res) => {
         const placements = await Placement.findAll();
         let salarySum = 0;
         let maxSalary = 0;
+        let countWithPkg = 0;
+        // Group by student to select student's highest package
+        const studentPkgMap = new Map();
         placements.forEach(p => {
           const pkg = Number(p.package) || 0;
+          const sId = p.studentId || p.studentName || p.id;
           if (pkg > 0) {
-            salarySum += pkg;
-            if (pkg > maxSalary) maxSalary = pkg;
+            const curr = studentPkgMap.get(sId) || 0;
+            if (pkg > curr) studentPkgMap.set(sId, pkg);
           }
         });
-        avgSalary = placements.length > 0 ? (salarySum / placements.length).toFixed(1) : '0.0';
-        highestSalary = maxSalary > 0 ? maxSalary.toFixed(1) : '0.0';
+        studentPkgMap.forEach(pkg => {
+          salarySum += pkg;
+          countWithPkg++;
+          if (pkg > maxSalary) maxSalary = pkg;
+        });
+        avgSalary = countWithPkg > 0 ? (salarySum / countWithPkg).toFixed(2) : '0.00';
+        highestSalary = maxSalary > 0 ? maxSalary.toFixed(2) : '0.00';
       } catch (err) {
         console.warn('Dashboard placements fetch notice:', err.message);
       }
     }
 
     // Student to Faculty Ratio (SFR)
-    const sfrRatio = (facultyCount > 0 && studentCount > 0) ? Math.round(studentCount / facultyCount) : 0;
+    const sfrRatio = (facultyCount > 0 && studentCount > 0) ? (studentCount / facultyCount).toFixed(1) : '0.0';
 
     const totalResearchPapers = publicationCount > 0 
       ? publicationCount 
@@ -306,7 +315,7 @@ exports.getDashboardStats = async (req, res) => {
       data: {
         totalStudents: studentCount,
         totalFaculty: facultyCount,
-        sfr: sfrRatio > 0 ? `1:${sfrRatio}` : (facultyCount > 0 ? '1:1' : '—'),
+        sfr: sfrRatio !== '0.0' ? `${sfrRatio}:1` : (facultyCount > 0 ? '1:1' : '—'),
         totalAchievements: achievementCount,
         facultyAchievements: achievementCount,
         annualReports: docCount,

@@ -439,6 +439,7 @@ const STUDENT_HEADERS = [
   'Current State',
   'Permanent City',
   'Permanent State',
+  'Permanent Country',
   'Parent Mobile No',
   'Handicapped',
   'Handicapped Description',
@@ -530,9 +531,11 @@ const normalizeCategoryHeader = (header: string): string => {
 const FACULTY_HEADERS = [
   'EmpId',
   'Name',
+  'Official Email ID',
   'Designation',
   'Department',
   'Gender',
+  'Nationality',
   'Date of birth',
   'PanCard No',
   'Date Of Joining',
@@ -544,6 +547,11 @@ const FACULTY_HEADERS = [
   'Highest Qualification',
   'Experience in CU - Years',
   'Experience in CU - Months',
+  'Total Current Experience - Years',
+  'Total Current Experience - Months',
+  'Permanent City',
+  'Permanent State',
+  'Permanent Country',
 ];
 
 const FACULTY_REQUIRED = ['EmpId', 'Name', 'Designation', 'Department'];
@@ -756,15 +764,15 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
     } else if (isFaculty) {
       csvContent =
         FACULTY_HEADERS.join(',') + '\n' +
-        `EMP001,"Dr. Rajesh Kumar",Professor,"Computer Science and Engineering",Male,1980-05-15,ABCPK1234D,2010-07-01,5,6,3,0,PhD,"Ph.D. in Computer Science",13,6\n` +
-        `EMP002,"Ms. Priya Sharma","Assistant Professor","Electronics and Communication Engineering",Female,1990-03-22,XYZPS5678E,2018-08-01,2,0,0,0,PG,"M.Tech in VLSI",5,11`;
+        `EMP001,"Dr. Rajesh Kumar",rajesh.kumar@christuniversity.in,Professor,"Computer Science and Engineering",Male,Indian,1980-05-15,ABCPK1234D,2010-07-01,5,6,3,0,PhD,"Ph.D. in Computer Science",13,6,22,0,Bengaluru,Karnataka,India\n` +
+        `EMP002,"Ms. Priya Sharma",priya.sharma@christuniversity.in,"Assistant Professor","Electronics and Communication Engineering",Female,Indian,1990-03-22,XYZPS5678E,2018-08-01,2,0,0,0,PG,"M.Tech in VLSI",5,11,7,11,Bengaluru,Karnataka,India`;
       fileName = 'faculty_bulk_template.csv';
     } else if (isStudent) {
       csvContent =
         STUDENT_HEADERS.join(',') + '\n' +
-        `"2460301","Aarav Sharma","3A B.Tech CSE","APP12345","Male","2002-04-12","9876543210","Indian","General","Bengaluru","Karnataka","Bengaluru","Karnataka","9876543211","NO","","Kengeri Campus","NO","Computer Science and Engineering","UG"\n` +
-        `"2460302","Ananya Rao","3B B.Tech ADSE","APP12346","Female","2003-09-25","9876543212","Indian","General","Bengaluru","Karnataka","Mysuru","Karnataka","9876543213","NO","","Kengeri Campus","NO","AI and Data Science Engineering","UG"\n` +
-        `"2560301","Diya Patel","Research Scholar","APP12347","Female","1998-11-15","9876543214","Indian","General","Bengaluru","Karnataka","Hubballi","Karnataka","9876543215","NO","","Kengeri Campus","NO","Civil Engineering","PhD"`;
+        `"2460301","Aarav Sharma","3A B.Tech CSE","APP12345","Male","2002-04-12","9876543210","Indian","General","Bengaluru","Karnataka","Bengaluru","Karnataka","India","9876543211","NO","","Kengeri Campus","NO","Computer Science and Engineering","UG"\n` +
+        `"2460302","Ananya Rao","3B B.Tech ADSE","APP12346","Female","2003-09-25","9876543212","Indian","General","Bengaluru","Karnataka","Mysuru","Karnataka","India","9876543213","NO","","Kengeri Campus","NO","AI and Data Science Engineering","UG"\n` +
+        `"2560301","Diya Patel","Research Scholar","APP12347","Female","1998-11-15","9876543214","Indian","General","Bengaluru","Karnataka","Hubballi","Karnataka","India","9876543215","NO","","Kengeri Campus","NO","Civil Engineering","PhD"`;
       fileName = 'students_bulk_template.csv';
     } else if (isDepartment) {
       csvContent =
@@ -775,10 +783,10 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
     } else if (isPlacement) {
       const isIntern = selectedPlacementType === 'internship';
       csvContent =
-        "Register Number,Name,Department,Program,Designation/Role,Company,Package\n" +
+        "Register Number,Academic Year,Name,Department,Program,Designation/Role,Company,Package\n" +
         (isIntern
-          ? "\"2447002\",\"Jane Smith\",\"Computer Science and Engineering\",\"B.Tech Computer Science and Engineering\",\"Frontend Developer Intern\",\"Microsoft India\",45000\n\"2447003\",\"Arun Kumar\",\"Electronics and Communication Engineering\",\"B.Tech Electronics and Communication Engineering\",\"Hardware Intern\",\"Texas Instruments\",0"
-          : "\"2447001\",\"John Doe\",\"Computer Science and Engineering\",\"B.Tech Computer Science and Engineering\",\"Software Development Engineer\",\"Google India\",14.50\n\"2447004\",\"Priya Sharma\",\"AI and Data Science Engineering\",\"B.Tech (Artificial Intelligence and Machine Learning)\",\"Data Engineer\",\"Samsung R&D\",8.50"
+          ? "\"2447002\",\"2024-25\",\"Jane Smith\",\"Computer Science and Engineering\",\"B.Tech Computer Science and Engineering\",\"Frontend Developer Intern\",\"Microsoft India\",45000\n\"2447003\",\"2024-25\",\"Arun Kumar\",\"Electronics and Communication Engineering\",\"B.Tech Electronics and Communication Engineering\",\"Hardware Intern\",\"Texas Instruments\",0"
+          : "\"2447001\",\"2024-25\",\"John Doe\",\"Computer Science and Engineering\",\"B.Tech Computer Science and Engineering\",\"Software Development Engineer\",\"Google India\",14.50\n\"2447004\",\"2024-25\",\"Priya Sharma\",\"AI and Data Science Engineering\",\"B.Tech (Artificial Intelligence and Machine Learning)\",\"Data Engineer\",\"Samsung R&D\",8.50"
         );
       fileName = isIntern ? 'internships_bulk_template.csv' : 'placements_bulk_template.csv';
     } else if (isDepartmentalActivity) {
@@ -869,16 +877,16 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
     } else if (isFaculty) {
       headers = FACULTY_HEADERS;
       sampleRows = [
-        ['EMP001', 'Dr. Rajesh Kumar', 'Professor', 'Computer Science and Engineering', 'Male', '1980-05-15', 'ABCPK1234D', '2010-07-01', '5', '6', '3', '0', 'PhD', 'Ph.D. in Computer Science', '13', '6'],
-        ['EMP002', 'Ms. Priya Sharma', 'Assistant Professor', 'Electronics and Communication Engineering', 'Female', '1990-03-22', 'XYZPS5678E', '2018-08-01', '2', '0', '0', '0', 'PG', 'M.Tech in VLSI', '5', '11']
+        ['EMP001', 'Dr. Rajesh Kumar', 'rajesh.kumar@christuniversity.in', 'Professor', 'Computer Science and Engineering', 'Male', 'Indian', '1980-05-15', 'ABCPK1234D', '2010-07-01', '5', '6', '3', '0', 'PhD', 'Ph.D. in Computer Science', '13', '6', '22', '0', 'Bengaluru', 'Karnataka', 'India'],
+        ['EMP002', 'Ms. Priya Sharma', 'priya.sharma@christuniversity.in', 'Assistant Professor', 'Electronics and Communication Engineering', 'Female', 'Indian', '1990-03-22', 'XYZPS5678E', '2018-08-01', '2', '0', '0', '0', 'PG', 'M.Tech in VLSI', '5', '11', '7', '11', 'Bengaluru', 'Karnataka', 'India']
       ];
       fileName = 'faculty_bulk_template.xlsx';
     } else if (isStudent) {
       headers = STUDENT_HEADERS;
       sampleRows = [
-        ['2460301', 'Aarav Sharma', '3A B.Tech CSE', 'APP12345', 'Male', '2002-04-12', '9876543210', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Bengaluru', 'Karnataka', '9876543211', 'NO', '', 'Kengeri Campus', 'NO', 'Computer Science and Engineering', 'UG'],
-        ['2460302', 'Ananya Rao', '3B B.Tech ADSE', 'APP12346', 'Female', '2003-09-25', '9876543212', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Mysuru', 'Karnataka', '9876543213', 'NO', '', 'Kengeri Campus', 'NO', 'AI and Data Science Engineering', 'UG'],
-        ['2560301', 'Diya Patel', 'Research Scholar', 'APP12347', 'Female', '1998-11-15', '9876543214', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Hubballi', 'Karnataka', '9876543215', 'NO', '', 'Kengeri Campus', 'NO', 'Civil Engineering', 'PhD']
+        ['2460301', 'Aarav Sharma', '3A B.Tech CSE', 'APP12345', 'Male', '2002-04-12', '9876543210', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Bengaluru', 'Karnataka', 'India', '9876543211', 'NO', '', 'Kengeri Campus', 'NO', 'Computer Science and Engineering', 'UG'],
+        ['2460302', 'Ananya Rao', '3B B.Tech ADSE', 'APP12346', 'Female', '2003-09-25', '9876543212', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Mysuru', 'Karnataka', 'India', '9876543213', 'NO', '', 'Kengeri Campus', 'NO', 'AI and Data Science Engineering', 'UG'],
+        ['2560301', 'Diya Patel', 'Research Scholar', 'APP12347', 'Female', '1998-11-15', '9876543214', 'Indian', 'General', 'Bengaluru', 'Karnataka', 'Hubballi', 'Karnataka', 'India', '9876543215', 'NO', '', 'Kengeri Campus', 'NO', 'Civil Engineering', 'PhD']
       ];
       fileName = 'students_bulk_template.xlsx';
     } else if (isDepartment) {
@@ -890,13 +898,13 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
       fileName = 'departments_bulk_template.xlsx';
     } else if (isPlacement) {
       const isIntern = selectedPlacementType === 'internship';
-      headers = ['Register Number', 'Name', 'Department', 'Program', 'Designation/Role', 'Company', 'Package'];
+      headers = ['Register Number', 'Academic Year', 'Name', 'Department', 'Program', 'Designation/Role', 'Company', 'Package'];
       sampleRows = isIntern ? [
-        ['2447002', 'Jane Smith', 'Computer Science and Engineering', 'B.Tech Computer Science and Engineering', 'Frontend Developer Intern', 'Microsoft India', 45000],
-        ['2447003', 'Arun Kumar', 'Electronics and Communication Engineering', 'B.Tech Electronics and Communication Engineering', 'Hardware Intern', 'Texas Instruments', 0]
+        ['2447002', '2024-25', 'Jane Smith', 'Computer Science and Engineering', 'B.Tech Computer Science and Engineering', 'Frontend Developer Intern', 'Microsoft India', 45000],
+        ['2447003', '2024-25', 'Arun Kumar', 'Electronics and Communication Engineering', 'B.Tech Electronics and Communication Engineering', 'Hardware Intern', 'Texas Instruments', 0]
       ] : [
-        ['2447001', 'John Doe', 'Computer Science and Engineering', 'B.Tech Computer Science and Engineering', 'Software Development Engineer', 'Google India', 14.50],
-        ['2447004', 'Priya Sharma', 'AI and Data Science Engineering', 'B.Tech (Artificial Intelligence and Machine Learning)', 'Data Engineer', 'Samsung R&D', 8.50]
+        ['2447001', '2024-25', 'John Doe', 'Computer Science and Engineering', 'B.Tech Computer Science and Engineering', 'Software Development Engineer', 'Google India', 14.50],
+        ['2447004', '2024-25', 'Priya Sharma', 'AI and Data Science Engineering', 'B.Tech (Artificial Intelligence and Machine Learning)', 'Data Engineer', 'Samsung R&D', 8.50]
       ];
       fileName = isIntern ? 'internships_bulk_template.xlsx' : 'placements_bulk_template.xlsx';
     } else if (isDepartmentalActivity) {
@@ -1612,10 +1620,10 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
     } else if (isDepartment) {
       missing = DEPARTMENT_REQUIRED.filter(field => !headers.includes(field));
     } else if (isPlacement) {
-      const hasAY = headers.some(h => ['AY (Academic Year)', 'AY( Academic Year)', 'AY (Academic Year)', 'AY', 'Batch', 'batch'].includes(h));
+      const hasAY = headers.some(h => ['academic year', 'ay (academic year)', 'ay( academic year)', 'ay', 'batch'].includes(h.toLowerCase().trim()));
       const reqOthers = ['Register Number', 'Name', 'Department', 'Company', 'Package'];
-      const missingOthers = reqOthers.filter(field => !headers.includes(field));
-      if (!hasAY) missingOthers.push('AY (Academic Year)');
+      const missingOthers = reqOthers.filter(field => !headers.some(h => h.toLowerCase().trim() === field.toLowerCase().trim()));
+      if (!hasAY) missingOthers.push('Academic Year');
       missing = missingOthers;
     } else if (isDepartmentalActivity) {
       const isMatrixFormat = headers.some(h => {
@@ -1925,22 +1933,42 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
             const rawVal = val !== undefined && val !== null ? String(val).trim() : '';
             const cleanVal = ['nil', 'n/a', 'na', 'null', '-', '--', 'none'].includes(rawVal.toLowerCase()) ? '' : rawVal;
             switch (header) {
-              case 'EmpId':            record['employeeId'] = cleanVal; break;
+              case 'EmpId':
+              case 'Employee ID':
+              case 'EmployeeId':       record['employeeId'] = cleanVal; break;
               case 'Name':             record['name'] = cleanVal; break;
+              case 'Official Email ID':
+              case 'Official Email':
+              case 'Email':            record['officialEmailId'] = cleanVal; record['email'] = cleanVal; break;
               case 'Designation':      record['designation'] = normalizeDesignationName(cleanVal) || ''; break;
               case 'Department':       record['department'] = normalizeDepartmentName(cleanVal) || ''; break;
               case 'Gender':           record['gender'] = normalizeGender(cleanVal); break;
-              case 'Date of birth':    record['dateOfBirth'] = formatDateToISO(cleanVal); break;
-              case 'PanCard No':       record['panCardNo'] = cleanVal; break;
-              case 'Date Of Joining':  record['dateOfJoining'] = formatDateToISO(cleanVal); break;
-              case 'Previous Teaching Experince Years':   record['prevTeachingExpYears'] = cleanVal || '0'; break;
-              case 'Previous Teaching Experince Months':  record['prevTeachingExpMonths'] = cleanVal || '0'; break;
-              case 'Previous Industry Experince Years':   record['prevIndustryExpYears'] = cleanVal || '0'; break;
-              case 'Previous Industry Experince Months':  record['prevIndustryExpMonths'] = cleanVal || '0'; break;
+              case 'Nationality':      record['nationality'] = cleanVal; break;
+              case 'Date of birth':
+              case 'Date of Birth':    record['dateOfBirth'] = formatDateToISO(cleanVal); break;
+              case 'PanCard No':
+              case 'PAN Card No':      record['panCardNo'] = cleanVal; break;
+              case 'Date Of Joining':
+              case 'Date of Joining':  record['dateOfJoining'] = formatDateToISO(cleanVal); break;
+              case 'Previous Teaching Experince Years':
+              case 'Previous Teaching Experience Years':  record['prevTeachingExpYears'] = cleanVal || '0'; break;
+              case 'Previous Teaching Experince Months':
+              case 'Previous Teaching Experience Months': record['prevTeachingExpMonths'] = cleanVal || '0'; break;
+              case 'Previous Industry Experince Years':
+              case 'Previous Industry Experience Years':  record['prevIndustryExpYears'] = cleanVal || '0'; break;
+              case 'Previous Industry Experince Months':
+              case 'Previous Industry Experience Months': record['prevIndustryExpMonths'] = cleanVal || '0'; break;
               case 'Qualification Level':     record['qualificationLevel'] = cleanVal; break;
               case 'Highest Qualification':   record['highestQualification'] = cleanVal; break;
               case 'Experience in CU - Years':  record['cuExpYears'] = cleanVal || '0'; break;
               case 'Experience in CU - Months': record['cuExpMonths'] = cleanVal || '0'; break;
+              case 'Total Current Experience - Years':
+              case 'Total Current Exp - Years': record['totalCurrentExpYears'] = cleanVal || '0'; break;
+              case 'Total Current Experience - Months':
+              case 'Total Current Exp - Months': record['totalCurrentExpMonths'] = cleanVal || '0'; break;
+              case 'Permanent City':           record['permanentCity'] = cleanVal; break;
+              case 'Permanent State':          record['permanentState'] = cleanVal; break;
+              case 'Permanent Country':        record['permanentCountry'] = cleanVal; break;
               case 'Academic Year':            record['academicYear'] = cleanVal || selectedAcademicYear || '2024-2025'; break;
               default: record[header] = cleanVal;
             }
@@ -1969,6 +1997,7 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
               case 'Current State':            record['currentState'] = cleanVal; break;
               case 'Permanent City':           record['permanentCity'] = cleanVal; break;
               case 'Permanent State':          record['permanentState'] = cleanVal; break;
+              case 'Permanent Country':        record['permanentCountry'] = cleanVal; break;
               case 'Parent Mobile No':         record['parentMobileNo'] = cleanVal; record['guardianPhone'] = cleanVal; break;
               case 'Handicapped':              record['handicapped'] = cleanVal; break;
               case 'Handicapped Description':  record['handicappedDescription'] = cleanVal; break;
@@ -2002,8 +2031,9 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
               record['studentId'] = val ? String(val).trim() : '';
             } else if (lh === 'name' || lh === 'student name' || lh === 'studentname') {
               record['studentName'] = val ? String(val).trim() : '';
-            } else if (['ay (academic year)', 'ay( academic year)', 'ay', 'batch'].includes(lh)) {
+            } else if (['academic year', 'ay (academic year)', 'ay( academic year)', 'ay', 'batch'].includes(lh)) {
               record['batch'] = val ? String(val).trim() : selectedAcademicYear;
+              record['academicYear'] = val ? String(val).trim() : selectedAcademicYear;
             } else if (lh === 'department' || lh === 'dept') {
               record['department'] = val ? String(val).trim() : '';
             } else if (lh === 'program' || lh === 'course' || lh === 'degree') {
@@ -2984,7 +3014,7 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
     if (isFaculty) return FACULTY_REQUIRED;
     if (isStudent) return ['Register No', 'Student Name'];
     if (isDepartment) return ['Code', 'Name'];
-    if (isPlacement) return ['Register Number', 'Name', 'Department', 'Program', 'Designation/Role', 'Company', 'Package'];
+    if (isPlacement) return ['Register Number', 'Academic Year', 'Name', 'Department', 'Program', 'Designation/Role', 'Company', 'Package'];
     if (isDepartmentalActivity) return ['Department'];
     return ['title', 'category', 'date', 'year'];
   }, [isSponsored, isPatent, isAwards, isEContent, isProfessionalDevelopment, isInvitedTalk, isPeriodical, isPublication, isConsultancy, isFaculty, isStudent, isDepartment, isPlacement, isDepartmentalActivity]);

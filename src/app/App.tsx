@@ -1,13 +1,28 @@
-import React, { useState, Suspense } from 'react';
+import React, { Suspense } from 'react';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useParams,
+} from 'react-router';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { SystemConfigProvider, useSystemConfig } from './contexts/SystemConfigContext';
+import { SystemConfigProvider } from './contexts/SystemConfigContext';
 import { LoginPage } from './components/LoginPage';
-import { PublicWebsite } from './components/PublicWebsite';
-import { hasPageAccess } from './config/permissions';
+import { PublicLayout } from './components/layouts/PublicLayout';
+import { DashboardLayout } from './components/layouts/DashboardLayout';
+import { ProtectedRoute } from './components/routing/ProtectedRoute';
+import { RoleBasedRoute } from './components/routing/RoleBasedRoute';
+import { NotFoundPage } from './components/routing/NotFoundPage';
 
 // ── Lazy-loaded page components ──────────────────────────────────
 // Code-splitting: each page is a separate chunk loaded on demand.
-// This reduces the initial bundle from ~1,655 KB to ~400 KB.
+const PublicHomePage = React.lazy(() => import('./components/PublicHomePage').then(m => ({ default: m.PublicHomePage })));
+const CareerOutcomesPage = React.lazy(() => import('./components/CareerOutcomesPage').then(m => ({ default: m.CareerOutcomesPage })));
+const ConsultancyProjectsPage = React.lazy(() => import('./components/ConsultancyProjectsPage').then(m => ({ default: m.ConsultancyProjectsPage })));
+const ResearchInnovationPage = React.lazy(() => import('./components/ResearchInnovationPage').then(m => ({ default: m.ResearchInnovationPage })));
+
 const DashboardPage = React.lazy(() => import('./components/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const AchievementsPage = React.lazy(() => import('./components/AchievementsPage').then(m => ({ default: m.AchievementsPage })));
 const AwardsPage = React.lazy(() => import('./components/AwardsPage').then(m => ({ default: m.AwardsPage })));
@@ -24,9 +39,6 @@ const UserManagementPage = React.lazy(() => import('./components/UserManagementP
 const SystemAdminPortal = React.lazy(() => import('./components/SystemAdminPortal').then(m => ({ default: m.SystemAdminPortal })));
 const RankingPage = React.lazy(() => import('./components/RankingPage').then(m => ({ default: m.RankingPage })));
 const ResearchPage = React.lazy(() => import('./components/ResearchPage').then(m => ({ default: m.ResearchPage })));
-const PublicationsPage = React.lazy(() => import('./components/PublicationsPage').then(m => ({ default: m.PublicationsPage })));
-const PatentsPage = React.lazy(() => import('./components/PatentsPage').then(m => ({ default: m.PatentsPage })));
-const SponsoredResearchPage = React.lazy(() => import('./components/SponsoredResearchPage').then(m => ({ default: m.SponsoredResearchPage })));
 const IncubationsPage = React.lazy(() => import('./components/IncubationsPage').then(m => ({ default: m.IncubationsPage })));
 const IndustryConnectsPage = React.lazy(() => import('./components/IndustryConnectsPage').then(m => ({ default: m.IndustryConnectsPage })));
 const InternationalInteractionsPage = React.lazy(() => import('./components/InternationalInteractionsPage').then(m => ({ default: m.InternationalInteractionsPage })));
@@ -38,9 +50,8 @@ const FacultyDetailsPage = React.lazy(() => import('./components/FacultyDetailsP
 const DepartmentDetailsPage = React.lazy(() => import('./components/DepartmentDetailsPage').then(m => ({ default: m.DepartmentDetailsPage })));
 const DepartmentalActivitiesPage = React.lazy(() => import('./components/DepartmentalActivitiesPage').then(m => ({ default: m.DepartmentalActivitiesPage })));
 const DynamicParameterMaster = React.lazy(() => import('./components/DynamicParameterMaster').then(m => ({ default: m.DynamicParameterMaster })));
-const PageSkeleton = React.lazy(() => import('./components/PageSkeleton').then(m => ({ default: m.PageSkeleton })));
 
-/** Minimal inline fallback for the Suspense boundary (avoids circular lazy deps) */
+/** Minimal inline fallback for the Suspense boundary */
 function SuspenseFallback() {
   return (
     <div className="min-h-screen bg-[#F5F7FB] flex items-center justify-center">
@@ -52,185 +63,346 @@ function SuspenseFallback() {
   );
 }
 
-function AppContent() {
-  const { user, isAuthenticated } = useAuth();
-  const { isSystemAdmin } = useSystemConfig();
-  const [currentPage, setCurrentPage] = useState('dashboard');
-  const [showLogin, setShowLogin] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname.toLowerCase();
-      const search = window.location.search.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      return (
-        path === '/login' ||
-        path.startsWith('/login') ||
-        search.includes('login') ||
-        hash === '#login' ||
-        hash.includes('login')
-      );
-    }
-    return false;
-  });
+/** Helper component to provide public navigation helpers to public views */
+function PublicHomeRoute() {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
-  // Keep URL in sync with login view
-  React.useEffect(() => {
-    const handleLocationChange = () => {
-      const path = window.location.pathname.toLowerCase();
-      const search = window.location.search.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      if (path === '/login' || search.includes('login') || hash === '#login') {
-        setShowLogin(true);
-      }
-    };
-    const handleAuthLogout = () => {
-      setShowLogin(true);
-    };
-    window.addEventListener('popstate', handleLocationChange);
-    window.addEventListener('iqac-auth-logout', handleAuthLogout);
-    return () => {
-      window.removeEventListener('popstate', handleLocationChange);
-      window.removeEventListener('iqac-auth-logout', handleAuthLogout);
-    };
-  }, []);
-
-  // Check if user has access to current page (Hook called unconditionally at top level)
-  React.useEffect(() => {
-    if (user && !hasPageAccess(user.role, currentPage, isSystemAdmin)) {
-      setCurrentPage('dashboard');
+  const handleNavigate = (section: string) => {
+    if (section.startsWith('#')) {
+      const destination = document.getElementById(section.slice(1));
+      destination?.focus({ preventScroll: true });
+      destination?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      });
+      return;
     }
-  }, [user, currentPage, isSystemAdmin]);
+    const targetPath = section === 'home' ? '/' : `/${section}`;
+    navigate(targetPath);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
 
-  // If not authenticated and not explicitly showing login, show public website
-  if (!isAuthenticated || !user) {
-    if (showLogin) {
-      return (
-        <LoginPage
-          onBack={() => {
-            setShowLogin(false);
-            if (typeof window !== 'undefined' && window.location.pathname === '/login') {
-              window.history.pushState({}, '', '/');
-            }
-          }}
-        />
-      );
+  return (
+    <PublicHomePage
+      onNavigate={handleNavigate}
+      onLoginClick={() => navigate('/login')}
+      onDashboardClick={() => navigate('/dashboard')}
+      isAuthenticated={isAuthenticated}
+    />
+  );
+}
+
+/** Wrapper for public section-detail pages */
+function PublicSectionRoute({ component: Component, ...extraProps }: { component: React.ComponentType<any>; [key: string]: any }) {
+  const navigate = useNavigate();
+  const handleNavigate = (section: string) => {
+    if (section.startsWith('#')) {
+      navigate('/');
+      requestAnimationFrame(() => {
+        const destination = document.getElementById(section.slice(1));
+        destination?.focus({ preventScroll: true });
+        destination?.scrollIntoView({
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+        });
+      });
+      return;
     }
+    const targetPath = section === 'home' ? '/' : `/${section}`;
+    navigate(targetPath);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  return <Component onNavigate={handleNavigate} {...extraProps} />;
+}
+
+/** Dashboard page dispatcher mapping /dashboard/:section to authorized views */
+function DashboardSectionDispatcher() {
+  const { section = 'dashboard' } = useParams<{ section: string }>();
+  const navigate = useNavigate();
+
+  const handleDashboardNavigate = (page: string) => {
+    if (page === 'home' || page === 'public') {
+      navigate('/');
+      return;
+    }
+    if (page === 'dashboard') {
+      navigate('/dashboard');
+      return;
+    }
+    if (page.startsWith('strategic-plan-')) {
+      const deptId = page.replace('strategic-plan-', '');
+      navigate(`/dashboard/strategic-plan/${deptId}`);
+      return;
+    }
+    navigate(`/dashboard/${page}`);
+  };
+
+  if (section.startsWith('strategic-plan-')) {
+    const deptId = section.replace('strategic-plan-', '');
     return (
-      <PublicWebsite
-        onLoginClick={() => {
-          setShowLogin(true);
-          if (typeof window !== 'undefined') {
-            window.history.pushState({}, '', '/login');
-          }
-        }}
-      />
+      <RoleBasedRoute pageId="strategic-plan">
+        <DepartmentTrackingPage onNavigate={handleDashboardNavigate} departmentId={deptId} />
+      </RoleBasedRoute>
     );
   }
 
-  const renderPage = () => {
-    if (currentPage.startsWith('strategic-plan-')) {
-      const deptId = currentPage.replace('strategic-plan-', '');
-      return <DepartmentTrackingPage onNavigate={setCurrentPage} departmentId={deptId} />;
-    }
-
-    switch (currentPage) {
+  const renderSection = () => {
+    switch (section) {
       case 'dashboard':
-        return <DashboardPage onNavigate={setCurrentPage} />;
+        return <DashboardPage onNavigate={handleDashboardNavigate} />;
       case 'faculty-details':
-        return <FacultyDetailsPage onNavigate={setCurrentPage} />;
+        return <FacultyDetailsPage onNavigate={handleDashboardNavigate} />;
       case 'professional-developments':
-        return <ProfessionalDevelopmentsPage onNavigate={setCurrentPage} />;
+        return <ProfessionalDevelopmentsPage onNavigate={handleDashboardNavigate} />;
       case 'invited-talks':
-        return <InvitedTalksPage onNavigate={setCurrentPage} />;
+        return <InvitedTalksPage onNavigate={handleDashboardNavigate} />;
       case 'periodicals':
-        return <PeriodicalsPage onNavigate={setCurrentPage} />;
+        return <PeriodicalsPage onNavigate={handleDashboardNavigate} />;
       case 'student-details':
-        return <StudentDetailsPage onNavigate={setCurrentPage} />;
+        return <StudentDetailsPage onNavigate={handleDashboardNavigate} />;
       case 'department-details':
-        return <DepartmentDetailsPage onNavigate={setCurrentPage} />;
+        return <DepartmentDetailsPage onNavigate={handleDashboardNavigate} />;
       case 'departmental-activities':
-        return <DepartmentalActivitiesPage onNavigate={setCurrentPage} />;
+        return <DepartmentalActivitiesPage onNavigate={handleDashboardNavigate} />;
       case 'achievements':
-        return <AchievementsPage onNavigate={setCurrentPage} />;
+        return <AchievementsPage onNavigate={handleDashboardNavigate} />;
       case 'awards':
-        return <AwardsPage onNavigate={setCurrentPage} />;
+        return <AwardsPage onNavigate={handleDashboardNavigate} />;
       case 'e-contents':
-        return <EContentsPage onNavigate={setCurrentPage} />;
+        return <EContentsPage onNavigate={handleDashboardNavigate} />;
       case 'course-files':
-        return <CourseFilesPage onNavigate={setCurrentPage} />;
+        return <CourseFilesPage onNavigate={handleDashboardNavigate} />;
       case 'ranking':
       case 'nirf-ranking':
       case 'india-today-ranking':
       case 'the-world-ranking':
       case 'qs-india-ranking':
-        return <RankingPage onNavigate={setCurrentPage} currentPage={currentPage} />;
+        return <RankingPage onNavigate={handleDashboardNavigate} currentPage={section} />;
       case 'publications':
-        return <ResearchPage onNavigate={setCurrentPage} currentPage={currentPage} />;
+        return <ResearchPage onNavigate={handleDashboardNavigate} currentPage="publications" />;
       case 'patents':
-        return <ResearchPage onNavigate={setCurrentPage} currentPage="research-innovation" />;
+        return <ResearchPage onNavigate={handleDashboardNavigate} currentPage="research-innovation" />;
       case 'copyrights':
-        return <ResearchPage onNavigate={setCurrentPage} currentPage="copyrights" />;
+        return <ResearchPage onNavigate={handleDashboardNavigate} currentPage="copyrights" />;
       case 'research-metrics':
       case 'research-innovation':
       case 'sponsored-research':
       case 'external-research':
       case 'internal-research':
       case 'consultancy-projects':
-        return <ResearchPage onNavigate={setCurrentPage} currentPage={currentPage} />;
+        return <ResearchPage onNavigate={handleDashboardNavigate} currentPage={section} />;
       case 'incubations':
-        return <IncubationsPage onNavigate={setCurrentPage} />;
+        return <IncubationsPage onNavigate={handleDashboardNavigate} />;
       case 'industry-connects':
-        return <IndustryConnectsPage onNavigate={setCurrentPage} />;
+        return <IndustryConnectsPage onNavigate={handleDashboardNavigate} />;
       case 'international-interactions':
-        return <InternationalInteractionsPage onNavigate={setCurrentPage} />;
+        return <InternationalInteractionsPage onNavigate={handleDashboardNavigate} />;
       case 'centre-excellence':
-        return <CentreExcellencePage onNavigate={setCurrentPage} />;
+        return <CentreExcellencePage onNavigate={handleDashboardNavigate} />;
       case 'infrastructure-facilities':
-        return <InfrastructureFacilitiesPage onNavigate={setCurrentPage} />;
+        return <InfrastructureFacilitiesPage onNavigate={handleDashboardNavigate} />;
       case 'placements':
-        return <PlacementsInternshipsPage onNavigate={setCurrentPage} mode="placement" />;
+        return <PlacementsInternshipsPage onNavigate={handleDashboardNavigate} mode="placement" />;
       case 'internships':
-        return <PlacementsInternshipsPage onNavigate={setCurrentPage} mode="internship" />;
+        return <PlacementsInternshipsPage onNavigate={handleDashboardNavigate} mode="internship" />;
       case 'placements-internships':
-        return <PlacementsInternshipsPage onNavigate={setCurrentPage} mode="all" />;
+        return <PlacementsInternshipsPage onNavigate={handleDashboardNavigate} mode="all" />;
       case 'strategic-plan':
-        return <StrategicPlanPage onNavigate={setCurrentPage} />;
+        return <StrategicPlanPage onNavigate={handleDashboardNavigate} />;
       case 'accreditation':
       case 'naac-accreditation':
       case 'nba-tracking':
-        return <DynamicParameterMaster onNavigate={setCurrentPage} currentPage={currentPage} />;
+        return <DynamicParameterMaster onNavigate={handleDashboardNavigate} currentPage={section} />;
       case 'event-logs':
-        return <PlaceholderPage 
-          title="Event Logs and Report" 
-          description="View system events, activity logs, and generate comprehensive reports."
-          onNavigate={setCurrentPage}
-          currentPage={currentPage}
-        />;
+        return (
+          <PlaceholderPage
+            title="Event Logs and Report"
+            description="View system events, activity logs, and generate comprehensive reports."
+            onNavigate={handleDashboardNavigate}
+            currentPage={section}
+          />
+        );
       case 'user-roles':
-        return <UserRolesPage onNavigate={setCurrentPage} />;
+        return <UserRolesPage onNavigate={handleDashboardNavigate} />;
       case 'user-management':
-        return <UserManagementPage onNavigate={setCurrentPage} />;
+        return <UserManagementPage onNavigate={handleDashboardNavigate} />;
       case 'system-admin':
-        return <SystemAdminPortal onNavigate={setCurrentPage} />;
+        return <SystemAdminPortal onNavigate={handleDashboardNavigate} />;
       default:
-        return <DashboardPage onNavigate={setCurrentPage} />;
+        return <NotFoundPage />;
     }
   };
 
+  return <RoleBasedRoute pageId={section}>{renderSection()}</RoleBasedRoute>;
+}
+
+/** Strategic Plan tracking with department ID parameter */
+function StrategicPlanDepartmentRoute() {
+  const { deptId = '' } = useParams<{ deptId: string }>();
+  const navigate = useNavigate();
+
+  const handleDashboardNavigate = (page: string) => {
+    if (page === 'home' || page === 'public') {
+      navigate('/');
+      return;
+    }
+    if (page === 'dashboard') {
+      navigate('/dashboard');
+      return;
+    }
+    navigate(`/dashboard/${page}`);
+  };
+
   return (
-    <div className="min-h-screen bg-[#F5F7FB]">
-      <Suspense fallback={<SuspenseFallback />}>
-        {renderPage()}
-      </Suspense>
-    </div>
+    <RoleBasedRoute pageId="strategic-plan">
+      <DepartmentTrackingPage onNavigate={handleDashboardNavigate} departmentId={deptId} />
+    </RoleBasedRoute>
+  );
+}
+
+/** Dashboard Index Route Component */
+function DashboardIndexRoute() {
+  const navigate = useNavigate();
+
+  const handleDashboardNavigate = (page: string) => {
+    if (page === 'home' || page === 'public') {
+      navigate('/');
+      return;
+    }
+    if (page === 'dashboard') {
+      navigate('/dashboard');
+      return;
+    }
+    if (page.startsWith('strategic-plan-')) {
+      const deptId = page.replace('strategic-plan-', '');
+      navigate(`/dashboard/strategic-plan/${deptId}`);
+      return;
+    }
+    navigate(`/dashboard/${page}`);
+  };
+
+  return <DashboardPage onNavigate={handleDashboardNavigate} />;
+}
+
+export function AppRoutes() {
+  return (
+    <Suspense fallback={<SuspenseFallback />}>
+      <Routes>
+        {/* ── 1. PUBLIC WEBSITE ROUTES (Always Accessible, No Session Redirects) ── */}
+        <Route element={<PublicLayout />}>
+          <Route index element={<PublicHomeRoute />} />
+          <Route path="home" element={<PublicHomeRoute />} />
+          <Route
+            path="achievements"
+            element={<PublicSectionRoute component={AchievementsPage} isPublicView={true} hideSidebar />}
+          />
+          <Route
+            path="research-innovation"
+            element={<PublicSectionRoute component={ResearchInnovationPage} isPublicView={true} hideSidebar />}
+          />
+          <Route
+            path="rankings"
+            element={<PublicSectionRoute component={RankingPage} isPublicView={true} hideSidebar />}
+          />
+          <Route
+            path="ranking"
+            element={<PublicSectionRoute component={RankingPage} isPublicView={true} hideSidebar />}
+          />
+          <Route
+            path="placements"
+            element={<PublicSectionRoute component={CareerOutcomesPage} page="placements" isPublic={true} />}
+          />
+          <Route
+            path="placements-internships"
+            element={<PublicSectionRoute component={CareerOutcomesPage} page="placements" isPublic={true} />}
+          />
+          <Route
+            path="internships"
+            element={<PublicSectionRoute component={CareerOutcomesPage} page="internships" isPublic={true} />}
+          />
+          <Route
+            path="alumni"
+            element={<PublicSectionRoute component={CareerOutcomesPage} page="alumni" isPublic={true} />}
+          />
+          <Route
+            path="infrastructure"
+            element={<PublicSectionRoute component={InfrastructureFacilitiesPage} isPublicView={true} />}
+          />
+          <Route
+            path="international-interactions"
+            element={<PublicSectionRoute component={InternationalInteractionsPage} isPublicView={true} />}
+          />
+          <Route
+            path="centre-excellence"
+            element={<PublicSectionRoute component={CentreExcellencePage} isPublicView={true} hideSidebar />}
+          />
+          <Route
+            path="incubations"
+            element={<PublicSectionRoute component={IncubationsPage} isPublicView={true} />}
+          />
+          <Route
+            path="industry-connects"
+            element={<PublicSectionRoute component={IndustryConnectsPage} isPublicView={true} />}
+          />
+          <Route
+            path="consultancy-projects"
+            element={<PublicSectionRoute component={ConsultancyProjectsPage} isPublicView={true} hideSidebar />}
+          />
+        </Route>
+
+        {/* ── 2. AUTHENTICATION ROUTE (/login) ───────────────────────── */}
+        <Route path="login" element={<LoginPage />} />
+
+        {/* ── 3. PROTECTED DASHBOARD ROUTES (/dashboard/*) ───────────── */}
+        <Route
+          path="dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<DashboardIndexRoute />} />
+          <Route path="strategic-plan/:deptId" element={<StrategicPlanDepartmentRoute />} />
+          <Route path=":section" element={<DashboardSectionDispatcher />} />
+        </Route>
+
+        {/* ── 4. BACKWARDS-COMPATIBILITY REDIRECTS FOR INTERNAL PAGES ── */}
+        <Route path="faculty-details" element={<Navigate to="/dashboard/faculty-details" replace />} />
+        <Route path="professional-developments" element={<Navigate to="/dashboard/professional-developments" replace />} />
+        <Route path="invited-talks" element={<Navigate to="/dashboard/invited-talks" replace />} />
+        <Route path="periodicals" element={<Navigate to="/dashboard/periodicals" replace />} />
+        <Route path="student-details" element={<Navigate to="/dashboard/student-details" replace />} />
+        <Route path="department-details" element={<Navigate to="/dashboard/department-details" replace />} />
+        <Route path="departmental-activities" element={<Navigate to="/dashboard/departmental-activities" replace />} />
+        <Route path="awards" element={<Navigate to="/dashboard/awards" replace />} />
+        <Route path="e-contents" element={<Navigate to="/dashboard/e-contents" replace />} />
+        <Route path="course-files" element={<Navigate to="/dashboard/course-files" replace />} />
+        <Route path="publications" element={<Navigate to="/dashboard/publications" replace />} />
+        <Route path="patents" element={<Navigate to="/dashboard/patents" replace />} />
+        <Route path="copyrights" element={<Navigate to="/dashboard/copyrights" replace />} />
+        <Route path="sponsored-research" element={<Navigate to="/dashboard/sponsored-research" replace />} />
+        <Route path="strategic-plan" element={<Navigate to="/dashboard/strategic-plan" replace />} />
+        <Route path="accreditation" element={<Navigate to="/dashboard/accreditation" replace />} />
+        <Route path="user-roles" element={<Navigate to="/dashboard/user-roles" replace />} />
+        <Route path="user-management" element={<Navigate to="/dashboard/user-management" replace />} />
+        <Route path="system-admin" element={<Navigate to="/dashboard/system-admin" replace />} />
+
+        {/* ── 5. CATCH-ALL 404 ROUTE ─────────────────────────────────── */}
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </Suspense>
   );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <SystemConfigProvider>
-        <AppContent />
-      </SystemConfigProvider>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <SystemConfigProvider>
+          <AppRoutes />
+        </SystemConfigProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

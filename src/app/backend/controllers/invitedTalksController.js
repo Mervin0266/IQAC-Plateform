@@ -199,6 +199,7 @@ exports.getInvitedTalkStats = async (req, res) => {
 
     const departmentWise = {};
     const programTypeWise = {};
+    const facultyByDeptSet = {};
 
     records.forEach(r => {
       // Organization
@@ -216,9 +217,9 @@ exports.getInvitedTalkStats = async (req, res) => {
       }
 
       // Department
-      if (r.department && String(r.department).trim()) {
-        const dept = String(r.department).trim();
-        departmentWise[dept] = (departmentWise[dept] || 0) + 1;
+      const rDept = r.department ? String(r.department).trim() : null;
+      if (rDept) {
+        departmentWise[rDept] = (departmentWise[rDept] || 0) + 1;
       }
 
       // Program Type
@@ -227,15 +228,27 @@ exports.getInvitedTalkStats = async (req, res) => {
 
       // Faculty contributors
       (r.facultyAssociations || []).forEach(assoc => {
+        const assocDept = (assoc.department && String(assoc.department).trim()) || rDept;
         const normEmpId = assoc.normalizedEmployeeId || (assoc.employeeId ? String(assoc.employeeId).trim() : null) || assoc.facultyId;
         if (assoc.isGuestFaculty === true) {
           if (normEmpId) guestFacultySet.add(normEmpId);
         } else if (assoc.contributorType === 'Unverified Contributor') {
           if (normEmpId) unverifiedSet.add(normEmpId);
         } else {
-          if (normEmpId) verifiedFacultyIdSet.add(normEmpId);
+          if (normEmpId) {
+            verifiedFacultyIdSet.add(normEmpId);
+            if (assocDept) {
+              if (!facultyByDeptSet[assocDept]) facultyByDeptSet[assocDept] = new Set();
+              facultyByDeptSet[assocDept].add(normEmpId);
+            }
+          }
         }
       });
+    });
+
+    const facultyByDept = {};
+    Object.entries(facultyByDeptSet).forEach(([d, set]) => {
+      facultyByDept[d] = set.size;
     });
 
     res.json({
@@ -251,6 +264,7 @@ exports.getInvitedTalkStats = async (req, res) => {
         mediaWise,
         departmentWise,
         programTypeWise,
+        facultyByDept,
         programTypeDistribution: Object.entries(programTypeWise).map(([name, count]) => ({ name, count }))
       }
     });

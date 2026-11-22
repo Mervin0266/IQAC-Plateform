@@ -51,33 +51,49 @@ export function ExecutiveOverviewView({
   const d = analyticsData || {};
   const sysStats = dashboard.liveStats || {};
 
-  const totalStudents = d.students?.totalStudents ?? sysStats.totalStudents ?? 4800;
-  const totalFaculty = d.faculty?.totalFaculty ?? sysStats.totalFaculty ?? 212;
-  const sfr = d.faculty?.sfr ?? sysStats.sfr ?? '22.6:1';
-  const totalPubs = d.research?.totalPublications ?? sysStats.totalPapers ?? 454;
-  const totalCitations = d.research?.totalCitations ?? sysStats.scopusJournals ?? 2809;
-  const totalGrantsCrores = d.research?.grantsCrores ?? sysStats.totalGrantsCrores ?? '2.28';
-  const totalGrantsLakhs = d.research?.grantsLakhs ?? sysStats.totalGrantsAmountLakhs ?? 228.1;
-  const placementRate = d.placements?.placementRate ?? sysStats.placedPercentage ?? 22.6;
-  const avgPackage = d.placements?.avgSalaryLpa ?? sysStats.avgSalaryLpa ?? '6.84';
+  const totalStudents = d.executiveOverview?.totalStudents ?? d.students?.totalStudents ?? sysStats.totalStudents ?? 4800;
+  const totalFaculty = d.executiveOverview?.totalFaculty ?? d.academicFaculty?.totalFaculty ?? sysStats.totalFaculty ?? 241;
+  const sfr = d.executiveOverview?.studentFacultyRatio
+    ? `${d.executiveOverview.studentFacultyRatio}:1`
+    : (d.faculty?.sfr ?? sysStats.sfr ?? '19.9:1');
+  const totalPubs = d.executiveOverview?.totalPublications ?? d.research?.totalPublications ?? sysStats.totalPapers ?? 1068;
+  const totalCitations = d.executiveOverview?.totalCitations ?? d.research?.totalCitations ?? sysStats.scopusJournals ?? 10486;
+  const totalGrantsCrores = d.executiveOverview?.totalGrantsCrores ?? d.researchInnovation?.sponsoredProjects?.grantsCrores ?? sysStats.totalGrantsCrores ?? '2.87';
+  const totalGrantsLakhs = d.executiveOverview?.totalGrantsAmountLakhs ?? d.researchInnovation?.sponsoredProjects?.sanctionedAmountLakhs ?? sysStats.totalGrantsAmountLakhs ?? 287.26;
+  const placementRate = d.executiveOverview?.placementRate ?? d.placementsInternships?.placementRate ?? sysStats.placedPercentage ?? 29.2;
+  const avgPackage = d.executiveOverview?.avgSalaryLpa ?? d.placementsInternships?.avgPackageLpa ?? sysStats.avgSalaryLpa ?? '6.44';
 
-  const multiYearProgression = d.trends?.multiYearProgression || [
-    { year: 'AY 2023–24', students: 230, publications: 180, placements: 340 },
-    { year: 'AY 2024–25', students: 1300, publications: 160, placements: 342 },
-    { year: 'AY 2025–26', students: 720, publications: 190, placements: 440 },
-    { year: 'AY 2026–27', students: 2550, publications: 120, placements: 0 }
-  ];
+  const multiYearProgression = (d.executiveOverview?.yearlyOverview && d.executiveOverview.yearlyOverview.length > 0)
+    ? [...d.executiveOverview.yearlyOverview].reverse().map((item: any) => ({
+        year: item.academicYear,
+        students: item.students || 0,
+        publications: item.publications || 0,
+        placements: item.placed || 0
+      }))
+    : (d.trends?.multiYearProgression || [
+        { year: 'AY 2023–24', students: 230, publications: 180, placements: 340 },
+        { year: 'AY 2024–25', students: 1300, publications: 160, placements: 342 },
+        { year: 'AY 2025–26', students: 720, publications: 190, placements: 440 },
+        { year: 'AY 2026–27', students: 2550, publications: 120, placements: 0 }
+      ]);
 
-  const departmentComparison = d.distributions?.departmentComparison || [
-    { department: 'ADSE', shortName: 'ADSE', students: 1162, faculty: 48 },
-    { department: 'ECE', shortName: 'ECE', students: 560, faculty: 28 },
-    { department: 'EEE', shortName: 'EEE', students: 260, faculty: 15 },
-    { department: 'MECH', shortName: 'MECH', students: 410, faculty: 32 },
-    { department: 'S&H', shortName: 'S&H', students: 980, faculty: 26 },
-    { department: 'CSE', shortName: 'CSE', students: 1160, faculty: 41 },
-    { department: 'SOA', shortName: 'SOA', students: 90, faculty: 0 },
-    { department: 'CIVIL', shortName: 'CIVIL', students: 70, faculty: 22 }
-  ];
+  const departmentComparison = (d.academicFaculty?.departmentBreakdown && d.academicFaculty.departmentBreakdown.length > 0)
+    ? d.academicFaculty.departmentBreakdown.map((item: any) => ({
+        department: item.shortName || item.departmentName,
+        shortName: item.shortName || item.departmentName,
+        students: item.students || 0,
+        faculty: item.faculty || 0
+      }))
+    : (d.distributions?.departmentComparison || [
+        { department: 'ADSE', shortName: 'ADSE', students: 1162, faculty: 48 },
+        { department: 'ECE', shortName: 'ECE', students: 560, faculty: 28 },
+        { department: 'EEE', shortName: 'EEE', students: 260, faculty: 15 },
+        { department: 'MECH', shortName: 'MECH', students: 410, faculty: 32 },
+        { department: 'S&H', shortName: 'S&H', students: 980, faculty: 26 },
+        { department: 'CSE', shortName: 'CSE', students: 1160, faculty: 41 },
+        { department: 'SOA', shortName: 'SOA', students: 90, faculty: 0 },
+        { department: 'CIVIL', shortName: 'CIVIL', students: 70, faculty: 22 }
+      ]);
 
   const naacCriteriaStanding = d.accreditation?.naacCriteria || [
     { criterion: 'Criterion 1: Curricular Aspects', score: 3.88, target: 3.90 },
@@ -102,7 +118,7 @@ export function ExecutiveOverviewView({
       route: 'faculty-details',
       icon: Users,
       desc: 'Faculty profiles, cadre breakdown, PhD qualifications & teaching experience',
-      stat: `${totalFaculty.toLocaleString('en-IN')} Faculty • 90.1% PhD Holders`
+      stat: `${totalFaculty.toLocaleString('en-IN')} Faculty • ${d.academicFaculty?.phdPercentage ?? '87.1'}% PhD Holders`
     },
     {
       title: 'Research Publications & Citations',
@@ -123,7 +139,7 @@ export function ExecutiveOverviewView({
       route: 'placements-internships',
       icon: Briefcase,
       desc: 'Corporate recruiters, placement rates, packages & internship stipends',
-      stat: `${placementRate}% Placed • 1083 Offers Recorded`
+      stat: `${placementRate}% Placed • ${(d.executiveOverview?.uniquePlacedStudents ?? d.placementsInternships?.uniquePlaced ?? 1402).toLocaleString('en-IN')} Offers Recorded`
     },
     {
       title: 'Accreditation Master (NAAC & NBA)',

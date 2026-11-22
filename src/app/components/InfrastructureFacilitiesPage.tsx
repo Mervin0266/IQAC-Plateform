@@ -206,7 +206,10 @@ export function InfrastructureFacilitiesPage({ onNavigate, isPublicView = false 
     <AppShell currentPage="infrastructure-facilities" onNavigate={onNavigate} hideSidebar={isPublicView}>
           
       <PageHeader
-        breadcrumbs={[
+        breadcrumbs={isPublicView ? [
+          { label: 'Home', onClick: () => onNavigate('home') },
+          { label: 'Infrastructure & Research Facilities', active: true },
+        ] : [
           { label: 'Campus' },
           { label: 'Infrastructure & Research Facilities', active: true },
         ]}

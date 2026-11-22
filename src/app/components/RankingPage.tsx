@@ -28,8 +28,11 @@ import {
   Building,
   Target,
   FileSpreadsheet,
-  BookOpen
+  BookOpen,
+  Home,
+  Clock,
 } from "lucide-react";
+import { usePublicOverview } from "../hooks/usePublicOverview";
 import {
   Tabs,
   TabsContent,
@@ -54,6 +57,7 @@ export function RankingPage({
   isPublicView = false,
   hideSidebar = false
 }: RankingPageProps) {
+  const { data: publicData, loading: publicLoading, isCached: publicCached, retrievedAt: publicRetrievedAt } = usePublicOverview();
   // Sync tab with currentPage
   const getTabFromCurrentPage = (page: string) => {
     switch (page) {
@@ -475,65 +479,178 @@ export function RankingPage({
 
   // ─── PUBLIC VIEW ────────────────────────────────────────────────────────────
   if (isPublicView) {
+    const ar = publicData?.accreditationRankings;
+    const naacGrade = ar?.naacGrade || 'A++';
+    const naacCgpa = ar?.naacCgpa || '3.74';
+    const cycle = ar?.cycle || 'Cycle 4 (Valid 2022–2027)';
+    const nirfOverall = ar?.nirfOverall || '63';
+    const nirfEngg = ar?.nirfEngg || '76';
+    const nirfMgmt = ar?.nirfMgmt || '58';
+    const nirfLaw = ar?.nirfLaw || '19';
+    const criteriaList = ar?.criteriaBreakdown?.length ? ar.criteriaBreakdown : [
+      { criterion: 'Criterion 1: Curricular Aspects', weight: 150, score: 3.82, target: 3.90, status: 'Compliant' },
+      { criterion: 'Criterion 2: Teaching-Learning & Evaluation', weight: 200, score: 3.76, target: 3.85, status: 'Compliant' },
+      { criterion: 'Criterion 3: Research, Innovations & Extension', weight: 250, score: 3.65, target: 3.80, status: 'In Progress' },
+      { criterion: 'Criterion 4: Infrastructure & Learning Resources', weight: 100, score: 3.88, target: 3.90, status: 'Exemplary' },
+      { criterion: 'Criterion 5: Student Support & Progression', weight: 100, score: 3.79, target: 3.85, status: 'Compliant' },
+      { criterion: 'Criterion 6: Governance, Leadership & Management', weight: 100, score: 3.70, target: 3.80, status: 'Compliant' },
+      { criterion: 'Criterion 7: Institutional Values & Best Practices', weight: 100, score: 3.91, target: 3.95, status: 'Exemplary' }
+    ];
+
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="bg-[#0B132B] text-white py-12 shadow-sm border-b border-slate-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-white/10 rounded-xl border border-white/15">
-                <Trophy className="w-8 h-8 text-[#E8C84A]" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[11px] font-bold text-[#E8C84A] uppercase tracking-wider">CHRIST (Deemed to be University)</span>
+        <div className="bg-[#0B132B] text-white py-10 shadow-sm border-b border-slate-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+            {/* Breadcrumb Navigation */}
+            <nav className="flex items-center gap-2 text-xs text-slate-400" aria-label="Breadcrumb">
+              <button
+                type="button"
+                onClick={() => onNavigate('home')}
+                className="flex items-center gap-1 font-medium hover:text-[#E8C84A] transition-colors"
+              >
+                <Home className="w-3.5 h-3.5" />
+                <span>Home</span>
+              </button>
+              <span>/</span>
+              <span className="font-semibold text-white">Rankings</span>
+            </nav>
+
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white/10 rounded-xl border border-white/15">
+                  <Trophy className="w-8 h-8 text-[#E8C84A]" />
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Institutional Rankings & Accreditations</h1>
-                <p className="text-slate-300 text-xs sm:text-sm mt-1">
-                  National and international benchmarks of academic rigor, research excellence, and institutional reputation
-                </p>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[11px] font-bold text-[#E8C84A] uppercase tracking-wider">CHRIST (Deemed to be University)</span>
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Institutional Rankings & Accreditations</h1>
+                  <p className="text-slate-300 text-xs sm:text-sm mt-1">
+                    National and international benchmarks of academic rigor, research excellence, and institutional standing
+                  </p>
+                </div>
               </div>
+
+              {publicRetrievedAt && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-300 bg-white/10 px-3 py-1.5 rounded-lg border border-white/15">
+                  <Clock className="w-3.5 h-3.5 text-[#E8C84A]" />
+                  <span>{publicCached ? 'Cached data' : 'Verified institutional record'} ({new Date(publicRetrievedAt).toLocaleDateString()})</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="space-y-4">
-            {summaryRankings.map((ranking) => {
-              const improved = ranking.previousRank && ranking.previousRank > parseInt(ranking.title.match(/#(\d+)/)?.[1] || '0');
-              return (
-                <Card
-                  key={ranking.id}
-                  className="bg-white shadow-xs hover:shadow-md transition-all border border-slate-200 border-l-4 border-l-[#2F4692] rounded-xl"
-                >
-                  <CardHeader className="p-5">
-                    <div className="flex items-start gap-4">
-                      <div className="p-2.5 bg-blue-50 text-[#2F4692] rounded-xl flex-shrink-0">
-                        <Trophy className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-base font-bold text-slate-900">{ranking.title}</CardTitle>
-                          <Badge className="bg-[#0B132B] text-white text-[11px] font-medium">{ranking.framework}</Badge>
-                        </div>
-                        <p className="text-xs text-slate-600 mt-1 mb-3">
-                          {ranking.body} — <strong>{ranking.category}</strong>
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-xs">{ranking.category}</Badge>
-                          <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-xs">Year {ranking.year}</Badge>
-                          {ranking.previousRank && (
-                            <Badge variant="outline" className={improved ? "bg-emerald-50 text-emerald-800 border-emerald-200 text-xs" : "bg-blue-50 text-blue-800 border-blue-200 text-xs"}>
-                              {improved ? `Improved from #${ranking.previousRank}` : `Previous: #${ranking.previousRank}`}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-              );
-            })}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+          {/* Key Accreditation & NIRF Standings */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="bg-white border-2 border-amber-300 rounded-xl shadow-xs">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Highest Grade</span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">NAAC SSR Grade</p>
+                  <p className="text-3xl font-extrabold text-slate-900 mt-1">{naacGrade}</p>
+                  <p className="text-xs text-slate-600 mt-1">{naacCgpa} CGPA · {cycle}</p>
+                </div>
+                <div className="p-3 bg-amber-50 text-amber-700 rounded-xl">
+                  <Award className="w-7 h-7" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border border-slate-200 rounded-xl shadow-xs">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">National Standing</span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">NIRF Overall</p>
+                  <p className="text-3xl font-extrabold text-blue-900 mt-1">Rank #{nirfOverall}</p>
+                  <p className="text-xs text-slate-600 mt-1">Top Universities of India</p>
+                </div>
+                <div className="p-3 bg-blue-50 text-blue-700 rounded-xl">
+                  <Trophy className="w-7 h-7" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border border-slate-200 rounded-xl shadow-xs">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-[10px] font-bold uppercase bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">Engineering Discipline</span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">NIRF Engineering</p>
+                  <p className="text-3xl font-extrabold text-indigo-900 mt-1">Rank #{nirfEngg}</p>
+                  <p className="text-xs text-slate-600 mt-1">School of Engineering & Tech</p>
+                </div>
+                <div className="p-3 bg-indigo-50 text-indigo-700 rounded-xl">
+                  <Star className="w-7 h-7" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border border-slate-200 rounded-xl shadow-xs">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Professional Rankings</span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Management & Law</p>
+                  <p className="text-2xl font-extrabold text-emerald-800 mt-1">#{nirfMgmt} · #{nirfLaw}</p>
+                  <p className="text-xs text-slate-600 mt-1">Management #{nirfMgmt} · Law #{nirfLaw}</p>
+                </div>
+                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl">
+                  <ShieldCheck className="w-7 h-7" />
+                </div>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* NAAC 7-Criteria Standing Table */}
+          <Card className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+            <CardHeader className="bg-slate-50/70 border-b border-slate-200 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-900">NAAC 7-Criteria Institutional Standing</CardTitle>
+                  <CardDescription className="text-xs text-slate-500 mt-0.5">Criterion-wise quality indicators, weights, and audited institutional standings</CardDescription>
+                </div>
+                <span className="text-xs font-bold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">Scale: 4.00 Max</span>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-100/60 text-slate-700 font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="px-5 py-3">Criterion</th>
+                      <th className="px-5 py-3">Weightage</th>
+                      <th className="px-5 py-3">Assessed Score</th>
+                      <th className="px-5 py-3">Target Benchmark</th>
+                      <th className="px-5 py-3">Audit Standing</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {criteriaList.map((crit: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-5 py-3.5 font-medium text-slate-900">{crit.criterion}</td>
+                        <td className="px-5 py-3.5 text-slate-600">{crit.weight}</td>
+                        <td className="px-5 py-3.5 font-bold text-blue-900">{Number(crit.score || crit.current).toFixed(2)}</td>
+                        <td className="px-5 py-3.5 text-slate-600">{Number(crit.target).toFixed(2)}</td>
+                        <td className="px-5 py-3.5">
+                          <Badge variant="outline" className={crit.status === 'Exemplary' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-blue-50 text-blue-800 border-blue-200'}>
+                            {crit.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );

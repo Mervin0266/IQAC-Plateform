@@ -233,6 +233,165 @@ const buildFacultySortOrder = (req) => {
   return order;
 };
 
+// Helper to compute unified faculty KPI stats and contextual breakdowns
+const computeFacultyStatsAndBreakdowns = (canonicalRecords) => {
+  const total = canonicalRecords.length;
+  let phdCount = 0;
+  let seniorCount = 0;
+  let totalExpYears = 0;
+  let totalCuExp = 0;
+  let totalPrevTeachingExp = 0;
+  let totalPrevIndustryExp = 0;
+
+  const deptCounts = {};
+  const desigCounts = {};
+  const stateDiversity = {};
+  const countryDiversity = {};
+  const phdByDept = {};
+  const seniorByDept = {};
+  const desigPhdCounts = {};
+  const genderCounts = { Male: 0, Female: 0, Other: 0 };
+  const deptGenderCounts = {};
+  const cadreBreakdown = {
+    professors: 0,
+    associateProfessors: 0,
+    assistantProfessors: 0,
+    professorsOfPractice: 0,
+    leadership: 0,
+    other: 0
+  };
+  const expBrackets = {
+    under5: 0,
+    from5to10: 0,
+    from10to15: 0,
+    over15: 0
+  };
+
+  for (const f of canonicalRecords) {
+    const qualLevel = (f.qualificationLevel || '').toUpperCase().replace(/\./g, '');
+    const highestQual = (f.highestQualification || '').toUpperCase().replace(/\./g, '');
+    const isPhd = qualLevel.includes('PHD') || highestQual.includes('DOCTOR') || highestQual.includes('PHD');
+    if (isPhd) {
+      phdCount++;
+      if (f.department) phdByDept[f.department] = (phdByDept[f.department] || 0) + 1;
+      if (f.designation) desigPhdCounts[f.designation] = (desigPhdCounts[f.designation] || 0) + 1;
+    }
+
+    // Senior Cadre definition preservation: Professor, Head, Dean
+    const desig = (f.designation || '').toLowerCase();
+    const isSenior = desig.includes('professor') || desig.includes('head') || desig.includes('dean');
+    if (isSenior) {
+      seniorCount++;
+      if (f.department) seniorByDept[f.department] = (seniorByDept[f.department] || 0) + 1;
+    }
+
+    if (desig.includes('assistant professor')) cadreBreakdown.assistantProfessors++;
+    else if (desig.includes('associate professor')) cadreBreakdown.associateProfessors++;
+    else if (desig.includes('professor of practice')) cadreBreakdown.professorsOfPractice++;
+    else if (desig.includes('professor')) cadreBreakdown.professors++;
+    else if (desig.includes('head') || desig.includes('dean')) cadreBreakdown.leadership++;
+    else cadreBreakdown.other++;
+
+    const g = (f.gender || 'Not Specified').trim();
+    if (g.toLowerCase() === 'female') genderCounts.Female = (genderCounts.Female || 0) + 1;
+    else if (g.toLowerCase() === 'male') genderCounts.Male = (genderCounts.Male || 0) + 1;
+    else genderCounts.Other = (genderCounts.Other || 0) + 1;
+
+    if (f.department && f.department !== 'NIL' && f.department !== 'N/A') {
+      deptCounts[f.department] = (deptCounts[f.department] || 0) + 1;
+      if (!deptGenderCounts[f.department]) deptGenderCounts[f.department] = { Male: 0, Female: 0, Other: 0 };
+      if (g.toLowerCase() === 'female') deptGenderCounts[f.department].Female++;
+      else if (g.toLowerCase() === 'male') deptGenderCounts[f.department].Male++;
+      else deptGenderCounts[f.department].Other++;
+    }
+
+    if (f.designation && f.designation !== 'NIL' && f.designation !== 'N/A') {
+      desigCounts[f.designation] = (desigCounts[f.designation] || 0) + 1;
+    }
+
+    const prevY = parseFloat(f.prevTeachingExpYears || '0') || 0;
+    const prevInd = parseFloat(f.prevIndustryExpYears || '0') || 0;
+    const cuY = parseFloat(f.cuExpYears || '0') || 0;
+    totalExpYears += (prevY + prevInd + cuY);
+    totalCuExp += cuY;
+    totalPrevTeachingExp += prevY;
+    totalPrevIndustryExp += prevInd;
+
+    const fExp = prevY + prevInd + cuY;
+    if (fExp < 5) expBrackets.under5++;
+    else if (fExp < 10) expBrackets.from5to10++;
+    else if (fExp < 15) expBrackets.from10to15++;
+    else expBrackets.over15++;
+
+    const state = (f.permanentState || '').trim();
+    if (state && state.toLowerCase() !== 'nil' && state.toLowerCase() !== 'n/a') {
+      stateDiversity[state] = (stateDiversity[state] || 0) + 1;
+    }
+
+    const country = (f.permanentCountry || f.nationality || '').trim();
+    if (country && country.toLowerCase() !== 'nil' && country.toLowerCase() !== 'n/a') {
+      countryDiversity[country] = (countryDiversity[country] || 0) + 1;
+    }
+  }
+
+  const avgExp = total > 0 ? (totalExpYears / total).toFixed(1) : '0';
+
+  const stats = {
+    total,
+    phdCount,
+    phdPercent: total > 0 ? ((phdCount / total) * 100).toFixed(1) : '0',
+    seniorCadre: seniorCount,
+    seniorPercent: total > 0 ? ((seniorCount / total) * 100).toFixed(1) : '0',
+    depts: Object.keys(deptCounts).length,
+    avgExp,
+    breakdowns: {
+      facultyDetails: {
+        total,
+        active: total,
+        inactive: 0,
+        genderCounts,
+        deptCounts,
+        desigCounts
+      },
+      doctorates: {
+        phdCount,
+        nonPhdCount: total - phdCount,
+        phdPercent: total > 0 ? ((phdCount / total) * 100).toFixed(1) : '0',
+        phdByDept,
+        desigPhdCounts
+      },
+      seniorCadre: {
+        seniorCount,
+        otherCadre: total - seniorCount,
+        seniorPercent: total > 0 ? ((seniorCount / total) * 100).toFixed(1) : '0',
+        cadreBreakdown,
+        seniorByDept
+      },
+      departments: {
+        count: Object.keys(deptCounts).length,
+        deptCounts,
+        deptGenderCounts
+      },
+      avgExperience: {
+        avgExp,
+        cuAvgExp: total > 0 ? (totalCuExp / total).toFixed(1) : '0',
+        prevTeachingAvgExp: total > 0 ? (totalPrevTeachingExp / total).toFixed(1) : '0',
+        prevIndustryAvgExp: total > 0 ? (totalPrevIndustryExp / total).toFixed(1) : '0',
+        expBrackets,
+        facultyCount: total
+      }
+    }
+  };
+
+  return {
+    stats,
+    deptCounts,
+    desigCounts,
+    stateDiversity,
+    countryDiversity
+  };
+};
+
 // @desc    Get all faculty with dynamic filters, server-side deduplication, and pagination
 // @route   GET /api/faculty
 // @access  Private
@@ -271,69 +430,19 @@ exports.getFaculty = async (req, res) => {
     const offset = (page - 1) * limit;
     const paginatedRows = sortedRecords.slice(offset, offset + limit);
 
-    // Compute distribution and KPI statistics across the deduplicated canonical dataset
-    let phdCount = 0;
-    let seniorCount = 0;
-    let totalExpYears = 0;
-    const deptCounts = {};
-    const desigCounts = {};
-    const stateDiversity = {};
-    const countryDiversity = {};
-
-    for (const f of canonicalRecords) {
-      const qualLevel = (f.qualificationLevel || '').toUpperCase().replace(/\./g, '');
-      const highestQual = (f.highestQualification || '').toUpperCase().replace(/\./g, '');
-      if (qualLevel.includes('PHD') || highestQual.includes('DOCTOR') || highestQual.includes('PHD')) {
-        phdCount++;
-      }
-
-      // Senior Cadre definition preservation: Professor, Head, Dean
-      const desig = (f.designation || '').toLowerCase();
-      if (desig.includes('professor') || desig.includes('head') || desig.includes('dean')) {
-        seniorCount++;
-      }
-
-      const prevY = parseFloat(f.prevTeachingExpYears || '0') || 0;
-      const prevInd = parseFloat(f.prevIndustryExpYears || '0') || 0;
-      const cuY = parseFloat(f.cuExpYears || '0') || 0;
-      totalExpYears += (prevY + prevInd + cuY);
-
-      if (f.department && f.department !== 'NIL' && f.department !== 'N/A') {
-        deptCounts[f.department] = (deptCounts[f.department] || 0) + 1;
-      }
-
-      if (f.designation && f.designation !== 'NIL' && f.designation !== 'N/A') {
-        desigCounts[f.designation] = (desigCounts[f.designation] || 0) + 1;
-      }
-
-      const state = (f.permanentState || '').trim();
-      if (state && state.toLowerCase() !== 'nil' && state.toLowerCase() !== 'n/a') {
-        stateDiversity[state] = (stateDiversity[state] || 0) + 1;
-      }
-
-      const country = (f.permanentCountry || f.nationality || '').trim();
-      if (country && country.toLowerCase() !== 'nil' && country.toLowerCase() !== 'n/a') {
-        countryDiversity[country] = (countryDiversity[country] || 0) + 1;
-      }
-    }
-
-    const avgExp = total > 0 ? (totalExpYears / total).toFixed(1) : '0';
-
     const allYearsRows = await Faculty.findAll({
       attributes: ['academicYear'],
       group: ['academicYear'],
       raw: true
     });
 
-    const stats = {
-      total,
-      phdCount,
-      phdPercent: total > 0 ? ((phdCount / total) * 100).toFixed(1) : '0',
-      seniorCadre: seniorCount,
-      seniorPercent: total > 0 ? ((seniorCount / total) * 100).toFixed(1) : '0',
-      depts: Object.keys(deptCounts).length,
-      avgExp
-    };
+    const {
+      stats,
+      deptCounts,
+      desigCounts,
+      stateDiversity,
+      countryDiversity
+    } = computeFacultyStatsAndBreakdowns(canonicalRecords);
 
     // Sensitive field protection: Never expose PAN in ordinary faculty list responses (Phase A5)
     const sanitized = sanitizeFacultyData(paginatedRows, req.user, false);
@@ -380,68 +489,19 @@ exports.getFacultyStats = async (req, res) => {
     const canonicalRecords = deduplicateFacultyRecords(allCandidates, req.query.academicYear);
     const total = canonicalRecords.length;
 
-    let phdCount = 0;
-    let seniorCount = 0;
-    let totalExpYears = 0;
-    const deptCounts = {};
-    const desigCounts = {};
-    const stateDiversity = {};
-    const countryDiversity = {};
-
-    for (const f of canonicalRecords) {
-      const qualLevel = (f.qualificationLevel || '').toUpperCase().replace(/\./g, '');
-      const highestQual = (f.highestQualification || '').toUpperCase().replace(/\./g, '');
-      if (qualLevel.includes('PHD') || highestQual.includes('DOCTOR') || highestQual.includes('PHD')) {
-        phdCount++;
-      }
-
-      // Senior Cadre definition preservation: Professor, Head, Dean
-      const desig = (f.designation || '').toLowerCase();
-      if (desig.includes('professor') || desig.includes('head') || desig.includes('dean')) {
-        seniorCount++;
-      }
-
-      const prevY = parseFloat(f.prevTeachingExpYears || '0') || 0;
-      const prevInd = parseFloat(f.prevIndustryExpYears || '0') || 0;
-      const cuY = parseFloat(f.cuExpYears || '0') || 0;
-      totalExpYears += (prevY + prevInd + cuY);
-
-      if (f.department && f.department !== 'NIL' && f.department !== 'N/A') {
-        deptCounts[f.department] = (deptCounts[f.department] || 0) + 1;
-      }
-
-      if (f.designation && f.designation !== 'NIL' && f.designation !== 'N/A') {
-        desigCounts[f.designation] = (desigCounts[f.designation] || 0) + 1;
-      }
-
-      const state = (f.permanentState || '').trim();
-      if (state && state.toLowerCase() !== 'nil' && state.toLowerCase() !== 'n/a') {
-        stateDiversity[state] = (stateDiversity[state] || 0) + 1;
-      }
-
-      const country = (f.permanentCountry || f.nationality || '').trim();
-      if (country && country.toLowerCase() !== 'nil' && country.toLowerCase() !== 'n/a') {
-        countryDiversity[country] = (countryDiversity[country] || 0) + 1;
-      }
-    }
-
-    const avgExp = total > 0 ? (totalExpYears / total).toFixed(1) : '0';
-
     const allYearsRows = await Faculty.findAll({
       attributes: ['academicYear'],
       group: ['academicYear'],
       raw: true
     });
 
-    const stats = {
-      total,
-      phdCount,
-      phdPercent: total > 0 ? ((phdCount / total) * 100).toFixed(1) : '0',
-      seniorCadre: seniorCount,
-      seniorPercent: total > 0 ? ((seniorCount / total) * 100).toFixed(1) : '0',
-      depts: Object.keys(deptCounts).length,
-      avgExp
-    };
+    const {
+      stats,
+      deptCounts,
+      desigCounts,
+      stateDiversity,
+      countryDiversity
+    } = computeFacultyStatsAndBreakdowns(canonicalRecords);
 
     res.json({
       success: true,

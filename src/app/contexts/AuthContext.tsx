@@ -39,7 +39,17 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const storedUser = localStorage.getItem('iqac_user');
+        return storedUser ? JSON.parse(storedUser) : null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
 
   const logout = React.useCallback(() => {
     setUser(null);
@@ -48,7 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('iqac-auth-logout'));
       try {
-        window.history.pushState({}, '', '/login');
+        window.history.pushState({}, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (e) {}
     }
   }, []);

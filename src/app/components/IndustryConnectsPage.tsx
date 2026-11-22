@@ -103,7 +103,10 @@ export function IndustryConnectsPage({ onNavigate, isPublicView = false }: Indus
     <AppShell currentPage="industry-connects" onNavigate={onNavigate} hideSidebar={isPublicView}>
           
       <PageHeader
-        breadcrumbs={[
+        breadcrumbs={isPublicView ? [
+          { label: 'Home', onClick: () => onNavigate('home') },
+          { label: 'Industry Interface & Corporate Connects', active: true },
+        ] : [
           { label: 'Partnerships' },
           { label: 'Industry Interface & Corporate Connects', active: true },
         ]}

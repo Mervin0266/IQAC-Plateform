@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { Sidebar } from './Sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -24,7 +24,7 @@ import { ResearchReportGeneratorDialog } from './ResearchReportGeneratorDialog';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
 import { normalizeDepartmentName } from './FacultyDetailsPage';
 import { Button } from './ui/button';
-import { AppShell, PageHeader, StatCard } from './design-system';
+import { AppShell, PageHeader, StatCard, MetricBreakdownData } from './design-system';
 import { useExchangeRate, formatInrLakhsWithUsd } from '../hooks/useExchangeRate';
 
 interface ResearchPageProps {
@@ -612,6 +612,240 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
   const totalPublicationsCount = gridTotals.scopusJournals + gridTotals.nationalJournals + gridTotals.internationalJournals;
   const totalPatentsCount = gridTotals.patentsIndian + gridTotals.patentsInternational;
 
+  const researchCardBreakdowns = useMemo(() => {
+    const scopusCount = gridTotals.scopusJournals || 0;
+    const totalPubs = totalPublicationsCount || 1;
+    const totalPatents = totalPatentsCount || 1;
+    const extGrantsAmount = Number(gridTotals.externalProjectsAmount) || 0;
+    const consultancyAmount = Number(gridTotals.consultancyAmount) || 0;
+
+    // 1. Indexed Journals Breakdown
+    const topPubDepts = [...editableGridData]
+      .filter(r => (r.scopusJournals || 0) > 0)
+      .sort((a, b) => (b.scopusJournals || 0) - (a.scopusJournals || 0))
+      .slice(0, 6)
+      .map(r => ({
+        label: breakdownType === 'dept' ? r.department : r.periodValue,
+        value: `${r.scopusJournals} Scopus / WoS`,
+        subtext: `${r.nationalJournals || 0} National, ${r.internationalJournals || 0} Int'l`,
+        percent: scopusCount > 0 ? Math.round(((r.scopusJournals || 0) / scopusCount) * 100) : 0
+      }));
+
+    const indexedJournalsBreakdown: MetricBreakdownData = {
+      title: 'Scholarly Publications & Indexing',
+      subtitle: 'Scopus, WoS & Peer-Reviewed Indexing',
+      badge: `${gridTotals.scopusJournals} Scopus / WoS`,
+      sections: [
+        {
+          title: 'Publication Indexing Standing',
+          items: [
+            {
+              label: 'Scopus / Web of Science Indexed',
+              value: `${gridTotals.scopusJournals} Articles`,
+              badge: 'Scopus',
+              subtext: `${((scopusCount / totalPubs) * 100).toFixed(1)}% of verified publications`,
+              percent: Math.round((scopusCount / totalPubs) * 100)
+            },
+            {
+              label: 'National Peer-Reviewed Journals',
+              value: `${gridTotals.nationalJournals} Articles`,
+              subtext: `${(((gridTotals.nationalJournals || 0) / totalPubs) * 100).toFixed(1)}% national circulation`
+            },
+            {
+              label: 'International Non-Scopus Journals',
+              value: `${gridTotals.internationalJournals} Articles`,
+              subtext: 'Global peer-reviewed venues'
+            },
+            {
+              label: 'Books & Authored Volumes',
+              value: `${gridTotals.books} Volumes`,
+              subtext: 'Academic monographs & textbooks'
+            },
+            {
+              label: 'Edited Book Chapters',
+              value: `${gridTotals.chapters} Chapters`,
+              subtext: 'Contributed scholarly chapters'
+            }
+          ]
+        },
+        ...(topPubDepts.length > 0 ? [{
+          title: `Top ${breakdownType === 'dept' ? 'Departments' : 'Months'} (Scopus Indexing)`,
+          items: topPubDepts
+        }] : []),
+        {
+          title: 'Citation Standing',
+          items: [
+            {
+              label: 'Total Approved Citations',
+              value: `${gridTotals.citations} Citations`,
+              badge: 'Approved',
+              subtext: 'Recorded citation impact across cohort'
+            }
+          ]
+        }
+      ],
+      footer: `Scope: AY ${metricYear} • Distinct publication parent records`
+    };
+
+    // 2. Patents & IP Breakdown
+    const topPatentDepts = [...editableGridData]
+      .filter(r => (r.patentsIndian || 0) + (r.patentsInternational || 0) > 0)
+      .sort((a, b) => ((b.patentsIndian || 0) + (b.patentsInternational || 0)) - ((a.patentsIndian || 0) + (a.patentsInternational || 0)))
+      .slice(0, 6)
+      .map(r => {
+        const count = (r.patentsIndian || 0) + (r.patentsInternational || 0);
+        return {
+          label: breakdownType === 'dept' ? r.department : r.periodValue,
+          value: `${count} Patents`,
+          subtext: `${r.patentsIndian || 0} Indian, ${r.patentsInternational || 0} International`,
+          percent: totalPatents > 0 ? Math.round((count / totalPatents) * 100) : 0
+        };
+      });
+
+    const patentsBreakdown: MetricBreakdownData = {
+      title: 'Intellectual Property & Patents',
+      subtitle: 'Domestic & International Patent Filings',
+      badge: `${totalPatentsCount} Total IP`,
+      sections: [
+        {
+          title: 'Jurisdiction Distribution',
+          items: [
+            {
+              label: 'Indian Patents (Published / Granted)',
+              value: `${gridTotals.patentsIndian} Patents`,
+              badge: 'Domestic',
+              subtext: `${(((gridTotals.patentsIndian || 0) / totalPatents) * 100).toFixed(1)}% domestic filings`,
+              percent: Math.round(((gridTotals.patentsIndian || 0) / totalPatents) * 100)
+            },
+            {
+              label: 'International Patents (PCT / USPTO)',
+              value: `${gridTotals.patentsInternational} Patents`,
+              badge: 'Global',
+              subtext: `${(((gridTotals.patentsInternational || 0) / totalPatents) * 100).toFixed(1)}% foreign filings`,
+              percent: Math.round(((gridTotals.patentsInternational || 0) / totalPatents) * 100)
+            }
+          ]
+        },
+        ...(topPatentDepts.length > 0 ? [{
+          title: `Patents by ${breakdownType === 'dept' ? 'Department' : 'Month'}`,
+          items: topPatentDepts
+        }] : [])
+      ],
+      footer: 'Deduplicated inventor records • Distinct patent applications'
+    };
+
+    // 3. Sponsored Grants Breakdown
+    const extUsd = formatInrLakhsWithUsd(extGrantsAmount, rate).usd;
+    const topGrantDepts = [...editableGridData]
+      .filter(r => (r.externalProjectsAmount || 0) > 0 || (r.externalProjectsCount || 0) > 0)
+      .sort((a, b) => (b.externalProjectsAmount || 0) - (a.externalProjectsAmount || 0))
+      .slice(0, 6)
+      .map(r => ({
+        label: breakdownType === 'dept' ? r.department : r.periodValue,
+        value: `₹${Number(r.externalProjectsAmount || 0).toFixed(2)}L`,
+        subtext: `${r.externalProjectsCount || 0} Projects • ${formatInrLakhsWithUsd(Number(r.externalProjectsAmount || 0), rate).usd}`,
+        percent: extGrantsAmount > 0 ? Math.round(((r.externalProjectsAmount || 0) / extGrantsAmount) * 100) : 0
+      }));
+
+    const sponsoredGrantsBreakdown: MetricBreakdownData = {
+      title: 'Sponsored Research Grants & Inflow',
+      subtitle: 'Extramural & Institutional Research Funding',
+      badge: `₹${extGrantsAmount.toFixed(2)}L (${extUsd})`,
+      sections: [
+        {
+          title: 'Extramural Funding Summary',
+          items: [
+            {
+              label: 'Externally Funded Grants (INR)',
+              value: `₹${extGrantsAmount.toFixed(2)} Lakhs`,
+              badge: 'Extramural',
+              subtext: `Sanctioned grant inflow for AY ${metricYear}`
+            },
+            {
+              label: 'USD Equivalent Valuation',
+              value: extUsd,
+              subtext: `Converted at ₹${rate || 84}/USD effective exchange rate`
+            },
+            {
+              label: 'Sanctioned Research Projects',
+              value: `${gridTotals.externalProjectsCount} Projects`,
+              subtext: 'Active investigator-led grants'
+            }
+          ]
+        },
+        {
+          title: 'Internal University Seed Funding',
+          items: [
+            {
+              label: 'Seed Money Grants Sanctioned',
+              value: `₹${Number(gridTotals.seedMoneyAmount || 0).toFixed(2)} Lakhs`,
+              subtext: `${gridTotals.seedMoneyCount || 0} internal faculty starter grants`
+            }
+          ]
+        },
+        ...(topGrantDepts.length > 0 ? [{
+          title: `Funding Allocation by ${breakdownType === 'dept' ? 'Department' : 'Month'}`,
+          items: topGrantDepts
+        }] : [])
+      ],
+      footer: 'Sanctioned grants recorded in institutional accounts • Reconciled currency'
+    };
+
+    // 4. Consultancy Revenue Breakdown
+    const consultUsd = formatInrLakhsWithUsd(consultancyAmount, rate).usd;
+    const topConsultDepts = [...editableGridData]
+      .filter(r => (r.consultancyAmount || 0) > 0 || (r.consultancyCount || 0) > 0)
+      .sort((a, b) => (b.consultancyAmount || 0) - (a.consultancyAmount || 0))
+      .slice(0, 6)
+      .map(r => ({
+        label: breakdownType === 'dept' ? r.department : r.periodValue,
+        value: `₹${Number(r.consultancyAmount || 0).toFixed(2)}L`,
+        subtext: `${r.consultancyCount || 0} Contracts • ${formatInrLakhsWithUsd(Number(r.consultancyAmount || 0), rate).usd}`,
+        percent: consultancyAmount > 0 ? Math.round(((r.consultancyAmount || 0) / consultancyAmount) * 100) : 0
+      }));
+
+    const consultancyBreakdown: MetricBreakdownData = {
+      title: 'Consultancy Inflow & Advisory Services',
+      subtitle: 'Industry Solutions & Commercial Testing Receipts',
+      badge: `₹${consultancyAmount.toFixed(2)}L (${consultUsd})`,
+      sections: [
+        {
+          title: 'Consultancy Inflow Summary',
+          items: [
+            {
+              label: 'Gross Consultancy Revenue (INR)',
+              value: `₹${consultancyAmount.toFixed(2)} Lakhs`,
+              badge: 'Receipts',
+              subtext: `Total consultancy receipts for AY ${metricYear}`
+            },
+            {
+              label: 'USD Converted Value',
+              value: consultUsd,
+              subtext: `Converted at ₹${rate || 84}/USD effective exchange rate`
+            },
+            {
+              label: 'Executed Industry Contracts',
+              value: `${gridTotals.consultancyCount} Contracts`,
+              subtext: 'Corporate & institutional advisory agreements'
+            }
+          ]
+        },
+        ...(topConsultDepts.length > 0 ? [{
+          title: `Consultancy Revenue by ${breakdownType === 'dept' ? 'Department' : 'Month'}`,
+          items: topConsultDepts
+        }] : [])
+      ],
+      footer: 'Client receipts recorded in institutional financial ledger'
+    };
+
+    return {
+      indexedJournalsBreakdown,
+      patentsBreakdown,
+      sponsoredGrantsBreakdown,
+      consultancyBreakdown
+    };
+  }, [gridTotals, totalPublicationsCount, totalPatentsCount, editableGridData, rate, metricYear, breakdownType]);
+
   const isEditableRole = user?.role === 'admin' || user?.role === 'hod' || user?.role === 'coordinator';
 
   return (
@@ -798,6 +1032,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                 badge="Scopus / WoS"
                 subtitle={`${totalPublicationsCount} total journal publications`}
                 icon={BookOpen}
+                breakdown={researchCardBreakdowns.indexedJournalsBreakdown}
               />
               <StatCard
                 title="Patents & IP"
@@ -805,6 +1040,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                 badge="Filed & Granted"
                 subtitle={`${gridTotals.patentsIndian} Indian / ${gridTotals.patentsInternational} International`}
                 icon={Award}
+                breakdown={researchCardBreakdowns.patentsBreakdown}
               />
               <StatCard
                 title="Sponsored Grants"
@@ -812,6 +1048,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                 badge={`${gridTotals.externalProjectsCount} Projects`}
                 subtitle={`Total grants (${formatInrLakhsWithUsd(Number(gridTotals.externalProjectsAmount), rate).usd})`}
                 icon={TrendingUp}
+                breakdown={researchCardBreakdowns.sponsoredGrantsBreakdown}
               />
               <StatCard
                 title="Consultancy Revenue"
@@ -819,6 +1056,7 @@ export function ResearchPage({ onNavigate, currentPage }: ResearchPageProps) {
                 badge={`${gridTotals.consultancyCount} Contracts`}
                 subtitle={`Advisory (${formatInrLakhsWithUsd(Number(gridTotals.consultancyAmount), rate).usd})`}
                 icon={Briefcase}
+                breakdown={researchCardBreakdowns.consultancyBreakdown}
               />
             </div>
 

@@ -53,7 +53,7 @@ const normalizeStudentRecord = (record) => {
     'phone', 'course', 'department', 'previousSchool', 'bloodGroup', 'batch',
     'guardianName', 'guardianPhone', 'address', 'className', 'applicationNo',
     'mobileNo', 'nationality', 'caste', 'currentCity', 'currentState',
-    'permanentCity', 'permanentState', 'parentMobileNo', 'handicapped',
+    'permanentCity', 'permanentState', 'permanentCountry', 'parentMobileNo', 'handicapped',
     'handicappedDescription', 'campus', 'school', 'programLevel', 'disability'
   ];
 
@@ -796,6 +796,13 @@ exports.getStudentStats = async (req, res) => {
 
     const departmentList = Array.from(deptMap.values()).sort((a, b) => b.count - a.count);
 
+    const activeBreakdown = {
+      active: activeCountResult,
+      inactive: Math.max(0, total - activeCountResult)
+    };
+    const stateDiversity = [];
+    const countryDiversity = [];
+
     const stats = {
       total,
       totalGender,
@@ -873,7 +880,7 @@ exports.lookupStudentByRegNo = async (req, res) => {
     }
 
     // Exact academic year validation if requested
-    const requestedAY = req.query.academicYear ? req.query.academicYear.trim() : null;
+    const requestedAY = (req.query && req.query.academicYear) ? req.query.academicYear.trim() : null;
     let targetEnrollment = null;
     if (requestedAY) {
       if (student.enrollments && student.enrollments.length > 0) {
@@ -899,7 +906,7 @@ exports.lookupStudentByRegNo = async (req, res) => {
     // Detect department transitions
     const transitions = [];
     if (student.enrollments && student.enrollments.length > 1) {
-      const sorted = [...student.enrollments].sort((a, b) => a.academicYear.localeCompare(b.academicYear));
+      const sorted = [...student.enrollments].sort((a, b) => String(a.academicYear || '').localeCompare(String(b.academicYear || '')));
       for (let i = 1; i < sorted.length; i++) {
         const prev = sorted[i - 1];
         const curr = sorted[i];
@@ -936,7 +943,7 @@ exports.lookupStudentByRegNo = async (req, res) => {
 // Permanent profile fields that are preserved on Student
 const PERMANENT_PROFILE_FIELDS = [
   'name', 'gender', 'dob', 'bloodGroup', 'nationality', 'caste',
-  'currentCity', 'currentState', 'permanentCity', 'permanentState',
+  'currentCity', 'currentState', 'permanentCity', 'permanentState', 'permanentCountry',
   'address', 'email', 'phone', 'mobileNo', 'parentMobileNo',
   'guardianName', 'guardianPhone', 'handicapped', 'handicappedDescription',
   'disability', 'admissionDate', 'applicationNo', 'previousSchool'

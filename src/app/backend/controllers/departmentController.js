@@ -31,6 +31,19 @@ exports.getDepartments = async (req, res) => {
           model: User,
           as: 'hod',
           attributes: ['id', 'name', 'email']
+        },
+        {
+          model: Course,
+          as: 'courses',
+          required: false,
+          attributes: ['id', 'code', 'name', 'programLevelId'],
+          include: [
+            {
+              model: ProgramLevel,
+              as: 'programLevel',
+              attributes: ['id', 'code', 'name']
+            }
+          ]
         }
       ]
     });

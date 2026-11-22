@@ -14,7 +14,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { useAuth } from '../contexts/AuthContext';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
-import { AppShell, PageHeader, StatCard } from './design-system';
+import { AppShell, PageHeader, StatCard, MetricBreakdownData } from './design-system';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { ClearModuleDataDialog } from './ClearModuleDataDialog';
 
@@ -104,14 +104,20 @@ export const ProfessionalDevelopmentsPage: React.FC<ProfessionalDevelopmentsPage
     totalProgrammes: 0,
     totalProgrammeDays: 0,
     missingDurationCount: 0,
+    validDurationCount: 0,
     participatingFaculty: 0,
     guestFacultyCount: 0,
+    unverifiedFacultyCount: 0,
     activeDepartments: 0,
     totalCount: 0,
     totalDurationDays: 0,
     departmentWise: {} as Record<string, number>,
     programTypeWise: {} as Record<string, number>,
-    yearWise: {} as Record<string, number>
+    yearWise: {} as Record<string, number>,
+    programTypeDistribution: [] as { name: string; count: number }[],
+    durationByProgramType: {} as Record<string, number>,
+    durationByDept: {} as Record<string, number>,
+    facultyByDept: {} as Record<string, number>
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -354,6 +360,178 @@ export const ProfessionalDevelopmentsPage: React.FC<ProfessionalDevelopmentsPage
     return years;
   }, [stats.yearWise]);
 
+  const pdCardBreakdowns = useMemo(() => {
+    const totalProg = stats.totalProgrammes !== undefined ? stats.totalProgrammes : (stats.totalCount || 0);
+    const totalDays = stats.totalProgrammeDays !== undefined ? stats.totalProgrammeDays : (stats.totalDurationDays || 0);
+    const totalFac = stats.participatingFaculty || 0;
+    const totalDepts = stats.activeDepartments !== undefined ? stats.activeDepartments : Object.keys(stats.departmentWise || {}).length;
+
+    const progTypeDist: Array<{ name: string; count: number }> = stats.programTypeDistribution || [];
+    const deptWise: Record<string, number> = stats.departmentWise || {};
+    const durationByType: Record<string, number> = stats.durationByProgramType || {};
+    const durationByDept: Record<string, number> = stats.durationByDept || {};
+    const facultyByDept: Record<string, number> = stats.facultyByDept || {};
+    const missingDays = stats.missingDurationCount || 0;
+    const validDaysCount = stats.validDurationCount || Math.max(0, totalProg - missingDays);
+
+    // 1. Total Programmes Breakdown
+    const totalProgrammesBreakdown: MetricBreakdownData = {
+      title: 'Professional Development Programmes',
+      subtitle: 'Faculty Training & Development',
+      badge: `${totalProg} Programmes`,
+      sections: [
+        {
+          title: 'Programme Type Distribution',
+          items: progTypeDist.length > 0
+            ? progTypeDist.map(pt => ({
+                label: pt.name,
+                value: `${pt.count} programmes`,
+                subtext: `${totalProg > 0 ? ((pt.count / totalProg) * 100).toFixed(1) : 0}% of all records`,
+                percent: totalProg > 0 ? Math.round((pt.count / totalProg) * 100) : 0
+              }))
+            : [{ label: 'Programmes in selected scope', value: totalProg }]
+        },
+        {
+          title: 'Department-wise Programmes',
+          items: Object.entries(deptWise)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([dept, count]) => ({
+              label: dept,
+              value: `${count} programmes`,
+              percent: totalProg > 0 ? Math.round((count / totalProg) * 100) : 0
+            }))
+        }
+      ],
+      footer: 'Distinct parent programme records • Active filters respected'
+    };
+
+    // 2. Total Programme Days Breakdown
+    const totalProgrammeDaysBreakdown: MetricBreakdownData = {
+      title: 'Cumulative Programme Days',
+      subtitle: 'Manually Entered Duration Audit',
+      badge: `${totalDays} Days`,
+      sections: [
+        {
+          title: 'Duration Audit Summary',
+          items: [
+            {
+              label: 'Total Recorded Days',
+              value: `${totalDays} Days`,
+              badge: 'Audited',
+              subtext: 'Cumulative training duration'
+            },
+            {
+              label: 'Programmes with Valid Duration',
+              value: `${validDaysCount} Programmes`,
+              subtext: `${totalProg > 0 ? Math.round((validDaysCount / totalProg) * 100) : 100}% completeness`,
+              percent: totalProg > 0 ? Math.round((validDaysCount / totalProg) * 100) : 100
+            },
+            ...(missingDays > 0 ? [{
+              label: 'Programmes with Missing Duration',
+              value: `${missingDays} Programmes`,
+              badge: 'Unentered',
+              subtext: 'Duration not entered in manual record'
+            }] : [])
+          ]
+        },
+        ...(Object.keys(durationByType).length > 0 ? [{
+          title: 'Duration by Programme Type',
+          items: Object.entries(durationByType)
+            .sort((a, b) => b[1] - a[1])
+            .map(([pt, days]) => ({
+              label: pt,
+              value: `${Math.round(days * 10) / 10} Days`,
+              percent: totalDays > 0 ? Math.round((days / totalDays) * 100) : 0
+            }))
+        }] : []),
+        ...(Object.keys(durationByDept).length > 0 ? [{
+          title: 'Duration by Department',
+          items: Object.entries(durationByDept)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([dept, days]) => ({
+              label: dept,
+              value: `${Math.round(days * 10) / 10} Days`,
+              percent: totalDays > 0 ? Math.round((days / totalDays) * 100) : 0
+            }))
+        }] : [])
+      ],
+      footer: 'Manually recorded durationDays • Single count per parent programme'
+    };
+
+    // 3. Participating Faculty Breakdown
+    const participatingFacultyBreakdown: MetricBreakdownData = {
+      title: 'Faculty Participation & Reach',
+      subtitle: 'Verified Contributor Classification',
+      badge: `${totalFac} Verified`,
+      sections: [
+        {
+          title: 'Participant Classification',
+          items: [
+            {
+              label: 'Distinct Verified Faculty',
+              value: `${totalFac} Faculty`,
+              badge: 'Verified',
+              subtext: 'Christ University faculty members'
+            },
+            ...(stats.guestFacultyCount ? [{
+              label: 'External / Guest Speakers',
+              value: `${stats.guestFacultyCount} Contributors`,
+              badge: 'Guest',
+              subtext: 'External resource persons'
+            }] : []),
+            ...(stats.unverifiedFacultyCount ? [{
+              label: 'Unverified Contributors',
+              value: `${stats.unverifiedFacultyCount} Contributors`,
+              subtext: 'Pending employee ID mapping'
+            }] : [])
+          ]
+        },
+        ...(Object.keys(facultyByDept).length > 0 ? [{
+          title: 'Faculty by Department',
+          items: Object.entries(facultyByDept)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([dept, count]) => ({
+              label: dept,
+              value: `${count} faculty`,
+              percent: totalFac > 0 ? Math.round((count / totalFac) * 100) : 0
+            }))
+        }] : [])
+      ],
+      footer: 'Distinct faculty identities • Contributor associations deduplicated'
+    };
+
+    // 4. Active Departments Breakdown
+    const activeDepartmentsBreakdown: MetricBreakdownData = {
+      title: 'Participating Academic Departments',
+      subtitle: 'Departmental Representation',
+      badge: `${totalDepts} Departments`,
+      sections: [
+        {
+          title: 'Programmes by Department',
+          items: Object.entries(deptWise)
+            .sort((a, b) => b[1] - a[1])
+            .map(([dept, count]) => ({
+              label: dept,
+              value: `${count} programmes`,
+              subtext: `${totalProg > 0 ? ((count / totalProg) * 100).toFixed(1) : 0}% of total`,
+              percent: totalProg > 0 ? Math.round((count / totalProg) * 100) : 0
+            }))
+        }
+      ],
+      footer: 'Primary department association of organized / attended programmes'
+    };
+
+    return {
+      totalProgrammesBreakdown,
+      totalProgrammeDaysBreakdown,
+      participatingFacultyBreakdown,
+      activeDepartmentsBreakdown
+    };
+  }, [stats]);
+
   return (
     <AppShell currentPage="professional-developments" onNavigate={onNavigate} hideSidebar={hideSidebar}>
       <div className="space-y-6">
@@ -402,24 +580,28 @@ export const ProfessionalDevelopmentsPage: React.FC<ProfessionalDevelopmentsPage
             value={stats.totalProgrammes !== undefined ? stats.totalProgrammes : (stats.totalCount || 0)}
             icon={GraduationCap}
             subtitle="Programmes attended & organized"
+            breakdown={pdCardBreakdowns.totalProgrammesBreakdown}
           />
           <StatCard
             title="Total Programme Days"
             value={stats.totalProgrammeDays !== undefined ? stats.totalProgrammeDays : (stats.totalDurationDays || 0)}
             icon={Clock}
             subtitle={stats.missingDurationCount ? `Missing duration in ${stats.missingDurationCount} programmes` : "Cumulative duration in days"}
+            breakdown={pdCardBreakdowns.totalProgrammeDaysBreakdown}
           />
           <StatCard
             title="Participating Faculty"
             value={stats.participatingFaculty || 0}
             icon={Users}
             subtitle={stats.guestFacultyCount ? `${stats.guestFacultyCount} external / guest contributors` : "Distinct verified faculty"}
+            breakdown={pdCardBreakdowns.participatingFacultyBreakdown}
           />
           <StatCard
             title="Active Departments"
             value={stats.activeDepartments !== undefined ? stats.activeDepartments : Object.keys(stats.departmentWise || {}).length}
             icon={Building2}
             subtitle="Participating academic units"
+            breakdown={pdCardBreakdowns.activeDepartmentsBreakdown}
           />
         </div>
 

@@ -18,7 +18,8 @@ const {
   downloadConsultancyTemplate,
   previewBulkUploadConsultancy,
   importBulkUploadConsultancy,
-  searchFacultyDirectory
+  searchFacultyDirectory,
+  getPublicConsultancyProjects
 } = require('../controllers/consultancyProjectController');
 const { auth, authorize } = require('../middleware/auth');
 const { requireModuleEnabled, validateFormSubmission } = require('../middleware/configEnforcement');
@@ -39,6 +40,9 @@ const excelUpload = multer({
 
 // Direct template download endpoint (accessible without blocking auth tokens on browser click)
 router.get('/template', downloadConsultancyTemplate);
+
+// Public consultancy projects and aggregates (Zero PII, approved public records only)
+router.get('/public', getPublicConsultancyProjects);
 
 // All subsequent routes require authentication
 router.use(auth);

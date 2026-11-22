@@ -1,16 +1,17 @@
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { PublicNavBar } from './PublicNavBar';
 import { PublicFooter } from './PublicFooter';
 import { PublicHomePage } from './PublicHomePage';
 import '../../styles/public-website.css';
 import '../../styles/homepage-motion.css';
+import '../../styles/section-experience.css';
 
 // ── Lazy-loaded public pages ─────────────────────────────────────
 // These are code-split for performance so public users only load what they visit.
 const AchievementsPage = React.lazy(() => import('./AchievementsPage').then(m => ({ default: m.AchievementsPage })));
 const ResearchInnovationPage = React.lazy(() => import('./ResearchInnovationPage').then(m => ({ default: m.ResearchInnovationPage })));
 const RankingPage = React.lazy(() => import('./RankingPage').then(m => ({ default: m.RankingPage })));
-const PlacementsInternshipsPage = React.lazy(() => import('./PlacementsInternshipsPage').then(m => ({ default: m.PlacementsInternshipsPage })));
+const CareerOutcomesPage = React.lazy(() => import('./CareerOutcomesPage').then(m => ({ default: m.CareerOutcomesPage })));
 const InfrastructureFacilitiesPage = React.lazy(() => import('./InfrastructureFacilitiesPage').then(m => ({ default: m.InfrastructureFacilitiesPage })));
 const InternationalInteractionsPage = React.lazy(() => import('./InternationalInteractionsPage').then(m => ({ default: m.InternationalInteractionsPage })));
 const CentreExcellencePage = React.lazy(() => import('./CentreExcellencePage').then(m => ({ default: m.CentreExcellencePage })));
@@ -30,16 +31,44 @@ function PublicPageLoading() {
   );
 }
 
+const getSectionFromPath = (): string => {
+  if (typeof window === 'undefined') return 'home';
+  const path = window.location.pathname.replace(/^\/+/, '').split('/')[0];
+  if (!path) return 'home';
+  if (path === 'ranking') return 'rankings';
+  if (path === 'placements') return 'placements-internships';
+  const known = [
+    'home', 'achievements', 'research-innovation', 'rankings',
+    'placements-internships', 'internships', 'alumni', 'infrastructure',
+    'international-interactions', 'centre-excellence', 'incubations',
+    'industry-connects', 'consultancy-projects'
+  ];
+  return known.includes(path) ? path : 'home';
+};
+
 interface PublicWebsiteProps {
   onLoginClick: () => void;
+  onDashboardClick?: () => void;
+  isAuthenticated?: boolean;
 }
 
-export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
-  const [currentSection, setCurrentSection] = useState('home');
+export function PublicWebsite({ onLoginClick, onDashboardClick, isAuthenticated }: PublicWebsiteProps) {
+  const [currentSection, setCurrentSection] = useState<string>(() => getSectionFromPath());
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentSection(getSectionFromPath());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const navigate = (section: string) => {
     if (section.startsWith('#')) {
       setCurrentSection('home');
+      if (window.location.pathname !== '/') {
+        window.history.pushState({}, '', '/');
+      }
       requestAnimationFrame(() => {
         const destination = document.getElementById(section.slice(1));
         destination?.focus({ preventScroll: true });
@@ -49,7 +78,12 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
       });
       return;
     }
+
     setCurrentSection(section);
+    const targetPath = section === 'home' ? '/' : `/${section}`;
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, '', targetPath);
+    }
     window.scrollTo({ top: 0, behavior: 'instant' });
     requestAnimationFrame(() => document.getElementById('public-content')?.focus());
   };
@@ -57,17 +91,28 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
   const renderContent = () => {
     switch (currentSection) {
       case 'home':
-        return <PublicHomePage onNavigate={navigate} onLoginClick={onLoginClick} />;
+        return (
+          <PublicHomePage
+            onNavigate={navigate}
+            onLoginClick={onLoginClick}
+            onDashboardClick={onDashboardClick}
+            isAuthenticated={isAuthenticated}
+          />
+        );
       case 'achievements':
         return <AchievementsPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'research-innovation':
         return <ResearchInnovationPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'rankings':
+      case 'ranking':
         return <RankingPage onNavigate={navigate} isPublicView={true} hideSidebar />;
+      case 'placements':
       case 'placements-internships':
+        return <CareerOutcomesPage page="placements" onNavigate={navigate} isPublic={true} />;
       case 'internships':
+        return <CareerOutcomesPage page="internships" onNavigate={navigate} isPublic={true} />;
       case 'alumni':
-        return <PlacementsInternshipsPage onNavigate={navigate} isPublicView={true} />;
+        return <CareerOutcomesPage page="alumni" onNavigate={navigate} isPublic={true} />;
       case 'infrastructure':
         return <InfrastructureFacilitiesPage onNavigate={navigate} isPublicView={true} />;
       case 'international-interactions':
@@ -81,7 +126,14 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
       case 'consultancy-projects':
         return <ConsultancyProjectsPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       default:
-        return <PublicHomePage onNavigate={navigate} onLoginClick={onLoginClick} />;
+        return (
+          <PublicHomePage
+            onNavigate={navigate}
+            onLoginClick={onLoginClick}
+            onDashboardClick={onDashboardClick}
+            isAuthenticated={isAuthenticated}
+          />
+        );
     }
   };
 
@@ -91,13 +143,20 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
         currentSection={currentSection} 
         onNavigate={navigate}
         onLoginClick={onLoginClick}
+        onDashboardClick={onDashboardClick}
+        isAuthenticated={isAuthenticated}
       />
       <main id="public-content" tabIndex={-1} className={currentSection === 'home' ? 'flex-1' : 'flex-1 iq-public-section'} key={currentSection}>
         <Suspense fallback={<PublicPageLoading />}>
           {renderContent()}
         </Suspense>
       </main>
-      <PublicFooter onLoginClick={onLoginClick} onNavigate={navigate} />
+      <PublicFooter
+        onLoginClick={onLoginClick}
+        onDashboardClick={onDashboardClick}
+        isAuthenticated={isAuthenticated}
+        onNavigate={navigate}
+      />
     </div>
   );
 }

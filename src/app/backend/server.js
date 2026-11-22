@@ -12,6 +12,10 @@ const { sequelize, testConnection } = require('./config/database');
 
 const app = express();
 
+// Request Context & Correlation Tracking (X-Request-ID)
+const requestContextMiddleware = require('./middleware/requestContext');
+app.use(requestContextMiddleware);
+
 // Configure trust proxy strictly for actual reverse proxy hops (e.g. Render/NGINX)
 // In production behind a single reverse proxy, trust 1 hop. In development/test, do not trust spoofed X-Forwarded-* headers.
 const trustProxyHops = process.env.TRUST_PROXY !== undefined 
@@ -176,6 +180,7 @@ app.use('/api/system', require('./routes/system'));
 app.use('/api/admin', require('./routes/systemAdmin'));
 app.use('/api/research-reports', require('./routes/researchReports'));
 app.use('/api/institutional-analytics', require('./routes/institutionalAnalytics'));
+app.use('/api/public', require('./routes/publicOverview'));
 
 // Health check
 app.get(['/health', '/api/health'], (req, res) => {

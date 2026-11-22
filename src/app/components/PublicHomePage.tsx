@@ -49,10 +49,19 @@ const stages = [
   { name: 'Improve', title: 'Make the next cycle stronger.', detail: 'Use the findings of review to refine processes, share effective practices, and inform the next round of institutional planning.', evidence: 'Action plans & shared learning', icon: ChartNoAxesCombined },
 ];
 
-export function PublicHomePage({ onNavigate, onLoginClick }: {
+export function PublicHomePage({ onNavigate, onLoginClick, onDashboardClick, isAuthenticated }: {
   onNavigate: (section: string) => void;
   onLoginClick: () => void;
+  onDashboardClick?: () => void;
+  isAuthenticated?: boolean;
 }) {
+  const handleAuthAction = () => {
+    if (isAuthenticated && onDashboardClick) {
+      onDashboardClick();
+    } else {
+      onLoginClick();
+    }
+  };
   const [prefersReduced, setPrefersReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -123,9 +132,9 @@ export function PublicHomePage({ onNavigate, onLoginClick }: {
       </section>
 
       <Reveal className="iq-container iq-access iq-stagger" delay={.08}>
-        <button onClick={onLoginClick}>
+        <button onClick={handleAuthAction}>
           <span className="iq-access-icon"><Users size={23} /></span>
-          <span><small>FOR FACULTY & ADMINISTRATION</small><strong>Institutional workspace</strong><span>Document, review, and collaborate</span></span>
+          <span><small>FOR FACULTY & ADMINISTRATION</small><strong>{isAuthenticated ? 'Institutional dashboard' : 'Institutional workspace'}</strong><span>{isAuthenticated ? 'Access your administrative metrics' : 'Document, review, and collaborate'}</span></span>
           <ArrowUpRight size={19} />
         </button>
         <a href="#resources">
@@ -255,7 +264,7 @@ export function PublicHomePage({ onNavigate, onLoginClick }: {
       </div>
       <section className="iq-closing"><Reveal className="iq-cta iq-container">
         <div><p className="iq-eyebrow">FOR THE CHRIST COMMUNITY</p><h2>Your contribution.<br /><em>Our collective progress.</em></h2><p>Access your institutional workspace to document and advance quality initiatives.</p></div>
-        <button className="iq-button iq-gold" onClick={onLoginClick}>Institutional login <ArrowRight size={17} /></button>
+        <button className="iq-button iq-gold" onClick={handleAuthAction}>{isAuthenticated ? 'Institutional Dashboard' : 'Institutional login'} <ArrowRight size={17} /></button>
       </Reveal></section>
     </div></MotionConfig></QuietMotion.Provider>
   );

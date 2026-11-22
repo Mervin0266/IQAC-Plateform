@@ -13,7 +13,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { useAuth } from '../contexts/AuthContext';
 import { useAcademicHierarchy } from '../hooks/useAcademicHierarchy';
-import { AppShell, PageHeader, StatCard } from './design-system';
+import { AppShell, PageHeader, StatCard, MetricBreakdownData } from './design-system';
 import { BulkUploadDialog } from './BulkUploadDialog';
 import { ClearModuleDataDialog } from './ClearModuleDataDialog';
 
@@ -93,11 +93,15 @@ export const InvitedTalksPage: React.FC<InvitedTalksPageProps> = ({
     uniqueOrganizations: 0,
     participatingFaculty: 0,
     guestFacultyCount: 0,
+    unverifiedFacultyCount: 0,
     mediaTypesCount: 0,
     totalCount: 0,
     departmentWise: {} as Record<string, number>,
     programTypeWise: {} as Record<string, number>,
-    mediaWise: {} as Record<string, number>
+    mediaWise: {} as Record<string, number>,
+    programTypeDistribution: [] as { name: string; count: number }[],
+    organizationWise: {} as Record<string, number>,
+    facultyByDept: {} as Record<string, number>
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -317,6 +321,144 @@ export const InvitedTalksPage: React.FC<InvitedTalksPageProps> = ({
     }
   };
 
+  const itCardBreakdowns = useMemo(() => {
+    const totalTalks = stats.totalTalks !== undefined ? stats.totalTalks : (stats.totalCount || 0);
+    const totalOrgs = stats.uniqueOrganizations || 0;
+    const totalFac = stats.participatingFaculty || 0;
+    const totalMedia = stats.mediaTypesCount !== undefined ? stats.mediaTypesCount : Object.keys(stats.mediaWise || {}).length;
+
+    const progTypeDist: Array<{ name: string; count: number }> = stats.programTypeDistribution || [];
+    const deptWise: Record<string, number> = stats.departmentWise || {};
+    const orgWise: Record<string, number> = stats.organizationWise || {};
+    const mediaWise: Record<string, number> = stats.mediaWise || {};
+    const facultyByDept: Record<string, number> = stats.facultyByDept || {};
+
+    // 1. Total Invited Talks Breakdown
+    const totalInvitedTalksBreakdown: MetricBreakdownData = {
+      title: 'Total Invited Talks & Keynotes',
+      subtitle: 'Talk Distribution by Programme Type',
+      badge: `${totalTalks} Talks`,
+      sections: [
+        {
+          title: 'Programme Type Categories',
+          items: progTypeDist.length > 0
+            ? progTypeDist.map(pt => ({
+                label: pt.name,
+                value: `${pt.count} talks`,
+                subtext: `${totalTalks > 0 ? ((pt.count / totalTalks) * 100).toFixed(1) : 0}% of total`,
+                percent: totalTalks > 0 ? Math.round((pt.count / totalTalks) * 100) : 0
+              }))
+            : [{ label: 'Talks recorded in scope', value: totalTalks }]
+        },
+        {
+          title: 'Department-wise Talk Contributions',
+          items: Object.entries(deptWise)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([dept, count]) => ({
+              label: dept,
+              value: `${count} talks`,
+              percent: totalTalks > 0 ? Math.round((count / totalTalks) * 100) : 0
+            }))
+        }
+      ],
+      footer: 'Distinct talk records • No artificial calendar dates'
+    };
+
+    // 2. Host Organizations Breakdown
+    const hostOrganizationsBreakdown: MetricBreakdownData = {
+      title: 'Host Organizations & Universities',
+      subtitle: 'Inviting Academic & Industry Entities',
+      badge: `${totalOrgs} Organizations`,
+      sections: [
+        {
+          title: 'Top Host Institutions',
+          items: Object.entries(orgWise)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8)
+            .map(([org, count]) => ({
+              label: org,
+              value: `${count} talks`,
+              subtext: `${totalTalks > 0 ? ((count / totalTalks) * 100).toFixed(1) : 0}% share`,
+              percent: totalTalks > 0 ? Math.round((count / totalTalks) * 100) : 0
+            }))
+        }
+      ],
+      footer: 'Distinct normalized organization entities'
+    };
+
+    // 3. Participating Faculty Breakdown
+    const participatingFacultyBreakdown: MetricBreakdownData = {
+      title: 'Faculty Resource Persons & Speakers',
+      subtitle: 'Faculty Speaker Classification',
+      badge: `${totalFac} Speakers`,
+      sections: [
+        {
+          title: 'Speaker Classification',
+          items: [
+            {
+              label: 'Distinct Verified Faculty',
+              value: `${totalFac} Speakers`,
+              badge: 'Verified',
+              subtext: 'Christ University faculty members'
+            },
+            ...(stats.guestFacultyCount ? [{
+              label: 'External / Guest Speakers',
+              value: `${stats.guestFacultyCount} Speakers`,
+              badge: 'Guest',
+              subtext: 'Visiting / guest contributors'
+            }] : []),
+            ...(stats.unverifiedFacultyCount ? [{
+              label: 'Unverified Contributors',
+              value: `${stats.unverifiedFacultyCount} Speakers`,
+              subtext: 'Pending employee ID mapping'
+            }] : [])
+          ]
+        },
+        ...(Object.keys(facultyByDept).length > 0 ? [{
+          title: 'Speakers by Department',
+          items: Object.entries(facultyByDept)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([dept, count]) => ({
+              label: dept,
+              value: `${count} speakers`,
+              percent: totalFac > 0 ? Math.round((count / totalFac) * 100) : 0
+            }))
+        }] : [])
+      ],
+      footer: 'Deduplicated distinct faculty • Contributor associations deduplicated'
+    };
+
+    // 4. Delivery Media Types Breakdown
+    const deliveryMediaTypesBreakdown: MetricBreakdownData = {
+      title: 'Delivery Media & Presentation Modes',
+      subtitle: 'Delivery Channel Distribution',
+      badge: `${totalMedia} Media Types`,
+      sections: [
+        {
+          title: 'Delivery Mode Breakdown',
+          items: Object.entries(mediaWise)
+            .sort((a, b) => b[1] - a[1])
+            .map(([media, count]) => ({
+              label: media,
+              value: `${count} talks`,
+              subtext: `${totalTalks > 0 ? ((count / totalTalks) * 100).toFixed(1) : 0}% of deliveries`,
+              percent: totalTalks > 0 ? Math.round((count / totalTalks) * 100) : 0
+            }))
+        }
+      ],
+      footer: 'Audited delivery channels (Offline, Online, Hybrid)'
+    };
+
+    return {
+      totalInvitedTalksBreakdown,
+      hostOrganizationsBreakdown,
+      participatingFacultyBreakdown,
+      deliveryMediaTypesBreakdown
+    };
+  }, [stats]);
+
   return (
     <AppShell currentPage="invited-talks" onNavigate={onNavigate} hideSidebar={hideSidebar}>
       <div className="space-y-6">
@@ -365,24 +507,28 @@ export const InvitedTalksPage: React.FC<InvitedTalksPageProps> = ({
             value={stats.totalTalks !== undefined ? stats.totalTalks : (stats.totalCount || 0)}
             icon={Mic}
             subtitle="All recorded invited talks"
+            breakdown={itCardBreakdowns.totalInvitedTalksBreakdown}
           />
           <StatCard
             title="Host Organizations"
             value={stats.uniqueOrganizations || 0}
             icon={Building2}
             subtitle="Distinct universities & entities"
+            breakdown={itCardBreakdowns.hostOrganizationsBreakdown}
           />
           <StatCard
             title="Participating Faculty"
             value={stats.participatingFaculty || 0}
             icon={Users}
             subtitle={stats.guestFacultyCount ? `${stats.guestFacultyCount} guest / external speakers` : "Distinct verified faculty"}
+            breakdown={itCardBreakdowns.participatingFacultyBreakdown}
           />
           <StatCard
             title="Delivery Media Types"
             value={stats.mediaTypesCount !== undefined ? stats.mediaTypesCount : Object.keys(stats.mediaWise || {}).length}
             icon={Radio}
             subtitle="Distinct delivery channels"
+            breakdown={itCardBreakdowns.deliveryMediaTypesBreakdown}
           />
         </div>
 

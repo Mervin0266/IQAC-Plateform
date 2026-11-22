@@ -24,6 +24,27 @@ const { resolveDepartmentScope } = require('../utils/scopeHelper');
 const { Campus, School, Department, ProgramLevel, SavedReportConfig, ReportHistory } = require('../models');
 const { Op } = require('sequelize');
 
+// Filter-aware multi-key in-memory cache for dashboard analytics (TTL: 60 seconds)
+const dashboardAnalyticsCache = new Map();
+const CACHE_TTL_MS = 60 * 1000;
+
+function buildFilterCacheKey(filters, userScope) {
+  const normDepts = [...(filters.departments || [])].sort().join('|');
+  const normAys = [...(filters.academicYears || [])].sort().join('|');
+  const scopeId = userScope?.departmentId || userScope?.departmentName || 'all';
+  return [
+    filters.campus || 'all',
+    filters.school || 'all',
+    normDepts || 'all',
+    normAys || 'all',
+    filters.batch || 'all',
+    filters.program || 'all',
+    filters.indexing || 'all',
+    filters.status || 'all',
+    scopeId
+  ].join('::');
+}
+
 /**
  * GET /api/institutional-analytics/dashboard
  * Live institutional analytics for Dashboard V2.0
@@ -49,12 +70,40 @@ exports.getDashboardAnalytics = async (req, res) => {
       status: req.query.status
     };
 
-    const data = await getInstitutionalAnalytics(filters, userScope);
+    const cacheKey = buildFilterCacheKey(filters, userScope);
+    const cached = dashboardAnalyticsCache.get(cacheKey);
+    const now = Date.now();
 
-    return res.json({
-      success: true,
-      data
-    });
+    // Return fresh cached result if within TTL
+    if (cached && (now - cached.timestamp < CACHE_TTL_MS)) {
+      return res.json({
+        success: true,
+        data: cached.data,
+        cached: true,
+        cacheAgeMs: now - cached.timestamp
+      });
+    }
+
+    try {
+      const data = await getInstitutionalAnalytics(filters, userScope);
+      dashboardAnalyticsCache.set(cacheKey, { data, timestamp: now });
+      return res.json({
+        success: true,
+        data,
+        cached: false
+      });
+    } catch (fetchErr) {
+      if (cached) {
+        console.warn('Analytics compute error, returning cached fallback:', fetchErr.message);
+        return res.json({
+          success: true,
+          data: cached.data,
+          cached: true,
+          staleFallback: true
+        });
+      }
+      throw fetchErr;
+    }
   } catch (error) {
     console.error('Error fetching dashboard analytics:', error);
     return res.status(error.status || 500).json({

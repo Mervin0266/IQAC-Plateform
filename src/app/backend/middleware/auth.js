@@ -242,12 +242,21 @@ const checkDepartment = (req, res, next) => {
   next();
 };
 
+const authEngine = require('../security/authEngine');
+
 module.exports = {
   auth,
   protect: auth,
   authorize,
   requireSystemAdmin,
   requireModulePermission,
-  checkDepartment
+  checkDepartment,
+  authEngine,
+  hasRole: authEngine.hasRole,
+  hasPermission: authEngine.hasPermission,
+  isUniversityScoped: authEngine.isUniversityScoped,
+  isDepartmentAllowed: authEngine.isDepartmentAllowed,
+  authorizeDataScope: authEngine.authorizeDataScope,
+  validateAdminAuthority: authEngine.validateAdminAuthority
 };
 

@@ -144,7 +144,10 @@ export function IncubationsPage({ onNavigate, isPublicView = false }: Incubation
     <AppShell currentPage="incubations" onNavigate={onNavigate} hideSidebar={isPublicView}>
           
       <PageHeader
-        breadcrumbs={[
+        breadcrumbs={isPublicView ? [
+          { label: 'Home', onClick: () => onNavigate('home') },
+          { label: 'Startup Incubation & Entrepreneurship', active: true },
+        ] : [
           { label: 'Innovation' },
           { label: 'Startup Incubation & Entrepreneurship', active: true },
         ]}

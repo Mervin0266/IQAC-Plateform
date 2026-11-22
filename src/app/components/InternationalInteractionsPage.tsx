@@ -198,7 +198,10 @@ export function InternationalInteractionsPage({ onNavigate, isPublicView = false
     <AppShell currentPage="international-interactions" onNavigate={onNavigate} hideSidebar={isPublicView}>
           
       <PageHeader
-        breadcrumbs={[
+        breadcrumbs={isPublicView ? [
+          { label: 'Home', onClick: () => onNavigate('home') },
+          { label: 'International Relations & Global Immersion', active: true },
+        ] : [
           { label: 'Global' },
           { label: 'International Relations & Global Immersion', active: true },
         ]}

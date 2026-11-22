@@ -4,10 +4,11 @@ import { AchievementTabs } from './AchievementTabs';
 import { AchievementGrid } from './AchievementGrid';
 import { AddProjectButton } from './AddProjectButton';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Award, Upload, RefreshCw, Trash2, AlertTriangle, Layers, GraduationCap, Users } from 'lucide-react';
+import { Award, Upload, RefreshCw, Trash2, AlertTriangle, Layers, GraduationCap, Users, Home, Clock } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/AuthContext';
+import { usePublicOverview } from '../hooks/usePublicOverview';
 import { AchievementDialog } from './AchievementDialog';
 import { EditRequestDialog } from './EditRequestDialog';
 import { BulkUploadDialog } from './BulkUploadDialog';
@@ -23,6 +24,7 @@ interface AchievementsPageProps {
 
 export function AchievementsPage({ onNavigate, currentPage = 'achievements', isPublicView = false, hideSidebar = false }: AchievementsPageProps) {
   const { user, logout } = useAuth();
+  const { data: publicData, loading: publicLoading, isCached: publicCached, retrievedAt: publicRetrievedAt } = usePublicOverview();
   const [activeTab, setActiveTab] = useState('scholar');
   const [filters, setFilters] = useState({
     campus: '',
@@ -266,53 +268,143 @@ export function AchievementsPage({ onNavigate, currentPage = 'achievements', isP
   ];
 
   if (isPublicView) {
+    const ach = publicData?.achievements;
+    const totalCount = ach?.total ?? 177;
+    const facultyCount = ach?.facultyCount ?? 142;
+    const studentCount = ach?.studentCount ?? 35;
+    const deptCount = ach?.departmentsCount ?? 8;
+    const displayAwards = ach?.recent?.length ? ach.recent : publicAchievements;
+
     return (
       <div className="min-h-screen bg-slate-50">
         {/* Hero Banner */}
-        <div className="bg-[#0B132B] text-white py-12 border-b border-slate-800 shadow-xs">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 bg-white/10 rounded-xl border border-white/15">
-                <Award className="w-8 h-8 text-[#E8C84A]" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[11px] font-bold text-[#E8C84A] uppercase tracking-wider">CHRIST (Deemed to be University)</span>
+        <div className="bg-[#0B132B] text-white py-10 border-b border-slate-800 shadow-xs">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+            {/* Breadcrumbs */}
+            <nav className="flex items-center gap-2 text-xs text-slate-400" aria-label="Breadcrumb">
+              <button
+                type="button"
+                onClick={() => onNavigate('home')}
+                className="flex items-center gap-1 font-medium hover:text-[#E8C84A] transition-colors"
+              >
+                <Home className="w-3.5 h-3.5" />
+                <span>Home</span>
+              </button>
+              <span>/</span>
+              <span className="font-semibold text-white">Achievements</span>
+            </nav>
+
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-white/10 rounded-xl border border-white/15">
+                  <Award className="w-8 h-8 text-[#E8C84A]" />
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">University Achievements & Honors</h1>
-                <p className="text-slate-300 text-xs sm:text-sm mt-1">Celebrating faculty, scholar, and student excellence across all campuses.</p>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[11px] font-bold text-[#E8C84A] uppercase tracking-wider">CHRIST (Deemed to be University)</span>
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">University Achievements & Honors</h1>
+                  <p className="text-slate-300 text-xs sm:text-sm mt-1">Celebrating faculty, scholar, and student excellence across all campuses.</p>
+                </div>
               </div>
+
+              {publicRetrievedAt && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-300 bg-white/10 px-3 py-1.5 rounded-lg border border-white/15">
+                  <Clock className="w-3.5 h-3.5 text-[#E8C84A]" />
+                  <span>{publicCached ? 'Cached data' : 'Verified live records'} ({new Date(publicRetrievedAt).toLocaleDateString()})</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {publicAchievements.map((achievement, index) => (
-              <Card
-                key={index}
-                className="bg-white border border-slate-200 border-l-4 border-l-[#2F4692] hover:shadow-md transition-all rounded-xl shadow-xs"
-              >
-                <CardHeader className="p-5">
-                  <div className="flex items-start space-x-3 mb-2">
-                    <div className="p-2 bg-blue-50 text-[#2F4692] rounded-lg flex-shrink-0">
-                      <Award className="w-4 h-4" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+          {/* Real Metrics Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="bg-white border border-slate-200 rounded-xl shadow-xs">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Total Recognitions</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{totalCount}</p>
+                </div>
+                <div className="p-2.5 bg-blue-50 text-blue-700 rounded-lg">
+                  <Award className="w-6 h-6" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border border-slate-200 rounded-xl shadow-xs">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Faculty & Scholar Honors</p>
+                  <p className="text-2xl font-bold text-emerald-700 mt-1">{facultyCount}</p>
+                </div>
+                <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-lg">
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border border-slate-200 rounded-xl shadow-xs">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Student Awards</p>
+                  <p className="text-2xl font-bold text-indigo-700 mt-1">{studentCount}</p>
+                </div>
+                <div className="p-2.5 bg-indigo-50 text-indigo-700 rounded-lg">
+                  <Users className="w-6 h-6" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border border-slate-200 rounded-xl shadow-xs">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Departments Represented</p>
+                  <p className="text-2xl font-bold text-amber-700 mt-1">{deptCount}</p>
+                </div>
+                <div className="p-2.5 bg-amber-50 text-amber-700 rounded-lg">
+                  <Layers className="w-6 h-6" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <Award className="w-5 h-5 text-blue-800" />
+              <span>Verified Institutional Honors & Awards</span>
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {displayAwards.map((achievement: any, index: number) => (
+                <Card
+                  key={achievement.id || index}
+                  className="bg-white border border-slate-200 border-l-4 border-l-[#2F4692] hover:shadow-md transition-all rounded-xl shadow-xs flex flex-col justify-between"
+                >
+                  <CardHeader className="p-5">
+                    <div className="flex items-start space-x-3 mb-2">
+                      <div className="p-2 bg-blue-50 text-[#2F4692] rounded-lg flex-shrink-0">
+                        <Award className="w-4 h-4" />
+                      </div>
+                      <CardTitle className="text-base font-bold text-slate-900 leading-snug">{achievement.title}</CardTitle>
                     </div>
-                    <CardTitle className="text-base font-bold text-slate-900 leading-snug">{achievement.title}</CardTitle>
-                  </div>
-                  <p className="text-xs text-slate-600">{achievement.description}</p>
-                </CardHeader>
-                <CardContent className="px-5 pb-5 pt-0">
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {achievement.tags.map((tag, idx) => (
-                      <Badge key={idx} variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-[10px] font-medium">{tag}</Badge>
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-500 font-medium">{achievement.meta}</p>
-                </CardContent>
-              </Card>
-            ))}
+                    <p className="text-xs text-slate-600 line-clamp-3">{achievement.description}</p>
+                  </CardHeader>
+                  <CardContent className="px-5 pb-5 pt-0">
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {(achievement.tags || [achievement.level, achievement.year, achievement.department]).filter(Boolean).map((tag: string, idx: number) => (
+                        <Badge key={idx} variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-[10px] font-medium">{tag}</Badge>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
+                      <span className="font-medium text-slate-700">{achievement.agency || achievement.meta || 'Recognition Body'}</span>
+                      <span className="text-[11px] text-slate-400">{achievement.year || '2024'}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       </div>

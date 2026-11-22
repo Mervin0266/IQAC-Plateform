@@ -382,6 +382,15 @@ export function CentreExcellencePage({
   return (
     <AppShell currentPage="centre-excellence" onNavigate={onNavigate} hideSidebar={hideSidebar}>
 
+          {/* Public Breadcrumb */}
+          {(isPublicView || hideSidebar) && (
+            <nav aria-label="Breadcrumb" className="flex items-center space-x-2 text-xs text-slate-500 mb-4 px-1">
+              <button onClick={() => onNavigate('home')} className="hover:text-blue-700 transition-colors font-medium text-slate-600">Home</button>
+              <span>/</span>
+              <span className="text-slate-900 font-semibold">Centres of Excellence</span>
+            </nav>
+          )}
+
           {/* ========================================================================= */}
           {/* 1. MASTER HEADER & ACTION TOOLBAR                                         */}
           {/* ========================================================================= */}

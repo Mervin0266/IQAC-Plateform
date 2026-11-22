@@ -568,31 +568,47 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
     totalCitations += c;
   });
 
-  // Placements & LPA calculation (strict segregation from internships)
+  // Placements & LPA calculation (strict segregation from internships, per-student highest offer canonical rule)
   const placementOffers = rawPlacements.filter(p => (p.placementType || 'placement').toLowerCase() === 'placement');
   const internshipOffers = rawPlacements.filter(p => (p.placementType || '').toLowerCase() === 'internship');
 
   const placedStudentSet = new Set();
-  let placementSalarySum = 0;
-  let validSalaryCount = 0;
+  const studentHighestPkgMap = new Map();
   let highestPackageLpa = 0;
-  const placementPackages = [];
 
   placementOffers.forEach(p => {
-    if (p.studentId) placedStudentSet.add(String(p.studentId).trim());
-    else if (p.studentName) placedStudentSet.add(String(p.studentName).trim());
+    const sId = (p.studentId || p.studentName || '').trim();
+    if (sId) placedStudentSet.add(sId);
 
     const pkg = Number(p.package) || 0;
     if (pkg > 0) {
-      placementSalarySum += pkg;
-      validSalaryCount++;
-      placementPackages.push(pkg);
       if (pkg > highestPackageLpa) highestPackageLpa = pkg;
+      if (sId) {
+        const cur = studentHighestPkgMap.get(sId);
+        if (cur === undefined || pkg > cur) {
+          studentHighestPkgMap.set(sId, pkg);
+        }
+      }
     }
   });
 
   const uniquePlaced = placedStudentSet.size;
-  const avgPackageLpa = validSalaryCount > 0 ? (placementSalarySum / validSalaryCount).toFixed(2) : null;
+  const perStudentPackages = Array.from(studentHighestPkgMap.values()).sort((a, b) => a - b);
+  const placementPackages = perStudentPackages;
+  const validSalaryCount = perStudentPackages.length;
+  const perStudentSalarySum = perStudentPackages.reduce((sum, val) => sum + val, 0);
+
+  const avgPackageLpa = validSalaryCount > 0 ? (perStudentSalarySum / validSalaryCount).toFixed(2) : null;
+
+  let medianPackageLpa = null;
+  if (validSalaryCount > 0) {
+    const mid = Math.floor(validSalaryCount / 2);
+    const medNum = (validSalaryCount % 2 !== 0)
+      ? perStudentPackages[mid]
+      : (perStudentPackages[mid - 1] + perStudentPackages[mid]) / 2;
+    medianPackageLpa = medNum.toFixed(2);
+  }
+
   const placementRate = totalStudents > 0
     ? ((uniquePlaced / totalStudents) * 100).toFixed(1)
     : (placementOffers.length > 0 ? '78.5' : '0.0');
@@ -932,14 +948,14 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
     else salaryRanges[4].count++;
   });
 
-  // Top recruiters
+  // Top recruiters (with both offers and count aliases)
   const recruiterMap = {};
   placementOffers.forEach(p => {
     const comp = (p.company || '').trim();
     if (comp) recruiterMap[comp] = (recruiterMap[comp] || 0) + 1;
   });
   const topRecruiters = Object.entries(recruiterMap)
-    .map(([company, offers]) => ({ company, offers }))
+    .map(([company, offers]) => ({ company, offers, count: offers }))
     .sort((a, b) => b.offers - a.offers)
     .slice(0, 8);
 
@@ -952,32 +968,40 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
         departmentName: d,
         eligible: 0,
         placedSet: new Set(),
+        studentPkgs: {},
         offers: 0,
-        salarySum: 0,
-        salaryCount: 0,
         highestLpa: 0
       };
     }
     deptPlacementMap[d].offers++;
-    if (p.studentId) deptPlacementMap[d].placedSet.add(p.studentId);
-    const pkg = Number(p.package) || 0;
-    if (pkg > 0) {
-      deptPlacementMap[d].salarySum += pkg;
-      deptPlacementMap[d].salaryCount++;
-      if (pkg > deptPlacementMap[d].highestLpa) deptPlacementMap[d].highestLpa = pkg;
+    const sId = (p.studentId || p.studentName || '').trim();
+    if (sId) {
+      deptPlacementMap[d].placedSet.add(sId);
+      const pkg = Number(p.package) || 0;
+      if (pkg > 0) {
+        if (!deptPlacementMap[d].studentPkgs[sId] || pkg > deptPlacementMap[d].studentPkgs[sId]) {
+          deptPlacementMap[d].studentPkgs[sId] = pkg;
+        }
+        if (pkg > deptPlacementMap[d].highestLpa) deptPlacementMap[d].highestLpa = pkg;
+      }
     }
   });
 
   const departmentPlacements = Object.values(deptPlacementMap).map(d => {
     const placed = d.placedSet.size || d.offers;
     const eligible = deptMap[d.departmentName]?.students || d.eligible || Math.max(placed, 1);
+    const pkgs = Object.values(d.studentPkgs);
+    const avgLpa = pkgs.length > 0 ? (pkgs.reduce((a, b) => a + b, 0) / pkgs.length).toFixed(2) : null;
     return {
+      department: d.departmentName,
       departmentName: d.departmentName,
       eligible,
       placed,
+      students: placed,
       offers: d.offers,
       rate: eligible > 0 ? ((placed / eligible) * 100).toFixed(1) : '0.0',
-      avgLpa: d.salaryCount > 0 ? (d.salarySum / d.salaryCount).toFixed(2) : null,
+      avgPkg: avgLpa,
+      avgLpa,
       highestLpa: d.highestLpa > 0 ? d.highestLpa.toFixed(2) : null
     };
   });
@@ -1092,8 +1116,9 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
       totalCitations,
       uniquePlacedStudents: uniquePlaced,
       placementRate,
-      avgSalaryLpa: avgPackageLpa ? `₹ ${avgPackageLpa} LPA` : '—',
-      highestSalaryLpa: highestPackageLpa > 0 ? `₹ ${highestPackageLpa.toFixed(2)} LPA` : '—',
+      avgSalaryLpa: avgPackageLpa || '—',
+      highestSalaryLpa: highestPackageLpa > 0 ? highestPackageLpa.toFixed(2) : '—',
+      medianSalaryLpa: medianPackageLpa || '—',
       totalGrantsAmountLakhs: totalSponsoredAmountLakhs,
       totalGrantsCrores: totalSponsoredAmountCrores,
       consultancyAmountLakhs,
@@ -1195,8 +1220,9 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
       uniquePlaced,
       totalOffers: placementOffers.length,
       placementRate,
-      avgPackageLpa: avgPackageLpa ? `₹ ${avgPackageLpa} LPA` : '—',
-      highestPackageLpa: highestPackageLpa > 0 ? `₹ ${highestPackageLpa.toFixed(2)} LPA` : '—',
+      avgPackageLpa: avgPackageLpa || '—',
+      highestPackageLpa: highestPackageLpa > 0 ? highestPackageLpa.toFixed(2) : '—',
+      medianPackageLpa: medianPackageLpa || '—',
       totalInternships: internshipOffers.length,
       avgInternshipStipend,
       salaryRanges,

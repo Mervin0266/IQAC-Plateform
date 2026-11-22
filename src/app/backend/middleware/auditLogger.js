@@ -52,15 +52,15 @@ const logAction = async (...args) => {
     previousValue = opts.previousValue || null;
     updatedValue = opts.updatedValue || null;
     remarks = opts.remarks || opts.details || null;
-    ipAddress = opts.ipAddress || null;
-    adminUserId = opts.adminUserId || (opts.user && opts.user.id) || null;
-    adminIdentity = opts.adminIdentity || (opts.user && (opts.user.email || opts.user.name)) || null;
+    ipAddress = opts.ipAddress || (opts.req && (opts.req.ip || (typeof opts.req.header === 'function' ? opts.req.header('x-forwarded-for') : null))) || null;
+    adminUserId = opts.adminUserId || (opts.user && opts.user.id) || (opts.req && opts.req.user && opts.req.user.id) || null;
+    adminIdentity = opts.adminIdentity || (opts.user && (opts.user.email || opts.user.name)) || (opts.req && opts.req.user && (opts.req.user.email || opts.req.user.name)) || null;
     moduleName = opts.module || null;
     entity = opts.entity || null;
     affectedRecordId = opts.affectedRecordId || (opts.recordId ? String(opts.recordId) : null);
     reason = opts.reason || null;
     result = opts.result || 'Success';
-    correlationId = opts.correlationId || null;
+    correlationId = opts.correlationId || (opts.req && (opts.req.id || opts.req.correlationId)) || null;
   } else if (args.length > 1) {
     // Legacy positional arguments: (userIdOrUser, action, titleOrResource, remarksOrDiff, ipAddress)
     const firstArg = args[0];
@@ -81,6 +81,12 @@ const logAction = async (...args) => {
   const userRole = (user && user.role) || 'system';
   const department = (user && user.department) || null;
 
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const safeAdminUserId = (adminUserId && UUID_REGEX.test(String(adminUserId))) ? String(adminUserId) : null;
+  if (adminUserId && !safeAdminUserId && !adminIdentity) {
+    adminIdentity = String(adminUserId);
+  }
+
   try {
     const entry = await AuditLog.create({
       recordId,
@@ -93,7 +99,7 @@ const logAction = async (...args) => {
       updatedValue: redactSecrets(updatedValue),
       ipAddress,
       remarks,
-      adminUserId,
+      adminUserId: safeAdminUserId,
       adminIdentity,
       module: moduleName,
       entity,

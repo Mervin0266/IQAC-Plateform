@@ -1,0 +1,31 @@
+.iq-login{font-family:'IQ Manrope','Segoe UI',sans-serif}
+.iq-login-panel{position:relative;padding-top:130px}
+.iq-login-logo{position:absolute;right:32px;top:28px;width:190px;height:65px;object-fit:contain}
+.iq-login h1,.iq-login h2{font-family:'IQ Display',Georgia,serif;font-weight:400}
+.iq-login input{min-height:44px;font-size:16px}
+.iq-login form button[type=submit]{min-height:44px}
+.iq-login-panel p{white-space:normal;line-height:1.65}
+.iq-login-panel h2{font-size:25px}
+.iq-login :is(button,input,[role=button]):focus-visible{outline:2px solid #b99a5c;outline-offset:4px}
+.iq-login-showcase{position:relative;width:50%;min-height:100svh;overflow:hidden;background:#102039;display:flex;align-items:flex-end;border-left:4px solid #b99a5c;isolation:isolate}
+.iq-login-slides,.iq-login-shade{position:absolute;inset:0;z-index:-1}
+.iq-login-slides img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:translateX(16px) scale(1.04);transition:opacity .9s ease,transform .9s ease}
+.iq-login-slides img.is-active{opacity:1;transform:translateX(0) scale(1.04)}
+.iq-login-shade{background:linear-gradient(180deg,#1020390a 25%,#10203944 52%,#08172de8 100%)}
+.iq-campus-footer{width:100%;padding:clamp(28px,4vw,64px);color:#fff;text-align:left}
+.iq-campus-label{display:flex;align-items:center;gap:10px;font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#ebd5a5;margin:0 0 16px}
+.iq-campus-label>span{width:25px;height:1px;background:#dbc28a}
+.iq-campus-footer h1{font-size:clamp(30px,3.3vw,52px);line-height:1.12;letter-spacing:-.025em;margin:0 0 14px;color:white}
+.iq-campus-title{font-size:14px;font-weight:600;margin:0 0 5px;color:#fff}
+.iq-campus-description{font-size:12px;line-height:1.6;margin:0;color:#d4dfed}
+.iq-campus-controls{display:flex;align-items:center;gap:14px;margin-top:26px;padding-top:16px;border-top:1px solid #ffffff30;max-width:410px}
+.iq-campus-controls button{display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:36px;background:transparent;color:#fff;border:0;cursor:pointer;border-radius:50%}
+.iq-campus-controls button:hover{background:#ffffff18}
+.iq-campus-dots,.iq-campus-actions{display:flex;align-items:center}
+.iq-campus-dots button{min-width:25px}
+.iq-campus-dots span{height:5px;width:5px;border-radius:5px;background:#ffffff80;transition:width .25s}
+.iq-campus-dots [aria-pressed=true] span{width:18px;background:#e5c98b}
+.iq-campus-count{font-size:10px;letter-spacing:.1em;color:#d4dfed}
+.iq-campus-actions{margin-left:auto}
+@media(max-width:767px){.iq-login-logo{width:150px;right:20px;top:20px}.iq-login-panel{padding-top:110px}.iq-login-showcase{width:100%;min-height:390px}.iq-campus-footer{padding:26px 24px}.iq-campus-footer h1{font-size:32px}.iq-campus-controls{margin-top:18px;padding-top:10px}.iq-login-shade{background:linear-gradient(180deg,#10203910,#08172de8)}}
+@media(prefers-reduced-motion:reduce){.iq-login *{transition:none!important;animation:none!important}.iq-login-slides img{transform:none}}

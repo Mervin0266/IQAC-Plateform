@@ -81,25 +81,35 @@ export function ExploreAnalyticsView({
   const d = analyticsData || {};
   const sysStats = dashboard.liveStats || {};
 
-  // Placements mock/live distributions
-  const compensationBrackets = [
-    { name: '< 5 LPA', count: 180 },
-    { name: '5–8 LPA', count: 680 },
-    { name: '8–12 LPA', count: 210 },
-    { name: '12–15 LPA', count: 48 },
-    { name: '15+ LPA', count: 15 }
-  ];
+  // Placements live/dynamic distributions
+  const compensationBrackets = (d.placementsInternships?.salaryRanges && d.placementsInternships.salaryRanges.length > 0)
+    ? d.placementsInternships.salaryRanges.map((r: any) => ({ name: r.range, count: r.count }))
+    : [
+        { name: '< 5 LPA', count: 315 },
+        { name: '5–8 LPA', count: 770 },
+        { name: '8–12 LPA', count: 227 },
+        { name: '12–15 LPA', count: 53 },
+        { name: '15+ LPA', count: 5 }
+      ];
 
-  const leadingRecruiters = [
-    { company: 'Bosch', offers: 56 },
-    { company: 'Cognizant', offers: 54 },
-    { company: 'TVS Motor', offers: 54 },
-    { company: 'Infosys', offers: 52 },
-    { company: 'TCS', offers: 52 },
-    { company: 'Schneider Electric', offers: 51 },
-    { company: 'Accenture', offers: 49 },
-    { company: 'Wipro', offers: 49 }
-  ];
+  const leadingRecruiters = (d.placementsInternships?.topRecruiters && d.placementsInternships.topRecruiters.length > 0)
+    ? d.placementsInternships.topRecruiters.map((r: any) => ({ company: r.company, offers: r.offers ?? r.count }))
+    : [
+        { company: 'Capgemini', offers: 67 },
+        { company: 'LTI Mindtree', offers: 63 },
+        { company: 'Bosch', offers: 61 },
+        { company: 'TVS Motor', offers: 54 },
+        { company: 'Cognizant', offers: 54 },
+        { company: 'Infosys', offers: 51 },
+        { company: 'TCS', offers: 51 },
+        { company: 'Schneider Electric', offers: 50 }
+      ];
+
+  const studentCount = d.executiveOverview?.totalStudents ?? d.students?.totalStudents ?? 4800;
+  const ugCount = d.academicFaculty?.ugStudentsCount ?? 4604;
+  const pgCount = d.academicFaculty?.pgStudentsCount ?? 196;
+  const ugPercentage = studentCount > 0 ? ((ugCount / studentCount) * 100).toFixed(1) : '95.9';
+  const pgPercentage = studentCount > 0 ? ((pgCount / studentCount) * 100).toFixed(1) : '4.1';
 
   return (
     <div className="space-y-6">
@@ -146,7 +156,7 @@ export function ExploreAnalyticsView({
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard
               title="Enrolled Students"
-              value={(d.students?.totalStudents ?? 4800).toLocaleString('en-IN')}
+              value={studentCount.toLocaleString('en-IN')}
               subtitle="Distinct Register Numbers"
               icon={GraduationCap}
               className="border-t-2 border-t-blue-600"
@@ -154,15 +164,15 @@ export function ExploreAnalyticsView({
             />
             <StatCard
               title="UG Enrolment"
-              value="4,620"
-              subtitle="96.2% of Total Students"
+              value={ugCount.toLocaleString('en-IN')}
+              subtitle={`${ugPercentage}% of Total Students`}
               icon={BookOpen}
               className="border-t-2 border-t-sky-600"
             />
             <StatCard
               title="PG Enrolment"
-              value="180"
-              subtitle="3.8% of Total Students"
+              value={pgCount.toLocaleString('en-IN')}
+              subtitle={`${pgPercentage}% of Total Students`}
               icon={GraduationCap}
               className="border-t-2 border-t-teal-600"
             />
@@ -181,11 +191,15 @@ export function ExploreAnalyticsView({
               <div className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={[
-                      { level: 'Undergraduate (UG)', count: 4620 },
-                      { level: 'Postgraduate (PG)', count: 180 },
-                      { level: 'Doctoral (PhD)', count: 0 }
-                    ]}
+                    data={
+                      (d.academicFaculty?.programLevelDistribution && d.academicFaculty.programLevelDistribution.length > 0)
+                        ? d.academicFaculty.programLevelDistribution.map((item: any) => ({ level: item.name, count: item.count }))
+                        : [
+                            { level: 'Undergraduate (UG)', count: ugCount },
+                            { level: 'Postgraduate (PG)', count: pgCount },
+                            { level: 'Doctoral (PhD)', count: 0 }
+                          ]
+                    }
                     margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
@@ -248,7 +262,7 @@ export function ExploreAnalyticsView({
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard
               title="Full-Time Faculty"
-              value="212"
+              value={(d.executiveOverview?.totalFaculty ?? d.academicFaculty?.totalFaculty ?? 241).toLocaleString('en-IN')}
               subtitle="Teaching Staff"
               icon={Users}
               className="border-t-2 border-t-teal-600"
@@ -256,22 +270,22 @@ export function ExploreAnalyticsView({
             />
             <StatCard
               title="PhD Qualified"
-              value="191"
-              subtitle="90.1% PhD Holders"
+              value={(d.academicFaculty?.phdFacultyCount ?? 210).toLocaleString('en-IN')}
+              subtitle={`${d.academicFaculty?.phdPercentage ?? '87.1'}% PhD Holders`}
               icon={GraduationCap}
               className="border-t-2 border-t-blue-600"
             />
             <StatCard
               title="Professors & Assoc."
-              value="109"
-              subtitle="51.4% Senior Cadre"
+              value={(d.academicFaculty?.seniorFacultyCount ?? 119).toLocaleString('en-IN')}
+              subtitle={`${((Number(d.academicFaculty?.seniorFacultyCount || 119) / Number(d.academicFaculty?.totalFaculty || 241)) * 100).toFixed(1)}% Senior Cadre`}
               icon={Award}
               className="border-t-2 border-t-violet-600"
             />
             <StatCard
               title="Assistant Professors"
-              value="102"
-              subtitle="48.1% Teaching Cadre"
+              value={(d.academicFaculty?.assistantProfCount ?? 121).toLocaleString('en-IN')}
+              subtitle={`${((Number(d.academicFaculty?.assistantProfCount || 121) / Number(d.academicFaculty?.totalFaculty || 241)) * 100).toFixed(1)}% Teaching Cadre`}
               icon={Users}
               className="border-t-2 border-t-amber-500"
             />
@@ -281,11 +295,15 @@ export function ExploreAnalyticsView({
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
               <h4 className="text-xs font-bold text-slate-800 mb-3">Faculty Cadre Distribution</h4>
               <DonutChart
-                data={[
-                  { name: 'Professor / Assoc. Prof', count: 109 },
-                  { name: 'Assistant Professor', count: 102 },
-                  { name: 'Other Academic Cadre', count: 1 }
-                ]}
+                data={
+                  (d.academicFaculty?.designationDistribution && d.academicFaculty.designationDistribution.length > 0)
+                    ? d.academicFaculty.designationDistribution
+                    : [
+                        { name: 'Professor / Assoc. Prof', count: 119 },
+                        { name: 'Assistant Professor', count: 121 },
+                        { name: 'Other Academic Cadre', count: 1 }
+                      ]
+                }
                 colors={[COLORS.primary, COLORS.teal, COLORS.violet]}
               />
             </div>
@@ -293,10 +311,14 @@ export function ExploreAnalyticsView({
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
               <h4 className="text-xs font-bold text-slate-800 mb-3">Faculty Gender Distribution</h4>
               <DonutChart
-                data={[
-                  { name: 'Male', count: 138 },
-                  { name: 'Female', count: 74 }
-                ]}
+                data={
+                  (d.academicFaculty?.genderDistribution && d.academicFaculty.genderDistribution.length > 0)
+                    ? d.academicFaculty.genderDistribution
+                    : [
+                        { name: 'Male', count: 150 },
+                        { name: 'Female', count: 91 }
+                      ]
+                }
                 colors={[COLORS.primary, COLORS.teal]}
               />
             </div>
@@ -325,16 +347,27 @@ export function ExploreAnalyticsView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {[
-                    { dept: 'AI and Data Science Engineering', students: 1162, faculty: 48, sfr: '24.2:1', phd: 42, exp: '14.5 yrs' },
-                    { dept: 'Computer Science and Engineering', students: 1160, faculty: 41, sfr: '28.3:1', phd: 37, exp: '15.2 yrs' },
-                    { dept: 'Sciences and Humanities', students: 980, faculty: 26, sfr: '37.7:1', phd: 25, exp: '16.8 yrs' },
-                    { dept: 'Electronics and Communication Engg', students: 560, faculty: 28, sfr: '20.0:1', phd: 26, exp: '13.9 yrs' },
-                    { dept: 'Mechanical and Automobile Engg', students: 410, faculty: 32, sfr: '12.8:1', phd: 29, exp: '17.1 yrs' },
-                    { dept: 'Electrical and Electronics Engg', students: 260, faculty: 15, sfr: '17.3:1', phd: 14, exp: '14.0 yrs' },
-                    { dept: 'Civil Engineering', students: 70, faculty: 22, sfr: '3.2:1', phd: 18, exp: '18.4 yrs' },
-                    { dept: 'School of Architecture', students: 90, faculty: 0, sfr: '—', phd: 0, exp: '—' }
-                  ].map((row, idx) => (
+                  {(
+                    (d.academicFaculty?.departmentBreakdown && d.academicFaculty.departmentBreakdown.length > 0)
+                      ? d.academicFaculty.departmentBreakdown.map((row: any) => ({
+                          dept: row.departmentName,
+                          students: row.students,
+                          faculty: row.faculty,
+                          sfr: row.sfr ? `${row.sfr}:1` : '—',
+                          phd: row.phdCount,
+                          exp: row.avgExperience ? `${row.avgExperience} yrs` : '—'
+                        }))
+                      : [
+                          { dept: 'AI and Data Science Engineering', students: 1162, faculty: 48, sfr: '24.2:1', phd: 44, exp: '4.9 yrs' },
+                          { dept: 'Computer Science and Engineering', students: 1158, faculty: 41, sfr: '28.2:1', phd: 39, exp: '6.3 yrs' },
+                          { dept: 'Sciences and Humanities', students: 979, faculty: 26, sfr: '37.7:1', phd: 26, exp: '9.1 yrs' },
+                          { dept: 'Electronics and Communication Engg', students: 555, faculty: 29, sfr: '19.1:1', phd: 29, exp: '7.0 yrs' },
+                          { dept: 'Mechanical and Automobile Engg', students: 405, faculty: 33, sfr: '12.3:1', phd: 33, exp: '10.2 yrs' },
+                          { dept: 'Electrical and Electronics Engg', students: 247, faculty: 15, sfr: '16.5:1', phd: 14, exp: '9.1 yrs' },
+                          { dept: 'Civil Engineering', students: 63, faculty: 20, sfr: '3.1:1', phd: 18, exp: '12.3 yrs' },
+                          { dept: 'School of Architecture', students: 90, faculty: 29, sfr: '3.1:1', phd: 7, exp: '3.6 yrs' }
+                        ]
+                  ).map((row: any, idx: number) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="py-2 px-3 font-medium text-slate-900">{row.dept}</td>
                       <td className="py-2 px-3 text-right font-semibold">{row.students.toLocaleString('en-IN')}</td>
@@ -419,7 +452,7 @@ export function ExploreAnalyticsView({
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <StatCard
                   title="Publications"
-                  value="454"
+                  value={(d.executiveOverview?.totalPublications ?? 1068).toLocaleString('en-IN')}
                   subtitle="Scopus / WoS Indexed"
                   icon={BookOpen}
                   className="border-t-2 border-t-indigo-600"
@@ -427,7 +460,7 @@ export function ExploreAnalyticsView({
                 />
                 <StatCard
                   title="Approved Citations"
-                  value="2,809"
+                  value={(d.executiveOverview?.totalCitations ?? 10486).toLocaleString('en-IN')}
                   subtitle="Verified Total Count"
                   icon={TrendingUp}
                   className="border-t-2 border-t-violet-600"
@@ -435,23 +468,23 @@ export function ExploreAnalyticsView({
                 />
                 <StatCard
                   title="Extramural Grants"
-                  value="₹ 2.28 Cr"
-                  subtitle="₹ 228.10 Lakhs"
+                  value={`₹ ${d.executiveOverview?.totalGrantsCrores ?? '2.87'} Cr`}
+                  subtitle={`₹ ${d.executiveOverview?.totalGrantsAmountLakhs ?? '287.26'} Lakhs`}
                   icon={Sparkles}
                   className="border-t-2 border-t-emerald-600"
                   onClick={() => onNavigate('sponsored-research')}
                 />
                 <StatCard
                   title="Consultancy Inflow"
-                  value="₹ 115.6 L"
-                  subtitle="114 Projects Completed"
+                  value={`₹ ${(d.executiveOverview?.consultancyAmountLakhs ?? 148.57).toFixed(1)} L`}
+                  subtitle="Sanctioned Revenue"
                   icon={DollarSign}
                   className="border-t-2 border-t-teal-600"
                   onClick={() => onNavigate('consultancy-projects')}
                 />
                 <StatCard
-                  title="Patents (Pub / Grant)"
-                  value="66 / 115"
+                  title="Total Patents"
+                  value={String(d.executiveOverview?.patentsCount ?? 253)}
                   subtitle="Intellectual Property"
                   icon={Award}
                   className="border-t-2 border-t-amber-500"
@@ -459,7 +492,7 @@ export function ExploreAnalyticsView({
                 />
                 <StatCard
                   title="Periodicals"
-                  value="47"
+                  value={String(expansionStats.periodicals || 47)}
                   subtitle="Articles & Columns"
                   icon={Newspaper}
                   className="border-t-2 border-t-blue-600"
@@ -475,12 +508,20 @@ export function ExploreAnalyticsView({
                   <div className="h-60">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
-                        data={[
-                          { year: 'AY 2023–24', pubs: 215, citations: 2420 },
-                          { year: 'AY 2024–25', pubs: 198, citations: 1100 },
-                          { year: 'AY 2025–26', pubs: 208, citations: 320 },
-                          { year: 'AY 2026–27', pubs: 112, citations: 80 }
-                        ]}
+                        data={
+                          (d.executiveOverview?.yearlyOverview && d.executiveOverview.yearlyOverview.length > 0)
+                            ? [...d.executiveOverview.yearlyOverview].reverse().map((y: any) => ({
+                                year: y.academicYear,
+                                pubs: y.publications,
+                                citations: y.citations
+                              }))
+                            : [
+                                { year: 'AY 2023–24', pubs: 229, citations: 2332 },
+                                { year: 'AY 2024–25', pubs: 211, citations: 1148 },
+                                { year: 'AY 2025–26', pubs: 223, citations: 482 },
+                                { year: 'AY 2026–27', pubs: 125, citations: 137 }
+                              ]
+                        }
                         margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
@@ -520,7 +561,7 @@ export function ExploreAnalyticsView({
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <StatCard
               title="Unique Placed"
-              value="1,083"
+              value={(d.executiveOverview?.uniquePlacedStudents ?? d.placementsInternships?.uniquePlaced ?? 1402).toLocaleString('en-IN')}
               subtitle="Distinct Student Offers"
               icon={Briefcase}
               className="border-t-2 border-t-amber-500"
@@ -528,36 +569,36 @@ export function ExploreAnalyticsView({
             />
             <StatCard
               title="Total Job Offers"
-              value="1,083"
+              value={(d.placementsInternships?.totalOffers ?? d.executiveOverview?.uniquePlacedStudents ?? 1402).toLocaleString('en-IN')}
               subtitle="Including Multiple Offers"
               icon={FileText}
               className="border-t-2 border-t-blue-600"
             />
             <StatCard
               title="Placement Rate"
-              value="22.6%"
+              value={`${d.executiveOverview?.placementRate ?? d.placementsInternships?.placementRate ?? '29.2'}%`}
               subtitle="Eligible Cohort Ratio"
               icon={TrendingUp}
               className="border-t-2 border-t-teal-600"
             />
             <StatCard
               title="Average Package"
-              value="₹ 6.84 LPA"
-              subtitle="Placements LPA CTC"
+              value={`₹ ${d.executiveOverview?.avgSalaryLpa ?? d.placementsInternships?.avgPackageLpa ?? '6.44'} LPA`}
+              subtitle="Per-Student Peak Offer CTC"
               icon={Sparkles}
               className="border-t-2 border-t-amber-600"
             />
             <StatCard
               title="Highest Package"
-              value="₹ 36.00 LPA"
+              value={`₹ ${d.executiveOverview?.highestSalaryLpa ?? d.placementsInternships?.highestPackageLpa ?? '46.00'} LPA`}
               subtitle="Institutional Peak"
               icon={Award}
               className="border-t-2 border-t-violet-600"
             />
             <StatCard
-              title="Internships"
-              value="0"
-              subtitle="Avg ₹ 0/mo"
+              title="Median Package"
+              value={`₹ ${d.executiveOverview?.medianSalaryLpa ?? d.placementsInternships?.medianPackageLpa ?? '6.00'} LPA`}
+              subtitle="Median Placed CTC"
               icon={GraduationCap}
               className="border-t-2 border-t-sky-600"
             />

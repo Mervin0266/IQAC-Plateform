@@ -291,18 +291,25 @@ export function ConsultancyProjectsPage({
   }, [dbDepts, projects]);
 
   const fetchProjects = useCallback(async () => {
-    if (!token) return;
+    if (!token && !isPublicView) return;
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams();
-      if (selectedStartYear !== 'all') params.append('consultancyStartYear', selectedStartYear);
+      if (selectedStartYear !== 'all') {
+        params.append(isPublicView ? 'startYear' : 'consultancyStartYear', selectedStartYear);
+      }
       if (selectedDepartment !== 'all') params.append('department', selectedDepartment);
       if (selectedProjectStatus !== 'all') params.append('projectStatus', selectedProjectStatus);
       if (selectedProjectType !== 'all') params.append('projectType', selectedProjectType);
+      if (searchQuery.trim()) params.append('search', searchQuery.trim());
 
-      const res = await fetch(`${API_BASE}/api/consultancy-projects?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const endpoint = isPublicView
+        ? `${API_BASE}/api/consultancy-projects/public?${params.toString()}`
+        : `${API_BASE}/api/consultancy-projects?${params.toString()}`;
+
+      const res = await fetch(endpoint, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const data = await res.json();
       if (data.success) {
@@ -315,7 +322,7 @@ export function ConsultancyProjectsPage({
     } finally {
       setLoading(false);
     }
-  }, [token, selectedStartYear, selectedDepartment, selectedProjectStatus, selectedProjectType]);
+  }, [token, isPublicView, selectedStartYear, selectedDepartment, selectedProjectStatus, selectedProjectType, searchQuery]);
 
   useEffect(() => {
     fetchProjects();
@@ -454,11 +461,12 @@ export function ConsultancyProjectsPage({
       if (p.associatedFaculty && p.associatedFaculty.length > 0) {
         p.associatedFaculty.forEach(fa => {
           if (fa.employeeId) set.add(fa.employeeId.toUpperCase());
+          else if (fa.name) set.add(fa.name.toLowerCase().trim());
         });
       } else if (p.teacherConsultant) {
         p.teacherConsultant.split(',').forEach(name => {
           const trimmed = name.trim();
-          if (trimmed) set.add(trimmed);
+          if (trimmed) set.add(trimmed.toLowerCase());
         });
       }
     });
@@ -871,6 +879,11 @@ export function ConsultancyProjectsPage({
       <div className="min-h-screen bg-slate-50">
         <div className="bg-slate-900 text-white py-12 border-b border-slate-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav aria-label="Breadcrumb" className="flex items-center space-x-2 text-xs text-slate-400 mb-3">
+              <button onClick={() => onNavigate('home')} className="hover:text-white transition-colors font-medium">Home</button>
+              <span>/</span>
+              <span className="text-white font-semibold">Consultancy Projects</span>
+            </nav>
             <div className="flex items-center space-x-4 mb-2">
               <div className="p-3 bg-white/10 rounded-xl border border-white/10">
                 <Briefcase className="w-8 h-8 text-blue-400" />
@@ -886,6 +899,7 @@ export function ConsultancyProjectsPage({
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+          {/* KPI Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
             <Card className="border-0 shadow-sm bg-white ring-1 ring-gray-200">
               <CardContent className="p-5 flex items-center justify-between">
@@ -903,7 +917,10 @@ export function ConsultancyProjectsPage({
               <CardContent className="p-5 flex items-center justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase text-gray-500 tracking-wider">Total Revenue</p>
-                  <p className="text-2xl font-bold text-emerald-600 mt-1">₹{totalRevenue.toFixed(2)}L</p>
+                  <div className="mt-1">
+                    <p className="text-2xl font-bold text-emerald-600">₹{totalRevenue.toFixed(2)} Lakhs</p>
+                    <p className="text-xs font-medium text-slate-500 mt-0.5">≈ {formatInrLakhsWithUsd(totalRevenue, rate).usd}</p>
+                  </div>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-700">
                   <DollarSign className="w-6 h-6" />
@@ -936,48 +953,125 @@ export function ConsultancyProjectsPage({
             </Card>
           </div>
 
+          {/* Public Filters & Search Bar */}
+          <div className="bg-white p-4 rounded-xl shadow-xs border border-[#E2E8F0] flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by project name, sponsor, or faculty consultant..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                aria-label="Filter by department"
+                value={selectedDepartment}
+                onChange={e => setSelectedDepartment(e.target.value)}
+                className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <option value="all">All Departments</option>
+                {departments.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              <select
+                aria-label="Filter by start year"
+                value={selectedStartYear}
+                onChange={e => setSelectedStartYear(e.target.value)}
+                className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <option value="all">All Start Years</option>
+                {CONSULTANCY_START_YEARS.map(y => (
+                  <option key={y} value={String(y)}>CSY {y}</option>
+                ))}
+              </select>
+              {(selectedDepartment !== 'all' || selectedStartYear !== 'all' || searchQuery.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDepartment('all');
+                    setSelectedStartYear('all');
+                    setSearchQuery('');
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Table */}
           <div className="overflow-x-auto bg-white rounded-xl shadow-xs border border-[#E2E8F0]">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-slate-50 border-b border-[#E2E8F0] text-slate-700 font-semibold text-xs">
                 <tr>
                   <th className="py-3 px-4">S. No.</th>
-                  <th className="py-3 px-4">Faculty Owner(s)</th>
-                  <th className="py-3 px-4">Project Name</th>
-                  <th className="py-3 px-4">Agency Name</th>
+                  <th className="py-3 px-4">Faculty Consultant(s)</th>
+                  <th className="py-3 px-4">Project Title</th>
+                  <th className="py-3 px-4">Client / Funding Agency</th>
                   <th className="py-3 px-4">Project Type</th>
                   <th className="py-3 px-4">Start Year</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Revenue (₹ Lakhs)</th>
+                  <th className="py-3 px-4 text-right">Revenue (INR / USD)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0] text-xs sm:text-[13px]">
-                {filteredProjects.map((p, idx) => (
-                  <tr key={p.id} className="hover:bg-[#F1F5F9] transition-colors">
-                    <td className="py-3 px-4 font-mono text-gray-500">{idx + 1}</td>
-                    <td className="py-3 px-4">
-                      {p.associatedFaculty && p.associatedFaculty.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {p.associatedFaculty.map((fa, fIdx) => (
-                            <span key={fIdx} className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-200">
-                              <span>{fa.name}</span>
-                              <span className="font-mono text-[10px] text-slate-500">({fa.employeeId})</span>
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="font-semibold text-gray-900">{p.teacherConsultant}</span>
-                      )}
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-500">
+                      Loading verified consultancy records...
                     </td>
-                    <td className="py-3 px-4 text-gray-800 font-medium">{p.projectName}</td>
-                    <td className="py-3 px-4 text-gray-600">{p.agencyName || p.sponsoringAgency}</td>
-                    <td className="py-3 px-4">{formatProjectTypeBadge(p.projectType, p.otherProjectTypeDescription)}</td>
-                    <td className="py-3 px-4 font-mono">{p.consultancyStartYear ? `CSY ${p.consultancyStartYear}` : p.year}</td>
-                    <td className="py-3 px-4">{formatProjectStatusBadge(p.projectStatus)}</td>
-                    <td className="py-3 px-4 font-bold text-emerald-700 text-right">₹{Number(p.revenueInLakhs).toFixed(2)} Lakhs</td>
                   </tr>
-                ))}
+                ) : filteredProjects.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-500">
+                      No consultancy records found matching current criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProjects.map((p, idx) => (
+                    <tr key={p.id} className="hover:bg-[#F1F5F9] transition-colors">
+                      <td className="py-3 px-4 font-mono text-gray-500">{idx + 1}</td>
+                      <td className="py-3 px-4">
+                        {p.associatedFaculty && p.associatedFaculty.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {p.associatedFaculty.map((fa, fIdx) => (
+                              <span key={fIdx} className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-200">
+                                <span>{fa.name}</span>
+                                {fa.designation && <span className="text-[10px] text-slate-500">· {fa.designation}</span>}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-gray-900">{p.teacherConsultant || 'Faculty Consultant'}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-gray-800 font-medium max-w-xs">{p.projectName}</td>
+                      <td className="py-3 px-4 text-gray-600">{p.agencyName || p.sponsoringAgency || 'Institutional Partner'}</td>
+                      <td className="py-3 px-4">{formatProjectTypeBadge(p.projectType, p.otherProjectTypeDescription)}</td>
+                      <td className="py-3 px-4 font-mono">{p.consultancyStartYear ? `CSY ${p.consultancyStartYear}` : p.year}</td>
+                      <td className="py-3 px-4">{formatProjectStatusBadge(p.projectStatus)}</td>
+                      <td className="py-3 px-4 font-bold text-emerald-700 text-right whitespace-nowrap">
+                        <div>₹{Number(p.revenueInLakhs).toFixed(2)} Lakhs</div>
+                        <div className="text-[11px] font-normal text-slate-500">
+                          ≈ {formatInrLakhsWithUsd(Number(p.revenueInLakhs), rate).usd}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
+          </div>
+
+          {/* Reference Rate & Transparency Footnote */}
+          <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-2 pt-2 px-1">
+            <span>Showing {filteredProjects.length} institutional consultancy projects</span>
+            <span>USD equivalents are approximate and calculated using the reference rate of 1 USD = ₹{Number(rate).toFixed(2)}.</span>
           </div>
         </div>
       </div>

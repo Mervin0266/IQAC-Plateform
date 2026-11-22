@@ -1526,3 +1526,141 @@ exports.bulkCreateConsultancyProjects = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Get approved public-safe consultancy projects and aggregate KPIs
+ * @route   GET /api/consultancy-projects/public
+ * @access  Public (No authentication required, zero PII, strict allowlist)
+ */
+exports.getPublicConsultancyProjects = async (req, res) => {
+  try {
+    const { department, startYear, search } = req.query;
+    const conditions = [
+      {
+        [Op.or]: [
+          { status: { [Op.in]: ['approved', 'finalized'] } },
+          { status: null }
+        ]
+      }
+    ];
+
+    if (department && department !== 'all') {
+      conditions.push({ department });
+    }
+    if (startYear && startYear !== 'all') {
+      const parsedYear = parseInt(startYear, 10);
+      if (!isNaN(parsedYear)) {
+        conditions.push({
+          [Op.or]: [
+            { consultancyStartYear: parsedYear },
+            { year: { [Op.iLike]: `%${parsedYear}%` } }
+          ]
+        });
+      }
+    }
+    if (search && search.trim() !== '') {
+      const q = `%${search.trim()}%`;
+      conditions.push({
+        [Op.or]: [
+          { projectName: { [Op.iLike]: q } },
+          { agencyName: { [Op.iLike]: q } },
+          { sponsoringAgency: { [Op.iLike]: q } },
+          { teacherConsultant: { [Op.iLike]: q } }
+        ]
+      });
+    }
+
+    const projects = await ConsultancyProject.findAll({
+      where: { [Op.and]: conditions },
+      attributes: [
+        'id',
+        'projectName',
+        'projectType',
+        'otherProjectTypeDescription',
+        'agencyName',
+        'sponsoringAgency',
+        'year',
+        'consultancyStartYear',
+        'projectStatus',
+        'revenueInLakhs',
+        'contractValueInLakhs',
+        'department',
+        'teacherConsultant'
+      ],
+      include: [
+        {
+          model: ConsultancyProjectFaculty,
+          as: 'facultyAssociations',
+          attributes: ['id', 'facultyName', 'designation', 'originalDepartment'],
+          required: false
+        }
+      ],
+      order: [
+        ['consultancyStartYear', 'DESC NULLS LAST'],
+        ['createdAt', 'DESC']
+      ]
+    });
+
+    // Public KPI aggregates
+    let totalRevenueLakhs = 0;
+    const consultantNamesSet = new Set();
+    const deptSet = new Set();
+
+    const sanitizedRows = projects.map(p => {
+      const rev = Number(p.revenueInLakhs) || 0;
+      totalRevenueLakhs += rev;
+
+      if (p.department) deptSet.add(p.department.trim());
+
+      // Faculty names (NO employeeId, NO private contact details)
+      const facultyList = [];
+      if (p.facultyAssociations && p.facultyAssociations.length > 0) {
+        p.facultyAssociations.forEach(fa => {
+          if (fa.facultyName) {
+            consultantNamesSet.add(fa.facultyName.trim());
+            facultyList.push({
+              name: fa.facultyName.trim(),
+              designation: fa.designation || null,
+              department: fa.originalDepartment || p.department || null
+            });
+          }
+        });
+      } else if (p.teacherConsultant) {
+        p.teacherConsultant.split(',').map(s => s.trim()).filter(Boolean).forEach(name => {
+          consultantNamesSet.add(name);
+          facultyList.push({ name, designation: null, department: p.department || null });
+        });
+      }
+
+      return {
+        id: p.id,
+        projectName: p.projectName,
+        projectType: p.projectType,
+        otherProjectTypeDescription: p.otherProjectTypeDescription,
+        agencyName: p.agencyName || p.sponsoringAgency || 'Institutional Partner',
+        year: p.year,
+        consultancyStartYear: p.consultancyStartYear,
+        projectStatus: p.projectStatus || 'Sanctioned',
+        revenueInLakhs: rev,
+        department: p.department,
+        facultyOwners: facultyList,
+        associatedFaculty: facultyList
+      };
+    });
+
+    return res.json({
+      success: true,
+      retrievedAt: new Date().toISOString(),
+      summary: {
+        totalAssignments: sanitizedRows.length,
+        totalRevenueInLakhs: Number(totalRevenueLakhs.toFixed(2)),
+        facultyConsultantsCount: consultantNamesSet.size,
+        activeDepartmentsCount: deptSet.size
+      },
+      data: sanitizedRows
+    });
+  } catch (error) {
+    console.error('Error fetching public consultancy projects:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load consultancy projects.' });
+  }
+};

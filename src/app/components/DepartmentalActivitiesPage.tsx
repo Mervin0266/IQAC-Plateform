@@ -33,7 +33,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { normalizeAcademicYear, normalizeDepartmentName } from './FacultyDetailsPage';
-import { AppShell, PageHeader, StatCard, StatusBadge } from './design-system';
+import { AppShell, PageHeader, StatCard, StatusBadge, MetricBreakdownData } from './design-system';
 
 export interface DepartmentalActivity {
   id: string;
@@ -227,6 +227,253 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
     return filteredActivities.reduce((acc, a) => acc + (a.participantsCount || 0), 0);
   }, [filteredActivities]);
 
+  const activityCardBreakdowns = useMemo(() => {
+    const total = filteredActivities.length || 1;
+
+    // Aggregations
+    const catMap: Record<string, number> = {};
+    const deptMap: Record<string, number> = {};
+    const statusMap: Record<string, number> = { Completed: 0, Pending: 0 };
+    const yearMap: Record<string, number> = {};
+    const completedByDept: Record<string, number> = {};
+    const completedByCat: Record<string, number> = {};
+    const pendingByDept: Record<string, number> = {};
+    const pendingByCat: Record<string, number> = {};
+    const participantsByDept: Record<string, number> = {};
+    const participantsByCat: Record<string, number> = {};
+
+    filteredActivities.forEach(a => {
+      const cat = a.activityCategory || 'Other';
+      const dept = a.department || 'Other';
+      const stat = a.status || 'Pending';
+      const yr = a.academicYear || 'Current';
+      const parts = a.participantsCount || 0;
+
+      catMap[cat] = (catMap[cat] || 0) + 1;
+      deptMap[dept] = (deptMap[dept] || 0) + 1;
+      statusMap[stat] = (statusMap[stat] || 0) + 1;
+      yearMap[yr] = (yearMap[yr] || 0) + 1;
+
+      participantsByDept[dept] = (participantsByDept[dept] || 0) + parts;
+      participantsByCat[cat] = (participantsByCat[cat] || 0) + parts;
+
+      if (stat === 'Completed') {
+        completedByDept[dept] = (completedByDept[dept] || 0) + 1;
+        completedByCat[cat] = (completedByCat[cat] || 0) + 1;
+      } else {
+        pendingByDept[dept] = (pendingByDept[dept] || 0) + 1;
+        pendingByCat[cat] = (pendingByCat[cat] || 0) + 1;
+      }
+    });
+
+    // 1. Total Activities Breakdown
+    const totalActivitiesBreakdown: MetricBreakdownData = {
+      title: 'Total Departmental Activities',
+      subtitle: 'Recorded Events & Institutional Programs',
+      badge: `${filteredActivities.length} Events`,
+      sections: [
+        {
+          title: 'Activity Categories',
+          items: Object.entries(catMap)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat, count]) => ({
+              label: cat,
+              value: `${count} events`,
+              subtext: `${((count / total) * 100).toFixed(1)}% of total`,
+              percent: Math.round((count / total) * 100)
+            }))
+        },
+        {
+          title: 'Status Distribution',
+          items: [
+            {
+              label: 'Completed Documentation',
+              value: `${statusMap.Completed || 0} Events`,
+              badge: 'Completed',
+              percent: Math.round(((statusMap.Completed || 0) / total) * 100),
+              subtext: `${(((statusMap.Completed || 0) / total) * 100).toFixed(1)}% archived`
+            },
+            {
+              label: 'Pending Documentation',
+              value: `${statusMap.Pending || 0} Events`,
+              badge: (statusMap.Pending || 0) > 0 ? 'Action Needed' : undefined,
+              percent: Math.round(((statusMap.Pending || 0) / total) * 100),
+              subtext: `${(((statusMap.Pending || 0) / total) * 100).toFixed(1)}% awaiting submission`
+            }
+          ]
+        },
+        {
+          title: 'Top Reporting Departments',
+          items: Object.entries(deptMap)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([dept, count]) => ({
+              label: dept,
+              value: `${count} events`,
+              percent: Math.round((count / total) * 100)
+            }))
+        }
+      ],
+      footer: 'Active filter scope applied • Distinct parent activity records'
+    };
+
+    // 2. Active Departments Breakdown
+    const activeDepartmentsBreakdown: MetricBreakdownData = {
+      title: 'Reporting Academic Units',
+      subtitle: 'Departmental Activity Tracking',
+      badge: `${activeDepartmentsCount} Active`,
+      sections: [
+        {
+          title: 'Activity Volumes by Department',
+          items: Object.entries(deptMap)
+            .sort((a, b) => b[1] - a[1])
+            .map(([dept, count]) => ({
+              label: dept,
+              value: `${count} events`,
+              subtext: `${((count / total) * 100).toFixed(1)}% of all events`,
+              percent: Math.round((count / total) * 100)
+            }))
+        }
+      ],
+      footer: 'Distinct academic departments reporting events'
+    };
+
+    // 3. Completed Reports Breakdown
+    const compRate = total > 0 ? Math.round((completedReportsCount / total) * 100) : 100;
+    const completedReportsBreakdown: MetricBreakdownData = {
+      title: 'Completed Event Documentation',
+      subtitle: 'Verified & Archived Reports',
+      badge: `${completedReportsCount} Completed`,
+      sections: [
+        {
+          title: 'Documentation Rate',
+          items: [
+            {
+              label: 'Archived Event Reports',
+              value: `${completedReportsCount} Reports`,
+              badge: 'Archived',
+              subtext: `${compRate}% completion rate across active scope`,
+              percent: compRate
+            },
+            {
+              label: 'Awaiting Full Report Submission',
+              value: `${pendingActivities.length} Pending`,
+              subtext: `${100 - compRate}% remaining`,
+              percent: 100 - compRate
+            }
+          ]
+        },
+        {
+          title: 'Completed Reports by Department',
+          items: Object.entries(completedByDept)
+            .sort((a, b) => b[1] - a[1])
+            .map(([dept, count]) => ({
+              label: dept,
+              value: `${count} reports`,
+              subtext: `${count}/${deptMap[dept] || count} events completed`,
+              percent: (deptMap[dept] || count) > 0 ? Math.round((count / (deptMap[dept] || count)) * 100) : 100
+            }))
+        }
+      ],
+      footer: 'Reports uploaded with verified outcomes and documentation'
+    };
+
+    // 4. Pending Documentation Breakdown
+    const pendingDocumentationBreakdown: MetricBreakdownData = {
+      title: 'Pending Activity Documentation',
+      subtitle: 'Unsubmitted & Actionable Reports',
+      badge: pendingActivities.length > 0 ? `${pendingActivities.length} Required` : 'All Clear',
+      sections: [
+        {
+          title: 'Documentation Compliance Status',
+          items: [
+            {
+              label: 'Pending Document Submissions',
+              value: `${pendingActivities.length} Events`,
+              badge: pendingActivities.length > 0 ? 'Pending' : 'Clear',
+              subtext: pendingActivities.length === 0 ? 'All activities documented' : 'Documentation pending upload',
+              percent: Math.round((pendingActivities.length / total) * 100)
+            },
+            {
+              label: 'Fully Completed Events',
+              value: `${completedReportsCount} Events`,
+              subtext: 'Verified by department coordinators',
+              percent: compRate
+            }
+          ]
+        },
+        ...(pendingActivities.length > 0 ? [{
+          title: 'Pending Events by Department',
+          items: Object.entries(pendingByDept)
+            .sort((a, b) => b[1] - a[1])
+            .map(([dept, count]) => ({
+              label: dept,
+              value: `${count} pending`,
+              badge: 'Action'
+            }))
+        }] : [])
+      ],
+      footer: 'Pending activities flagged for coordinator report upload'
+    };
+
+    // 5. Total Participants Breakdown
+    const avgParts = filteredActivities.length > 0 ? Math.round(totalParticipants / filteredActivities.length) : 0;
+    const totalParticipantsBreakdown: MetricBreakdownData = {
+      title: 'Participant Reach & Audience',
+      subtitle: 'Faculty, Student & Community Participation',
+      badge: `${totalParticipants.toLocaleString()} Total Reach`,
+      sections: [
+        {
+          title: 'Reach Summary',
+          items: [
+            {
+              label: 'Cumulative Attendees',
+              value: totalParticipants.toLocaleString(),
+              subtext: 'Total recorded participants across events'
+            },
+            {
+              label: 'Average per Activity',
+              value: `${avgParts} Attendees`,
+              subtext: 'Mean attendance per organized event'
+            }
+          ]
+        },
+        {
+          title: 'Participants by Activity Category',
+          items: Object.entries(participantsByCat)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([cat, parts]) => ({
+              label: cat,
+              value: parts.toLocaleString(),
+              subtext: `${totalParticipants > 0 ? ((parts / totalParticipants) * 100).toFixed(1) : 0}% of audience`,
+              percent: totalParticipants > 0 ? Math.round((parts / totalParticipants) * 100) : 0
+            }))
+        },
+        {
+          title: 'Participants by Department',
+          items: Object.entries(participantsByDept)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([dept, parts]) => ({
+              label: dept,
+              value: parts.toLocaleString(),
+              percent: totalParticipants > 0 ? Math.round((parts / totalParticipants) * 100) : 0
+            }))
+        }
+      ],
+      footer: 'Audited attendance numbers from submitted event documentation'
+    };
+
+    return {
+      totalActivitiesBreakdown,
+      activeDepartmentsBreakdown,
+      completedReportsBreakdown,
+      pendingDocumentationBreakdown,
+      totalParticipantsBreakdown
+    };
+  }, [filteredActivities, activeDepartmentsCount, completedReportsCount, pendingActivities, totalParticipants]);
+
   // Matrix calculation responding to filteredActivities & selected filters
   const matrixData = useMemo(() => {
     const matrix: Record<string, Record<string, { reportDetails: string; items: DepartmentalActivity[] }>> = {};
@@ -414,30 +661,35 @@ export function DepartmentalActivitiesPage({ onNavigate, currentPage = 'departme
           value={filteredActivities.length.toLocaleString()}
           icon={Layers}
           subtitle="Logged institutional events"
+          breakdown={activityCardBreakdowns.totalActivitiesBreakdown}
         />
         <StatCard
           title="Active Departments"
           value={activeDepartmentsCount.toLocaleString()}
           icon={Building2}
           subtitle="Departments reporting"
+          breakdown={activityCardBreakdowns.activeDepartmentsBreakdown}
         />
         <StatCard
           title="Completed Reports"
           value={completedReportsCount.toLocaleString()}
           icon={CheckCircle2}
           badge="Archived"
+          breakdown={activityCardBreakdowns.completedReportsBreakdown}
         />
         <StatCard
           title="Pending Documentation"
           value={pendingActivities.length.toLocaleString()}
           icon={Clock}
           badge={pendingActivities.length > 0 ? "Action Required" : undefined}
+          breakdown={activityCardBreakdowns.pendingDocumentationBreakdown}
         />
         <StatCard
           title="Total Participants"
           value={totalParticipants.toLocaleString()}
           icon={Users}
           subtitle="Faculty & student reach"
+          breakdown={activityCardBreakdowns.totalParticipantsBreakdown}
         />
       </div>
 

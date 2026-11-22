@@ -251,15 +251,35 @@ exports.getProfessionalDevelopmentStats = async (req, res) => {
     const departmentWise = {};
     const programTypeMap = {};
     const yearMap = {};
+    const durationByProgramType = {};
+    const durationByDept = {};
+    const facultyByDeptSet = {};
+    const facultyByProgramTypeSet = {};
 
     records.forEach(r => {
+      const pType = r.programType || r.title || 'Other';
+      const cleanDur = (() => {
+        const raw = r.durationDays;
+        if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
+          const num = parseFloat(String(raw).replace(/[^0-9.]/g, ''));
+          return (!isNaN(num) && num > 0) ? num : 0;
+        }
+        return 0;
+      })();
+
+      if (cleanDur > 0) {
+        durationByProgramType[pType] = (durationByProgramType[pType] || 0) + cleanDur;
+      }
+
       if (r.department && String(r.department).trim()) {
         const d = String(r.department).trim();
         deptSet.add(d);
         departmentWise[d] = (departmentWise[d] || 0) + 1;
+        if (cleanDur > 0) {
+          durationByDept[d] = (durationByDept[d] || 0) + cleanDur;
+        }
       }
 
-      const pType = r.programType || r.title || 'Other';
       programTypeMap[pType] = (programTypeMap[pType] || 0) + 1;
 
       if (r.calendarYear) {
@@ -267,8 +287,9 @@ exports.getProfessionalDevelopmentStats = async (req, res) => {
       }
 
       (r.facultyAssociations || []).forEach(assoc => {
-        if (assoc.department && String(assoc.department).trim()) {
-          deptSet.add(String(assoc.department).trim());
+        const assocDept = (assoc.department && String(assoc.department).trim()) || r.department;
+        if (assocDept) {
+          deptSet.add(String(assocDept).trim());
         }
 
         const normEmpId = assoc.normalizedEmployeeId || (assoc.employeeId ? String(assoc.employeeId).trim() : null) || assoc.facultyId;
@@ -277,9 +298,27 @@ exports.getProfessionalDevelopmentStats = async (req, res) => {
         } else if (assoc.contributorType === 'Unverified Contributor') {
           if (normEmpId) unverifiedSet.add(normEmpId);
         } else {
-          if (normEmpId) verifiedFacultyIdSet.add(normEmpId);
+          if (normEmpId) {
+            verifiedFacultyIdSet.add(normEmpId);
+            if (assocDept) {
+              if (!facultyByDeptSet[assocDept]) facultyByDeptSet[assocDept] = new Set();
+              facultyByDeptSet[assocDept].add(normEmpId);
+            }
+            if (!facultyByProgramTypeSet[pType]) facultyByProgramTypeSet[pType] = new Set();
+            facultyByProgramTypeSet[pType].add(normEmpId);
+          }
         }
       });
+    });
+
+    const facultyByDept = {};
+    Object.entries(facultyByDeptSet).forEach(([d, set]) => {
+      facultyByDept[d] = set.size;
+    });
+
+    const facultyByProgramType = {};
+    Object.entries(facultyByProgramTypeSet).forEach(([p, set]) => {
+      facultyByProgramType[p] = set.size;
     });
 
     res.json({
@@ -288,11 +327,16 @@ exports.getProfessionalDevelopmentStats = async (req, res) => {
         totalProgrammes,
         totalProgrammeDays: Math.round(totalProgrammeDays * 10) / 10,
         missingDurationCount,
+        validDurationCount: totalProgrammes - missingDurationCount,
         participatingFaculty: verifiedFacultyIdSet.size,
         guestFacultyCount: guestFacultySet.size,
         unverifiedFacultyCount: unverifiedSet.size,
         activeDepartments: deptSet.size,
         departmentWise,
+        durationByProgramType,
+        durationByDept,
+        facultyByDept,
+        facultyByProgramType,
         programTypeDistribution: Object.entries(programTypeMap).map(([name, count]) => ({ name, count })),
         yearWiseTrend: Object.entries(yearMap).map(([year, count]) => ({ year: parseInt(year, 10), count })).sort((a, b) => a.year - b.year)
       }
