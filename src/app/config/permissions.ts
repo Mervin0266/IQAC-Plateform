@@ -203,6 +203,8 @@ export function hasPageAccess(role: UserRole | string, page: string): boolean {
   const permissions = ROLE_PERMISSIONS[targetRole];
   if (!permissions) return true;
 
+  if (page === 'external-research' || page === 'internal-research') return permissions.pages.includes('sponsored-research');
+  if (page === 'patents' || page === 'copyrights') return permissions.pages.includes('research-innovation');
   if (page === 'internships' || page === 'alumni') {
     return permissions.pages.includes('placements-internships');
   }

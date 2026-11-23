@@ -72,11 +72,16 @@ export function Sidebar({
                 key: 'research',
                 icon: FlaskConical,
                 children: [
-                  { label: 'Research Metrics Grid', key: 'research-metrics' },
-                  { label: 'Publications', key: 'publications' },
-                  { label: 'Patents & IP', key: 'research-innovation' },
-                  { label: 'Sponsored Research', key: 'sponsored-research' },
                   { label: 'Consultancy Projects', key: 'consultancy-projects' },
+                  { label: 'Publications', key: 'publications' },
+                  { label: 'Sponsored Research', key: 'sponsored-research', children: [
+                    { label: 'External Research', key: 'external-research' },
+                    { label: 'Internal Research', key: 'internal-research' },
+                  ] },
+                  { label: 'IPRs', key: 'ipr-group', children: [
+                    { label: 'Patents', key: 'patents' },
+                    { label: 'Copyrights', key: 'copyrights' },
+                  ] },
                 ],
               },
               { label: 'Placements', key: 'placements-internships', icon: Briefcase },

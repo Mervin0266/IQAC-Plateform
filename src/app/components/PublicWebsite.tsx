@@ -1,7 +1,9 @@
-import React, { useEffect, Suspense } from 'react';
+import React, { useEffect, useRef, Suspense } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { PublicNavBar, publicPath } from './PublicNavBar';
 import { PublicFooter } from './PublicFooter';
+import { PublicReportPage } from './PublicReportView';
+import { isReportSection } from '../publicReports';
 import { PublicHomePage } from './PublicHomePage';
 import '../../styles/public-website.css';
 import '../../styles/homepage-motion.css';
@@ -37,11 +39,15 @@ export function PublicWebsite() {
   const { section } = useParams();
   const currentSection = section === 'placements' ? 'placements-internships' : section ?? 'home';
   const { pathname, hash } = useLocation();
+  const previousLocation = useRef(pathname + hash);
   const routerNavigate = useNavigate();
   const navigate = (key: string) => routerNavigate(publicPath(key));
   const onLoginClick = () => routerNavigate('/login');
 
   useEffect(() => {
+    const location = pathname + hash;
+    if (!hash && previousLocation.current === location) return;
+    previousLocation.current = location;
     const target = hash ? document.getElementById(hash.slice(1)) : document.getElementById('public-content');
     target?.focus({ preventScroll: true });
     if (hash) target?.scrollIntoView();
@@ -84,7 +90,9 @@ export function PublicWebsite() {
       <PublicNavBar />
       <main id="public-content" tabIndex={-1} className={currentSection === 'home' ? 'flex-1' : 'flex-1 iq-section-view iq-public-section iq-explore-layout'} key={currentSection}>
         <Suspense fallback={<PublicPageLoading />}>
-          {renderContent()}
+          {isReportSection(currentSection) && currentSection !== 'profile'
+            ? <PublicReportPage section={currentSection} />
+            : renderContent()}
         </Suspense>
       </main>
       <PublicFooter />

@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { PublicHighlights, ReportContent } from './PublicReportView';
+import { demoReports, reportMetric, usePublicReport } from '../publicReports';
+import type { Overview, PublishedReport } from '../publicReports';
 import { Link } from 'react-router';
 import { publicPath } from './PublicNavBar';
 import {
@@ -81,6 +84,15 @@ export function PublicHomePage({ onLoginClick }: {
       root.current?.style.setProperty('--hero-drift', '0px');
     };
   }, [quiet]);
+  const { data: overview, failed: overviewFailed } = usePublicReport<Overview>('');
+  const { data: profiles } = usePublicReport<PublishedReport[]>('/section/profile');
+  const profile = profiles?.[0];
+  const latestRanking = overview?.rankings;
+  const accreditation = latestRanking?.published.metrics;
+  const demoAccreditation = demoReports && !latestRanking;
+  const grade = accreditation?.['NAAC grade'] ?? (demoAccreditation ? 'A+' : undefined);
+  const cgpa = accreditation?.['NAAC CGPA'] ?? (demoAccreditation ? 3.42 : undefined);
+  const validity = accreditation?.['NAAC valid until'] ?? (demoAccreditation ? '2027-10-25' : undefined);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All areas');
   const [stage, setStage] = useState(0);
@@ -111,13 +123,15 @@ export function PublicHomePage({ onLoginClick }: {
             </div>
             <p className="iq-hero-note"><span className="iq-note-line" /> EXCELLENCE AND SERVICE</p>
           </div>
-          <a className="iq-hero-seal" href={IQAC + '/naac'} {...external}>
+          <a className="iq-hero-seal" href="/#accreditation">
             <Award size={24} strokeWidth={1.4} />
-            <span><strong>A+ <small>NAAC ACCREDITED</small></strong><span>A commitment to quality, recognised.</span></span>
+            <span><strong>{grade ?? <Award size={20} />} <small>NAAC ACCREDITATION</small></strong><span>{demoAccreditation ? 'Local demonstration data' : 'View accreditation details'}</span></span>
             <ArrowUpRight size={17} />
           </a>
         </div>
       </section>
+
+      <PublicHighlights overview={overview} loading={!overview && !overviewFailed} />
 
       <Reveal className="iq-container iq-access iq-stagger" delay={.08}>
         <button onClick={onLoginClick}>
@@ -136,15 +150,6 @@ export function PublicHomePage({ onLoginClick }: {
           <ArrowUpRight size={19} />
         </a>
       </Reveal>
-
-      <section className="iq-facts" aria-label="Institutional overview">
-        <Reveal className="iq-container iq-facts-grid iq-stagger" delay={.12}>
-          <div><strong>2003</strong><span>IQAC constituted</span></div>
-          <div><strong>5</strong><span>Quality verticals</span></div>
-          <a href={IQAC + '/naac'} {...external}><strong>A+</strong><span>NAAC accreditation <ArrowUpRight size={14} /></span></a>
-          <a href={IQAC + '/naac'} {...external}><strong>3.42<span>/4</span></strong><span>NAAC CGPA</span></a>
-        </Reveal>
-      </section>
 
       <section id="quality" tabIndex={-1} className="iq-section iq-container">
         <Reveal className="iq-about-grid">
@@ -171,14 +176,19 @@ export function PublicHomePage({ onLoginClick }: {
         </Reveal>
       </section>
 
-      <section className="iq-accreditation" aria-labelledby="accreditation-title">
+      <section id="accreditation" tabIndex={-1} className="iq-accreditation" aria-labelledby="accreditation-title">
         <Reveal className="iq-container iq-accreditation-grid">
-          <div className="iq-grade-art"><div className="iq-grade-ring"><Award size={30} strokeWidth={1.3} /><strong>A+</strong><span>NAAC ACCREDITED</span></div></div>
+          <div className="iq-grade-art"><div className="iq-grade-ring"><Award size={30} strokeWidth={1.3} /><strong>{grade}</strong><span>NAAC ACCREDITATION</span></div></div>
           <div>
             <p className="iq-eyebrow">INSTITUTIONAL RECOGNITION</p>
             <h2 id="accreditation-title">Recognised for quality.<br /><em>Committed to what comes next.</em></h2>
             <p className="iq-accreditation-copy">Our NAAC accreditation reflects a commitment to academic excellence, governance, and institutional quality. Every review is an opportunity to build on that foundation.</p>
-            <div className="iq-accreditation-meta"><span><Check size={16} /> CGPA 3.42 out of 4</span><span><Check size={16} /> Valid until 25 October 2027</span></div>
+            <div className="iq-accreditation-meta">
+              {cgpa !== undefined && <span><Check size={16} /> CGPA {cgpa} out of 4</span>}
+              {validity && <span><Check size={16} /> Valid until {reportMetric('rankings', 'NAAC valid until', validity)}</span>}
+              {demoAccreditation && <span>Local demonstration data</span>}
+              {grade === undefined && <span>Data unavailable</span>}
+            </div>
             <a className="iq-inline-link" href={IQAC + '/naac'} {...external}>View accreditation details <ArrowUpRight size={17} /></a>
           </div>
         </Reveal>
@@ -190,6 +200,9 @@ export function PublicHomePage({ onLoginClick }: {
             <div><p className="iq-eyebrow">THE INSTITUTION, CONNECTED</p><h2>Discover the work.<br /><em>Explore the impact.</em></h2></div>
             <p className="iq-intro-body">Your gateway to the University&apos;s achievements, academic activity, research, and partnerships. Find the area you want to explore.</p>
           </Reveal>
+          {profile && <div className="iq-profile-overview">
+            <ReportContent section="profile" period={profile.period} report={profile.published} />
+          </div>}
           <div className="iq-directory-toolbar">
             <div className="iq-filters" role="group" aria-label="Filter institutional areas">
               {categories.map(item => <button key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}

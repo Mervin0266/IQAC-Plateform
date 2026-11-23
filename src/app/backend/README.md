@@ -309,3 +309,13 @@ npm test
 ## Support
 
 For issues or questions, contact: iqac@christuniversity.in
+
+## Public report publishing
+
+Run `node migrations/20261123_create_public_reports.js` from the backend directory against the intended PostgreSQL database before enabling the updated frontend. The migration creates a separate table and preserves existing records. The frontend uses `VITE_API_URL` for the backend origin.
+
+Administrators can open **Manage public report** on an existing workspace page, edit a reporting period, and save and preview a draft before publishing it. The Dashboard exposes the Institutional Profile editor. Public pages show a report after publication. Saving changes to a published report creates a draft while the previous publication remains visible. Archiving removes the public report and leaves a draft available to republish.
+
+For placements, **Calculate from placement records** imports a summary for an exact batch. Pay statistics use positive annual packages on full-time placement offers. Enter a verified internship offer letter count separately. Verify sources and public-facing fields before publishing.
+
+Use `VITE_ENABLE_REPORT_DEMO=true` in the frontend development environment for the existing local examples when published reports are unavailable. Production builds always use published reports.

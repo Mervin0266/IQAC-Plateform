@@ -13,10 +13,10 @@ export function ResearchInnovationPage({ onNavigate, isPublicView = false, hideS
   return (
     <PatentsPage
       onNavigate={onNavigate}
+      isPublicView={isPublicView}
       hideSidebar={hideSidebar || isPublicView}
       token={user?.token}
       userRole={user?.role}
     />
   );
 }
-      isPublicView={isPublicView}

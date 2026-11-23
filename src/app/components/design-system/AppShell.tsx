@@ -1,8 +1,32 @@
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import '../../../styles/section-experience.css';
 import { Sidebar } from '../Sidebar';
 import { useSidebarWidth } from '../../hooks/useSidebarWidth';
+
+import { useAuth } from '../../contexts/AuthContext';
+import { isReportSection } from '../../publicReports';
+
+const PublicReportEditor = lazy(() => import('../PublicReportEditor').then(module => ({ default: module.PublicReportEditor })));
+const reportPages: Record<string, string> = {
+  dashboard: 'profile',
+  'department-details': 'profile',
+  ranking: 'rankings',
+  'nirf-ranking': 'rankings',
+  'india-today-ranking': 'rankings',
+  'the-world-ranking': 'rankings',
+  'qs-india-ranking': 'rankings',
+  accreditation: 'rankings',
+  'naac-accreditation': 'rankings',
+  'internal-research': 'research-innovation',
+  'external-research': 'research-innovation',
+  copyrights: 'research-innovation',
+  patents: 'research-innovation',
+  publications: 'research-innovation',
+  'sponsored-research': 'research-innovation',
+  'research-metrics': 'research-innovation',
+  'infrastructure-facilities': 'infrastructure',
+};
 
 export interface AppShellProps {
   currentPage: string;
@@ -19,6 +43,8 @@ export function AppShell({
   className = '',
   hideSidebar = false,
 }: AppShellProps) {
+  const { user } = useAuth();
+  const reportSection = reportPages[currentPage] ?? currentPage;
   const { sidebarWidth, isResizing } = useSidebarWidth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = (page: string) => { setMobileOpen(false); onNavigate(page); window.scrollTo(0, 0); };
@@ -45,6 +71,8 @@ export function AppShell({
       >
         {!hideSidebar && <button id="workspace-menu-toggle" className="iq-workspace-menu" aria-expanded={mobileOpen} aria-controls="workspace-navigation" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X size={18} /> : <Menu size={18} />} {mobileOpen ? 'Close navigation' : 'Navigation'}</button>}
         <div key={currentPage} className="iq-section-content max-w-[1600px] w-full mx-auto space-y-6">
+          {!hideSidebar && user?.role === 'admin' && isReportSection(reportSection) &&
+            <Suspense fallback={null}><PublicReportEditor key={reportSection} section={reportSection} /></Suspense>}
           {children}
         </div>
       </main>

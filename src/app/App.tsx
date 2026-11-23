@@ -1,4 +1,6 @@
 import React, { Suspense } from 'react';
+import { AppShell } from './components/design-system/AppShell';
+import { PublicReportPage } from './components/PublicReportView';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate, useLocation, useParams } from 'react-router';
 import { LoginPage } from './components/LoginPage';
@@ -86,6 +88,13 @@ function Workspace() {
       case 'the-world-ranking':
       case 'qs-india-ranking':
         return <RankingPage onNavigate={setCurrentPage} currentPage={currentPage} />;
+      case 'external-research':
+      case 'internal-research':
+      case 'copyrights':
+        return <AppShell currentPage={currentPage} onNavigate={setCurrentPage}>
+          <PublicReportPage section="research-innovation" workspaceTopic={currentPage} />
+          {currentPage !== 'copyrights' && <Link to="/workspace/sponsored-research">Manage sponsored research projects</Link>}
+        </AppShell>;
       case 'publications':
         return <PublicationsPage onNavigate={setCurrentPage} />;
       case 'patents':

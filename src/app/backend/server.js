@@ -144,6 +144,7 @@ app.use('/api/achievements', require('./routes/achievements'));
 app.use('/api/documents', require('./routes/documents'));
 app.use('/api/patents', require('./routes/patents'));
 app.use('/api/placements', require('./routes/placements'));
+app.use('/api/public-reports', require('./routes/publicReports'));
 app.use('/api/strategic-plans', require('./routes/strategicPlans'));
 app.use('/api/edit-requests', require('./routes/editRequests'));
 app.use('/api/notifications', require('./routes/notifications'));

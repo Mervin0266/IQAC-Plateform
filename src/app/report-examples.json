@@ -1,0 +1,64 @@
+{
+  "achievements": [
+    "Teaching excellence award",
+    "Research recognition",
+    "Student innovation prize"
+  ],
+  "research-innovation": [
+    "Energy storage study",
+    "Sensor design patent",
+    "Urban water research",
+    "Industry-funded materials study",
+    "University seed research study",
+    "Registered learning resource"
+  ],
+  "rankings": [
+    "Accreditation review",
+    "University ranking submission",
+    "World ranking summary",
+    "Annual ranking review"
+  ],
+  "placements-internships": [
+    "Engineering recruitment summary",
+    "Management recruitment summary"
+  ],
+  "internships": [
+    "Summer software internship",
+    "Final-semester engineering placement"
+  ],
+  "alumni": [
+    "Graduate mentoring circle",
+    "Interview practice clinic",
+    "Careers in engineering"
+  ],
+  "infrastructure": [
+    "Materials laboratory",
+    "Campus library",
+    "Project studio"
+  ],
+  "international-interactions": [
+    "Joint teaching programme",
+    "Student exchange cohort"
+  ],
+  "centre-excellence": [
+    "Applied intelligence centre",
+    "Sustainable materials centre"
+  ],
+  "incubations": [
+    "Student robotics venture",
+    "Founders programme"
+  ],
+  "industry-connects": [
+    "Materials research collaboration",
+    "Technical training series",
+    "Manufacturing site visit"
+  ],
+  "consultancy-projects": [
+    "Building energy assessment",
+    "Community planning review"
+  ],
+  "profile": [
+    "Academic profile",
+    "Campus overview"
+  ]
+}

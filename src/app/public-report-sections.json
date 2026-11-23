@@ -1,0 +1,208 @@
+{
+  "rankings": {
+    "title": "Rankings & accreditation",
+    "description": "Explore institutional recognition and rankings by reporting year.",
+    "metrics": {
+      "NAAC grade": "text",
+      "NAAC CGPA": "number",
+      "NAAC valid until": "date",
+      "NIRF university rank": "count",
+      "QS world band": "text",
+      "THE world band": "text"
+    },
+    "heading": "Recognition by framework",
+    "layout": "recognition",
+    "categories": [
+      "NAAC",
+      "NIRF",
+      "QS",
+      "THE"
+    ]
+  },
+  "profile": {
+    "title": "Institutional profile",
+    "description": "Explore the University’s academic community and campuses.",
+    "metrics": {
+      "Campuses": "count",
+      "Schools": "count",
+      "Departments": "count",
+      "Teaching faculty": "count",
+      "Students": "count"
+    },
+    "heading": "Institutional records",
+    "layout": "directory",
+    "categories": [
+      "Academics",
+      "Campus"
+    ]
+  },
+  "achievements": {
+    "title": "Achievements",
+    "description": "Explore institutional, faculty, and student recognition.",
+    "metrics": {
+      "Awards and recognitions": "count"
+    },
+    "heading": "Honours list",
+    "layout": "honours",
+    "categories": [
+      "Institutional awards",
+      "Faculty awards",
+      "Student awards"
+    ]
+  },
+  "research-innovation": {
+    "title": "Research & innovation",
+    "description": "Explore publications, patents, and funded research.",
+    "metrics": {
+      "Publications": "count",
+      "Patents": "count",
+      "Funded projects": "count",
+      "External Research": "count",
+      "Internal Research": "count",
+      "Copyrights": "count"
+    },
+    "heading": "Research index",
+    "layout": "tracks",
+    "categories": [
+      "Publications",
+      "Patents",
+      "Funded projects",
+      "External Research",
+      "Internal Research",
+      "Copyrights"
+    ]
+  },
+  "placements-internships": {
+    "title": "Placements",
+    "description": "Explore full-time offers and annual compensation by reporting period.",
+    "metrics": {
+      "Students with full-time offers": "count",
+      "Students with internship offer letters": "count",
+      "Average package": "package",
+      "Median package": "package",
+      "Highest package": "package",
+      "Recruiters": "count"
+    },
+    "heading": "Placement outcomes",
+    "layout": "outcomes",
+    "categories": [
+      "Engineering",
+      "Management"
+    ]
+  },
+  "internships": {
+    "title": "Internships",
+    "description": "Explore summer and eighth-semester fast-track opportunities.",
+    "metrics": {
+      "Summer internship participants": "count",
+      "Fast-track internship participants": "count"
+    },
+    "heading": "Internship pathways",
+    "layout": "tracks",
+    "categories": [
+      "Summer internships",
+      "Semester 8 fast-track"
+    ]
+  },
+  "alumni": {
+    "title": "Alumni",
+    "description": "Explore mentoring, interviews, and talks led by alumni.",
+    "metrics": {
+      "Alumni mentors": "count",
+      "Mock interview sessions": "count",
+      "Industry talks": "count"
+    },
+    "heading": "Alumni programme",
+    "layout": "tracks",
+    "categories": [
+      "Mentoring",
+      "Mock interviews",
+      "Industry talks"
+    ]
+  },
+  "infrastructure": {
+    "title": "Infrastructure",
+    "description": "Explore campus facilities and academic resources.",
+    "metrics": {
+      "Facilities": "count",
+      "Laboratories": "count"
+    },
+    "heading": "Facility directory",
+    "layout": "directory",
+    "categories": [
+      "Laboratories",
+      "Libraries",
+      "Learning spaces"
+    ]
+  },
+  "international-interactions": {
+    "title": "International",
+    "description": "Explore international partnerships and exchange activity.",
+    "metrics": {
+      "International partners": "count",
+      "Exchange participants": "count"
+    },
+    "heading": "International engagements",
+    "layout": "partnerships",
+    "categories": [
+      "Partnerships",
+      "Exchanges"
+    ]
+  },
+  "centre-excellence": {
+    "title": "Centres of Excellence",
+    "description": "Explore research centres and their contributions.",
+    "metrics": {
+      "Active centres": "count",
+      "Research outputs": "count"
+    },
+    "heading": "Centre profiles",
+    "layout": "directory",
+    "categories": [
+      "Technology",
+      "Sustainability"
+    ]
+  },
+  "incubations": {
+    "title": "Incubations",
+    "description": "Explore startup activity and incubation programmes.",
+    "metrics": {
+      "Active startups": "count",
+      "Startups supported": "count"
+    },
+    "heading": "Venture showcase",
+    "layout": "ventures",
+    "categories": [
+      "Startups",
+      "Programmes"
+    ]
+  },
+  "industry-connects": {
+    "title": "Industry Connects",
+    "description": "Explore industry partnerships and collaborative activity.",
+    "metrics": {
+      "Industry partners": "count",
+      "Collaborations": "count"
+    },
+    "heading": "Industry collaborations",
+    "layout": "partnerships",
+    "categories": [
+      "Joint research",
+      "Training",
+      "Industry visits"
+    ]
+  },
+  "consultancy-projects": {
+    "title": "Consultancy Projects & Advisory Services",
+    "description": "Explore approved consultancy and advisory projects.",
+    "metrics": {
+      "Consultancy projects": "count"
+    },
+    "heading": "Project case studies",
+    "layout": "cases",
+    "categories": [
+      "Engineering",
+      "Advisory"
+    ]
+  }
+}
