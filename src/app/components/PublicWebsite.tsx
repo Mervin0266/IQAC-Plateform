@@ -1,5 +1,6 @@
-import React, { useState, Suspense } from 'react';
-import { PublicNavBar } from './PublicNavBar';
+import React, { useEffect, Suspense } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
+import { PublicNavBar, publicPath } from './PublicNavBar';
 import { PublicFooter } from './PublicFooter';
 import { PublicHomePage } from './PublicHomePage';
 import '../../styles/public-website.css';
@@ -10,7 +11,7 @@ import '../../styles/section-experience.css';
 // These were previously statically imported, preventing code-splitting
 // of AchievementsPage, RankingPage, etc. from App.tsx lazy imports.
 const AchievementsPage = React.lazy(() => import('./AchievementsPage').then(m => ({ default: m.AchievementsPage })));
-const ResearchInnovationPage = React.lazy(() => import('./ResearchInnovationPage').then(m => ({ default: m.ResearchInnovationPage })));
+const PatentsPage = React.lazy(() => import('./PatentsPage').then(m => ({ default: m.PatentsPage })));
 const RankingPage = React.lazy(() => import('./RankingPage').then(m => ({ default: m.RankingPage })));
 const CareerOutcomesPage = React.lazy(() => import('./CareerOutcomesPage').then(m => ({ default: m.CareerOutcomesPage })));
 const InfrastructureFacilitiesPage = React.lazy(() => import('./InfrastructureFacilitiesPage').then(m => ({ default: m.InfrastructureFacilitiesPage })));
@@ -32,35 +33,29 @@ function PublicPageLoading() {
   );
 }
 
-interface PublicWebsiteProps {
-  onLoginClick: () => void;
-}
+export function PublicWebsite() {
+  const { section } = useParams();
+  const currentSection = section === 'placements' ? 'placements-internships' : section ?? 'home';
+  const { pathname, hash } = useLocation();
+  const routerNavigate = useNavigate();
+  const navigate = (key: string) => routerNavigate(publicPath(key));
+  const onLoginClick = () => routerNavigate('/login');
 
-export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
-  const [currentSection, setCurrentSection] = useState('home');
-  const navigate = (section: string) => {
-    if (section.startsWith('#')) {
-      setCurrentSection('home');
-      requestAnimationFrame(() => {
-        const destination = document.getElementById(section.slice(1));
-        destination?.focus({ preventScroll: true });
-        destination?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-      });
-      return;
-    }
-    setCurrentSection(section);
-    window.scrollTo({ top: 0, behavior: 'instant' });
-    requestAnimationFrame(() => document.getElementById('public-content')?.focus());
-  };
+  useEffect(() => {
+    const target = hash ? document.getElementById(hash.slice(1)) : document.getElementById('public-content');
+    target?.focus({ preventScroll: true });
+    if (hash) target?.scrollIntoView();
+    else window.scrollTo(0, 0);
+  }, [pathname, hash]);
 
   const renderContent = () => {
     switch (currentSection) {
       case 'home':
-        return <PublicHomePage onNavigate={navigate} onLoginClick={onLoginClick} />;
+        return <PublicHomePage onLoginClick={onLoginClick} />;
       case 'achievements':
         return <AchievementsPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'research-innovation':
-        return <ResearchInnovationPage onNavigate={navigate} isPublicView={true} hideSidebar />;
+        return <PatentsPage onNavigate={navigate} isPublicView hideSidebar />;
       case 'rankings':
         return <RankingPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'placements-internships':
@@ -68,35 +63,31 @@ export function PublicWebsite({ onLoginClick }: PublicWebsiteProps) {
       case 'alumni':
         return <CareerOutcomesPage page={currentSection} onNavigate={navigate} isPublic />;
       case 'infrastructure':
-        return <InfrastructureFacilitiesPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <InfrastructureFacilitiesPage onNavigate={navigate} isPublicView={true} />;
       case 'international-interactions':
-        return <InternationalInteractionsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <InternationalInteractionsPage onNavigate={navigate} isPublicView={true} />;
       case 'centre-excellence':
         return <CentreExcellencePage onNavigate={navigate} isPublicView={true} hideSidebar />;
       case 'incubations':
-        return <IncubationsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <IncubationsPage onNavigate={navigate} isPublicView={true} />;
       case 'industry-connects':
-        return <IndustryConnectsPage onNavigate={setCurrentSection} isPublicView={true} />;
+        return <IndustryConnectsPage onNavigate={navigate} isPublicView={true} />;
       case 'consultancy-projects':
         return <ConsultancyProjectsPage onNavigate={navigate} isPublicView={true} hideSidebar />;
       default:
-        return <PublicHomePage onNavigate={navigate} onLoginClick={onLoginClick} />;
+        return <div><h1>Page not found</h1><Link to="/">Return to IQAC</Link></div>;
     }
   };
 
   return (
     <div className="iq-site min-h-screen bg-gray-50 flex flex-col">
-      <PublicNavBar 
-        currentSection={currentSection} 
-        onNavigate={navigate}
-        onLoginClick={onLoginClick}
-      />
-      <main id="public-content" tabIndex={-1} className={currentSection === 'home' ? 'flex-1' : 'flex-1 iq-section-view iq-public-section'} key={currentSection}>
+      <PublicNavBar />
+      <main id="public-content" tabIndex={-1} className={currentSection === 'home' ? 'flex-1' : 'flex-1 iq-section-view iq-public-section iq-explore-layout'} key={currentSection}>
         <Suspense fallback={<PublicPageLoading />}>
           {renderContent()}
         </Suspense>
       </main>
-      <PublicFooter onLoginClick={onLoginClick} onNavigate={navigate} />
+      <PublicFooter />
     </div>
   );
 }

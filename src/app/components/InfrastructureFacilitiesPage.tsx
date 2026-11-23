@@ -213,7 +213,7 @@ export function InfrastructureFacilitiesPage({ onNavigate, isPublicView = false 
         title="Infrastructure & Research Facilities"
         badge={`${totalLabs} Laboratories`}
         description="State-of-the-art specialized laboratories, high-performance computing, testing benches and capital equipment."
-        actions={
+        actions={!isPublicView && (
           <Button
             variant="outline"
             className="border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs flex items-center gap-1.5"
@@ -235,7 +235,7 @@ export function InfrastructureFacilitiesPage({ onNavigate, isPublicView = false 
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             <span>Export Report</span>
           </Button>
-        }
+        )}
       />
 
       {/* 5 Executive KPI Metric Cards */}

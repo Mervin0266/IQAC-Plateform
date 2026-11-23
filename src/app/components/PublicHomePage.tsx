@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router';
+import { publicPath } from './PublicNavBar';
 import {
   ArrowUpRight, ArrowRight, ClipboardCheck, Award, GraduationCap, BookOpen,
   Target, FileText, Check, Search, X, Users, FlaskConical, Building2, Globe2,
@@ -49,8 +51,7 @@ const stages = [
   { name: 'Improve', title: 'Make the next cycle stronger.', detail: 'Use the findings of review to refine processes, share effective practices, and inform the next round of institutional planning.', evidence: 'Action plans & shared learning', icon: ChartNoAxesCombined },
 ];
 
-export function PublicHomePage({ onNavigate, onLoginClick }: {
-  onNavigate: (section: string) => void;
+export function PublicHomePage({ onLoginClick }: {
   onLoginClick: () => void;
 }) {
   const [prefersReduced, setPrefersReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -61,8 +62,7 @@ export function PublicHomePage({ onNavigate, onLoginClick }: {
     update();
     return () => preference.removeEventListener('change', update);
   }, []);
-  const [paused, setPaused] = useState(false);
-  const quiet = !!prefersReduced || paused;
+  const quiet = !!prefersReduced;
   const root = useRef<HTMLDivElement>(null);
   const [resourceIndex, setResourceIndex] = useState(0);
   useEffect(() => {
@@ -100,9 +100,6 @@ export function PublicHomePage({ onNavigate, onLoginClick }: {
           <circle cx="300" cy="300" r="235" /><circle cx="300" cy="300" r="190" />
           <path d="M65 300H535M300 65V535" /><g className="iq-trace-orbit"><circle cx="300" cy="65" r="5" /><circle cx="300" cy="535" r="3" /></g>
         </svg>
-        <button className="iq-motion-toggle" aria-pressed={paused} disabled={!!prefersReduced} onClick={() => setPaused(value => !value)}>
-          {prefersReduced ? 'Reduced motion enabled' : paused ? 'Resume decorative motion' : 'Pause decorative motion'}
-        </button>
         <div className="iq-container iq-hero-inner">
           <div className="iq-hero-copy">
             <p className="iq-eyebrow"><span /> INTERNAL QUALITY ASSURANCE CELL</p>
@@ -201,12 +198,12 @@ export function PublicHomePage({ onNavigate, onLoginClick }: {
           </div>
           <p className="iq-directory-count" role="status">{matchingServices.length} {matchingServices.length === 1 ? 'area' : 'areas'} to explore{query.trim() && <> for &ldquo;{query.trim()}&rdquo;</>}</p>
           <div className="iq-services">
-            {matchingServices.map(({ title, detail, key, category: group, icon: Icon }, index) => (
-              <motion.button layout={!quiet ? 'position' : false} initial={quiet ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: quiet ? 0 : .38, delay: quiet ? 0 : Math.min(index * .045, .25), ease: [.22, 1, .36, 1] }} className={['iq-service', key === 'achievements' ? 'iq-service-featured' : ''].filter(Boolean).join(' ')} key={key} onClick={() => onNavigate(key)}>
+            {matchingServices.map(({ title, detail, key, category: group, icon: Icon }) => (
+              <Link className={key === "achievements" ? "iq-service iq-service-featured" : "iq-service"} key={key} to={publicPath(key)}>
                 <div className="iq-service-top"><span className="iq-service-icon"><Icon size={23} strokeWidth={1.5} /></span><ArrowUpRight size={18} /></div>
                 <small>{group}</small><h3>{title}</h3><p>{detail}</p>
                 <span className="iq-service-open">Explore area <ArrowRight size={15} /></span>
-              </motion.button>
+              </Link>
             ))}
           </div>
           {matchingServices.length === 0 && <div className="iq-empty"><Search size={30} /><h3>No matching areas</h3><p>Try a different search or explore all institutional areas.</p><button className="iq-button iq-navy" onClick={() => { setQuery(''); setCategory('All areas'); }}>Reset filters <ArrowRight size={16} /></button></div>}

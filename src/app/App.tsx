@@ -1,5 +1,6 @@
-import React, { useState, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate, useLocation, useParams } from 'react-router';
 import { LoginPage } from './components/LoginPage';
 import { PublicWebsite } from './components/PublicWebsite';
 import { hasPageAccess } from './config/permissions';
@@ -46,70 +47,16 @@ function SuspenseFallback() {
   );
 }
 
-function AppContent() {
-  const { user, isAuthenticated } = useAuth();
-  const [currentPage, setCurrentPage] = useState('dashboard');
-  const [showLogin, setShowLogin] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname.toLowerCase();
-      const search = window.location.search.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      return (
-        path === '/login' ||
-        path.startsWith('/login') ||
-        search.includes('login') ||
-        hash === '#login' ||
-        hash.includes('login')
-      );
-    }
-    return false;
-  });
-
-  // Keep URL in sync with login view
-  React.useEffect(() => {
-    const handleLocationChange = () => {
-      const path = window.location.pathname.toLowerCase();
-      const search = window.location.search.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      if (path === '/login' || search.includes('login') || hash === '#login') {
-        setShowLogin(true);
-      }
-    };
-    window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
-  }, []);
-
-  // Check if user has access to current page (Hook called unconditionally at top level)
-  React.useEffect(() => {
-    if (user && !hasPageAccess(user.role, currentPage)) {
-      setCurrentPage('dashboard');
-    }
-  }, [user, currentPage]);
-
-  // If not authenticated and not explicitly showing login, show public website
-  if (!isAuthenticated || !user) {
-    if (showLogin) {
-      return (
-        <LoginPage
-          onBack={() => {
-            setShowLogin(false);
-            if (typeof window !== 'undefined' && window.location.pathname === '/login') {
-              window.history.pushState({}, '', '/');
-            }
-          }}
-        />
-      );
-    }
-    return (
-      <PublicWebsite
-        onLoginClick={() => {
-          setShowLogin(true);
-          if (typeof window !== 'undefined') {
-            window.history.pushState({}, '', '/login');
-          }
-        }}
-      />
-    );
+function Workspace() {
+  const { user, ready } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { page: currentPage = 'dashboard' } = useParams();
+  const setCurrentPage = (page: string) => navigate('/workspace/' + encodeURIComponent(page));
+  if (!ready) return <SuspenseFallback />;
+  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  if (!hasPageAccess(user.role, currentPage) && currentPage !== 'dashboard') {
+    return <Navigate to="/workspace/dashboard" replace />;
   }
 
   const renderPage = () => {
@@ -182,7 +129,7 @@ function AppContent() {
       case 'user-management':
         return <UserManagementPage onNavigate={setCurrentPage} />;
       default:
-        return <DashboardPage onNavigate={setCurrentPage} />;
+        return <NotFound />;
     }
   };
 
@@ -195,10 +142,31 @@ function AppContent() {
   );
 }
 
+function NotFound() {
+  return <main className="p-8"><h1>Page not found</h1><Link to="/">Return to IQAC</Link></main>;
+}
+
+function LoginRoute() {
+  const { user, ready } = useAuth();
+  const { state } = useLocation();
+  const navigate = useNavigate();
+  if (!ready) return <SuspenseFallback />;
+  if (user) return <Navigate to={state?.from ?? '/workspace/dashboard'} replace />;
+  return <LoginPage onBack={() => navigate('/')} />;
+}
+
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<PublicWebsite />} />
+          <Route path="/explore/:section" element={<PublicWebsite />} />
+          <Route path="/login" element={<LoginRoute />} />
+          <Route path="/workspace/:page?" element={<Workspace />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

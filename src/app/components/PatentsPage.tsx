@@ -68,6 +68,7 @@ export interface PatentItem {
 interface PatentsPageProps {
   onNavigate: (page: string) => void;
   hideSidebar?: boolean;
+  isPublicView?: boolean;
   token?: string;
   userRole?: string;
 }
@@ -145,6 +146,7 @@ const EMPTY_FORM: FormState = {
 export function PatentsPage({
   onNavigate,
   hideSidebar = false,
+  isPublicView = false,
   token: propToken,
   userRole: propRole
 }: PatentsPageProps) {
@@ -868,7 +870,7 @@ export function PatentsPage({
         title="Intellectual Property & Patents Portfolio"
         badge={`${stats.total.toLocaleString()} Patents`}
         description="Comprehensive tracking of filed, published, granted, and commercialized patents with verified institutional Google Drive proof documents."
-        actions={
+        actions={!isPublicView &&
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
@@ -1111,14 +1113,14 @@ export function PatentsPage({
             >
               Reset Filters
             </Button>
-            <Button
+            {!isPublicView && (<Button
               size="sm"
               onClick={handleOpenAddModal}
               className="bg-[#2f4692] text-white text-xs font-semibold"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
               Add First Patent
-            </Button>
+            </Button>)}
           </div>
         </Card>
       ) : viewMode === 'table' ? (
@@ -1246,7 +1248,7 @@ export function PatentsPage({
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
-                        <Button
+                        {!isPublicView && (<Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleOpenEditModal(patent)}
@@ -1254,8 +1256,8 @@ export function PatentsPage({
                           title="Edit Patent"
                         >
                           <Edit className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
+                        </Button>)}
+                        {!isPublicView && (<Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeletePatent(patent.id)}
@@ -1263,7 +1265,7 @@ export function PatentsPage({
                           title="Delete Patent"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        </Button>)}
                       </div>
                     </td>
                   </tr>
@@ -1273,7 +1275,7 @@ export function PatentsPage({
           </div>
           <div className="p-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex justify-between items-center px-4">
             <span>Showing {patents.length} patent records</span>
-            {(currentRole === 'admin' || currentRole === 'hod') && (
+            {!isPublicView && (currentRole === 'admin' || currentRole === 'hod') && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -1316,22 +1318,22 @@ export function PatentsPage({
                     </h3>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button
+                    {!isPublicView && (<Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleOpenEditModal(patent)}
                       className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600"
                     >
                       <Edit className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
+                    </Button>)}
+                    {!isPublicView && (<Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeletePatent(patent.id)}
                       className="h-7 w-7 p-0 text-gray-400 hover:text-red-600"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    </Button>)}
                   </div>
                 </div>
 
@@ -1881,7 +1883,7 @@ export function PatentsPage({
                               <ExternalLink className="w-3 h-3" />
                               <span>View</span>
                             </a>
-                            <Button
+                            {!isPublicView && (<Button
                               variant="ghost"
                               size="sm"
                               disabled={proofActionLoading}
@@ -1890,7 +1892,7 @@ export function PatentsPage({
                               title="Delete proof document"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+                            </Button>)}
                           </div>
                         </div>
                       ))}
@@ -1951,14 +1953,14 @@ export function PatentsPage({
 
                   {(newProofFiles.length > 0 || newProofLinks.trim()) && (
                     <div className="flex justify-end pt-1">
-                      <Button
+                      {!isPublicView && (<Button
                         size="sm"
                         disabled={proofActionLoading}
                         onClick={handleAddProofsInViewer}
                         className="bg-[#2f4692] text-white hover:bg-[#243877] text-xs h-8 px-4"
                       >
                         {proofActionLoading ? 'Attaching...' : 'Attach Proof(s)'}
-                      </Button>
+                      </Button>)}
                     </div>
                   )}
                 </div>
@@ -2161,9 +2163,9 @@ export function PatentsPage({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsClearOpen(false)}>
+            {!isPublicView && (<Button variant="outline" size="sm" onClick={() => setIsClearOpen(false)}>
               Cancel
-            </Button>
+            </Button>)}
             <Button
               size="sm"
               disabled={clearLoading}

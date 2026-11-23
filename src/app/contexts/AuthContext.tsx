@@ -23,12 +23,15 @@ interface AuthContextType {
   login: (email: string, password: string, role: UserRole) => Promise<LoginResult>;
   logout: () => void;
   isAuthenticated: boolean;
+  ready: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+
+  const [ready, setReady] = useState(false);
 
   // Load user from localStorage on mount
   useEffect(() => {
@@ -40,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('iqac_user');
       }
     }
+    setReady(true);
   }, []);
 
   const login = async (email: string, password: string, role: UserRole): Promise<LoginResult> => {
@@ -169,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, ready }}>
       {children}
     </AuthContext.Provider>
   );

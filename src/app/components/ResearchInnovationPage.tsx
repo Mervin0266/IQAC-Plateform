@@ -19,3 +19,4 @@ export function ResearchInnovationPage({ onNavigate, isPublicView = false, hideS
     />
   );
 }
+      isPublicView={isPublicView}

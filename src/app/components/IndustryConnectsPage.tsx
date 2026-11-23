@@ -110,7 +110,7 @@ export function IndustryConnectsPage({ onNavigate, isPublicView = false }: Indus
         title="Industry Interface & Corporate Connects"
         badge={`${filteredPartners.length} Partners`}
         description="Strategic corporate partnerships, active MoUs, industry expert lectures and technology transfer projects."
-        actions={
+        actions={!isPublicView && (
           <Button
             variant="outline"
             className="border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs flex items-center gap-1.5"
@@ -127,7 +127,7 @@ export function IndustryConnectsPage({ onNavigate, isPublicView = false }: Indus
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             <span>Export Report</span>
           </Button>
-        }
+        )}
       />
 
       {/* 5 Executive KPI Metric Cards */}

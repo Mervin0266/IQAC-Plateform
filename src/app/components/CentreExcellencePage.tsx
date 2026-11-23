@@ -201,7 +201,7 @@ export function CentreExcellencePage({
   hideSidebar = false
 }: CentreExcellencePageProps) {
   const { user } = useAuth();
-  const isAdminOrCoordinator = user?.role === 'admin' || user?.role === 'coordinator' || user?.role === 'hod';
+  const isAdminOrCoordinator = !isPublicView && (user?.role === 'admin' || user?.role === 'coordinator' || user?.role === 'hod');
 
   const [centres, setCentres] = useState<CentreItem[]>(INITIAL_CENTRES);
   const [searchQuery, setSearchQuery] = useState('');
@@ -404,7 +404,7 @@ export function CentreExcellencePage({
 
             <div className="flex flex-wrap items-center gap-2.5">
               {/* Export Toolbar */}
-              <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+              {!isPublicView && (<div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -426,7 +426,7 @@ export function CentreExcellencePage({
                   <Download className="w-4 h-4 text-blue-600" />
                   <span>CSV</span>
                 </Button>
-              </div>
+              </div>)}
 
               {/* Add Centre Button */}
               {isAdminOrCoordinator && (

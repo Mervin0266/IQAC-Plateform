@@ -205,7 +205,7 @@ export function InternationalInteractionsPage({ onNavigate, isPublicView = false
         title="International Relations & Global Immersion"
         badge={`${partnerships.length} Partnerships`}
         description="Global academic MoUs, foreign exchange programs, visiting professorships and world conferences."
-        actions={
+        actions={!isPublicView && (
           <Button
             variant="outline"
             className="border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium h-9 px-3.5 rounded-lg shadow-xs flex items-center gap-1.5"
@@ -222,7 +222,7 @@ export function InternationalInteractionsPage({ onNavigate, isPublicView = false
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             <span>Export Report</span>
           </Button>
-        }
+        )}
       />
 
       {/* 5 Executive KPI Metric Cards */}
