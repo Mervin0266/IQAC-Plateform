@@ -7,6 +7,9 @@ import {
   useNavigate,
   useParams,
 } from 'react-router';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './config/queryClient';
+import { ErrorBoundary } from './components/routing/ErrorBoundary';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SystemConfigProvider } from './contexts/SystemConfigContext';
 import { LoginPage } from './components/LoginPage';
@@ -397,12 +400,16 @@ export function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <SystemConfigProvider>
-          <AppRoutes />
-        </SystemConfigProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <SystemConfigProvider>
+              <AppRoutes />
+            </SystemConfigProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useTableVirtualization } from '../hooks/useTableVirtualization';
 import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
@@ -629,6 +630,31 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
   const [selectedPublicationIndexing, setSelectedPublicationIndexing] = useState<string>('Scopus');
   const [selectedPublicationYear, setSelectedPublicationYear] = useState<string>('2024');
   const [previewFilter, setPreviewFilter] = useState<'all' | 'ready' | 'needs_review' | 'duplicate' | 'invalid'>('all');
+
+  const previewTableContainerRef = useRef<HTMLDivElement>(null);
+  const filteredModernPreviewData = useMemo(() => {
+    return previewData.filter(r => {
+      if (previewFilter === 'ready') return r._rowStatus === 'ready';
+      if (previewFilter === 'needs_review') return r._rowStatus === 'needs_review';
+      if (previewFilter === 'duplicate') return r._rowStatus === 'duplicate';
+      if (previewFilter === 'invalid') return r._rowStatus === 'invalid';
+      return true;
+    });
+  }, [previewData, previewFilter]);
+
+  const {
+    isVirtual: isPreviewTableVirtual,
+    paddingTop: previewTablePaddingTop,
+    paddingBottom: previewTablePaddingBottom,
+    renderedItems: renderedModernPreviewItems,
+  } = useTableVirtualization<any>({
+    rows: filteredModernPreviewData,
+    parentRef: previewTableContainerRef,
+    estimateRowHeight: 44,
+    threshold: 20,
+    mode: 'auto',
+    getItemKey: (idx) => filteredModernPreviewData[idx]?._rowId || filteredModernPreviewData[idx]?.rowIndex || idx,
+  });
   const [editingPublicationRow, setEditingPublicationRow] = useState<{ index: number; data: any } | null>(null);
   const [viewingPublicationRow, setViewingPublicationRow] = useState<{ index: number; data: any } | null>(null);
   const [publicationUploadMode, setPublicationUploadMode] = useState<'publications' | 'citations'>(
@@ -3912,7 +3938,10 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
                   </div>
                 )}
               </div>
-              <div className="overflow-x-auto border border-gray-200 rounded max-h-[50vh] overflow-y-auto">
+              <div
+                ref={previewTableContainerRef}
+                className="overflow-x-auto border border-gray-200 rounded max-h-[50vh] overflow-y-auto"
+              >
                 <table className="w-full text-left border-collapse text-[11px] text-gray-700">
                   {isFaculty ? (
                     <>
@@ -4156,73 +4185,74 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
-                        {previewData
-                          .filter(r => {
-                            if (previewFilter === 'ready') return r._rowStatus === 'ready';
-                            if (previewFilter === 'needs_review') return r._rowStatus === 'needs_review';
-                            if (previewFilter === 'duplicate') return r._rowStatus === 'duplicate';
-                            if (previewFilter === 'invalid') return r._rowStatus === 'invalid';
-                            return true;
-                          })
-                          .slice(0, 100)
-                          .map((row, idx) => {
-                            const isReady = row._rowStatus === 'ready';
-                            const isDup = row._rowStatus === 'duplicate';
-                            const isInvalid = row._rowStatus === 'invalid';
-                            const isReview = row._rowStatus === 'needs_review';
-                            return (
-                              <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
-                                <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
-                                <td className="py-2.5 px-3 whitespace-nowrap">
-                                  {isReady && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                                      <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
-                                    </span>
-                                  )}
-                                  {isReview && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
-                                      <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
-                                    </span>
-                                  )}
-                                  {isDup && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
-                                      <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
-                                    </span>
-                                  )}
-                                  {isInvalid && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
-                                      <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-3">
-                                  <div className="font-semibold text-slate-900">{row.facultyName || <span className="text-amber-600">Unresolved Faculty</span>}</div>
-                                  <div className="text-[10px] text-slate-500 font-mono">EmpID: {row.employeeId || 'Missing'}</div>
-                                  {row.department && <div className="text-[10px] text-slate-400">{row.department}</div>}
-                                </td>
-                                <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[220px]">
-                                  <span className="line-clamp-2" title={row.nameOfRecognition}>{row.nameOfRecognition || '—'}</span>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
-                                  <div className="font-medium truncate" title={row.recognisingAgencyName}>{row.recognisingAgencyName || '—'}</div>
-                                  <div className="text-[10px] text-slate-400">{row.recognisedAgencyType || '—'}</div>
-                                </td>
-                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                  <div className="font-mono text-slate-800">{row.dateOfRecognition || '—'}</div>
-                                  <div className="text-[10px] font-bold text-[#2855B9]">Year: {row.calendarYear || row.derivedYear || row.year || '—'}</div>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
-                                  {row._duplicateReason ? (
-                                    <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
-                                  ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
-                                    <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
-                                  ) : (
-                                    <span className="text-emerald-700 text-[10px]">Valid record</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
+                        {isPreviewTableVirtual && previewTablePaddingTop > 0 && (
+                          <tr style={{ height: `${previewTablePaddingTop}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={7} style={{ padding: 0, border: 0, height: `${previewTablePaddingTop}px` }} />
+                          </tr>
+                        )}
+                        {renderedModernPreviewItems.map(({ item: row, index: idx }) => {
+                          const isReady = row._rowStatus === 'ready';
+                          const isDup = row._rowStatus === 'duplicate';
+                          const isInvalid = row._rowStatus === 'invalid';
+                          const isReview = row._rowStatus === 'needs_review';
+                          return (
+                            <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                {isReady && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                    <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
+                                  </span>
+                                )}
+                                {isReview && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
+                                    <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
+                                  </span>
+                                )}
+                                {isDup && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
+                                    <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
+                                  </span>
+                                )}
+                                {isInvalid && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
+                                    <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="font-semibold text-slate-900">{row.facultyName || <span className="text-amber-600">Unresolved Faculty</span>}</div>
+                                <div className="text-[10px] text-slate-500 font-mono">EmpID: {row.employeeId || 'Missing'}</div>
+                                {row.department && <div className="text-[10px] text-slate-400">{row.department}</div>}
+                              </td>
+                              <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[220px]">
+                                <span className="line-clamp-2" title={row.nameOfRecognition}>{row.nameOfRecognition || '—'}</span>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
+                                <div className="font-medium truncate" title={row.recognisingAgencyName}>{row.recognisingAgencyName || '—'}</div>
+                                <div className="text-[10px] text-slate-400">{row.recognisedAgencyType || '—'}</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                <div className="font-mono text-slate-800">{row.dateOfRecognition || '—'}</div>
+                                <div className="text-[10px] font-bold text-[#2855B9]">Year: {row.calendarYear || row.derivedYear || row.year || '—'}</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
+                                {row._duplicateReason ? (
+                                  <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
+                                ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
+                                  <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
+                                ) : (
+                                  <span className="text-emerald-700 text-[10px]">Valid record</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {isPreviewTableVirtual && previewTablePaddingBottom > 0 && (
+                          <tr style={{ height: `${previewTablePaddingBottom}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={7} style={{ padding: 0, border: 0, height: `${previewTablePaddingBottom}px` }} />
+                          </tr>
+                        )}
                       </tbody>
                     </>
                   ) : isEContent ? (
@@ -4239,73 +4269,74 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
-                        {previewData
-                          .filter(r => {
-                            if (previewFilter === 'ready') return r._rowStatus === 'ready';
-                            if (previewFilter === 'needs_review') return r._rowStatus === 'needs_review';
-                            if (previewFilter === 'duplicate') return r._rowStatus === 'duplicate';
-                            if (previewFilter === 'invalid') return r._rowStatus === 'invalid';
-                            return true;
-                          })
-                          .slice(0, 100)
-                          .map((row, idx) => {
-                            const isReady = row._rowStatus === 'ready';
-                            const isDup = row._rowStatus === 'duplicate';
-                            const isInvalid = row._rowStatus === 'invalid';
-                            const isReview = row._rowStatus === 'needs_review';
-                            return (
-                              <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
-                                <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
-                                <td className="py-2.5 px-3 whitespace-nowrap">
-                                  {isReady && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                                      <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
-                                    </span>
-                                  )}
-                                  {isReview && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
-                                      <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
-                                    </span>
-                                  )}
-                                  {isDup && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
-                                      <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
-                                    </span>
-                                  )}
-                                  {isInvalid && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
-                                      <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-3">
-                                  <div className="font-semibold text-slate-900">{row.facultyName || <span className="text-amber-600">Unresolved Faculty</span>}</div>
-                                  <div className="text-[10px] text-slate-500 font-mono">EmpID: {row.employeeId || 'Missing'}</div>
-                                  {row.department && <div className="text-[10px] text-slate-400">{row.department}</div>}
-                                </td>
-                                <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[220px]">
-                                  <span className="line-clamp-2" title={row.title}>{row.title || '—'}</span>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
-                                  <div className="font-medium truncate" title={row.eContentPlatform}>{row.eContentPlatform || '—'}</div>
-                                  <div className="text-[10px] text-slate-400">{row.contentType || '—'}</div>
-                                </td>
-                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                  <div className="font-mono text-slate-800">{row.publicationDate || '—'}</div>
-                                  <div className="text-[10px] font-bold text-[#2855B9]">Year: {row.calendarYear || row.derivedYear || row.year || '—'}</div>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
-                                  {row._duplicateReason ? (
-                                    <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
-                                  ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
-                                    <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
-                                  ) : (
-                                    <span className="text-emerald-700 text-[10px]">Valid record</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
+                        {isPreviewTableVirtual && previewTablePaddingTop > 0 && (
+                          <tr style={{ height: `${previewTablePaddingTop}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={7} style={{ padding: 0, border: 0, height: `${previewTablePaddingTop}px` }} />
+                          </tr>
+                        )}
+                        {renderedModernPreviewItems.map(({ item: row, index: idx }) => {
+                          const isReady = row._rowStatus === 'ready';
+                          const isDup = row._rowStatus === 'duplicate';
+                          const isInvalid = row._rowStatus === 'invalid';
+                          const isReview = row._rowStatus === 'needs_review';
+                          return (
+                            <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                {isReady && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                    <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
+                                  </span>
+                                )}
+                                {isReview && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
+                                    <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
+                                  </span>
+                                )}
+                                {isDup && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
+                                    <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
+                                  </span>
+                                )}
+                                {isInvalid && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
+                                    <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="font-semibold text-slate-900">{row.facultyName || <span className="text-amber-600">Unresolved Faculty</span>}</div>
+                                <div className="text-[10px] text-slate-500 font-mono">EmpID: {row.employeeId || 'Missing'}</div>
+                                {row.department && <div className="text-[10px] text-slate-400">{row.department}</div>}
+                              </td>
+                              <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[220px]">
+                                <span className="line-clamp-2" title={row.title}>{row.title || '—'}</span>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
+                                <div className="font-medium truncate" title={row.eContentPlatform}>{row.eContentPlatform || '—'}</div>
+                                <div className="text-[10px] text-slate-400">{row.contentType || '—'}</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                <div className="font-mono text-slate-800">{row.publicationDate || '—'}</div>
+                                <div className="text-[10px] font-bold text-[#2855B9]">Year: {row.calendarYear || row.derivedYear || row.year || '—'}</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
+                                {row._duplicateReason ? (
+                                  <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
+                                ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
+                                  <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
+                                ) : (
+                                  <span className="text-emerald-700 text-[10px]">Valid record</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {isPreviewTableVirtual && previewTablePaddingBottom > 0 && (
+                          <tr style={{ height: `${previewTablePaddingBottom}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={7} style={{ padding: 0, border: 0, height: `${previewTablePaddingBottom}px` }} />
+                          </tr>
+                        )}
                       </tbody>
                     </>
                   ) : isProfessionalDevelopment ? (
@@ -4322,72 +4353,73 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
-                        {previewData
-                          .filter(r => {
-                            if (previewFilter === 'ready') return r._rowStatus === 'ready';
-                            if (previewFilter === 'needs_review') return r._rowStatus === 'needs_review';
-                            if (previewFilter === 'duplicate') return r._rowStatus === 'duplicate';
-                            if (previewFilter === 'invalid') return r._rowStatus === 'invalid';
-                            return true;
-                          })
-                          .slice(0, 100)
-                          .map((row, idx) => {
-                            const isReady = row._rowStatus === 'ready';
-                            const isDup = row._rowStatus === 'duplicate';
-                            const isInvalid = row._rowStatus === 'invalid';
-                            const isReview = row._rowStatus === 'needs_review';
-                            return (
-                              <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
-                                <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
-                                <td className="py-2.5 px-3 whitespace-nowrap">
-                                  {isReady && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                                      <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
-                                    </span>
-                                  )}
-                                  {isReview && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
-                                      <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
-                                    </span>
-                                  )}
-                                  {isDup && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
-                                      <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
-                                    </span>
-                                  )}
-                                  {isInvalid && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
-                                      <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-3">
-                                  <div className="font-semibold text-slate-900">{row.facultyName || row.name || (row.isGuestFaculty ? 'Guest Faculty' : 'Faculty')}</div>
-                                  <div className="text-[10px] font-mono text-slate-500">{row.employeeId || 'No EmpID'}</div>
-                                </td>
-                                <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[220px]">
-                                  <span className="line-clamp-2" title={row.title}>{row.title || '—'}</span>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
-                                  <div className="font-medium truncate">{row.programType || '—'}</div>
-                                  <div className="text-[10px] text-slate-400">Role: {row.role || 'Participant'}</div>
-                                </td>
-                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                  <div className="font-mono text-slate-800">{row.startDate || '—'}</div>
-                                  <div className="text-[10px] font-bold text-[#2855B9]">{row.durationDays ? `${row.durationDays} Days` : 'Year: ' + (row.calendarYear || '—')}</div>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
-                                  {row._duplicateReason ? (
-                                    <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
-                                  ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
-                                    <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
-                                  ) : (
-                                    <span className="text-emerald-700 text-[10px]">Valid record</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
+                        {isPreviewTableVirtual && previewTablePaddingTop > 0 && (
+                          <tr style={{ height: `${previewTablePaddingTop}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={7} style={{ padding: 0, border: 0, height: `${previewTablePaddingTop}px` }} />
+                          </tr>
+                        )}
+                        {renderedModernPreviewItems.map(({ item: row, index: idx }) => {
+                          const isReady = row._rowStatus === 'ready';
+                          const isDup = row._rowStatus === 'duplicate';
+                          const isInvalid = row._rowStatus === 'invalid';
+                          const isReview = row._rowStatus === 'needs_review';
+                          return (
+                            <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                {isReady && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                    <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
+                                  </span>
+                                )}
+                                {isReview && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
+                                    <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
+                                  </span>
+                                )}
+                                {isDup && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
+                                    <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
+                                  </span>
+                                )}
+                                {isInvalid && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
+                                    <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="font-semibold text-slate-900">{row.facultyName || row.name || (row.isGuestFaculty ? 'Guest Faculty' : 'Faculty')}</div>
+                                <div className="text-[10px] font-mono text-slate-500">{row.employeeId || 'No EmpID'}</div>
+                              </td>
+                              <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[220px]">
+                                <span className="line-clamp-2" title={row.title}>{row.title || '—'}</span>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
+                                <div className="font-medium truncate">{row.programType || '—'}</div>
+                                <div className="text-[10px] text-slate-400">Role: {row.role || 'Participant'}</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                <div className="font-mono text-slate-800">{row.startDate || '—'}</div>
+                                <div className="text-[10px] font-bold text-[#2855B9]">{row.durationDays ? `${row.durationDays} Days` : 'Year: ' + (row.calendarYear || '—')}</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
+                                {row._duplicateReason ? (
+                                  <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
+                                ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
+                                  <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
+                                ) : (
+                                  <span className="text-emerald-700 text-[10px]">Valid record</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {isPreviewTableVirtual && previewTablePaddingBottom > 0 && (
+                          <tr style={{ height: `${previewTablePaddingBottom}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={7} style={{ padding: 0, border: 0, height: `${previewTablePaddingBottom}px` }} />
+                          </tr>
+                        )}
                       </tbody>
                     </>
                   ) : isInvitedTalk ? (
@@ -4404,71 +4436,72 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
-                        {previewData
-                          .filter(r => {
-                            if (previewFilter === 'ready') return r._rowStatus === 'ready';
-                            if (previewFilter === 'needs_review') return r._rowStatus === 'needs_review';
-                            if (previewFilter === 'duplicate') return r._rowStatus === 'duplicate';
-                            if (previewFilter === 'invalid') return r._rowStatus === 'invalid';
-                            return true;
-                          })
-                          .slice(0, 100)
-                          .map((row, idx) => {
-                            const isReady = row._rowStatus === 'ready';
-                            const isDup = row._rowStatus === 'duplicate';
-                            const isInvalid = row._rowStatus === 'invalid';
-                            const isReview = row._rowStatus === 'needs_review';
-                            return (
-                              <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
-                                <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
-                                <td className="py-2.5 px-3 whitespace-nowrap">
-                                  {isReady && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                                      <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
-                                    </span>
-                                  )}
-                                  {isReview && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
-                                      <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
-                                    </span>
-                                  )}
-                                  {isDup && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
-                                      <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
-                                    </span>
-                                  )}
-                                  {isInvalid && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
-                                      <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-3">
-                                  <div className="font-semibold text-slate-900">{row.facultyName || row.name || (row.isGuestFaculty ? 'Guest Faculty' : 'Speaker')}</div>
-                                  <div className="text-[10px] font-mono text-slate-500">{row.employeeId || 'No EmpID'}</div>
-                                </td>
-                                <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[240px]">
-                                  <span className="line-clamp-2" title={row.title}>{row.title || '—'}</span>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-700">
-                                  <div className="font-medium">{row.programType || '—'}</div>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
-                                  <div className="font-medium truncate" title={row.organization}>{row.organization || '—'}</div>
-                                  <div className="text-[10px] text-slate-400">{row.media || '—'}</div>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
-                                  {row._duplicateReason ? (
-                                    <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
-                                  ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
-                                    <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
-                                  ) : (
-                                    <span className="text-emerald-700 text-[10px]">Valid record</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
+                        {isPreviewTableVirtual && previewTablePaddingTop > 0 && (
+                          <tr style={{ height: `${previewTablePaddingTop}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={7} style={{ padding: 0, border: 0, height: `${previewTablePaddingTop}px` }} />
+                          </tr>
+                        )}
+                        {renderedModernPreviewItems.map(({ item: row, index: idx }) => {
+                          const isReady = row._rowStatus === 'ready';
+                          const isDup = row._rowStatus === 'duplicate';
+                          const isInvalid = row._rowStatus === 'invalid';
+                          const isReview = row._rowStatus === 'needs_review';
+                          return (
+                            <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isInvalid ? 'bg-red-50/30' : isDup ? 'bg-slate-50/50' : ''}`}>
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.rowIndex || idx + 1}</td>
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                {isReady && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                    <CheckCircle className="w-3 h-3 text-emerald-600" /> Ready
+                                  </span>
+                                )}
+                                {isReview && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
+                                    <AlertTriangle className="w-3 h-3 text-amber-600" /> Needs Review
+                                  </span>
+                                )}
+                                {isDup && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">
+                                    <AlertCircle className="w-3 h-3 text-slate-500" /> Duplicate
+                                  </span>
+                                )}
+                                {isInvalid && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
+                                    <AlertCircle className="w-3 h-3 text-red-600" /> Invalid
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="font-semibold text-slate-900">{row.facultyName || row.name || (row.isGuestFaculty ? 'Guest Faculty' : 'Speaker')}</div>
+                                <div className="text-[10px] font-mono text-slate-500">{row.employeeId || 'No EmpID'}</div>
+                              </td>
+                              <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[240px]">
+                                <span className="line-clamp-2" title={row.title}>{row.title || '—'}</span>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700">
+                                <div className="font-medium">{row.programType || '—'}</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700 max-w-[180px]">
+                                <div className="font-medium truncate" title={row.organization}>{row.organization || '—'}</div>
+                                <div className="text-[10px] text-slate-400">{row.media || '—'}</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-600 max-w-[200px]">
+                                {row._duplicateReason ? (
+                                  <span className="text-amber-700 text-[10px] block">{row._duplicateReason}</span>
+                                ) : (row._issues && row._issues.length > 0) || (row._errors && row._errors.length > 0) ? (
+                                  <span className="text-red-600 text-[10px] block">{(row._issues || row._errors).join('; ')}</span>
+                                ) : (
+                                  <span className="text-emerald-700 text-[10px]">Valid record</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {isPreviewTableVirtual && previewTablePaddingBottom > 0 && (
+                          <tr style={{ height: `${previewTablePaddingBottom}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={7} style={{ padding: 0, border: 0, height: `${previewTablePaddingBottom}px` }} />
+                          </tr>
+                        )}
                       </tbody>
                     </>
                   ) : isPeriodical ? (

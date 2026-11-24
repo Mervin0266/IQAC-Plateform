@@ -118,4 +118,31 @@ const testConnection = async () => {
   }
 };
 
-module.exports = { sequelize, testConnection };
+const getPoolStatus = () => {
+  const pool = sequelize.connectionManager && sequelize.connectionManager.pool;
+  const configuredMax = parseInt(process.env.DB_POOL_MAX, 10) || 10;
+  const configuredMin = parseInt(process.env.DB_POOL_MIN, 10) || 0;
+
+  if (!pool) {
+    return {
+      status: 'uninitialized',
+      max: configuredMax,
+      min: configuredMin,
+      size: 0,
+      available: 0,
+      using: 0,
+      waiting: 0
+    };
+  }
+  return {
+    status: pool._draining ? 'draining' : 'active',
+    max: (pool._factory && typeof pool._factory.max === 'number') ? pool._factory.max : configuredMax,
+    min: (pool._factory && typeof pool._factory.min === 'number') ? pool._factory.min : configuredMin,
+    size: typeof pool.size === 'number' ? pool.size : (pool._count || 0),
+    available: typeof pool.available === 'number' ? pool.available : (pool._availableObjects ? pool._availableObjects.length : 0),
+    using: typeof pool.using === 'number' ? pool.using : (pool._inUseObjects ? pool._inUseObjects.length : 0),
+    waiting: typeof pool.waiting === 'number' ? pool.waiting : (pool._pendingAcquires ? pool._pendingAcquires.length : 0)
+  };
+};
+
+module.exports = { sequelize, testConnection, getPoolStatus };

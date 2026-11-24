@@ -248,7 +248,19 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
   }
 
   // Department normalization dictionary (name <-> shortName)
-  const deptAliases = {};
+  const deptAliases = {
+    'Mechanical Engineering': 'Mechanical and Automobile Engineering',
+    'Mech': 'Mechanical and Automobile Engineering',
+    'CSE': 'Computer Science and Engineering',
+    'ECE': 'Electronics and Communication Engineering',
+    'EEE': 'Electrical and Electronics Engineering',
+    'Civil': 'Civil Engineering',
+    'Sciences & Humanities': 'Sciences and Humanities (Engineering)',
+    'Sciences and Humanities': 'Sciences and Humanities (Engineering)',
+    'S&H': 'Sciences and Humanities (Engineering)',
+    'AI & DS': 'AI and Data Science Engineering',
+    'Architecture': 'School of Architecture'
+  };
   departments.forEach(d => {
     deptAliases[d.name] = d.name;
     if (d.shortName) {
@@ -785,24 +797,44 @@ async function getInstitutionalAnalytics(filterOptions = {}, userScope = {}) {
   });
 
   distinctStudentList.forEach(s => {
-    const canonicalDept = deptAliases[s.department] || s.department;
-    if (canonicalDept && deptMap[canonicalDept]) {
-      deptMap[canonicalDept].students++;
+    const rawDept = s.department || 'Other';
+    const canonicalDept = deptAliases[rawDept] || rawDept;
+    if (!deptMap[canonicalDept]) {
+      deptMap[canonicalDept] = {
+        departmentName: canonicalDept,
+        shortName: canonicalDept,
+        students: 0,
+        faculty: 0,
+        phdCount: 0,
+        totalExp: 0,
+        expCount: 0
+      };
     }
+    deptMap[canonicalDept].students++;
   });
 
   distinctFacultyList.forEach(f => {
-    const canonicalDept = deptAliases[f.department] || f.department;
-    if (canonicalDept && deptMap[canonicalDept]) {
-      deptMap[canonicalDept].faculty++;
-      if (phdEmpSet.has(f.employeeId)) {
-        deptMap[canonicalDept].phdCount++;
-      }
-      const exp = Number(f.prevTeachingExpYears || 0) + Number(f.cuExpYears || 0);
-      if (exp > 0) {
-        deptMap[canonicalDept].totalExp += exp;
-        deptMap[canonicalDept].expCount++;
-      }
+    const rawDept = f.department || 'Other';
+    const canonicalDept = deptAliases[rawDept] || rawDept;
+    if (!deptMap[canonicalDept]) {
+      deptMap[canonicalDept] = {
+        departmentName: canonicalDept,
+        shortName: canonicalDept,
+        students: 0,
+        faculty: 0,
+        phdCount: 0,
+        totalExp: 0,
+        expCount: 0
+      };
+    }
+    deptMap[canonicalDept].faculty++;
+    if (phdEmpSet.has(f.employeeId)) {
+      deptMap[canonicalDept].phdCount++;
+    }
+    const exp = Number(f.prevTeachingExpYears || 0) + Number(f.cuExpYears || 0);
+    if (exp > 0) {
+      deptMap[canonicalDept].totalExp += exp;
+      deptMap[canonicalDept].expCount++;
     }
   });
 

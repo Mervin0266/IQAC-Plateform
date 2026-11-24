@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Inbox } from 'lucide-react';
+import { useTableVirtualization, VirtualizationMode } from '../../hooks/useTableVirtualization';
 
 export interface Column<T> {
   key: string;
@@ -20,6 +21,15 @@ export interface PaginationConfig {
   pageSizeOptions?: number[];
 }
 
+export interface TableVirtualizationConfig {
+  enabled?: boolean;
+  threshold?: number;
+  estimateRowHeight?: number;
+  overscan?: number;
+  mode?: VirtualizationMode;
+  maxHeight?: string;
+}
+
 export interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
@@ -31,6 +41,7 @@ export interface DataTableProps<T> {
   pagination?: PaginationConfig;
   className?: string;
   onRowClick?: (item: T) => void;
+  virtualize?: boolean | TableVirtualizationConfig;
 }
 
 export function DataTable<T>({
@@ -44,12 +55,41 @@ export function DataTable<T>({
   pagination,
   className = '',
   onRowClick,
+  virtualize = false,
 }: DataTableProps<T>) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const virtualConfig: TableVirtualizationConfig = typeof virtualize === 'object'
+    ? virtualize
+    : { enabled: !!virtualize };
+
+  const isVirtualEnabled = !!virtualize;
+  const mode: VirtualizationMode = !isVirtualEnabled ? 'disabled' : (virtualConfig.mode || 'auto');
+
+  const {
+    isVirtual,
+    paddingTop,
+    paddingBottom,
+    renderedItems,
+  } = useTableVirtualization<T>({
+    rows: data,
+    parentRef: containerRef,
+    estimateRowHeight: virtualConfig.estimateRowHeight || 48,
+    overscan: virtualConfig.overscan || 8,
+    threshold: virtualConfig.threshold || 30,
+    mode,
+    getItemKey: (idx) => keyExtractor(data[idx], idx),
+  });
+
   return (
     <div className={`bg-white border border-[#E2E8F0] rounded-xl overflow-hidden shadow-xs ${className}`}>
-      <div className="overflow-x-auto">
+      <div
+        ref={containerRef}
+        className={`overflow-x-auto ${isVirtual ? 'overflow-y-auto' : ''}`}
+        style={isVirtual ? { maxHeight: virtualConfig.maxHeight || '65vh' } : undefined}
+      >
         <table className="w-full text-left border-collapse">
-          <thead>
+          <thead className={isVirtual ? 'sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_#E2E8F0]' : ''}>
             <tr className="bg-slate-50 border-b border-[#E2E8F0]">
               {columns.map((col) => (
                 <th
@@ -100,33 +140,47 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              // Data rows
-              data.map((item, index) => (
-                <tr
-                  key={keyExtractor(item, index)}
-                  onClick={() => onRowClick && onRowClick(item)}
-                  className={`transition-colors ${
-                    onRowClick ? 'cursor-pointer hover:bg-[#F1F5F9]' : 'hover:bg-[#F1F5F9]/70'
-                  }`}
-                >
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className={`py-3 px-4 align-middle ${
-                        col.align === 'right'
-                          ? 'text-right tabular-nums'
-                          : col.align === 'center'
-                          ? 'text-center'
-                          : 'text-left'
-                      } ${col.className || ''}`}
-                    >
-                      {col.render
-                        ? col.render(item, index)
-                        : (item as Record<string, any>)[col.key] ?? '—'}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              // Data rows with optional virtualization
+              <>
+                {isVirtual && paddingTop > 0 && (
+                  <tr style={{ height: `${paddingTop}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                    <td colSpan={columns.length} style={{ padding: 0, border: 0, height: `${paddingTop}px` }} />
+                  </tr>
+                )}
+
+                {renderedItems.map(({ item, index }) => (
+                  <tr
+                    key={keyExtractor(item, index)}
+                    onClick={() => onRowClick && onRowClick(item)}
+                    className={`transition-colors ${
+                      onRowClick ? 'cursor-pointer hover:bg-[#F1F5F9]' : 'hover:bg-[#F1F5F9]/70'
+                    }`}
+                  >
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={`py-3 px-4 align-middle ${
+                          col.align === 'right'
+                            ? 'text-right tabular-nums'
+                            : col.align === 'center'
+                            ? 'text-center'
+                            : 'text-left'
+                        } ${col.className || ''}`}
+                      >
+                        {col.render
+                          ? col.render(item, index)
+                          : (item as Record<string, any>)[col.key] ?? '—'}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+
+                {isVirtual && paddingBottom > 0 && (
+                  <tr style={{ height: `${paddingBottom}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                    <td colSpan={columns.length} style={{ padding: 0, border: 0, height: `${paddingBottom}px` }} />
+                  </tr>
+                )}
+              </>
             )}
           </tbody>
         </table>

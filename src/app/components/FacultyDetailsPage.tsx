@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useTableVirtualization } from '../hooks/useTableVirtualization';
 import { 
   Users, 
   User,
@@ -588,6 +589,21 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
 
   // For display, facultyList is already server-side filtered and paginated
   const filteredFaculty = facultyList;
+
+  const facultyTableContainerRef = useRef<HTMLDivElement>(null);
+  const {
+    isVirtual: isFacultyTableVirtual,
+    paddingTop: facultyTablePaddingTop,
+    paddingBottom: facultyTablePaddingBottom,
+    renderedItems: renderedFacultyItems,
+  } = useTableVirtualization<Faculty>({
+    rows: filteredFaculty,
+    parentRef: facultyTableContainerRef,
+    estimateRowHeight: 52,
+    threshold: 25,
+    mode: 'auto',
+    getItemKey: (idx) => filteredFaculty[idx]?.employeeId || filteredFaculty[idx]?.id || idx,
+  });
 
   const resetForm = () => {
     setFormData({
@@ -1275,9 +1291,12 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                 <p className="text-[11px] text-slate-400">Click actions to inspect or modify faculty credentials</p>
               </div>
 
-              <div className="overflow-x-auto">
+              <div
+                ref={facultyTableContainerRef}
+                className={`overflow-x-auto ${isFacultyTableVirtual ? 'max-h-[620px] overflow-y-auto' : ''}`}
+              >
                 <table className="w-full text-left border-collapse">
-                  <thead>
+                  <thead className={isFacultyTableVirtual ? 'sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs shadow-[0_1px_0_#E2E8F0]' : ''}>
                     <tr className="bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                       <th className="py-3 px-4 font-mono w-28">Emp ID</th>
                       <th className="py-3 px-4">Faculty Member</th>
@@ -1298,103 +1317,119 @@ export function FacultyDetailsPage({ onNavigate }: FacultyDetailsPageProps) {
                         </td>
                       </tr>
                     ) : (
-                      filteredFaculty.map((fac, idx) => {
-                        const isPhd = (fac.highestQualification && fac.highestQualification.toUpperCase().includes('PHD')) ||
-                                      (fac.qualificationLevel && fac.qualificationLevel.toUpperCase().includes('PHD'));
-                        
-                        const initials = fac.name
-                          .split(' ')
-                          .filter(Boolean)
-                          .map(w => w[0])
-                          .slice(0, 2)
-                          .join('')
-                          .toUpperCase() || 'FA';
-
-                        return (
-                          <tr key={fac.id || idx} className="hover:bg-slate-50/80 transition-colors group">
-                            <td className="py-3 px-4 font-mono text-[11px] text-slate-700 font-semibold whitespace-nowrap">
-                              {fac.employeeId || '—'}
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <div>
-                                <p className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
-                                  {fac.name}
-                                </p>
-                                {fac.email && (
-                                  <p className="text-[11px] text-slate-500 font-mono mt-0.5">{fac.email}</p>
-                                )}
-                              </div>
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/60 max-w-[260px] truncate">
-                                <Building2 className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                                <span className="truncate">{fac.department}</span>
-                              </span>
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/80">
-                                {fac.designation}
-                              </span>
-                            </td>
-
-                            <td className="py-3 px-4">
-                              {fac.highestQualification ? (
-                                <span className="inline-flex items-center gap-1 font-medium text-[11px] text-slate-800">
-                                  {fac.highestQualification}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">—</span>
-                              )}
-                            </td>
-
-                            <td className="py-3 px-4 text-center">
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">
-                                {fac.academicYear || '2024-25'}
-                              </span>
-                            </td>
-
-                            <td className="py-3 px-4 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  onClick={() => setViewingFaculty(fac)}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-md"
-                                  title="View Full Profile"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </Button>
-
-                                {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
-                                  <>
-                                    <Button
-                                      onClick={() => setEditingFaculty(fac)}
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-md"
-                                      title="Edit Record"
-                                    >
-                                      <Edit className="w-3.5 h-3.5" />
-                                    </Button>
-                                    <Button
-                                      onClick={() => handleDelete(fac.id)}
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            </td>
+                      <>
+                        {isFacultyTableVirtual && facultyTablePaddingTop > 0 && (
+                          <tr style={{ height: `${facultyTablePaddingTop}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={7} style={{ padding: 0, border: 0, height: `${facultyTablePaddingTop}px` }} />
                           </tr>
-                        );
-                      })
+                        )}
+
+                        {renderedFacultyItems.map(({ item: fac, index: idx }) => {
+                          const isPhd = (fac.highestQualification && fac.highestQualification.toUpperCase().includes('PHD')) ||
+                                        (fac.qualificationLevel && fac.qualificationLevel.toUpperCase().includes('PHD'));
+                          
+                          const initials = fac.name
+                            ? fac.name
+                                .split(' ')
+                                .filter(Boolean)
+                                .map((w: string) => w[0])
+                                .slice(0, 2)
+                                .join('')
+                                .toUpperCase() || 'FA'
+                            : 'FA';
+
+                          return (
+                            <tr key={fac.employeeId || fac.id || idx} className="hover:bg-slate-50/80 transition-colors group">
+                              <td className="py-3 px-4 font-mono text-[11px] text-slate-700 font-semibold whitespace-nowrap">
+                                {fac.employeeId || '—'}
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <div>
+                                  <p className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                                    {fac.name}
+                                  </p>
+                                  {fac.email && (
+                                    <p className="text-[11px] text-slate-500 font-mono mt-0.5">{fac.email}</p>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/60 max-w-[260px] truncate">
+                                  <Building2 className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                  <span className="truncate">{fac.department}</span>
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/80">
+                                  {fac.designation}
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-4">
+                                {fac.highestQualification ? (
+                                  <span className="inline-flex items-center gap-1 font-medium text-[11px] text-slate-800">
+                                    {fac.highestQualification}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-4 text-center">
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">
+                                  {fac.academicYear || '2024-25'}
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    onClick={() => setViewingFaculty(fac)}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-md"
+                                    title="View Full Profile"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </Button>
+
+                                  {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
+                                    <>
+                                      <Button
+                                        onClick={() => setEditingFaculty(fac)}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 w-7 p-0 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-md"
+                                        title="Edit Record"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </Button>
+                                      <Button
+                                        onClick={() => handleDelete(fac.id)}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md"
+                                        title="Delete"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {isFacultyTableVirtual && facultyTablePaddingBottom > 0 && (
+                          <tr style={{ height: `${facultyTablePaddingBottom}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={7} style={{ padding: 0, border: 0, height: `${facultyTablePaddingBottom}px` }} />
+                          </tr>
+                        )}
+                      </>
                     )}
                   </tbody>
                 </table>

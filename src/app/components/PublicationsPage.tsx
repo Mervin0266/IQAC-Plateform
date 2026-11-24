@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTableVirtualization } from '../hooks/useTableVirtualization';
 import * as XLSX from 'xlsx';
 import { Sidebar } from './Sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -173,6 +174,21 @@ export function PublicationsPage({
   const [isCitationsBulkOpen, setIsCitationsBulkOpen] = useState(false);
   const [citationSourceFilter, setCitationSourceFilter] = useState<'all' | 'Uploaded' | 'Scopus'>('all');
   const [refreshingAllJournals, setRefreshingAllJournals] = useState(false);
+
+  const pubTableContainerRef = useRef<HTMLDivElement>(null);
+  const {
+    isVirtual: isPubTableVirtual,
+    paddingTop: pubTablePaddingTop,
+    paddingBottom: pubTablePaddingBottom,
+    renderedItems: renderedPubItems,
+  } = useTableVirtualization<PublicationItem>({
+    rows: publications,
+    parentRef: pubTableContainerRef,
+    estimateRowHeight: 56,
+    threshold: 25,
+    mode: 'auto',
+    getItemKey: (idx) => publications[idx]?.id || idx,
+  });
 
   const handleRefreshAllJournalMetrics = async () => {
     try {
@@ -1550,9 +1566,12 @@ export function PublicationsPage({
       ) : viewMode === 'table' ? (
         /* TABLE VIEW */
         <Card className="shadow-xs border border-[#E2E8F0] overflow-hidden bg-white rounded-xl">
-          <div className="overflow-x-auto">
+          <div
+            ref={pubTableContainerRef}
+            className={`overflow-x-auto ${isPubTableVirtual ? 'max-h-[620px] overflow-y-auto' : ''}`}
+          >
             <table className="w-full text-left border-collapse text-xs">
-              <thead>
+              <thead className={isPubTableVirtual ? 'sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_#E2E8F0]' : ''}>
                 <tr className="bg-slate-50 border-b border-[#E2E8F0] text-slate-700 font-semibold text-xs">
                   <th className="p-3 pl-4 min-w-[180px]">Authors</th>
                   <th className="p-3 min-w-[260px]">Title</th>
@@ -1567,7 +1586,12 @@ export function PublicationsPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0] text-xs sm:text-[13px]">
-                {publications.map((pub) => (
+                {isPubTableVirtual && pubTablePaddingTop > 0 && (
+                  <tr style={{ height: `${pubTablePaddingTop}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                    <td colSpan={10} style={{ padding: 0, border: 0, height: `${pubTablePaddingTop}px` }} />
+                  </tr>
+                )}
+                {renderedPubItems.map(({ item: pub }) => (
                   <tr key={pub.id} className="hover:bg-[#F1F5F9] transition-colors group">
                     {/* Authors */}
                     <td className="p-3 pl-4 font-medium text-gray-900">
@@ -1724,6 +1748,11 @@ export function PublicationsPage({
                     </td>
                   </tr>
                 ))}
+                {isPubTableVirtual && pubTablePaddingBottom > 0 && (
+                  <tr style={{ height: `${pubTablePaddingBottom}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                    <td colSpan={10} style={{ padding: 0, border: 0, height: `${pubTablePaddingBottom}px` }} />
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

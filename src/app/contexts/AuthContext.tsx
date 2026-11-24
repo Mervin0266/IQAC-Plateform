@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { queryClient } from '../config/queryClient';
 
 export type UserRole = 'admin' | 'iqac_admin' | 'authority' | 'hod' | 'coordinator' | 'faculty' | string;
 
@@ -55,6 +56,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     localStorage.removeItem('iqac_user');
     localStorage.removeItem('token');
+    // Clear all TanStack server cache entries to prevent cross-session data leakage
+    try {
+      queryClient.clear();
+    } catch (e) {
+      console.warn('Failed to clear query cache on logout:', e);
+    }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('iqac-auth-logout'));
       try {

@@ -17,6 +17,34 @@ const MAX_LIMIT = 100;
 const MAX_EXPORT_LIMIT = 500000; // Raised from 10,000 to prevent silent truncation on large datasets (10,000+ records)
 
 /**
+ * Encodes cursor payload into base64url string.
+ */
+function encodeCursor(payload) {
+  try {
+    return Buffer.from(JSON.stringify(payload)).toString('base64url');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decodes base64url cursor string into payload.
+ */
+function decodeCursor(cursorStr) {
+  if (!cursorStr || typeof cursorStr !== 'string') return null;
+  try {
+    const json = Buffer.from(cursorStr, 'base64url').toString('utf8');
+    const parsed = JSON.parse(json);
+    if (parsed && parsed.id !== undefined && parsed.val !== undefined) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Parse and sanitize integer query parameter safely.
  * Returns defaultValue if value is invalid, negative, NaN, or non-finite.
  */
@@ -106,6 +134,93 @@ function formatPaginationResponse({ count, rows, page, limit }) {
       isTruncated: !isComplete
     },
     data: rows
+  };
+}
+
+const { Op } = require('sequelize');
+
+/**
+ * Parses keyset/cursor pagination parameters.
+ * Provides stable deterministic order using unique id as tie-breaker.
+ */
+function parseCursorPagination(query = {}, options = {}) {
+  const defaultLimit = options.defaultLimit || DEFAULT_LIMIT;
+  const maxLimit = options.maxLimit || MAX_LIMIT;
+  const limit = safeParseInt(query.limit, defaultLimit, 1, maxLimit);
+  const sortField = options.allowedSortFields && options.allowedSortFields.includes(query.sortBy)
+    ? query.sortBy
+    : (options.defaultSortField || 'createdAt');
+  const sortOrder = (query.sortOrder || options.defaultSortOrder || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+  const decodedCursor = decodeCursor(query.cursor);
+  let cursorCondition = null;
+
+  if (decodedCursor && decodedCursor.val !== undefined && decodedCursor.id !== undefined) {
+    if (sortOrder === 'DESC') {
+      cursorCondition = {
+        [Op.or]: [
+          { [sortField]: { [Op.lt]: decodedCursor.val } },
+          {
+            [sortField]: decodedCursor.val,
+            id: { [Op.lt]: decodedCursor.id }
+          }
+        ]
+      };
+    } else {
+      cursorCondition = {
+        [Op.or]: [
+          { [sortField]: { [Op.gt]: decodedCursor.val } },
+          {
+            [sortField]: decodedCursor.val,
+            id: { [Op.gt]: decodedCursor.id }
+          }
+        ]
+      };
+    }
+  }
+
+  const order = [
+    [sortField, sortOrder],
+    ['id', sortOrder]
+  ];
+
+  return {
+    limit,
+    fetchLimit: limit + 1, // over-fetch by 1 to detect next page without separate count query
+    sortField,
+    sortOrder,
+    cursorCondition,
+    order,
+    rawCursor: query.cursor || null
+  };
+}
+
+/**
+ * Formats cursor pagination response.
+ */
+function formatCursorPaginationResponse({ rows, limit, sortField = 'createdAt' }) {
+  const hasNextPage = rows.length > limit;
+  const dataRows = hasNextPage ? rows.slice(0, limit) : rows;
+  let nextCursor = null;
+
+  if (hasNextPage && dataRows.length > 0) {
+    const lastItem = dataRows[dataRows.length - 1];
+    nextCursor = encodeCursor({
+      val: lastItem[sortField],
+      id: lastItem.id
+    });
+  }
+
+  return {
+    success: true,
+    count: dataRows.length,
+    pagination: {
+      type: 'cursor',
+      limit,
+      hasNextPage,
+      nextCursor
+    },
+    data: dataRows
   };
 }
 
@@ -341,6 +456,10 @@ module.exports = {
   safeParseInt,
   parsePagination,
   formatPaginationResponse,
+  encodeCursor,
+  decodeCursor,
+  parseCursorPagination,
+  formatCursorPaginationResponse,
   streamBatchedExport,
   escapeCsvCell
 };

@@ -51,7 +51,8 @@ const logAction = async (...args) => {
     action = opts.action || 'UNKNOWN_ACTION';
     previousValue = opts.previousValue || null;
     updatedValue = opts.updatedValue || null;
-    remarks = opts.remarks || opts.details || null;
+    const rawRemarks = opts.remarks || opts.details || null;
+    remarks = rawRemarks ? (typeof rawRemarks === 'string' ? rawRemarks : JSON.stringify(rawRemarks)) : null;
     ipAddress = opts.ipAddress || (opts.req && (opts.req.ip || (typeof opts.req.header === 'function' ? opts.req.header('x-forwarded-for') : null))) || null;
     adminUserId = opts.adminUserId || (opts.user && opts.user.id) || (opts.req && opts.req.user && opts.req.user.id) || null;
     adminIdentity = opts.adminIdentity || (opts.user && (opts.user.email || opts.user.name)) || (opts.req && opts.req.user && (opts.req.user.email || opts.req.user.name)) || null;

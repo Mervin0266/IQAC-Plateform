@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useTableVirtualization } from '../hooks/useTableVirtualization';
 import * as XLSX from 'xlsx';
 import { Sidebar } from './Sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -536,6 +537,21 @@ export function PlacementsInternshipsPage({
     const start = (currentPage - 1) * recordsPerPage;
     return sortedRecords.slice(start, start + recordsPerPage);
   }, [sortedRecords, currentPage, recordsPerPage]);
+
+  const placementTableContainerRef = useRef<HTMLDivElement>(null);
+  const {
+    isVirtual: isPlacementTableVirtual,
+    paddingTop: placementTablePaddingTop,
+    paddingBottom: placementTablePaddingBottom,
+    renderedItems: renderedPlacementItems,
+  } = useTableVirtualization<PlacementItem>({
+    rows: paginatedRecords,
+    parentRef: placementTableContainerRef,
+    estimateRowHeight: 56,
+    threshold: 20,
+    mode: 'auto',
+    getItemKey: (idx) => paginatedRecords[idx]?.id || idx,
+  });
 
   // Dynamic KPI Stats calculated from filtered records using standardized per-student values
   const kpiStats = useMemo(() => {
@@ -1736,9 +1752,12 @@ export function PlacementsInternshipsPage({
             /* VIEW 1: TABLE VIEW                                                      */
             /* ======================================================================= */
             <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-xs overflow-hidden">
-              <div className="overflow-x-auto">
+              <div
+                ref={placementTableContainerRef}
+                className={`overflow-x-auto ${isPlacementTableVirtual ? 'max-h-[620px] overflow-y-auto' : ''}`}
+              >
                 <table className="w-full text-left border-collapse text-xs sm:text-[13px] text-slate-700">
-                  <thead>
+                  <thead className={isPlacementTableVirtual ? 'sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_#E2E8F0]' : ''}>
                     <tr className="bg-slate-50 border-b border-[#E2E8F0] text-xs font-semibold text-slate-700 tracking-normal">
                       <th className="py-3 px-4">Student Details</th>
                       {mode === 'placement' || mode === 'internship' ? (
@@ -1755,7 +1774,12 @@ export function PlacementsInternshipsPage({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E2E8F0]">
-                    {paginatedRecords.map((item) => (
+                    {isPlacementTableVirtual && placementTablePaddingTop > 0 && (
+                      <tr style={{ height: `${placementTablePaddingTop}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                        <td colSpan={mode === 'all' ? 8 : 7} style={{ padding: 0, border: 0, height: `${placementTablePaddingTop}px` }} />
+                      </tr>
+                    )}
+                    {renderedPlacementItems.map(({ item }) => (
                       <tr key={item.id} className="hover:bg-[#F1F5F9] transition-colors group">
                         {/* Student Details */}
                         <td className="py-3 px-4">
@@ -1881,6 +1905,11 @@ export function PlacementsInternshipsPage({
                         </td>
                       </tr>
                     ))}
+                    {isPlacementTableVirtual && placementTablePaddingBottom > 0 && (
+                      <tr style={{ height: `${placementTablePaddingBottom}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                        <td colSpan={mode === 'all' ? 8 : 7} style={{ padding: 0, border: 0, height: `${placementTablePaddingBottom}px` }} />
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

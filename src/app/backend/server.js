@@ -120,13 +120,22 @@ app.use((req, res, next) => {
   next();
 });
 
-// Cache-Control for sensitive API endpoints (Phase D2)
-app.use('/api', (req, res, next) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  next();
-});
+// Telemetry & Metrics Instrumentation
+const { apiMetricsMiddleware, metricsTracker } = require('./middleware/apiMetrics');
+app.use(apiMetricsMiddleware);
+
+// Non-blocking Asynchronous Structured Request Logger
+const { asyncRequestLoggerMiddleware, asyncLoggerInstance } = require('./middleware/asyncLogger');
+app.use(asyncRequestLoggerMiddleware);
+
+// Native Payload Compression (Gzip/Deflate for >= 1KB JSON/Text/CSV)
+const { compressionMiddleware } = require('./middleware/compressionMiddleware');
+app.use(compressionMiddleware);
+
+// Multi-Layer HTTP Cache & ETag Middleware (304 Not Modified short-circuit)
+const { httpEtagMiddleware, cacheControlMiddleware } = require('./middleware/httpCache');
+app.use(cacheControlMiddleware);
+app.use(httpEtagMiddleware);
 
 // Rate limiting
 const limiter = rateLimit({
@@ -138,6 +147,17 @@ app.use('/api/', limiter);
 // Body parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Performance Telemetry Endpoint
+app.get(['/api/system/performance-metrics', '/system/performance-metrics'], (req, res) => {
+  const { getPoolStatus } = require('./config/database');
+  const pool = getPoolStatus();
+  const summary = metricsTracker.getSummary(pool);
+  res.json({
+    success: true,
+    data: summary
+  });
+});
 
 // Logging
 if (process.env.NODE_ENV === 'development') {
@@ -180,6 +200,8 @@ app.use('/api/system', require('./routes/system'));
 app.use('/api/admin', require('./routes/systemAdmin'));
 app.use('/api/research-reports', require('./routes/researchReports'));
 app.use('/api/institutional-analytics', require('./routes/institutionalAnalytics'));
+app.use('/api/jobs', require('./routes/jobRoutes'));
+app.use('/api/storage', require('./routes/storageRoutes'));
 app.use('/api/public', require('./routes/publicOverview'));
 
 // Health check
@@ -301,6 +323,9 @@ const gracefulShutdown = async (signal) => {
     server.close(async () => {
       console.log('✓ HTTP server closed. Stopped accepting new connections.');
       try {
+        const jobQueueService = require('./services/jobQueueService');
+        await jobQueueService.gracefulShutdown(4000);
+        asyncLoggerInstance.flushAll();
         await sequelize.close();
         console.log('✓ Database connection pool closed.');
         process.exit(0);

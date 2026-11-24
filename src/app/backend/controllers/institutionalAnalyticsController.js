@@ -809,3 +809,36 @@ exports.deleteCustomMetric = async (req, res) => {
   }
 };
 
+/**
+ * Invalidate the in-memory dashboard analytics cache.
+ * Can be called programmatically after data mutations or triggered via an administrative endpoint.
+ */
+function invalidateDashboardAnalyticsCache() {
+  const size = dashboardAnalyticsCache.size;
+  dashboardAnalyticsCache.clear();
+  return size;
+}
+exports.invalidateDashboardAnalyticsCache = invalidateDashboardAnalyticsCache;
+
+/**
+ * POST /api/institutional-analytics/cache/invalidate
+ * Administrative endpoint to flush live analytics cache.
+ */
+exports.invalidateCache = async (req, res) => {
+  try {
+    const clearedEntries = invalidateDashboardAnalyticsCache();
+    return res.json({
+      success: true,
+      message: 'Institutional analytics cache invalidated successfully',
+      clearedEntries
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to invalidate analytics cache',
+      error: err.message
+    });
+  }
+};
+
+

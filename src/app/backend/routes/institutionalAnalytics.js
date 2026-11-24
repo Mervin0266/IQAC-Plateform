@@ -32,11 +32,15 @@ const {
   updateCustomDashboard,
   deleteCustomDashboard,
   createCustomMetric,
-  deleteCustomMetric
+  deleteCustomMetric,
+  invalidateCache
 } = require('../controllers/institutionalAnalyticsController');
 
 // All endpoints require authentication
 router.use(auth);
+
+// Cache invalidation (programmatic/admin)
+router.post('/cache/invalidate', invalidateCache);
 
 // Dashboard live analytics
 router.get('/dashboard', getDashboardAnalytics);

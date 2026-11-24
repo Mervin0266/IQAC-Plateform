@@ -1,4 +1,5 @@
 import { UserRole } from '../contexts/AuthContext';
+export type { UserRole };
 
 // Define what each role can access
 export const ROLE_PERMISSIONS = {

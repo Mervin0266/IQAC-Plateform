@@ -3,6 +3,7 @@ export * from './StatCard';
 export * from './StatusBadge';
 export * from './FilterToolbar';
 export * from './DataTable';
+export * from './VirtualizedTableBody';
 export * from './DetailDrawer';
 export * from './ConfirmDialog';
 export * from './SectionCard';

@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useTableVirtualization } from '../hooks/useTableVirtualization';
 import { 
   Users, 
   GraduationCap, 
@@ -355,6 +356,21 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
 
   // Current page records (already filtered & sorted by backend)
   const filteredStudents = students;
+
+  const studentTableContainerRef = useRef<HTMLDivElement>(null);
+  const {
+    isVirtual: isStudentTableVirtual,
+    paddingTop: studentTablePaddingTop,
+    paddingBottom: studentTablePaddingBottom,
+    renderedItems: renderedStudentItems,
+  } = useTableVirtualization<Student>({
+    rows: filteredStudents,
+    parentRef: studentTableContainerRef,
+    estimateRowHeight: 52,
+    threshold: 25,
+    mode: 'auto',
+    getItemKey: (idx) => filteredStudents[idx]?.registerNumber || filteredStudents[idx]?.id || idx,
+  });
 
   // Active KPI Stats (server-provided dynamic stats, with fallback)
   const activeStats = useMemo(() => {
@@ -1107,9 +1123,12 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                 <p className="text-[11px] text-slate-400">Official student registry and enrollment metrics</p>
               </div>
 
-              <div className="overflow-x-auto">
+              <div
+                ref={studentTableContainerRef}
+                className={`overflow-x-auto ${isStudentTableVirtual ? 'max-h-[620px] overflow-y-auto' : ''}`}
+              >
                 <table className="w-full text-left border-collapse">
-                  <thead>
+                  <thead className={isStudentTableVirtual ? 'sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs shadow-[0_1px_0_#E2E8F0]' : ''}>
                     <tr className="bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                       <th className="py-3 px-4">Register No</th>
                       <th className="py-3 px-4">Student Name</th>
@@ -1131,113 +1150,127 @@ export function StudentDetailsPage({ onNavigate }: StudentDetailsPageProps) {
                         </td>
                       </tr>
                     ) : (
-                      filteredStudents.map((st, idx) => {
-                        const initials = st.name
-                          .split(' ')
-                          .filter(Boolean)
-                          .map(w => w[0])
-                          .slice(0, 2)
-                          .join('')
-                          .toUpperCase() || 'ST';
-
-                        return (
-                          <tr key={st.id || idx} className="hover:bg-slate-50/80 transition-colors group">
-                            <td className="py-3 px-4 font-mono font-medium text-slate-900 text-xs">
-                              {st.registerNumber}
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <div>
-                                <p className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
-                                  {st.name}
-                                </p>
-                                {st.email && (
-                                  <p className="text-[11px] text-slate-500 font-mono mt-0.5">{st.email}</p>
-                                )}
-                              </div>
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <p className="font-medium text-slate-800 text-[11px] truncate max-w-[220px]">
-                                {st.course || st.department}
-                              </p>
-                              <p className="text-[10px] text-slate-400 truncate max-w-[220px]">
-                                {st.department}
-                              </p>
-                            </td>
-
-                            <td className="py-3 px-4 text-center">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${
-                                (st.programLevel || 'UG').toUpperCase() === 'UG'
-                                  ? 'bg-slate-100 text-slate-700 border-slate-200/80'
-                                  : 'bg-blue-50 text-blue-700 border-blue-200/80'
-                              }`}>
-                                {st.programLevel || 'UG'}
-                              </span>
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <p className="font-medium text-slate-800">{st.className || '—'}</p>
-                              <p className="text-[10px] text-slate-400 font-mono">{st.batch || '—'}</p>
-                            </td>
-
-                            <td className="py-3 px-4 text-center">
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">
-                                {st.academicYear || '2024-25'}
-                              </span>
-                            </td>
-
-                            <td className="py-3 px-4 text-center">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${
-                                st.status === 'Active'
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
-                                  : st.status === 'Graduated'
-                                  ? 'bg-slate-100 text-slate-700 border-slate-200/80'
-                                  : 'bg-amber-50 text-amber-700 border-amber-200/80'
-                              }`}>
-                                {st.status || 'Active'}
-                              </span>
-                            </td>
-
-                            <td className="py-3 px-4 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  onClick={() => setViewingStudent(st)}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-md"
-                                  title="Inspect Profile"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </Button>
-
-                                {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
-                                  <>
-                                    <Button
-                                      onClick={() => setEditingStudent(st)}
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-md"
-                                      title="Edit Student"
-                                    >
-                                      <Edit className="w-3.5 h-3.5" />
-                                    </Button>
-                                    <Button
-                                      onClick={() => handleDelete(st.id)}
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            </td>
+                      <>
+                        {isStudentTableVirtual && studentTablePaddingTop > 0 && (
+                          <tr style={{ height: `${studentTablePaddingTop}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={8} style={{ padding: 0, border: 0, height: `${studentTablePaddingTop}px` }} />
                           </tr>
-                        );
-                      })
+                        )}
+
+                        {renderedStudentItems.map(({ item: st, index: idx }) => {
+                          const initials = st.name
+                            .split(' ')
+                            .filter(Boolean)
+                            .map(w => w[0])
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase() || 'ST';
+
+                          return (
+                            <tr key={st.registerNumber || st.id || idx} className="hover:bg-slate-50/80 transition-colors group">
+                              <td className="py-3 px-4 font-mono font-medium text-slate-900 text-xs">
+                                {st.registerNumber}
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <div>
+                                  <p className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                                    {st.name}
+                                  </p>
+                                  {st.email && (
+                                    <p className="text-[11px] text-slate-500 font-mono mt-0.5">{st.email}</p>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <p className="font-medium text-slate-800 text-[11px] truncate max-w-[220px]">
+                                  {st.course || st.department}
+                                </p>
+                                <p className="text-[10px] text-slate-400 truncate max-w-[220px]">
+                                  {st.department}
+                                </p>
+                              </td>
+
+                              <td className="py-3 px-4 text-center">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${
+                                  (st.programLevel || 'UG').toUpperCase() === 'UG'
+                                    ? 'bg-slate-100 text-slate-700 border-slate-200/80'
+                                    : 'bg-blue-50 text-blue-700 border-blue-200/80'
+                                }`}>
+                                  {st.programLevel || 'UG'}
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <p className="font-medium text-slate-800">{st.className || '—'}</p>
+                                <p className="text-[10px] text-slate-400 font-mono">{st.batch || '—'}</p>
+                              </td>
+
+                              <td className="py-3 px-4 text-center">
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">
+                                  {st.academicYear || '2024-25'}
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-4 text-center">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${
+                                  st.status === 'Active'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                                    : st.status === 'Graduated'
+                                    ? 'bg-slate-100 text-slate-700 border-slate-200/80'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200/80'
+                                }`}>
+                                  {st.status || 'Active'}
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    onClick={() => setViewingStudent(st)}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-md"
+                                    title="Inspect Profile"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </Button>
+
+                                  {user && (user.role === 'admin' || user.role === 'hod' || user.role === 'coordinator') && (
+                                    <>
+                                      <Button
+                                        onClick={() => setEditingStudent(st)}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 w-7 p-0 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-md"
+                                        title="Edit Student"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </Button>
+                                      <Button
+                                        onClick={() => handleDelete(st.id)}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md"
+                                        title="Delete"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {isStudentTableVirtual && studentTablePaddingBottom > 0 && (
+                          <tr style={{ height: `${studentTablePaddingBottom}px` }} aria-hidden="true" className="border-0 p-0 pointer-events-none">
+                            <td colSpan={8} style={{ padding: 0, border: 0, height: `${studentTablePaddingBottom}px` }} />
+                          </tr>
+                        )}
+                      </>
                     )}
                   </tbody>
                 </table>

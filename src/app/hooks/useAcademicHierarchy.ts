@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { useMemo, useCallback, useEffect } from 'react';
+import { useAcademicHierarchyQuery } from './queries/useAcademicHierarchyQuery';
+import { queryClient } from '../config/queryClient';
 
 export interface Campus {
   id: string;
@@ -57,79 +56,6 @@ export interface Course {
   programLevel?: ProgramLevel;
 }
 
-export function useAcademicHierarchy() {
-  const { user } = useAuth();
-  const [campuses, setCampuses] = useState<Campus[]>([]);
-  const [schools, setSchools] = useState<School[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [programLevels, setProgramLevels] = useState<ProgramLevel[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchHierarchy = useCallback(async () => {
-    if (!user?.token) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const headers = { Authorization: `Bearer ${user.token}` };
-      const opts = { headers };
-
-      const [resCampuses, resSchools, resDepts, resLevels, resCourses] = await Promise.all([
-        fetch(`${API_BASE}/api/campuses`, opts),
-        fetch(`${API_BASE}/api/schools`, opts),
-        fetch(`${API_BASE}/api/departments`, opts),
-        fetch(`${API_BASE}/api/program-levels`, opts),
-        fetch(`${API_BASE}/api/courses`, opts),
-      ]);
-
-      const [campusesData, schoolsData, deptsData, levelsData, coursesData] = await Promise.all([
-        resCampuses.json(),
-        resSchools.json(),
-        resDepts.json(),
-        resLevels.json(),
-        resCourses.json(),
-      ]);
-
-      if (campusesData.success) setCampuses(campusesData.data);
-      if (schoolsData.success) setSchools(schoolsData.data);
-      if (deptsData.success) setDepartments(deptsData.data);
-      if (levelsData.success) setProgramLevels(levelsData.data);
-      if (coursesData.success) setCourses(coursesData.data);
-
-    } catch (err: any) {
-      console.error('Error fetching academic hierarchy:', err);
-      setError('Failed to load academic hierarchy from database.');
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    fetchHierarchy();
-  }, [fetchHierarchy]);
-
-  // Listen for centralized configuration updates from System Administration V2.0
-  useEffect(() => {
-    const handleConfigUpdate = () => {
-      fetchHierarchy();
-    };
-    window.addEventListener('iqac:config-updated', handleConfigUpdate);
-    return () => window.removeEventListener('iqac:config-updated', handleConfigUpdate);
-  }, [fetchHierarchy]);
-
-  // Quick lookups
-  const departmentMap = useMemo(() => {
-    const map: Record<string, Department> = {};
-    departments.forEach((d) => {
-      map[d.code] = d;
-      map[d.name] = d;
-      map[d.id] = d;
-    });
-    return map;
-  }, [departments]);
-
 const DEFAULT_DEPARTMENTS = [
   'Civil Engineering',
   'Computer Science and Engineering',
@@ -158,6 +84,37 @@ const DEFAULT_SCHOOLS = [
   'School of Business and Management',
   'School of Law'
 ];
+
+export function useAcademicHierarchy() {
+  const { data, isLoading, error: queryError, refetch } = useAcademicHierarchyQuery();
+
+  const campuses = data?.campuses || [];
+  const schools = data?.schools || [];
+  const departments = data?.departments || [];
+  const programLevels = data?.programLevels || [];
+  const courses = data?.courses || [];
+  const loading = isLoading;
+  const error = queryError ? (queryError as Error).message || 'Failed to load academic hierarchy' : null;
+
+  // Listen for centralized configuration updates from System Administration V2.0
+  useEffect(() => {
+    const handleConfigUpdate = () => {
+      queryClient.invalidateQueries({ queryKey: ['academicHierarchy'] });
+    };
+    window.addEventListener('iqac:config-updated', handleConfigUpdate);
+    return () => window.removeEventListener('iqac:config-updated', handleConfigUpdate);
+  }, []);
+
+  // Quick lookups
+  const departmentMap = useMemo(() => {
+    const map: Record<string, Department> = {};
+    departments.forEach((d) => {
+      map[d.code] = d;
+      map[d.name] = d;
+      map[d.id] = d;
+    });
+    return map;
+  }, [departments]);
 
   // Dropdown list options
   const departmentList = useMemo(() => {
@@ -216,6 +173,6 @@ const DEFAULT_SCHOOLS = [
     programLevelList,
     getProgramLevelsForDepartment,
     getCoursesByDeptAndLevel,
-    refetch: fetchHierarchy
+    refetch,
   };
 }

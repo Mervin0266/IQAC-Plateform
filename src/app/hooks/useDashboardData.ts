@@ -120,32 +120,27 @@ export function useDashboardData(): DashboardDataReturn {
       const headers = { Authorization: `Bearer ${user.token}` };
       const fetchOpts = { headers, signal };
 
-      // Parallel fetch for dynamic dashboard stats, achievements, documents, strategic plans, hierarchy stats, and placements
-      const [resSysStats, resAchievements, resDocs, resPlans, resHierarchy, resPlacements] = await Promise.all([
+      // Parallel fetch for dynamic dashboard stats, hierarchy stats, strategic plans, and placements
+      // (avoid fetching heavy achievements & documents tables unless sysStats fallback is needed)
+      const [resSysStats, resHierarchy, resPlans, resPlacements] = await Promise.all([
         fetch(`${API_BASE}/api/system/dashboard-stats`, fetchOpts),
-        fetch(`${API_BASE}/api/achievements`, fetchOpts),
-        fetch(`${API_BASE}/api/documents`, fetchOpts),
-        fetch(`${API_BASE}/api/strategic-plans`, fetchOpts),
         fetch(`${API_BASE}/api/hierarchy/stats`, fetchOpts),
+        fetch(`${API_BASE}/api/strategic-plans`, fetchOpts).catch(() => ({ ok: false, json: () => ({ success: false }) } as any)),
         fetch(`${API_BASE}/api/placements`, fetchOpts).catch(() => ({ ok: false, json: () => ({ success: false }) } as any))
       ]);
 
       // Handle 401 on any endpoint
-      if (resSysStats.status === 401 || resAchievements.status === 401 || resDocs.status === 401 || resPlans.status === 401 || resHierarchy.status === 401) {
+      if (resSysStats.status === 401 || resHierarchy.status === 401) {
         logout();
         return;
       }
 
-      const [sysStatsData, achievementsData, docsData, plansData, hierarchyData] = await Promise.all([
+      const [sysStatsData, hierarchyData, plansData] = await Promise.all([
         resSysStats.ok ? resSysStats.json() : { success: false },
-        resAchievements.ok ? resAchievements.json() : { success: false },
-        resDocs.ok ? resDocs.json() : { success: false },
-        resPlans.ok ? resPlans.json() : { success: false },
         resHierarchy.ok ? resHierarchy.json() : { success: false },
+        resPlans.ok ? resPlans.json() : { success: false },
       ]);
 
-      const liveAchievements = achievementsData.success ? (achievementsData.data || []) : [];
-      const liveDocs = docsData.success ? (docsData.data || []) : [];
       const livePlans = plansData.success ? (plansData.data || []) : [];
       const hStats = hierarchyData.success ? hierarchyData.data : { totalCampuses: 0, totalSchools: 0, totalDepartments: 0, totalProgramLevels: 0, totalCourses: 0 };
       const sysStats = sysStatsData.success ? sysStatsData.data : null;
@@ -155,9 +150,9 @@ export function useDashboardData(): DashboardDataReturn {
           totalStudents: sysStats.totalStudents ?? 0,
           totalFaculty: sysStats.totalFaculty ?? 0,
           sfr: sysStats.sfr || '—',
-          totalAchievements: sysStats.totalAchievements ?? liveAchievements.length,
-          facultyAchievements: sysStats.facultyAchievements ?? liveAchievements.length,
-          annualReports: sysStats.annualReports ?? liveDocs.length,
+          totalAchievements: sysStats.totalAchievements ?? 0,
+          facultyAchievements: sysStats.facultyAchievements ?? 0,
+          annualReports: sysStats.annualReports ?? 0,
           totalPapers: sysStats.totalPapers ?? 0,
           scopusJournals: sysStats.scopusJournals ?? 0,
           totalPatents: sysStats.totalPatents ?? 0,
@@ -180,9 +175,18 @@ export function useDashboardData(): DashboardDataReturn {
           totalStrategicPlans: sysStats.totalStrategicPlans ?? livePlans.length
         });
       } else {
+        // Fallback: only fetch achievements and documents if backend sysStats was unavailable
+        const [resAchievements, resDocs] = await Promise.all([
+          fetch(`${API_BASE}/api/achievements`, fetchOpts).catch(() => ({ ok: false, json: () => ({ success: false }) } as any)),
+          fetch(`${API_BASE}/api/documents`, fetchOpts).catch(() => ({ ok: false, json: () => ({ success: false }) } as any)),
+        ]);
+        const achievementsData = resAchievements.ok ? await resAchievements.json() : { success: false };
+        const docsData = resDocs.ok ? await resDocs.json() : { success: false };
+        const liveAchievements = achievementsData.success ? (achievementsData.data || []) : [];
+        const liveDocs = docsData.success ? (docsData.data || []) : [];
         const total = liveAchievements.length;
         const facultyCount = liveAchievements.filter(
-          (a: PlacementRecord) => a.category === 'research' || a.category === 'awards'
+          (a: any) => a.category === 'research' || a.category === 'awards'
         ).length;
         const reportsCount = liveDocs.length;
 
