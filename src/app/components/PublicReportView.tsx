@@ -25,21 +25,54 @@ const icons = {
   incubations: Lightbulb, 'industry-connects': Handshake, 'consultancy-projects': Network,
 };
 
+const sampleBaselines: Partial<Record<ReportSection, number[]>> = {
+  achievements: [38],
+  'research-innovation': [145, 24, 38, 24, 14, 12],
+  'placements-internships': [420, 185, 8, 7, 16, 65],
+  internships: [190, 84],
+  alumni: [82, 34, 20],
+  infrastructure: [54, 22],
+  'international-interactions': [42, 116],
+  'centre-excellence': [8, 67],
+  incubations: [18, 34],
+  'industry-connects': [56, 92],
+  'consultancy-projects': [43],
+};
+
+const additionalSamples: Partial<Record<ReportSection, string[]>> = {
+  achievements: ['Community service honour', 'Campus accessibility commendation'],
+  rankings: ['Accreditation follow-up review'],
+  'research-innovation': ['Renewable energy review', 'Water reuse field study'],
+  'placements-internships': ['Software recruitment drive', 'Civil engineering recruitment drive'],
+  internships: ['Data analytics internship', 'Environmental fieldwork internship'],
+  alumni: ['First-generation graduate mentoring', 'Alumni peer mentoring circle'],
+  infrastructure: ['Robotics workshop', 'Environmental testing laboratory'],
+  'international-interactions': ['Joint visiting scholar programme', 'International research agreement'],
+  'centre-excellence': ['Centre for digital learning'],
+  incubations: ['Agricultural technology venture', 'Campus mobility venture'],
+  'industry-connects': ['Industrial energy study', 'Manufacturing process trial'],
+  'consultancy-projects': ['Transport demand assessment', 'Building resilience review'],
+};
+
 function samplePeriods(section: ReportSection): PublishedReport[] {
   const definition = sections[section];
-  return ['2025-26', '2024-25'].map((period, year) => {
+  return ['2025-26', '2024-25', '2023-24', '2022-23'].map((period, year) => {
     const metrics: Report['metrics'] = {};
     Object.entries(definition.metrics).forEach(([label, kind], index) => {
       if (kind === 'date') metrics[label] = '2027-10-25';
       else if (kind === 'text') metrics[label] = label === 'NAAC grade' ? 'A+' : '1201–1400';
       else if (label === 'NAAC CGPA') metrics[label] = 3.42;
-      else if (kind === 'package') metrics[label] = [8, 7, 16][index - 2] - year;
-      else metrics[label] = (index + 2) * 4 - year;
+      else if (label === 'NIRF university rank') metrics[label] = [58, 63, 67, 65][year];
+      else {
+        const baseline = sampleBaselines[section]?.[index] ?? (index + 2) * 4;
+        const factor = [1, .86, .72, .61][year];
+        metrics[label] = kind === 'package' ? Math.round(baseline * factor * 10) / 10 : Math.round(baseline * factor);
+      }
     });
     return { period, publishedAt: '', published: {
       metrics, source: 'Illustrative local sample', url: '',
-      records: examples[section].map((title, index) => ({
-        title, category: definition.categories[index], detail: title + ' is included in this illustrative ' + period + ' report.', url: '',
+      records: [...examples[section], ...(additionalSamples[section] ?? [])].map((title, index) => ({
+        title, category: definition.categories[index < examples[section].length ? index : 0], detail: title + ' is included in this illustrative ' + period + ' report.', url: '',
       })),
     }};
   });
@@ -74,6 +107,16 @@ export function ReportContent({ section, period, report, topic }: { section: Rep
     {!!amounts.length && <section className="edition-chart"><h3>Annual compensation</h3>
       {amounts.map(label => <div key={label}><span>{label}</span><meter aria-hidden="true" min={0} max={max} value={Number(report.metrics[label])} />
         <strong>{reportMetric(section,label,report.metrics[label])}</strong></div>)}</section>}
+    {categories.length > 1 && !topic && <section className="edition-category-chart">
+      <h3>Records by category</h3>
+      <ul>{categories.map(name => {
+        const count = report.records.filter(record => record.category === name).length;
+        return <li key={name}><button type="button" aria-pressed={category === name}
+          onClick={() => setCategory(category === name ? '' : name)}>
+          <span>{name}</span><meter aria-hidden="true" max={report.records.length} value={count} /><strong>{count}</strong>
+        </button></li>;
+      })}</ul>
+    </section>}
     {(tracks || !!report.records.length) && <div className="edition-tools">
       {(!topic && (tracks || categories.length > 0)) && <div role="group" aria-label="Filter records">
         {['', ...new Set([...(tracks ? definition.categories : []), ...categories])].map(name =>
@@ -99,6 +142,49 @@ export function ReportContent({ section, period, report, topic }: { section: Rep
   </div>;
 }
 
+function MetricHistory({ section, topic, periods, selectedPeriod, onSelectPeriod }: {
+  section: ReportSection;
+  topic?: string;
+  periods: PublishedReport[];
+  selectedPeriod: string;
+  onSelectPeriod: (period: string) => void;
+}) {
+  const [selectedMetric, setSelectedMetric] = useState('');
+  const configured = Object.entries(sections[section].metrics)
+    .filter(([label, kind]) => (!topic || label === topic) && ['count', 'number', 'package'].includes(kind));
+  const available = configured.map(([label]) => label).filter(label =>
+    periods.some(item => typeof item.published.metrics[label] === 'number'));
+  const metric = available.includes(selectedMetric) ? selectedMetric : available.find(label => label === 'NIRF university rank') ?? available[0];
+  if (!metric) return null;
+
+  const series = [...periods].sort((a, b) => a.period.localeCompare(b.period)).map(item => ({
+    period: item.period,
+    value: item.published.metrics[metric],
+  }));
+  const max = Math.max(1, ...series.map(item => typeof item.value === 'number' ? item.value : 0));
+  return <section className="report-history" aria-label="Reporting period comparison">
+    <div className="report-history-heading">
+      <div><h2>Compare reporting periods</h2><p>{metric}</p>
+        {metric === 'NIRF university rank' && <small>Lower rank numbers indicate a higher position.</small>}
+      </div>
+      {available.length > 1 && <label>Measure<select value={metric} onChange={event => setSelectedMetric(event.target.value)}>
+        {available.map(label => <option key={label}>{label}</option>)}
+      </select></label>}
+    </div>
+    <ul className="report-history-bars">
+      {series.map(({ period, value }) => <li key={period}>
+        <button type="button" aria-pressed={period === selectedPeriod} onClick={() => onSelectPeriod(period)}>
+          <span className="report-history-value">{reportMetric(section, metric, value)}</span>
+          <span className="report-history-track" aria-hidden="true">
+            {typeof value === 'number' && <span style={{ height: (value / max * 100) + '%' }} />}
+          </span>
+          <span className="report-history-period">{period}</span>
+        </button>
+      </li>)}
+    </ul>
+  </section>;
+}
+
 const researchTopics: Record<string, string> = {
   publications: 'Publications', patents: 'Patents', copyrights: 'Copyrights',
   'external-research': 'External Research', 'internal-research': 'Internal Research',
@@ -113,11 +199,6 @@ export function PublicReportPage({ section, workspaceTopic }: { section: ReportS
   const [period, setPeriod] = useState('');
   const active = data?.find(item => item.period === period) ?? data?.[0];
   const { title, description } = sections[section];
-  const trend = section === 'placements-internships' ? (data ?? []).flatMap(item => {
-    const count = item.published.metrics['Students with full-time offers'];
-    return typeof count === 'number' ? [{ period: item.period, count }] : [];
-  }).reverse() : [];
-  const trendMaximum = Math.max(1, ...trend.map(item => item.count));
   return <div className="space-y-5 iq-report-page">
     <PageHeader title={topic ?? title} description={topic ? undefined : description} badge={sample ? "Local demonstration data" : undefined} />
     {section === 'research-innovation' && !workspaceTopic && <nav className="edition-tools" aria-label="Research subsections">
@@ -135,20 +216,13 @@ export function PublicReportPage({ section, workspaceTopic }: { section: ReportS
     </div>}
     {!data && !failed ? <p role="status">Loading published reports…</p> : <>
       {!active && <p role="status">{failed ? 'Reports are temporarily unavailable.' : 'No report has been published for this section yet.'}</p>}
+      {active && data && <MetricHistory key={section + (topic ?? '')} section={section} topic={topic}
+        periods={data} selectedPeriod={active.period} onSelectPeriod={setPeriod} />}
       <ReportContent key={(active?.period ?? '') + topic} section={section} period={active?.period} topic={topic} report={active?.published} />
       {section === 'rankings' && data && data.length > 1 && <section className="edition-chart"><h2>Rankings across reporting periods</h2>
         <div className="edition-table"><table><thead><tr><th>Framework</th>{data.map(item => <th key={item.period}>{item.period}</th>)}</tr></thead>
         <tbody>{['NIRF university rank','QS world band','THE world band'].map(label => <tr key={label}><th>{label}</th>
           {data.map(item => <td key={item.period}>{reportMetric(section,label,item.published.metrics[label])}</td>)}</tr>)}</tbody></table></div>
-      </section>}
-      {trend.length > 1 && <section className="iq-report-panel space-y-3">
-        <h2>Students with full-time offers by reporting period</h2>
-        <ul className="iq-report-trend">
-          {trend.map(({ period, count }) => <li key={period}>
-            <span>{period}</span><meter aria-hidden="true" max={trendMaximum} value={count} />
-            <strong>{count.toLocaleString('en-IN')}</strong>
-          </li>)}
-        </ul>
       </section>}
     </>}
   </div>;

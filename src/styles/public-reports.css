@@ -186,3 +186,71 @@
 .edition-table { overflow:auto }
 .edition-table th,.edition-table td { padding:.5rem .8rem; text-align:left; border-bottom:1px solid #d3d9d7 }
 @media(prefers-reduced-motion:no-preference) { .edition-records details[open] p { animation:iq-fade .2s ease-out } }
+
+.report-history {
+  padding: clamp(1rem, 3vw, 2rem);
+  background: #fffefa;
+  border: 1px solid #dadfdc;
+  border-radius: 14px;
+}
+.report-history-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.report-history-heading h2 {
+  font: normal clamp(1.4rem, 3vw, 2rem)/1.2 "IQ Display", Georgia, serif;
+}
+.report-history-heading p { color: #49586b; }
+.report-history-heading label { display: grid; gap: 0.25rem; max-width: 100%; }
+.report-history-heading select { border: 1px solid #aebbbb; border-radius: 5px; padding: 0.45rem; max-width: 100%; }
+.report-history-bars {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(4.4rem, 1fr);
+  gap: 0.35rem;
+  margin-top: 1rem;
+  padding: 0.25rem;
+  overflow-x: auto;
+}
+.report-history-bars button {
+  display: grid;
+  grid-template-rows: minmax(2.4rem, auto) 6rem auto;
+  align-items: end;
+  justify-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.25rem;
+  width: 100%;
+  height: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+.report-history-bars button[aria-pressed=true] { background: #f2ecdf; border-color: #b8a982; }
+.report-history-value { font-weight: 650; overflow-wrap: anywhere; text-align: center; }
+.report-history-track {
+  display: flex;
+  align-items: end;
+  height: 100%;
+  width: min(65%, 3.5rem);
+  background: #e9ede8;
+  border-bottom: 1px solid #8d9a91;
+}
+.report-history-track span { width: 100%; background: #37726c; border-radius: 3px 3px 0 0; }
+.report-history-bars [aria-pressed=true] .report-history-track span { background: #9a6f36; }
+.edition-category-chart { padding: 1rem; margin-block: 1rem; background: #f0f5f1; border-radius: 8px; }
+.edition-category-chart h3 { font-weight: 650; margin-bottom: 0.45rem; }
+.edition-category-chart button {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(2ch, auto);
+  align-items: center;
+  gap: 0.65rem;
+  text-align: left;
+  width: 100%;
+  padding: 0.4rem;
+  border-radius: 4px;
+}
+.edition-category-chart meter { width: 100%; }
+.edition-category-chart button[aria-pressed=true] { background: #dde9df; }
