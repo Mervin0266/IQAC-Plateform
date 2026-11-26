@@ -43,6 +43,18 @@ const SavedReportConfig = sequelize.define('SavedReportConfig', {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
+  isPublished: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  version: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1
+  },
+  isSystemTemplate: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
   createdBy: {
     type: DataTypes.UUID,
     allowNull: true,

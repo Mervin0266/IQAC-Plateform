@@ -14,14 +14,18 @@ const {
 const {
   getFacultyDirectory,
   calculateReportAnalytics,
-  generateReportBuilderExport
+  generateReportBuilderExport,
+  getFieldCatalog,
+  getComparisonOptions,
+  refreshReportSnapshot,
+  getSnapshotById
 } = require('../services/institutionalReportBuilderService');
 const {
   getIprDashboardAnalytics,
   getIprDrilldownRecords
 } = require('../services/iprAnalyticsService');
 const { resolveDepartmentScope } = require('../utils/scopeHelper');
-const { Campus, School, Department, ProgramLevel, SavedReportConfig, ReportHistory } = require('../models');
+const { Campus, School, Department, ProgramLevel, SavedReportConfig, ReportHistory, ReportSnapshot } = require('../models');
 const { Op } = require('sequelize');
 
 // Filter-aware multi-key in-memory cache for dashboard analytics (TTL: 60 seconds)
@@ -420,17 +424,126 @@ exports.builderExport = async (req, res) => {
 };
 
 /**
+ * GET /api/institutional-analytics/report-builder/fields
+ * Returns the hierarchical 3-level content catalog
+ */
+exports.getFieldCatalog = async (req, res) => {
+  try {
+    const catalog = getFieldCatalog();
+    return res.json({ success: true, catalog });
+  } catch (error) {
+    console.error('Error fetching field catalog:', error);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve field catalog.' });
+  }
+};
+
+/**
+ * GET /api/institutional-analytics/report-builder/comparison-options
+ * Returns supported comparison categories and visualization options
+ */
+exports.getComparisonOptions = async (req, res) => {
+  try {
+    const options = getComparisonOptions();
+    return res.json({ success: true, options });
+  } catch (error) {
+    console.error('Error fetching comparison options:', error);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve comparison options.' });
+  }
+};
+
+/**
+ * POST /api/institutional-analytics/report-builder/refresh
+ * Recalculates fresh data and issues a new point-in-time snapshot
+ */
+exports.refreshSnapshot = async (req, res) => {
+  try {
+    const { snapshotId } = req.body;
+    if (!snapshotId) {
+      return res.status(400).json({ success: false, message: 'snapshotId is required' });
+    }
+    let userScope = {};
+    try {
+      userScope = await resolveDepartmentScope(req, 'Department', false);
+    } catch (e) {
+      userScope = {};
+    }
+    const reportData = await refreshReportSnapshot(snapshotId, req.user, userScope);
+    return res.json({ success: true, reportData });
+  } catch (error) {
+    console.error('Error refreshing report snapshot:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to refresh snapshot.' });
+  }
+};
+
+/**
+ * GET /api/institutional-analytics/report-builder/snapshot/:snapshotId
+ * Retrieves an immutable snapshot payload
+ */
+exports.getSnapshot = async (req, res) => {
+  try {
+    const { snapshotId } = req.params;
+    const snapshot = await getSnapshotById(snapshotId);
+    if (!snapshot) {
+      return res.status(404).json({ success: false, message: 'Snapshot not found.' });
+    }
+    return res.json({ success: true, snapshot });
+  } catch (error) {
+    console.error('Error retrieving snapshot:', error);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve snapshot.' });
+  }
+};
+
+/**
+ * POST /api/institutional-analytics/report-builder/validate
+ * Validates a configuration before preview/generation
+ */
+exports.validateReportConfig = async (req, res) => {
+  try {
+    const { reportType, outputFormat, scopeConfig, contentConfig } = req.body;
+    const errors = [];
+    const warnings = [];
+
+    const validTypes = ['summary', 'analytical', 'detailed'];
+    if (!reportType || !validTypes.includes(String(reportType).toLowerCase())) {
+      errors.push(`Invalid reportType '${reportType}'. Must be one of: summary, analytical, detailed.`);
+    }
+
+    const validFormats = ['pdf', 'word', 'docx', 'pptx', 'powerpoint'];
+    if (!outputFormat || !validFormats.includes(String(outputFormat).toLowerCase())) {
+      errors.push(`Invalid outputFormat '${outputFormat}'. Must be one of: pdf, word, docx, pptx.`);
+    }
+
+    if (String(reportType).toLowerCase() === 'summary') {
+      warnings.push('Summary report configured: visual charts will be automatically suppressed in favor of executive KPI scorecards and tables.');
+    }
+
+    return res.json({
+      success: errors.length === 0,
+      isValid: errors.length === 0,
+      errors,
+      warnings
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * GET /api/institutional-analytics/saved-configs
- * Returns saved report configurations for current user (or shared)
+ * Returns saved report configurations and system templates
  */
 exports.getSavedConfigs = async (req, res) => {
   try {
-    const where = req.user
-      ? { [Op.or]: [{ createdBy: req.user.id }, { isShared: true }] }
-      : {};
+    const isTemplateFilter = req.query.isTemplate === 'true';
+    const where = {};
+    if (isTemplateFilter) {
+      where[Op.or] = [{ isSystemTemplate: true }, { isShared: true }];
+    } else if (req.user) {
+      where[Op.or] = [{ createdBy: req.user.id }, { isShared: true }, { isSystemTemplate: true }];
+    }
     const configs = SavedReportConfig ? await SavedReportConfig.findAll({
       where,
-      order: [['updatedAt', 'DESC']]
+      order: [['isSystemTemplate', 'DESC'], ['updatedAt', 'DESC']]
     }) : [];
     return res.json({
       success: true,
@@ -447,21 +560,56 @@ exports.getSavedConfigs = async (req, res) => {
 
 /**
  * POST /api/institutional-analytics/saved-configs
- * Create or update a saved report configuration
+ * Create or update a saved report configuration or admin template
  */
 exports.saveConfig = async (req, res) => {
   try {
-    const { id, name, description, reportType, outputFormat, scopeConfig, contentConfig, comparisonConfig, stylingConfig, isShared } = req.body;
+    const {
+      id,
+      name,
+      description,
+      reportType,
+      outputFormat,
+      scopeConfig,
+      contentConfig,
+      comparisonConfig,
+      stylingConfig,
+      isShared,
+      isPublished = true,
+      isSystemTemplate = false
+    } = req.body;
+
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Configuration name is required.' });
+    }
+
+    const isAdmin = req.user && (
+      req.user.role === 'admin' ||
+      req.user.role === 'system_admin' ||
+      req.user.role === 'iqac_admin' ||
+      req.user.isSystemAdmin
+    );
+
+    if (isSystemTemplate && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only IQAC Administrators have permission to create or modify official system templates.'
+      });
     }
 
     let config;
     if (id) {
       config = await SavedReportConfig.findByPk(id);
       if (config) {
+        // Enforce admin permission for modifying system template
+        if (config.isSystemTemplate && !isAdmin) {
+          return res.status(403).json({
+            success: false,
+            message: 'Only IQAC Administrators can modify official system templates.'
+          });
+        }
         await config.update({
-          name,
+          name: name.trim(),
           description,
           reportType,
           outputFormat,
@@ -469,14 +617,17 @@ exports.saveConfig = async (req, res) => {
           contentConfig,
           comparisonConfig,
           stylingConfig,
-          isShared: Boolean(isShared)
+          isShared: Boolean(isShared),
+          isPublished: Boolean(isPublished),
+          isSystemTemplate: Boolean(isSystemTemplate),
+          version: (config.version || 1) + 1
         });
       }
     }
 
     if (!config) {
       config = await SavedReportConfig.create({
-        name,
+        name: name.trim(),
         description,
         reportType,
         outputFormat,
@@ -485,6 +636,9 @@ exports.saveConfig = async (req, res) => {
         comparisonConfig,
         stylingConfig,
         isShared: Boolean(isShared),
+        isPublished: Boolean(isPublished),
+        isSystemTemplate: Boolean(isSystemTemplate),
+        version: 1,
         createdBy: req.user ? req.user.id : null
       });
     }
@@ -514,8 +668,18 @@ exports.deleteSavedConfig = async (req, res) => {
     if (!config) {
       return res.status(404).json({ success: false, message: 'Configuration not found.' });
     }
+    const isAdmin = req.user && (
+      req.user.role === 'admin' ||
+      req.user.role === 'system_admin' ||
+      req.user.role === 'iqac_admin' ||
+      req.user.isSystemAdmin
+    );
+    // If it's a system template, only admins can delete
+    if (config.isSystemTemplate && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only IQAC Administrators can delete official system templates.' });
+    }
     // Verify ownership or admin
-    if (req.user && config.createdBy && config.createdBy !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'system_admin') {
+    if (req.user && config.createdBy && config.createdBy !== req.user.id && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized to delete this configuration.' });
     }
     await config.destroy();

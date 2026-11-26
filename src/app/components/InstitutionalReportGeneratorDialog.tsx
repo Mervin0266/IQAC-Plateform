@@ -49,9 +49,16 @@ import {
   BookOpen,
   ArrowRight,
   ShieldCheck,
-  ChevronDown
+  ChevronDown,
+  Presentation
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { SectionAccordionList } from './report-builder/SectionAccordionList';
+import {
+  GranularContentConfig,
+  getDefaultGranularConfig,
+  REPORT_FIELD_CATALOG
+} from '../report-builder/reportFieldCatalog';
 
 export interface InstitutionalReportGeneratorDialogProps {
   isOpen: boolean;
@@ -101,12 +108,48 @@ export function InstitutionalReportGeneratorDialog({
   const { user } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+  const isAdmin = Boolean(
+    user && (
+      user.role === 'admin' ||
+      user.role === 'system_admin' ||
+      user.role === 'iqac_admin' ||
+      (user as any)?.isSystemAdmin
+    )
+  );
+
   // Step state
   const [currentStep, setCurrentStep] = useState<BuilderStep>('type_format');
 
   // STEP 1: REPORT TYPE & FORMAT
   const [reportType, setReportType] = useState<'summary' | 'analytical' | 'detailed'>('analytical');
-  const [outputFormat, setOutputFormat] = useState<'pdf' | 'docx'>('pdf');
+  const [outputFormat, setOutputFormat] = useState<'pdf' | 'docx' | 'pptx'>('pdf');
+  const [approvalStatus, setApprovalStatus] = useState<string>('Verified');
+  const [showValidationDetails, setShowValidationDetails] = useState<boolean>(false);
+
+  // V2.1 Granular Section-wise Field Configuration
+  const [granularConfig, setGranularConfig] = useState<GranularContentConfig>(() =>
+    getDefaultGranularConfig('analytical')
+  );
+
+  const handleReportTypeChange = (newType: 'summary' | 'analytical' | 'detailed') => {
+    setReportType(newType);
+    setGranularConfig(prev => {
+      const next = getDefaultGranularConfig(newType);
+      return {
+        ...next,
+        sections: {
+          ...next.sections,
+          ...prev.sections,
+          comparativeAnalytics: newType === 'summary' ? false : prev.sections.comparativeAnalytics
+        }
+      };
+    });
+    setSubsections(prev => ({
+      ...prev,
+      charts: newType !== 'summary',
+      detailedTables: newType === 'detailed'
+    }));
+  };
 
   // STEP 2: SCOPE & FACULTY FILTER
   const [campuses, setCampuses] = useState<CampusItem[]>([]);
@@ -169,19 +212,21 @@ export function InstitutionalReportGeneratorDialog({
     charts: true
   });
 
-  // STEP 4: COMPARISONS & ANALYTICS
+  // STEP 4: COMPARISONS & ANALYTICS (6 Official Categories)
   const [comparisons, setComparisons] = useState({
     yearWise: true,
     departmentWise: true,
-    schoolWise: false,
-    campusWise: false,
-    facultyWise: false,
+    schoolWise: true,
+    campusWise: true,
+    externalBenchmark: true,
+    performanceTrends: true,
     quartileWise: true,
     targetVsActual: true
   });
 
   // STEP 5: DOCUMENT PREVIEW & EXPORT
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [refreshingSnapshot, setRefreshingSnapshot] = useState(false);
   const [previewData, setPreviewData] = useState<any | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -196,6 +241,7 @@ export function InstitutionalReportGeneratorDialog({
   const [reportHistory, setReportHistory] = useState<any[]>([]);
   const [templateName, setTemplateName] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [saveAsSystemTemplate, setSaveAsSystemTemplate] = useState(false);
 
   // Load Initial Scope & Metadata
   useEffect(() => {
@@ -431,6 +477,7 @@ export function InstitutionalReportGeneratorDialog({
       const payload = {
         reportType,
         outputFormat,
+        approvalStatus,
         scopeConfig: {
           campuses: selectedCampuses,
           schools: selectedSchools,
@@ -440,8 +487,10 @@ export function InstitutionalReportGeneratorDialog({
           selectedFacultyEmpIds
         },
         contentConfig: {
-          sections,
-          subsections
+          sections: granularConfig.sections,
+          subsections,
+          fieldSelections: granularConfig.fieldSelections,
+          placementRecords: granularConfig.placementRecords
         },
         comparisonConfig: {
           dimensions: Object.keys(comparisons).filter(k => (comparisons as any)[k])
@@ -483,8 +532,44 @@ export function InstitutionalReportGeneratorDialog({
     }
   }, [currentStep]);
 
-  // Export Document Handler
-  const handleExport = async (formatOverride?: 'pdf' | 'docx') => {
+  // Refresh Snapshot Handler (Recalculates fresh data and issues a new point-in-time snapshot)
+  const handleRefreshSnapshot = async () => {
+    const currentSnapId = previewData?.snapshotId || previewData?.meta?.snapshotId;
+    if (!currentSnapId) {
+      await handleFetchPreview();
+      return;
+    }
+    setRefreshingSnapshot(true);
+    setPreviewError(null);
+    try {
+      const token = user?.token;
+      const res = await fetch(`${API_URL}/api/institutional-analytics/report-builder/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ snapshotId: currentSnapId })
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || 'Failed to refresh snapshot.');
+      }
+      const json = await res.json();
+      if (json.success && json.reportData) {
+        setPreviewData(json.reportData);
+        setExportSuccessMessage(`Snapshot refreshed (New ID: ${json.reportData.snapshotId || json.reportData.meta?.snapshotId})`);
+        setTimeout(() => setExportSuccessMessage(null), 3500);
+      }
+    } catch (err: any) {
+      setPreviewError(err.message || 'Failed to refresh snapshot.');
+    } finally {
+      setRefreshingSnapshot(false);
+    }
+  };
+
+  // Export Document Handler (Consumes identical point-in-time snapshot)
+  const handleExport = async (formatOverride?: 'pdf' | 'docx' | 'pptx') => {
     const fmt = formatOverride || outputFormat;
     setIsExporting(true);
     setPreviewError(null);
@@ -496,6 +581,8 @@ export function InstitutionalReportGeneratorDialog({
         name: `CHRIST IQAC Report (${reportType.toUpperCase()})`,
         reportType,
         outputFormat: fmt,
+        approvalStatus,
+        snapshotId: previewData?.snapshotId || previewData?.meta?.snapshotId,
         scopeConfig: {
           campuses: selectedCampuses,
           schools: selectedSchools,
@@ -505,8 +592,10 @@ export function InstitutionalReportGeneratorDialog({
           selectedFacultyEmpIds
         },
         contentConfig: {
-          sections,
-          subsections
+          sections: granularConfig.sections,
+          subsections,
+          fieldSelections: granularConfig.fieldSelections,
+          placementRecords: granularConfig.placementRecords
         },
         comparisonConfig: {
           dimensions: Object.keys(comparisons).filter(k => (comparisons as any)[k])
@@ -529,7 +618,10 @@ export function InstitutionalReportGeneratorDialog({
 
       const blob = await res.blob();
       const disposition = res.headers.get('Content-Disposition') || '';
-      let filename = `CHRIST_IQAC_Report_${reportType.toUpperCase()}.${fmt === 'docx' ? 'docx' : 'pdf'}`;
+      let ext = 'pdf';
+      if (fmt === 'docx') ext = 'docx';
+      else if (fmt === 'pptx') ext = 'pptx';
+      let filename = `CHRIST_IQAC_Report_${reportType.toUpperCase()}.${ext}`;
       const match = disposition.match(/filename="?([^"]+)"?/);
       if (match && match[1]) filename = match[1];
 
@@ -785,22 +877,35 @@ export function InstitutionalReportGeneratorDialog({
               </div>
 
               {/* Save current config */}
-              <div className="flex items-center gap-2">
-                <Input
-                  value={templateName}
-                  onChange={e => setTemplateName(e.target.value)}
-                  placeholder="Enter template name (e.g. Annual Research & Quartile Benchmark)..."
-                  className="h-8 text-xs bg-white"
-                />
-                <Button
-                  size="sm"
-                  onClick={handleSaveTemplate}
-                  disabled={!templateName.trim() || savingTemplate}
-                  className="bg-[#2855B9] text-white text-xs h-8 px-3 shrink-0"
-                >
-                  <Save className="w-3.5 h-3.5 mr-1" />
-                  <span>Save Config</span>
-                </Button>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={templateName}
+                    onChange={e => setTemplateName(e.target.value)}
+                    placeholder="Enter template name (e.g. Annual Research & Quartile Benchmark)..."
+                    className="h-8 text-xs bg-white"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveTemplate}
+                    disabled={!templateName.trim() || savingTemplate}
+                    className="bg-[#2855B9] text-white text-xs h-8 px-3 shrink-0"
+                  >
+                    <Save className="w-3.5 h-3.5 mr-1" />
+                    <span>Save Config</span>
+                  </Button>
+                </div>
+                {isAdmin && (
+                  <label className="flex items-center gap-2 cursor-pointer pt-1">
+                    <Checkbox
+                      checked={saveAsSystemTemplate}
+                      onCheckedChange={c => setSaveAsSystemTemplate(Boolean(c))}
+                    />
+                    <span className="text-[11px] font-semibold text-indigo-900">
+                      Publish as Official System Template (Visible to all users, locked from non-admin editing)
+                    </span>
+                  </label>
+                )}
               </div>
 
               {savedConfigs.length === 0 ? (
@@ -810,7 +915,14 @@ export function InstitutionalReportGeneratorDialog({
                   {savedConfigs.map(cfg => (
                     <div key={cfg.id} className="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-slate-900 text-xs">{cfg.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-slate-900 text-xs">{cfg.name}</p>
+                          {cfg.isSystemTemplate && (
+                            <Badge className="text-[9px] bg-indigo-600 text-white py-0 px-1.5">
+                              System Template v{cfg.version || 1}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-[10px] text-slate-500">
                           {cfg.reportType?.toUpperCase()} • {cfg.outputFormat?.toUpperCase()} • {cfg.scopeConfig?.scopeLabel || 'University-wide'}
                         </p>
@@ -819,9 +931,11 @@ export function InstitutionalReportGeneratorDialog({
                         <Button size="sm" variant="outline" onClick={() => handleApplyConfig(cfg)} className="h-7 text-[11px] px-2.5">
                           Load
                         </Button>
-                        <button type="button" onClick={() => handleDeleteConfig(cfg.id)} className="p-1 text-slate-400 hover:text-rose-600">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {(!cfg.isSystemTemplate || isAdmin) && (
+                          <button type="button" onClick={() => handleDeleteConfig(cfg.id)} className="p-1 text-slate-400 hover:text-rose-600">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -878,7 +992,7 @@ export function InstitutionalReportGeneratorDialog({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {/* Summary Report */}
                 <div
-                  onClick={() => setReportType('summary')}
+                  onClick={() => handleReportTypeChange('summary')}
                   className={`p-4 rounded-xl border-2 transition-all cursor-pointer space-y-2 ${
                     reportType === 'summary'
                       ? 'border-[#2855B9] bg-blue-50/40 shadow-xs'
@@ -887,20 +1001,20 @@ export function InstitutionalReportGeneratorDialog({
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-900 text-xs">Summary Report</span>
-                    <Badge variant="outline" className="text-[10px] bg-white border-slate-200">Overview</Badge>
+                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-200">No Visual Charts</Badge>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
                     Executive overview, vital institutional KPIs, key achievements, summary tables, and high-priority observations.
                   </p>
-                  <div className="pt-2 text-[10px] text-slate-400 flex items-center gap-1 font-medium">
-                    <Info className="w-3 h-3 text-slate-400" />
-                    <span>No visual charts included</span>
+                  <div className="pt-2 text-[10px] text-amber-700 flex items-center gap-1 font-medium">
+                    <Info className="w-3 h-3 text-amber-600" />
+                    <span>Strictly NO visual charts — KPI scorecards & concise tables only</span>
                   </div>
                 </div>
 
                 {/* Analytical Report */}
                 <div
-                  onClick={() => setReportType('analytical')}
+                  onClick={() => handleReportTypeChange('analytical')}
                   className={`p-4 rounded-xl border-2 transition-all cursor-pointer space-y-2 ${
                     reportType === 'analytical'
                       ? 'border-[#2855B9] bg-blue-50/40 shadow-xs'
@@ -922,7 +1036,7 @@ export function InstitutionalReportGeneratorDialog({
 
                 {/* Detailed Report */}
                 <div
-                  onClick={() => setReportType('detailed')}
+                  onClick={() => handleReportTypeChange('detailed')}
                   className={`p-4 rounded-xl border-2 transition-all cursor-pointer space-y-2 ${
                     reportType === 'detailed'
                       ? 'border-[#2855B9] bg-blue-50/40 shadow-xs'
@@ -946,7 +1060,7 @@ export function InstitutionalReportGeneratorDialog({
               {/* Document Output Format Selector */}
               <div className="pt-2 border-t border-slate-100 space-y-3">
                 <h4 className="text-xs font-bold text-slate-900">Document Export Format</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div
                     onClick={() => setOutputFormat('pdf')}
                     className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-3 ${
@@ -974,6 +1088,21 @@ export function InstitutionalReportGeneratorDialog({
                     <div>
                       <p className="font-bold text-slate-900 text-xs">Microsoft Word (.docx)</p>
                       <p className="text-[10px] text-slate-500">Editable native tables, styles, and table of contents for administrative reports</p>
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => setOutputFormat('pptx')}
+                    className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-3 ${
+                      outputFormat === 'pptx' ? 'border-[#2855B9] bg-blue-50/50' : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                      <Presentation className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900 text-xs">PowerPoint (.pptx)</p>
+                      <p className="text-[10px] text-slate-500">Native editable 16:9 widescreen presentation with CHRIST navy/gold theme</p>
                     </div>
                   </div>
                 </div>
@@ -1260,185 +1389,141 @@ export function InstitutionalReportGeneratorDialog({
             </div>
           )}
 
-          {/* STEP 3: INDEPENDENT CONTENT CUSTOMIZATION */}
+          {/* STEP 3: INDEPENDENT CONTENT CUSTOMIZATION (INLINE ACCORDION) */}
           {currentStep === 'content' && (
             <div className="space-y-5">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Independent Report Content Customization</h3>
-                <p className="text-xs text-slate-500">Include or exclude sections and specific analytical components independently.</p>
-              </div>
-
-              {/* Main Sections Checkboxes */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* 1. Executive Overview */}
-                <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-bold text-slate-900 text-xs">1. Executive Overview</span>
-                    <Checkbox
-                      checked={sections.executiveOverview}
-                      onCheckedChange={c => setSections(p => ({ ...p, executiveOverview: !!c }))}
-                    />
-                  </label>
-                  <p className="text-[11px] text-slate-500">Summary indicators, key verified highlights, and high-priority observations.</p>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Section-wise Field Customization & Granular Selection
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Expand each report section below to customize specific KPIs, charts, summary tables, detailed records, and narrative insights.
+                  </p>
                 </div>
-
-                {/* 2. Academic & Faculty (NO STUDENT ACADEMIC RESULTS!) */}
-                <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-bold text-slate-900 text-xs">2. Academic & Faculty Profile</span>
-                    <Checkbox
-                      checked={sections.academicFaculty}
-                      onCheckedChange={c => setSections(p => ({ ...p, academicFaculty: !!c }))}
-                    />
-                  </label>
-                  <p className="text-[11px] text-slate-500">Faculty strength, qualifications, Ph.D. holders, and department distribution.</p>
-                  <p className="text-[10px] text-emerald-700 font-medium">Student Academic Performance is strictly excluded.</p>
-                </div>
-
-                {/* 3. Research & Innovation */}
-                <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-bold text-slate-900 text-xs">3. Research & Innovation</span>
-                    <Checkbox
-                      checked={sections.researchInnovation}
-                      onCheckedChange={c => setSections(p => ({ ...p, researchInnovation: !!c }))}
-                    />
-                  </label>
-                  <p className="text-[11px] text-slate-500">Publications, dedicated Quartile analytics (Q1–Q4), Citations, Patents & Grants.</p>
-                </div>
-
-                {/* 4. Placements & Career Development */}
-                <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-bold text-slate-900 text-xs">4. Placements & Career Development</span>
-                    <Checkbox
-                      checked={sections.placements}
-                      onCheckedChange={c => setSections(p => ({ ...p, placements: !!c }))}
-                    />
-                  </label>
-                  <p className="text-[11px] text-slate-500">Eligible students, unique placed, %, highest, median & avg CTC, top recruiters.</p>
-                </div>
-
-                {/* 5. Accreditation & Quality Assurance */}
-                <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-bold text-slate-900 text-xs">5. Accreditation & Quality Assurance</span>
-                    <Checkbox
-                      checked={sections.accreditation}
-                      onCheckedChange={c => setSections(p => ({ ...p, accreditation: !!c }))}
-                    />
-                  </label>
-                  <p className="text-[11px] text-slate-500">NAAC Grade A++, NIRF overall ranking, and strategic plan completion status.</p>
-                </div>
-
-                {/* 6. Institutional Comparative Analytics */}
-                <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-bold text-slate-900 text-xs">6. Comparative Analytics</span>
-                    <Checkbox
-                      checked={sections.comparativeAnalytics}
-                      onCheckedChange={c => setSections(p => ({ ...p, comparativeAnalytics: !!c }))}
-                    />
-                  </label>
-                  <p className="text-[11px] text-slate-500">Multi-year trends, departmental benchmarking, and quartile trajectory.</p>
-                </div>
-
-                {/* 7. Institutional Insights & Action Plan */}
-                <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-bold text-slate-900 text-xs">7. Insights & IQAC Action Plan</span>
-                    <Checkbox
-                      checked={sections.insightsActionPlan}
-                      onCheckedChange={c => setSections(p => ({ ...p, insightsActionPlan: !!c }))}
-                    />
-                  </label>
-                  <p className="text-[11px] text-slate-500">Verified recommendations matrix with assigned department, status, and deadlines.</p>
-                </div>
-
-                {/* 8. Appendix */}
-                <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-bold text-slate-900 text-xs">8. Appendix & Methodology</span>
-                    <Checkbox
-                      checked={sections.appendix}
-                      onCheckedChange={c => setSections(p => ({ ...p, appendix: !!c }))}
-                    />
-                  </label>
-                  <p className="text-[11px] text-slate-500">Quartile calculation formulas, citation snapshot audit rules, and data sources.</p>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const allSecs: Record<string, boolean> = {};
+                      const allFields: Record<string, boolean> = {};
+                      REPORT_FIELD_CATALOG.forEach(s => {
+                        allSecs[s.id] = true;
+                        s.items.forEach(i => {
+                          if (!(reportType === 'summary' && i.notAllowedInSummary) && !(i.requiresDetailed && reportType !== 'detailed')) {
+                            allFields[i.id] = true;
+                          }
+                        });
+                        if (s.subModules) {
+                          s.subModules.forEach(sm => sm.items.forEach(i => {
+                            if (!(reportType === 'summary' && i.notAllowedInSummary) && !(i.requiresDetailed && reportType !== 'detailed')) {
+                              allFields[i.id] = true;
+                            }
+                          }));
+                        }
+                      });
+                      setGranularConfig(prev => ({
+                        ...prev,
+                        sections: allSecs,
+                        fieldSelections: allFields
+                      }));
+                      setSections({
+                        executiveOverview: true,
+                        academicFaculty: true,
+                        researchInnovation: true,
+                        placements: true,
+                        accreditation: true,
+                        comparativeAnalytics: reportType !== 'summary',
+                        insightsActionPlan: true,
+                        appendix: true
+                      });
+                    }}
+                    className="h-7 text-[11px] px-2.5"
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const allSecs: Record<string, boolean> = {};
+                      const allFields: Record<string, boolean> = {};
+                      REPORT_FIELD_CATALOG.forEach(s => {
+                        allSecs[s.id] = false;
+                        s.items.forEach(i => { allFields[i.id] = false; });
+                        if (s.subModules) {
+                          s.subModules.forEach(sm => sm.items.forEach(i => { allFields[i.id] = false; }));
+                        }
+                      });
+                      setGranularConfig(prev => ({
+                        ...prev,
+                        sections: allSecs,
+                        fieldSelections: allFields
+                      }));
+                      setSections({
+                        executiveOverview: false,
+                        academicFaculty: false,
+                        researchInnovation: false,
+                        placements: false,
+                        accreditation: false,
+                        comparativeAnalytics: false,
+                        insightsActionPlan: false,
+                        appendix: false
+                      });
+                    }}
+                    className="h-7 text-[11px] px-2.5"
+                  >
+                    Deselect All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const resetCfg = getDefaultGranularConfig(reportType);
+                      setGranularConfig(resetCfg);
+                      setSections(resetCfg.sections as any);
+                    }}
+                    className="h-7 text-[11px] px-2.5 text-[#2855B9]"
+                  >
+                    Reset Defaults
+                  </Button>
                 </div>
               </div>
 
-              {/* Research Subsections & Quartiles */}
-              {sections.researchInnovation && (
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <h4 className="font-bold text-slate-900 text-xs">Research & Innovation Granular Elements</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                    <label className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer">
-                      <Checkbox
-                        checked={subsections.publications}
-                        onCheckedChange={c => setSubsections(p => ({ ...p, publications: !!c }))}
-                      />
-                      <span>Publications</span>
-                    </label>
-                    <label className="flex items-center gap-2 p-1.5 bg-white rounded border border-blue-200 bg-blue-50/40 cursor-pointer">
-                      <Checkbox
-                        checked={subsections.quartiles}
-                        onCheckedChange={c => setSubsections(p => ({ ...p, quartiles: !!c }))}
-                      />
-                      <span className="font-semibold text-blue-900">Quartile Analytics (Q1–Q4)</span>
-                    </label>
-                    <label className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer">
-                      <Checkbox
-                        checked={subsections.citations}
-                        onCheckedChange={c => setSubsections(p => ({ ...p, citations: !!c }))}
-                      />
-                      <span>Scopus Citations</span>
-                    </label>
-                    <label className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer">
-                      <Checkbox
-                        checked={subsections.patents}
-                        onCheckedChange={c => setSubsections(p => ({ ...p, patents: !!c }))}
-                      />
-                      <span>Patents & IPR</span>
-                    </label>
-                    <label className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer">
-                      <Checkbox
-                        checked={subsections.copyrights}
-                        onCheckedChange={c => setSubsections(p => ({ ...p, copyrights: !!c }))}
-                      />
-                      <span>Copyrights</span>
-                    </label>
-                    <label className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer">
-                      <Checkbox
-                        checked={subsections.consultancy}
-                        onCheckedChange={c => setSubsections(p => ({ ...p, consultancy: !!c }))}
-                      />
-                      <span>Consultancy</span>
-                    </label>
-                    <label className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer">
-                      <Checkbox
-                        checked={subsections.sponsoredProjects}
-                        onCheckedChange={c => setSubsections(p => ({ ...p, sponsoredProjects: !!c }))}
-                      />
-                      <span>Sponsored Research</span>
-                    </label>
-                    <label className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer">
-                      <Checkbox
-                        checked={subsections.awards}
-                        onCheckedChange={c => setSubsections(p => ({ ...p, awards: !!c }))}
-                      />
-                      <span>Research Awards</span>
-                    </label>
-                    <label className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer">
-                      <Checkbox
-                        checked={subsections.eContents}
-                        onCheckedChange={c => setSubsections(p => ({ ...p, eContents: !!c }))}
-                      />
-                      <span>E-Contents</span>
-                    </label>
-                  </div>
+              {/* Accordion List */}
+              <SectionAccordionList
+                reportType={reportType}
+                config={granularConfig}
+                onChange={cfg => {
+                  setGranularConfig(cfg);
+                  setSections(cfg.sections as any);
+                }}
+                availableDepartments={departments.map(d => d.name)}
+              />
+
+              {/* Selection Summary Footer */}
+              <div className="p-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <span className="font-semibold text-slate-800">
+                    Configuration Status:
+                  </span>
+                  <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200 text-[11px]">
+                    {Object.values(granularConfig.sections).filter(Boolean).length} / 8 Sections Active
+                  </Badge>
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[11px]">
+                    {Object.values(granularConfig.fieldSelections).filter(Boolean).length} Fields Selected
+                  </Badge>
+                  {reportType === 'detailed' && granularConfig.placementRecords.enabled && (
+                    <Badge variant="outline" className="bg-purple-50 text-purple-800 border-purple-200 text-[11px]">
+                      Placement Register ({granularConfig.placementRecords.columns.length} Cols, Top {granularConfig.placementRecords.topN})
+                    </Badge>
+                  )}
                 </div>
-              )}
+                <span className="text-[11px] text-slate-500 italic">
+                  Changes take effect immediately upon generating document preview.
+                </span>
+              </div>
             </div>
           )}
 
@@ -1447,14 +1532,18 @@ export function InstitutionalReportGeneratorDialog({
             <div className="space-y-5">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Custom Comparison Dimensions & Safeguards</h3>
-                <p className="text-xs text-slate-500">Configure cross-sectional and temporal comparative analysis with strict statistical safeguards.</p>
+                <p className="text-xs text-slate-500">Configure cross-sectional, temporal, and external benchmarking with strict statistical safeguards.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* 1. Academic Year vs Academic Year */}
                 <label className="p-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer">
                   <div>
-                    <p className="font-bold text-slate-900 text-xs">Year-over-Year Progression</p>
-                    <p className="text-[11px] text-slate-500">Track scholarly publications, patents, and faculty growth across academic years.</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-slate-900 text-xs">1. Academic Year Progression</p>
+                      <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700">Chronological</Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Multi-year output trajectory with zero-denominator safe growth %.</p>
                   </div>
                   <Checkbox
                     checked={comparisons.yearWise}
@@ -1462,10 +1551,14 @@ export function InstitutionalReportGeneratorDialog({
                   />
                 </label>
 
+                {/* 2. Department vs Department */}
                 <label className="p-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer">
                   <div>
-                    <p className="font-bold text-slate-900 text-xs">Department-wise Benchmarking</p>
-                    <p className="text-[11px] text-slate-500">Comparative cross-tabulations across departments in the active scope.</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-slate-900 text-xs">2. Department vs Department</p>
+                      <Badge variant="outline" className="text-[9px] bg-slate-50">Cross-Benchmarking</Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Faculty cadre, publication quartiles, external funding & citations.</p>
                   </div>
                   <Checkbox
                     checked={comparisons.departmentWise}
@@ -1473,25 +1566,63 @@ export function InstitutionalReportGeneratorDialog({
                   />
                 </label>
 
+                {/* 3. School vs School */}
                 <label className="p-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer">
                   <div>
-                    <p className="font-bold text-slate-900 text-xs">Quartile Progression Analysis</p>
-                    <p className="text-[11px] text-slate-500">Evaluate shift towards top-tier (Q1 & Q2) publication journals over time.</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-slate-900 text-xs">3. School / Deanery Benchmarking</p>
+                      <Badge variant="outline" className="text-[9px] bg-slate-50">Deanery Level</Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Deanery-level scholarly productivity and research funding footprint.</p>
                   </div>
                   <Checkbox
-                    checked={comparisons.quartileWise}
-                    onCheckedChange={c => setComparisons(p => ({ ...p, quartileWise: !!c }))}
+                    checked={comparisons.schoolWise}
+                    onCheckedChange={c => setComparisons(p => ({ ...p, schoolWise: !!c }))}
                   />
                 </label>
 
+                {/* 4. Campus vs Campus */}
                 <label className="p-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer">
                   <div>
-                    <p className="font-bold text-slate-900 text-xs">Target vs Actual Attainment</p>
-                    <p className="text-[11px] text-slate-500">Audit performance against NAAC Criterion and Strategic Plan benchmarks.</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-slate-900 text-xs">4. Campus vs Campus</p>
+                      <Badge variant="outline" className="text-[9px] bg-slate-50">Multi-Campus</Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Bengaluru Central, Kengeri, Yeshwanthpur, Delhi NCR, and Pune Lavasa.</p>
                   </div>
                   <Checkbox
-                    checked={comparisons.targetVsActual}
-                    onCheckedChange={c => setComparisons(p => ({ ...p, targetVsActual: !!c }))}
+                    checked={comparisons.campusWise}
+                    onCheckedChange={c => setComparisons(p => ({ ...p, campusWise: !!c }))}
+                  />
+                </label>
+
+                {/* 5. External Institutional Benchmarking */}
+                <label className="p-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-slate-900 text-xs">5. External NIRF Benchmarking</p>
+                      <Badge className="text-[9px] bg-emerald-600 text-white">Official MoE 2024</Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Official Ministry of Education NIRF Rank 63, TLR, RPC, GO, OI, PR scores.</p>
+                  </div>
+                  <Checkbox
+                    checked={comparisons.externalBenchmark}
+                    onCheckedChange={c => setComparisons(p => ({ ...p, externalBenchmark: !!c }))}
+                  />
+                </label>
+
+                {/* 6. Institutional Performance Trends */}
+                <label className="p-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-slate-900 text-xs">6. Institutional Performance Trends</p>
+                      <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-700">Trajectory</Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Longitudinal trajectories in research density, citation impact & IPR.</p>
+                  </div>
+                  <Checkbox
+                    checked={comparisons.performanceTrends}
+                    onCheckedChange={c => setComparisons(p => ({ ...p, performanceTrends: !!c }))}
                   />
                 </label>
               </div>
@@ -1515,6 +1646,111 @@ export function InstitutionalReportGeneratorDialog({
           {/* STEP 5: COMPLETE DOCUMENT PREVIEW */}
           {currentStep === 'preview' && (
             <div className="space-y-4">
+              {/* Snapshot Freshness & Immutability Bar */}
+              <div className="p-3 bg-slate-900 text-white rounded-xl flex items-center justify-between flex-wrap gap-3 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-bold text-slate-200">DATA SNAPSHOT:</span>
+                      <span className="font-mono text-xs font-bold text-amber-300">
+                        {previewData?.snapshotId || previewData?.meta?.snapshotId || 'SNAP-PENDING'}
+                      </span>
+                      <span className="text-[11px] text-slate-500">|</span>
+                      <span className="text-[11px] text-slate-300 font-semibold">WORKFLOW:</span>
+                      <select
+                        value={approvalStatus}
+                        onChange={(e) => setApprovalStatus(e.target.value)}
+                        className="bg-slate-800 text-emerald-300 text-[11px] font-bold border border-slate-700 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-emerald-400"
+                      >
+                        <option value="Draft">Draft</option>
+                        <option value="Generated">Generated</option>
+                        <option value="Pending IQAC Verification">Pending IQAC Verification</option>
+                        <option value="Verified">Verified</option>
+                        <option value="Pending Approval">Pending Approval</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Published">Published</option>
+                      </select>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Immutable verified data freeze • Captured{' '}
+                      {previewData?.dataProvenance?.extractedAt
+                        ? new Date(previewData.dataProvenance.extractedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                        : 'just now'}
+                      {' • '}PDF, Word & PPTX exports will use this identical snapshot
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={refreshingSnapshot || loadingPreview}
+                  onClick={handleRefreshSnapshot}
+                  className="h-7 text-xs bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700 flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${refreshingSnapshot ? 'animate-spin text-amber-400' : 'text-slate-300'}`} />
+                  <span>{refreshingSnapshot ? 'Refreshing...' : 'Refresh Data'}</span>
+                </Button>
+              </div>
+
+              {/* Data Quality & Reconciliation Engine Status Card */}
+              {previewData?.validation && (
+                <div className={`p-3 rounded-xl border text-xs transition-all ${
+                  (previewData.validation.criticalErrors || 0) > 0 || !previewData.validation.isValid
+                    ? 'bg-rose-50 border-rose-200 text-rose-900'
+                    : ((previewData.validation.summary?.warnings || 0) > 0
+                        ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                        : 'bg-emerald-50/80 border-emerald-200 text-emerald-900')
+                }`}>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className={`w-4 h-4 shrink-0 ${
+                        (previewData.validation.criticalErrors || 0) > 0
+                          ? 'text-rose-600'
+                          : ((previewData.validation.summary?.warnings || 0) > 0 ? 'text-amber-600' : 'text-emerald-600')
+                      }`} />
+                      <span className="font-bold">
+                        {previewData.validation.isValid ? 'IQAC Data Reconciled & Validated' : 'Reconciliation Inconsistencies Detected'}
+                      </span>
+                      <span className="text-[11px] px-2 py-0.5 rounded font-mono font-semibold bg-white/90 border border-current shadow-xs">
+                        {previewData.validation.summary?.passed || 0}/{previewData.validation.summary?.totalChecks || 0} checks passed
+                      </span>
+                      {((previewData.validation.summary?.warnings || 0) > 0) && (
+                        <span className="text-[11px] px-2 py-0.5 rounded font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                          {previewData.validation.summary.warnings} observation{(previewData.validation.summary?.warnings || 0) > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowValidationDetails(prev => !prev)}
+                      className="text-[11px] font-medium underline flex items-center gap-1 text-slate-700 hover:text-slate-900 cursor-pointer"
+                    >
+                      {showValidationDetails ? 'Hide Audit Log' : 'View Reconciliation Audit'}
+                      <ChevronDown className={`w-3.5 h-3.5 transform transition-transform ${showValidationDetails ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                  {showValidationDetails && (
+                    <div className="mt-2.5 pt-2.5 border-t border-current/20 space-y-1.5 text-[11px]">
+                      {(previewData.validation.details || []).map((chk: any, cIdx: number) => (
+                        <div key={cIdx} className="flex items-start gap-1.5 font-mono">
+                          {chk.status === 'VALIDATED' ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          ) : (
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                          )}
+                          <div>
+                            <span className="font-bold">{chk.checkId}:</span> {chk.message}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Preview Navigation & Zoom Toolbar */}
               <div className="flex items-center justify-between flex-wrap gap-2 p-2.5 bg-slate-100 rounded-xl border border-slate-200">
                 <div className="flex items-center gap-1.5">
@@ -1839,8 +2075,108 @@ export function InstitutionalReportGeneratorDialog({
                             </div>
                           )}
 
+                          {/* COMPARATIVE ANALYTICS & BENCHMARKING */}
+                          {page.pageType === 'comparative_analytics' && (
+                            <div className="space-y-4">
+                              {/* External NIRF Benchmarking */}
+                              {page.externalBenchmark && (
+                                <div className="border border-emerald-200 bg-emerald-50/40 rounded-xl p-3.5 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-emerald-950 text-xs">Official NIRF 2024 External Benchmarking</span>
+                                    <Badge className="text-[10px] bg-emerald-700 text-white">NIRF University Rank 63</Badge>
+                                  </div>
+                                  <p className="text-[10px] text-emerald-800">
+                                    Ministry of Education verified scores • NAAC {page.externalBenchmark.accreditationGrade || 'A++ (CGPA 3.74)'}
+                                  </p>
+                                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                                    {page.externalBenchmark.comparisonData?.map((item: any, idx: number) => (
+                                      <div key={idx} className="p-2 bg-white rounded-lg border border-emerald-200 text-center space-y-0.5">
+                                        <p className="text-[9px] font-bold text-slate-500">{item.category}</p>
+                                        <p className="text-xs font-bold text-[#1C355B]">{item.christScore}</p>
+                                        <p className="text-[9px] text-slate-400">Top 10: {item.nirfBenchmarkTop10}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <p className="text-[9px] text-emerald-700 italic">
+                                    Source: Ministry of Education (MoE) National Institutional Ranking Framework (NIRF) 2024.
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Multi-Campus Comparison */}
+                              {page.campusTable && page.campusTable.length > 0 && (
+                                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                  <div className="bg-slate-100 p-2 font-bold text-slate-800 text-xs flex justify-between">
+                                    <span>Campus-Wise Performance</span>
+                                    <span>Faculty & Outputs</span>
+                                  </div>
+                                  <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto">
+                                    {page.campusTable.map((camp: any, idx: number) => (
+                                      <div key={idx} className="p-2 flex items-center justify-between text-xs">
+                                        <div>
+                                          <p className="font-semibold text-slate-800">{camp.campusName}</p>
+                                          <p className="text-[10px] text-slate-500">{camp.departmentsCount} depts • {camp.schoolsCount} schools</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="font-bold text-slate-800">{camp.totalPublications} pubs</span>
+                                          <span className="text-[10px] text-slate-500 ml-2">({camp.facultyStrength} faculty)</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* School Comparison */}
+                              {page.schoolTable && page.schoolTable.length > 0 && (
+                                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                  <div className="bg-slate-100 p-2 font-bold text-slate-800 text-xs flex justify-between">
+                                    <span>Deanery / School Productivity</span>
+                                    <span>Scholarly Volume</span>
+                                  </div>
+                                  <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto">
+                                    {page.schoolTable.map((sch: any, idx: number) => (
+                                      <div key={idx} className="p-2 flex items-center justify-between text-xs">
+                                        <div>
+                                          <p className="font-semibold text-slate-800">{sch.schoolName}</p>
+                                          <p className="text-[10px] text-slate-500">{sch.facultyStrength} faculty • {sch.phdPercentage}% Ph.D.</p>
+                                        </div>
+                                        <span className="font-bold text-slate-800">{sch.totalPublications} outputs</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Longitudinal Performance Trends */}
+                              {page.performanceTrends && page.performanceTrends.length > 0 && (
+                                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                  <div className="bg-slate-100 p-2 font-bold text-slate-800 text-xs flex justify-between">
+                                    <span>Year-on-Year Growth Trajectory</span>
+                                    <span>Growth %</span>
+                                  </div>
+                                  <div className="divide-y divide-slate-100 max-h-36 overflow-y-auto">
+                                    {page.performanceTrends.map((trend: any, idx: number) => (
+                                      <div key={idx} className="p-2 flex items-center justify-between text-xs">
+                                        <span className="font-semibold text-slate-800">{trend.academicYear}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-slate-600">{trend.publications} publications</span>
+                                          {trend.publicationGrowthPct !== 0 && (
+                                            <Badge variant="outline" className={`text-[9px] ${trend.publicationGrowthPct > 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'}`}>
+                                              {trend.publicationGrowthPct > 0 ? `+${trend.publicationGrowthPct}%` : `${trend.publicationGrowthPct}%`}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* GENERIC TABLES FOR OTHER PAGES */}
-                          {page.departmentTable && (
+                          {page.pageType !== 'comparative_analytics' && page.departmentTable && (
                             <div className="border border-slate-200 rounded-xl overflow-hidden mt-3">
                               <div className="bg-slate-100 p-2 font-bold text-slate-800 text-xs flex justify-between">
                                 <span>Department Breakdown</span>
@@ -1936,6 +2272,17 @@ export function InstitutionalReportGeneratorDialog({
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Export Word</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isExporting}
+                  onClick={() => handleExport('pptx')}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold h-8 px-3.5 rounded-lg shadow-xs flex items-center gap-1.5"
+                >
+                  <Presentation className="w-3.5 h-3.5" />
+                  <span>Export PPTX</span>
                 </Button>
               </>
             ) : (

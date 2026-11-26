@@ -43,6 +43,10 @@ const Placement = sequelize.define('Placement', {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: true
   },
+  monthlyStipend: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: true
+  },
   placementType: {
     type: DataTypes.ENUM('placement', 'internship'),
     allowNull: true,

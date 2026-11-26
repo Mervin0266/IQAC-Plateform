@@ -82,9 +82,17 @@ const TEST_ACCOUNT_FIXTURES: Record<UserRole, TestAccountFixture> = {
 };
 
 export function LoginPage({ onBack }: LoginPageProps) {
-  const { user, login } = useAuth();
+  const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // If entering with ?fresh=true (from public portal), ensure any active local session is cleared immediately
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('fresh') === 'true' && user) {
+      logout(false);
+    }
+  }, [location.search, user, logout]);
 
   const handleReturnHome = () => {
     if (onBack) {
@@ -235,7 +243,7 @@ export function LoginPage({ onBack }: LoginPageProps) {
               <span>Return to Public Portal</span>
             </button>
 
-            {user && (
+            {user && !location.search.includes('fresh=true') && (
               <div className="mb-5 p-3.5 bg-blue-50/90 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-900 shadow-xs">
                 <div>
                   <p className="font-semibold text-blue-950">Active Session: {user.name || user.email}</p>

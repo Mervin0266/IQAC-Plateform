@@ -46,6 +46,7 @@ export interface PlacementItem {
   company: string;
   role?: string;
   package: number | string | null;
+  monthlyStipend?: number | string | null;
   placementType: 'placement' | 'internship';
   placementDate?: string | null;
   location?: string | null;
@@ -456,12 +457,11 @@ export function PlacementsInternshipsPage({
 
   // Format Stipend
   const formatStipend = (val: number | string | null | undefined) => {
-    if (val === null || val === undefined || val === '') return 'Unpaid';
+    if (val === null || val === undefined || val === '') return 'Not Provided';
     const num = parseFloat(String(val));
-    if (isNaN(num)) return 'Unpaid';
-    if (num === 0) return '₹0 (Unpaid)';
-    if (num >= 1000) return `₹ ${(num / 1000).toFixed(1)}K/mo`;
-    return `₹ ${Math.round(num).toLocaleString('en-IN')} /mo`;
+    if (isNaN(num)) return 'Not Provided';
+    if (num === 0) return 'Unpaid';
+    return `₹${Math.round(num).toLocaleString('en-IN')}/month`;
   };
 
   // Filtered Placements & Internships
@@ -742,7 +742,7 @@ export function PlacementsInternshipsPage({
 
     // Internships statistics (isolated from placements LPA)
     const validStipends = internshipList
-      .map(p => parseFloat(String(p.package || 0)))
+      .map(p => parseFloat(String((p.monthlyStipend !== undefined && p.monthlyStipend !== null) ? p.monthlyStipend : (p.package || 0))))
       .filter(s => s > 0);
     const avgStipend = validStipends.length > 0
       ? validStipends.reduce((sum, val) => sum + val, 0) / validStipends.length
@@ -908,6 +908,9 @@ export function PlacementsInternshipsPage({
   // Open Form for Edit
   const handleOpenEdit = (item: PlacementItem) => {
     setEditingItem(item);
+    const initialPkg = (item.monthlyStipend !== undefined && item.monthlyStipend !== null)
+      ? String(item.monthlyStipend)
+      : (item.package !== undefined && item.package !== null ? String(item.package) : '');
     setFormData({
       studentName: item.studentName || '',
       studentId: item.studentId || '',
@@ -916,7 +919,7 @@ export function PlacementsInternshipsPage({
       batch: item.batch || '2024-2025',
       company: item.company || '',
       role: item.role || '',
-      package: String(item.package || ''),
+      package: initialPkg,
       placementType: item.placementType || 'placement',
       placementDate: item.placementDate || new Date().toISOString().split('T')[0],
       location: item.location || ''
@@ -949,9 +952,11 @@ export function PlacementsInternshipsPage({
     setFormLoading(true);
     setFormError('');
 
+    const rawPkg = formData.package && String(formData.package).trim() !== '' ? parseFloat(formData.package) : null;
     const payload = {
       ...formData,
-      package: parseFloat(formData.package) || 0,
+      package: rawPkg !== null && !isNaN(rawPkg) ? rawPkg : (formData.placementType === 'placement' ? 0 : null),
+      monthlyStipend: formData.placementType === 'internship' ? (rawPkg !== null && !isNaN(rawPkg) ? rawPkg : null) : null,
       customFields: customFieldValues
     };
 
@@ -1855,7 +1860,7 @@ export function PlacementsInternshipsPage({
                             </span>
                           ) : (
                             <span className="text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-md border border-blue-100">
-                              {formatStipend(item.package)}
+                              {formatStipend(item.monthlyStipend !== undefined && item.monthlyStipend !== null ? item.monthlyStipend : item.package)}
                             </span>
                           )}
                         </td>
@@ -2448,7 +2453,9 @@ export function PlacementsInternshipsPage({
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 block">Package / Compensation</span>
                   <span className="font-bold text-emerald-700 text-sm font-mono">
-                    {viewingItem.placementType === 'placement' ? formatLPA(viewingItem.package) : formatStipend(viewingItem.package)}
+                    {viewingItem.placementType === 'placement'
+                      ? formatLPA(viewingItem.package)
+                      : formatStipend(viewingItem.monthlyStipend !== undefined && viewingItem.monthlyStipend !== null ? viewingItem.monthlyStipend : viewingItem.package)}
                   </span>
                 </div>
                 <div>

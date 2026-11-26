@@ -808,12 +808,14 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
       fileName = 'departments_bulk_template.csv';
     } else if (isPlacement) {
       const isIntern = selectedPlacementType === 'internship';
-      csvContent =
-        "Register Number,Academic Year,Name,Department,Program,Designation/Role,Company,Package\n" +
-        (isIntern
-          ? "\"2447002\",\"2024-25\",\"Jane Smith\",\"Computer Science and Engineering\",\"B.Tech Computer Science and Engineering\",\"Frontend Developer Intern\",\"Microsoft India\",45000\n\"2447003\",\"2024-25\",\"Arun Kumar\",\"Electronics and Communication Engineering\",\"B.Tech Electronics and Communication Engineering\",\"Hardware Intern\",\"Texas Instruments\",0"
-          : "\"2447001\",\"2024-25\",\"John Doe\",\"Computer Science and Engineering\",\"B.Tech Computer Science and Engineering\",\"Software Development Engineer\",\"Google India\",14.50\n\"2447004\",\"2024-25\",\"Priya Sharma\",\"AI and Data Science Engineering\",\"B.Tech (Artificial Intelligence and Machine Learning)\",\"Data Engineer\",\"Samsung R&D\",8.50"
-        );
+      csvContent = isIntern
+        ? "Name,Register Number,Designation/Role,Company,Monthly Stipend (INR),Proof\n" +
+          "\"Jane Smith\",\"2447002\",\"Frontend Developer Intern\",\"Microsoft India\",45000,\"https://drive.google.com/file/d/example1/view\"\n" +
+          "\"Arun Kumar\",\"2447003\",\"Hardware Intern\",\"Texas Instruments\",0,\"\"\n" +
+          "\"Priya Sharma\",\"2447004\",\"Data Analyst Intern\",\"Samsung R&D\",\"\",\"https://drive.google.com/file/d/example2/view\""
+        : "Register Number,Academic Year,Name,Department,Program,Designation/Role,Company,Package\n" +
+          "\"2447001\",\"2024-25\",\"John Doe\",\"Computer Science and Engineering\",\"B.Tech Computer Science and Engineering\",\"Software Development Engineer\",\"Google India\",14.50\n" +
+          "\"2447004\",\"2024-25\",\"Priya Sharma\",\"AI and Data Science Engineering\",\"B.Tech (Artificial Intelligence and Machine Learning)\",\"Data Engineer\",\"Samsung R&D\",8.50";
       fileName = isIntern ? 'internships_bulk_template.csv' : 'placements_bulk_template.csv';
     } else if (isDepartmentalActivity) {
       csvContent =
@@ -924,14 +926,20 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
       fileName = 'departments_bulk_template.xlsx';
     } else if (isPlacement) {
       const isIntern = selectedPlacementType === 'internship';
-      headers = ['Register Number', 'Academic Year', 'Name', 'Department', 'Program', 'Designation/Role', 'Company', 'Package'];
-      sampleRows = isIntern ? [
-        ['2447002', '2024-25', 'Jane Smith', 'Computer Science and Engineering', 'B.Tech Computer Science and Engineering', 'Frontend Developer Intern', 'Microsoft India', 45000],
-        ['2447003', '2024-25', 'Arun Kumar', 'Electronics and Communication Engineering', 'B.Tech Electronics and Communication Engineering', 'Hardware Intern', 'Texas Instruments', 0]
-      ] : [
-        ['2447001', '2024-25', 'John Doe', 'Computer Science and Engineering', 'B.Tech Computer Science and Engineering', 'Software Development Engineer', 'Google India', 14.50],
-        ['2447004', '2024-25', 'Priya Sharma', 'AI and Data Science Engineering', 'B.Tech (Artificial Intelligence and Machine Learning)', 'Data Engineer', 'Samsung R&D', 8.50]
-      ];
+      if (isIntern) {
+        headers = ['Name', 'Register Number', 'Designation/Role', 'Company', 'Monthly Stipend (INR)', 'Proof'];
+        sampleRows = [
+          ['Jane Smith', '2447002', 'Frontend Developer Intern', 'Microsoft India', 45000, 'https://drive.google.com/file/d/example1/view'],
+          ['Arun Kumar', '2447003', 'Hardware Intern', 'Texas Instruments', 0, ''],
+          ['Priya Sharma', '2447004', 'Data Analyst Intern', 'Samsung R&D', '', 'https://drive.google.com/file/d/example2/view']
+        ];
+      } else {
+        headers = ['Register Number', 'Academic Year', 'Name', 'Department', 'Program', 'Designation/Role', 'Company', 'Package'];
+        sampleRows = [
+          ['2447001', '2024-25', 'John Doe', 'Computer Science and Engineering', 'B.Tech Computer Science and Engineering', 'Software Development Engineer', 'Google India', 14.50],
+          ['2447004', '2024-25', 'Priya Sharma', 'AI and Data Science Engineering', 'B.Tech (Artificial Intelligence and Machine Learning)', 'Data Engineer', 'Samsung R&D', 8.50]
+        ];
+      }
       fileName = isIntern ? 'internships_bulk_template.xlsx' : 'placements_bulk_template.xlsx';
     } else if (isDepartmentalActivity) {
       headers = DEPARTMENTAL_ACTIVITY_MATRIX_HEADERS;
@@ -1072,7 +1080,48 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
     let rows: any[] = [];
     let fileName = `bulk_import_summary_${new Date().toISOString().slice(0, 10)}.csv`;
 
-    if (isAwards || isEContent) {
+    if (isPlacement) {
+      const isIntern = selectedPlacementType === 'internship';
+      headers = isIntern
+        ? ['Row Number', 'Register Number', 'Name', 'Company', 'Role', 'Academic Year', 'Monthly Stipend', 'Status', 'Issues / Reasons']
+        : ['Row Number', 'Register Number', 'Name', 'Company', 'Role', 'Academic Year', 'Department', 'Program', 'Package (LPA)', 'Status', 'Issues / Reasons'];
+
+      previewData.forEach((r: any, idx: number) => {
+        const isReady = r._rowStatus === 'ready';
+        const statusLabel = isReady ? 'Imported' : r._rowStatus === 'duplicate' ? 'Skipped (Duplicate)' : 'Skipped (Invalid)';
+        const issuesText = (r._issues && r._issues.length > 0) ? r._issues.join('; ') : (isReady ? 'Successfully verified and imported' : '-');
+        if (isIntern) {
+          rows.push([
+            idx + 1,
+            r.studentId || '-',
+            r.studentName || '-',
+            r.company || '-',
+            r.role || '-',
+            r.batch || selectedAcademicYear,
+            r.packageFormatted || (r.package === 0 ? 'Unpaid' : r.package ? `₹${Number(r.package).toLocaleString('en-IN')}/month` : 'Not Provided'),
+            statusLabel,
+            issuesText
+          ]);
+        } else {
+          rows.push([
+            idx + 1,
+            r.studentId || '-',
+            r.studentName || '-',
+            r.company || '-',
+            r.role || '-',
+            r.batch || selectedAcademicYear,
+            r.department || '-',
+            r.course || '-',
+            r.packageFormatted || r.package || '-',
+            statusLabel,
+            issuesText
+          ]);
+        }
+      });
+      fileName = isIntern
+        ? `internships_import_report_${selectedAcademicYear}_${new Date().toISOString().slice(0, 10)}.csv`
+        : `placements_import_report_${selectedAcademicYear}_${new Date().toISOString().slice(0, 10)}.csv`;
+    } else if (isAwards || isEContent) {
       if (resAny.summary?.skippedDetails && Array.isArray(resAny.summary.skippedDetails)) {
         resAny.summary.skippedDetails.forEach((d: any) => {
           rows.push([
@@ -1646,11 +1695,21 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
     } else if (isDepartment) {
       missing = DEPARTMENT_REQUIRED.filter(field => !headers.includes(field));
     } else if (isPlacement) {
-      const hasAY = headers.some(h => ['academic year', 'ay (academic year)', 'ay( academic year)', 'ay', 'batch'].includes(h.toLowerCase().trim()));
-      const reqOthers = ['Register Number', 'Name', 'Department', 'Company', 'Package'];
-      const missingOthers = reqOthers.filter(field => !headers.some(h => h.toLowerCase().trim() === field.toLowerCase().trim()));
-      if (!hasAY) missingOthers.push('Academic Year');
-      missing = missingOthers;
+      if (selectedPlacementType === 'internship') {
+        const lowerHeaders = headers.map(h => h.toLowerCase().trim());
+        const hasReg = lowerHeaders.some(h => ['register number', 'reg no', 'register no', 'studentid', 'register_number'].includes(h));
+        const hasCompany = lowerHeaders.some(h => ['company', 'recruiter', 'organization', 'host company'].includes(h));
+        const missingIntern: string[] = [];
+        if (!hasReg) missingIntern.push('Register Number');
+        if (!hasCompany) missingIntern.push('Company');
+        missing = missingIntern;
+      } else {
+        const hasAY = headers.some(h => ['academic year', 'ay (academic year)', 'ay( academic year)', 'ay', 'batch'].includes(h.toLowerCase().trim()));
+        const reqOthers = ['Register Number', 'Name', 'Department', 'Company', 'Package'];
+        const missingOthers = reqOthers.filter(field => !headers.some(h => h.toLowerCase().trim() === field.toLowerCase().trim()));
+        if (!hasAY) missingOthers.push('Academic Year');
+        missing = missingOthers;
+      }
     } else if (isDepartmentalActivity) {
       const isMatrixFormat = headers.some(h => {
         const lh = h.toLowerCase().trim();
@@ -1854,22 +1913,30 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
       if (!hasJournal) missing.push('Source title (Journal Name)');
     } else if (isPlacement) {
       const lowerHeaders = headers.map(h => h.toLowerCase().trim());
-      const hasReg = lowerHeaders.some(h => h === 'register number' || h === 'reg no' || h === 'register no' || h === 'studentid');
-      const hasName = lowerHeaders.some(h => h === 'name' || h === 'student name' || h === 'studentname');
-      const hasDept = lowerHeaders.some(h => h === 'department' || h === 'dept');
-      const hasProgram = lowerHeaders.some(h => h === 'program' || h === 'course' || h === 'degree');
-      const hasRole = lowerHeaders.some(h => h === 'designation/role' || h === 'designation' || h === 'role' || h === 'job title');
-      const hasCompany = lowerHeaders.some(h => h === 'company' || h === 'recruiter' || h === 'organization');
-      const hasPackage = lowerHeaders.some(h => h === 'package' || h === 'stipend' || h === 'ctc' || h === 'salary');
+      if (selectedPlacementType === 'internship') {
+        const hasReg = lowerHeaders.some(h => ['register number', 'reg no', 'register no', 'studentid', 'register_number'].includes(h));
+        const hasCompany = lowerHeaders.some(h => ['company', 'recruiter', 'organization', 'host company'].includes(h));
+        missing = [];
+        if (!hasReg) missing.push('Register Number');
+        if (!hasCompany) missing.push('Company');
+      } else {
+        const hasReg = lowerHeaders.some(h => h === 'register number' || h === 'reg no' || h === 'register no' || h === 'studentid');
+        const hasName = lowerHeaders.some(h => h === 'name' || h === 'student name' || h === 'studentname');
+        const hasDept = lowerHeaders.some(h => h === 'department' || h === 'dept');
+        const hasProgram = lowerHeaders.some(h => h === 'program' || h === 'course' || h === 'degree');
+        const hasRole = lowerHeaders.some(h => h === 'designation/role' || h === 'designation' || h === 'role' || h === 'job title');
+        const hasCompany = lowerHeaders.some(h => h === 'company' || h === 'recruiter' || h === 'organization');
+        const hasPackage = lowerHeaders.some(h => h === 'package' || h === 'stipend' || h === 'ctc' || h === 'salary');
 
-      missing = [];
-      if (!hasReg) missing.push('Register Number');
-      if (!hasName) missing.push('Name');
-      if (!hasDept) missing.push('Department');
-      if (!hasProgram) missing.push('Program');
-      if (!hasRole) missing.push('Designation/Role');
-      if (!hasCompany) missing.push('Company');
-      if (selectedPlacementType === 'placement' && !hasPackage) missing.push('Package');
+        missing = [];
+        if (!hasReg) missing.push('Register Number');
+        if (!hasName) missing.push('Name');
+        if (!hasDept) missing.push('Department');
+        if (!hasProgram) missing.push('Program');
+        if (!hasRole) missing.push('Designation/Role');
+        if (!hasCompany) missing.push('Company');
+        if (!hasPackage) missing.push('Package');
+      }
     } else {
       const required = ['title', 'category', 'date', 'year'];
       missing = required.filter(field => !headers.includes(field));
@@ -2053,7 +2120,7 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
             }
           } else if (isPlacement) {
             const lh = header.toLowerCase().trim();
-            if (lh === 'register number' || lh === 'reg no' || lh === 'register no' || lh === 'studentid') {
+            if (lh === 'register number' || lh === 'reg no' || lh === 'register no' || lh === 'studentid' || lh === 'register_number') {
               record['studentId'] = val ? String(val).trim() : '';
             } else if (lh === 'name' || lh === 'student name' || lh === 'studentname') {
               record['studentName'] = val ? String(val).trim() : '';
@@ -2064,25 +2131,34 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
               record['department'] = val ? String(val).trim() : '';
             } else if (lh === 'program' || lh === 'course' || lh === 'degree') {
               record['course'] = val ? String(val).trim() : '';
-            } else if (lh === 'designation/role' || lh === 'designation' || lh === 'role' || lh === 'job title') {
+            } else if (lh === 'designation/role' || lh === 'designation' || lh === 'role' || lh === 'job title' || lh === 'role/designation') {
               record['role'] = val ? String(val).trim() : '';
-            } else if (lh === 'company' || lh === 'recruiter' || lh === 'organization') {
+            } else if (lh === 'company' || lh === 'recruiter' || lh === 'organization' || lh === 'host company') {
               record['company'] = val ? String(val).trim() : '';
-            } else if (lh === 'package' || lh === 'stipend' || lh === 'ctc' || lh === 'salary') {
+            } else if (lh.includes('stipend') || lh === 'monthly stipend (inr)' || lh === 'monthly stipend' || lh === 'package' || lh === 'ctc' || lh === 'salary') {
               record['rawPackage'] = val;
+              record['rawStipend'] = val;
+              const cleanStr = String(val !== undefined && val !== null ? val : '').trim();
               if (selectedPlacementType === 'placement') {
-                const cleanStr = String(val !== undefined && val !== null ? val : '').trim();
                 const num = parseFloat(cleanStr.replace(/[^0-9.]/g, ''));
                 record['package'] = isNaN(num) ? 0 : num;
               } else {
-                const cleanStr = String(val !== undefined && val !== null ? val : '').trim();
-                if (!cleanStr) {
+                if (!cleanStr || ['-', 'n/a', 'nil', 'none'].includes(cleanStr.toLowerCase())) {
                   record['package'] = null;
+                  record['monthlyStipend'] = null;
+                } else if (cleanStr === '0' || cleanStr === '0.0' || cleanStr.toLowerCase() === 'unpaid') {
+                  record['package'] = 0;
+                  record['monthlyStipend'] = 0;
                 } else {
-                  const num = parseFloat(cleanStr.replace(/[^0-9.]/g, ''));
-                  record['package'] = isNaN(num) ? null : num;
+                  const cleaned = cleanStr.replace(/[₹$,/a-zA-Z\s]/g, '');
+                  const num = parseFloat(cleaned);
+                  record['package'] = isNaN(num) ? cleanStr : num;
+                  record['monthlyStipend'] = isNaN(num) ? cleanStr : num;
                 }
               }
+            } else if (lh === 'proof' || lh === 'proof url' || lh === 'drive link' || lh === 'offer letter' || lh === 'offerletterurl') {
+              record['proof'] = val ? String(val).trim() : '';
+              record['offerLetterUrl'] = val ? String(val).trim() : null;
             } else {
               record[header] = val;
             }
@@ -3618,19 +3694,28 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
                 </div>
               )}
 
-              {/* Placement V2.1 Specifications Guide */}
+              {/* Placement & Internship Specifications Guide */}
               {isPlacement && (
                 <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl text-xs space-y-1 text-slate-700">
                   <div className="flex items-center gap-1.5 font-bold text-[#2855B9]">
                     <Info className="w-4 h-4 text-[#2855B9]" />
-                    <span>Placements & Internships Bulk Upload V2.1 Guide</span>
+                    <span>{selectedPlacementType === 'internship' ? 'Internship Bulk Upload Guide' : 'Placement Bulk Upload Guide'}</span>
                   </div>
-                  <ul className="list-disc pl-5 text-[11px] space-y-0.5 text-slate-600">
-                    <li>Requires exactly seven columns: <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-blue-900">Register Number, Name, Department, Program, Designation/Role, Company, Package</code>.</li>
-                    <li><strong>Student Verification:</strong> Every student Register Number is verified against <em>Student Details</em>.</li>
-                    <li><strong>Compensation:</strong> {selectedPlacementType === 'placement' ? 'Annual salary in LPA (mandatory, positive number).' : 'Monthly stipend in INR (optional; blank = "Not Provided", 0 = "₹0 — Unpaid Internship").'}</li>
-                    <li><strong>Offer Letters:</strong> Optional. You can attach offer letters per offer record in the preview stage.</li>
-                  </ul>
+                  {selectedPlacementType === 'internship' ? (
+                    <ul className="list-disc pl-5 text-[11px] space-y-0.5 text-slate-600">
+                      <li>Requires strictly 6 columns: <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-blue-900">Name, Register Number, Designation/Role, Company, Monthly Stipend (INR), Proof</code>.</li>
+                      <li><strong>Student Verification:</strong> Student Details & active enrollment in selected Academic Year (<code className="font-semibold text-blue-900">{selectedAcademicYear}</code>) are authoritative. Department, Program, Campus, and School are auto-derived.</li>
+                      <li><strong>Monthly Stipend (INR):</strong> Full INR (e.g. 15000, 45000). Optional: leave blank for <em>"Not Provided"</em>, or enter 0 for <em>"Unpaid"</em>.</li>
+                      <li><strong>Proof:</strong> Optional Google Drive link or web URL to offer letter or internship certificate.</li>
+                    </ul>
+                  ) : (
+                    <ul className="list-disc pl-5 text-[11px] space-y-0.5 text-slate-600">
+                      <li>Requires standard columns: <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-blue-900">Register Number, Academic Year, Name, Department, Program, Designation/Role, Company, Package</code>.</li>
+                      <li><strong>Student Verification:</strong> Every student Register Number is verified against <em>Student Details</em>.</li>
+                      <li><strong>Compensation:</strong> Annual salary in LPA (mandatory, positive number).</li>
+                      <li><strong>Offer Letters:</strong> Optional. You can attach offer letters per offer record in the preview stage.</li>
+                    </ul>
+                  )}
                 </div>
               )}
 
@@ -4698,28 +4783,97 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
                   ) : isPlacement ? (
                     <>
                       <thead>
-                        <tr className="bg-gray-150 border-b border-gray-200 font-semibold">
+                        <tr className="bg-gray-150 border-b border-gray-200 font-semibold text-left">
+                          <th className="py-2 px-3">Status</th>
                           <th className="py-2 px-3">Register Number</th>
                           <th className="py-2 px-3">Name</th>
-                          <th className="py-2 px-3">AY (Academic Year)</th>
-                          <th className="py-2 px-3">Department</th>
-                          <th className="py-2 px-3">Course</th>
-                          <th className="py-2 px-3">Company</th>
-                          <th className="py-2 px-3">Package (LPA)</th>
+                          {selectedPlacementType === 'internship' ? (
+                            <>
+                              <th className="py-2 px-3">Host Company</th>
+                              <th className="py-2 px-3">Role</th>
+                              <th className="py-2 px-3">Dept & Program (Resolved)</th>
+                              <th className="py-2 px-3">Monthly Stipend</th>
+                              <th className="py-2 px-3">Proof</th>
+                            </>
+                          ) : (
+                            <>
+                              <th className="py-2 px-3">AY (Academic Year)</th>
+                              <th className="py-2 px-3">Department</th>
+                              <th className="py-2 px-3">Course</th>
+                              <th className="py-2 px-3">Company</th>
+                              <th className="py-2 px-3">Package (LPA)</th>
+                            </>
+                          )}
+                          <th className="py-2 px-3">Verification Notes</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 bg-white">
-                        {previewData.slice(0, 5).map((row, idx) => (
-                          <tr key={idx} className="hover:bg-gray-50">
-                            <td className="py-2 px-3 font-mono">{row.studentId}</td>
-                            <td className="py-2 px-3 font-semibold text-gray-900 truncate max-w-[150px]" title={row.studentName}>{row.studentName}</td>
-                            <td className="py-2 px-3">{row.batch}</td>
-                            <td className="py-2 px-3">{row.department}</td>
-                            <td className="py-2 px-3">{row.course || '-'}</td>
-                            <td className="py-2 px-3">{row.company}</td>
-                            <td className="py-2 px-3 font-mono">{row.package}</td>
-                          </tr>
-                        ))}
+                        {previewData.slice(0, 100).map((row, idx) => {
+                          const isReady = row._rowStatus === 'ready';
+                          const isDup = row._rowStatus === 'duplicate';
+                          return (
+                            <tr key={idx} className={`hover:bg-gray-50 ${isReady ? '' : isDup ? 'bg-amber-50/50' : 'bg-red-50/40'}`}>
+                              <td className="py-2 px-3">
+                                {isReady ? (
+                                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Ready</Badge>
+                                ) : isDup ? (
+                                  <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Duplicate</Badge>
+                                ) : (
+                                  <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px]">Invalid</Badge>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 font-mono text-xs">{row.studentId || '-'}</td>
+                              <td className="py-2 px-3 font-semibold text-gray-900 truncate max-w-[150px]" title={row.studentName}>
+                                {row.studentName || '-'}
+                                {row.matchedStudent && row.matchedStudent.name && row.matchedStudent.name !== row.studentName && (
+                                  <span className="block text-[10px] text-slate-400 font-normal">DB: {row.matchedStudent.name}</span>
+                                )}
+                              </td>
+                              {selectedPlacementType === 'internship' ? (
+                                <>
+                                  <td className="py-2 px-3 font-medium text-slate-800">{row.company}</td>
+                                  <td className="py-2 px-3 text-slate-600">{row.role || '-'}</td>
+                                  <td className="py-2 px-3 text-[11px] text-slate-600">
+                                    <div className="font-medium text-slate-800">{row.department || '-'}</div>
+                                    <div className="text-[10px] text-slate-500">{row.course || '-'}</div>
+                                  </td>
+                                  <td className="py-2 px-3 font-mono font-bold text-blue-900">
+                                    {row.packageFormatted || (row.package === 0 ? 'Unpaid' : row.package ? `₹${Number(row.package).toLocaleString('en-IN')}/month` : 'Not Provided')}
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    {row.offerLetterUrl ? (
+                                      <a
+                                        href={row.offerLetterUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 underline max-w-[100px] truncate"
+                                      >
+                                        <ExternalLink className="w-3 h-3 shrink-0" /> Link
+                                      </a>
+                                    ) : (
+                                      <span className="text-slate-400 text-[11px]">—</span>
+                                    )}
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="py-2 px-3">{row.batch}</td>
+                                  <td className="py-2 px-3">{row.department}</td>
+                                  <td className="py-2 px-3">{row.course || '-'}</td>
+                                  <td className="py-2 px-3">{row.company}</td>
+                                  <td className="py-2 px-3 font-mono">{row.package}</td>
+                                </>
+                              )}
+                              <td className="py-2 px-3 text-[11px]">
+                                {row._issues && row._issues.length > 0 ? (
+                                  <span className="text-red-600 font-medium">{row._issues.join(', ')}</span>
+                                ) : (
+                                  <span className="text-emerald-600 font-medium">Valid</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </>
                   ) : (
@@ -4986,6 +5140,82 @@ export function BulkUploadDialog({ isOpen, onClose, token: propToken, onSuccess,
                         <span className="text-base font-bold text-amber-700 font-mono">
                           {importResult.errorsCount ?? 0}
                         </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {isPlacement && (importResult as any)?.summary && (
+                    <div className="space-y-3 pt-1">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                          <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Rows</span>
+                          <span className="text-base font-bold text-slate-800 font-mono">
+                            {(importResult as any).summary.total ?? previewData.length}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                          <span className="text-[10px] text-slate-500 uppercase font-semibold block">Imported</span>
+                          <span className="text-base font-bold text-emerald-700 font-mono">
+                            {(importResult as any).count ?? (importResult as any).summary.ready ?? 0}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                          <span className="text-[10px] text-slate-500 uppercase font-semibold block">Duplicates Skipped</span>
+                          <span className="text-base font-bold text-indigo-700 font-mono">
+                            {(importResult as any).summary.duplicates ?? (importResult as any).summary.skippedExactDuplicates ?? 0}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-white rounded-lg border border-emerald-200">
+                          <span className="text-[10px] text-slate-500 uppercase font-semibold block">Invalid / Excluded</span>
+                          <span className="text-base font-bold text-amber-700 font-mono">
+                            {(importResult as any).summary.invalid ?? 0}
+                          </span>
+                        </div>
+                      </div>
+
+                      {selectedPlacementType === 'internship' && (importResult as any).summary && (
+                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
+                          <span className="text-[11px] font-bold text-slate-700 block">Internship Verification Breakdown:</span>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+                            <div className="p-2 bg-white rounded-lg border border-slate-200">
+                              <span className="text-slate-500 block">Unknown Register No:</span>
+                              <strong className="font-mono text-slate-800 font-bold">{(importResult as any).summary.skippedUnknownRegister ?? 0}</strong>
+                            </div>
+                            <div className="p-2 bg-white rounded-lg border border-slate-200">
+                              <span className="text-slate-500 block">Not Enrolled in {selectedAcademicYear}:</span>
+                              <strong className="font-mono text-slate-800 font-bold">{(importResult as any).summary.skippedMissingEnrollment ?? 0}</strong>
+                            </div>
+                            <div className="p-2 bg-white rounded-lg border border-slate-200">
+                              <span className="text-slate-500 block">Missing Mandatory Info:</span>
+                              <strong className="font-mono text-slate-800 font-bold">{(importResult as any).summary.skippedMissingRequired ?? 0}</strong>
+                            </div>
+                            <div className="p-2 bg-white rounded-lg border border-slate-200">
+                              <span className="text-slate-500 block">Invalid Monthly Stipend:</span>
+                              <strong className="font-mono text-slate-800 font-bold">{(importResult as any).summary.rejectedInvalidStipend ?? 0}</strong>
+                            </div>
+                            <div className="p-2 bg-white rounded-lg border border-slate-200">
+                              <span className="text-slate-500 block">Invalid Proof Link:</span>
+                              <strong className="font-mono text-slate-800 font-bold">{(importResult as any).summary.rejectedInvalidProof ?? 0}</strong>
+                            </div>
+                            <div className="p-2 bg-white rounded-lg border border-slate-200">
+                              <span className="text-slate-500 block">Exact Duplicates:</span>
+                              <strong className="font-mono text-slate-800 font-bold">{(importResult as any).summary.skippedExactDuplicates ?? 0}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="pt-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleDownloadSummaryReport}
+                          className="bg-white border-emerald-300 text-emerald-800 hover:bg-emerald-100 text-xs font-semibold h-8"
+                        >
+                          <Download className="w-3.5 h-3.5 mr-1.5" />
+                          Download Final Import Report (CSV)
+                        </Button>
                       </div>
                     </div>
                   )}

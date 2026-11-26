@@ -18,6 +18,11 @@ const {
   getFacultyDirectory,
   builderPreview,
   builderExport,
+  getFieldCatalog,
+  getComparisonOptions,
+  refreshSnapshot,
+  getSnapshot,
+  validateReportConfig,
   getSavedConfigs,
   saveConfig,
   deleteSavedConfig,
@@ -62,6 +67,11 @@ router.post('/export', exportReport);
 router.get('/faculty-directory', getFacultyDirectory);
 router.post('/builder-preview', builderPreview);
 router.post('/builder-export', builderExport);
+router.get('/report-builder/fields', getFieldCatalog);
+router.get('/report-builder/comparison-options', getComparisonOptions);
+router.post('/report-builder/refresh', refreshSnapshot);
+router.get('/report-builder/snapshot/:snapshotId', getSnapshot);
+router.post('/report-builder/validate', validateReportConfig);
 router.get('/saved-configs', getSavedConfigs);
 router.post('/saved-configs', saveConfig);
 router.delete('/saved-configs/:id', deleteSavedConfig);

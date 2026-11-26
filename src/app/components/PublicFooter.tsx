@@ -1,17 +1,118 @@
 import React from 'react';
 import { ArrowUpRight, ArrowUp, Mail, Phone } from 'lucide-react';
-export function PublicFooter({ onLoginClick, onDashboardClick, isAuthenticated, onNavigate }: {
-  onLoginClick: () => void;
+import { Link } from 'react-router';
+import { publicPath } from './PublicNavBar';
+
+export function PublicFooter({
+  onLoginClick,
+  onDashboardClick,
+  isAuthenticated,
+  onNavigate,
+}: {
+  onLoginClick?: () => void;
   onDashboardClick?: () => void;
   isAuthenticated?: boolean;
-  onNavigate: (section: string) => void;
-}) {
-  const handleAuthAction = () => {
-    if (isAuthenticated && onDashboardClick) {
-      onDashboardClick();
-    } else {
+  onNavigate?: (section: string) => void;
+} = {}) {
+  const handleAuthAction = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    if (onLoginClick) {
       onLoginClick();
+    } else if (onDashboardClick) {
+      onDashboardClick();
     }
   };
-  return <footer className="iq-footer"><div className="iq-container"><div className="iq-footer-grid"><div><p className="iq-footer-wordmark">CHRIST <span>IQAC</span></p><p>Internal Quality Assurance Cell<br />CHRIST (Deemed to be University)</p><p className="iq-footer-motto">Excellence and Service.</p></div><div><h2>Explore</h2>{[['Home','home'],['Research & innovation','research-innovation'],['Achievements','achievements'],['Rankings','rankings']].map(([label,key]) => <button key={key} onClick={() => onNavigate(key)}>{label}</button>)}</div><div><h2>Quality resources</h2><a href="https://christuniversity.in/center/C/iqac2026" target="_blank" rel="noopener noreferrer">Official IQAC website <ArrowUpRight size={13} /></a><a href="https://christuniversity.in/center/C/IQAC2026/annual-academic-audit" target="_blank" rel="noopener noreferrer">Academic audits <ArrowUpRight size={13} /></a><a href="https://christuniversity.in/center/C/IQAC2026/iqac-report" target="_blank" rel="noopener noreferrer">IQAC reports <ArrowUpRight size={13} /></a><button onClick={handleAuthAction}>{isAuthenticated ? 'Institutional Dashboard' : 'Institutional login'}</button></div><div><h2>Connect with IQAC</h2><a href="mailto:office.iqac@christuniversity.in"><Mail size={15} /> office.iqac@christuniversity.in</a><a href="tel:+918040129188"><Phone size={15} /> +91 80 4012 9188</a><p>Bangalore, Karnataka, India</p></div></div><div className="iq-footer-bottom"><span>&copy; {new Date().getFullYear()} CHRIST (Deemed to be University)</span><button onClick={() => window.scrollTo({top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'})}>Back to top <ArrowUp size={14} /></button></div></div></footer>;
+
+  return (
+    <footer className="iq-footer">
+      <div className="iq-container">
+        <div className="iq-footer-grid">
+          <div>
+            <p className="iq-footer-wordmark">
+              CHRIST <span>IQAC</span>
+            </p>
+            <p>
+              Internal Quality Assurance Cell
+              <br />
+              CHRIST (Deemed to be University)
+            </p>
+            <p className="iq-footer-motto">Excellence and Service.</p>
+          </div>
+          <div>
+            <h2>Explore</h2>
+            {[
+              ['Home', 'home'],
+              ['Research & innovation', 'research-innovation'],
+              ['Achievements', 'achievements'],
+              ['Rankings', 'rankings'],
+            ].map(([label, key]) => (
+              <Link
+                key={key}
+                to={publicPath(key)}
+                onClick={() => onNavigate && onNavigate(key)}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+          <div>
+            <h2>Quality resources</h2>
+            <a
+              href="https://christuniversity.in/center/C/iqac2026"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Official IQAC website <ArrowUpRight size={13} />
+            </a>
+            <a
+              href="https://christuniversity.in/center/C/IQAC2026/annual-academic-audit"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Academic audits <ArrowUpRight size={13} />
+            </a>
+            <a
+              href="https://christuniversity.in/center/C/IQAC2026/iqac-report"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              IQAC reports <ArrowUpRight size={13} />
+            </a>
+            <Link
+              to="/login"
+              onClick={handleAuthAction}
+            >
+              {isAuthenticated ? 'Institutional Dashboard' : 'Institutional login'}
+            </Link>
+          </div>
+          <div>
+            <h2>Connect with IQAC</h2>
+            <a href="mailto:office.iqac@christuniversity.in">
+              <Mail size={15} /> office.iqac@christuniversity.in
+            </a>
+            <a href="tel:+918040129188">
+              <Phone size={15} /> +91 80 4012 9188
+            </a>
+            <p>Bangalore, Karnataka, India</p>
+          </div>
+        </div>
+        <div className="iq-footer-bottom">
+          <span>&copy; {new Date().getFullYear()} CHRIST (Deemed to be University)</span>
+          <button
+            onClick={() =>
+              window.scrollTo({
+                top: 0,
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)')
+                  .matches
+                  ? 'auto'
+                  : 'smooth',
+              })
+            }
+          >
+            Back to top <ArrowUp size={14} />
+          </button>
+        </div>
+      </div>
+    </footer>
+  );
 }

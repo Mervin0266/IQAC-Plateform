@@ -54,6 +54,7 @@ const ConfigurationBackup = require('./ConfigurationBackup');
 const ScopusSource = require('./ScopusSource');
 const SavedReportConfig = require('./SavedReportConfig');
 const ReportHistory = require('./ReportHistory');
+const ReportSnapshot = require('./ReportSnapshot');
 const ExchangeRate = require('./ExchangeRate');
 const CustomDashboard = require('./CustomDashboard');
 const CustomMetric = require('./CustomMetric');
@@ -292,6 +293,8 @@ User.hasMany(SavedReportConfig, { foreignKey: 'createdBy', as: 'savedReportConfi
 SavedReportConfig.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 User.hasMany(ReportHistory, { foreignKey: 'createdBy', as: 'generatedReports' });
 ReportHistory.belongsTo(User, { foreignKey: 'createdBy', as: 'generator' });
+User.hasMany(ReportSnapshot, { foreignKey: 'createdBy', as: 'reportSnapshots' });
+ReportSnapshot.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
 module.exports = {
   User,
@@ -360,6 +363,7 @@ module.exports = {
   ScopusSource,
   SavedReportConfig,
   ReportHistory,
+  ReportSnapshot,
   ExchangeRate,
   CustomDashboard,
   CustomMetric,

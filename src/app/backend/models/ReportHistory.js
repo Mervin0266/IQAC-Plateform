@@ -51,6 +51,18 @@ const ReportHistory = sequelize.define('ReportHistory', {
     type: DataTypes.STRING,
     defaultValue: 'completed'
   },
+  snapshotId: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  templateId: {
+    type: DataTypes.UUID,
+    allowNull: true
+  },
+  configVersion: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1
+  },
   configSnapshot: {
     type: DataTypes.JSONB,
     defaultValue: {}

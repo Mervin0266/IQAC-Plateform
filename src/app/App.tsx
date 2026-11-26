@@ -69,7 +69,7 @@ function SuspenseFallback() {
 /** Helper component to provide public navigation helpers to public views */
 function PublicHomeRoute() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
 
   const handleNavigate = (section: string) => {
     if (section.startsWith('#')) {
@@ -85,14 +85,28 @@ function PublicHomeRoute() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
+  const handleInstitutionalAccess = () => {
+    if (isAuthenticated) {
+      logout(false);
+    }
+    navigate('/login?fresh=true');
+  };
+
   return (
     <PublicHomePage
       onNavigate={handleNavigate}
-      onLoginClick={() => navigate('/login')}
-      onDashboardClick={() => navigate('/dashboard')}
+      onLoginClick={handleInstitutionalAccess}
+      onDashboardClick={handleInstitutionalAccess}
       isAuthenticated={isAuthenticated}
     />
   );
+}
+
+/** Redirect helper for legacy or alternate /explore/:section routes */
+function ExploreRedirect() {
+  const { section = '' } = useParams<{ section: string }>();
+  const target = section === 'placements-internships' ? 'placements' : section;
+  return <Navigate to={`/${target}`} replace />;
 }
 
 /** Wrapper for public section-detail pages */
@@ -351,6 +365,7 @@ export function AppRoutes() {
             path="consultancy-projects"
             element={<PublicSectionRoute component={ConsultancyProjectsPage} isPublicView={true} hideSidebar />}
           />
+          <Route path="explore/:section" element={<ExploreRedirect />} />
         </Route>
 
         {/* ── 2. AUTHENTICATION ROUTE (/login) ───────────────────────── */}

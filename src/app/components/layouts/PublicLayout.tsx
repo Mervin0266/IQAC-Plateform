@@ -21,7 +21,7 @@ function PublicPageLoading() {
 export function PublicLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
 
   const rawPath = location.pathname.replace(/^\/+/, '').split('/')[0];
   const currentSection =
@@ -58,12 +58,15 @@ export function PublicLayout() {
     });
   };
 
-  const handleLoginClick = () => {
-    navigate('/login');
-  };
-
-  const handleDashboardClick = () => {
-    navigate('/dashboard');
+  /**
+   * Enforces fresh login when accessing institutional portal from public homepage/layout.
+   * Clears any active local session and requires credentials re-entry.
+   */
+  const handleInstitutionalAccess = () => {
+    if (isAuthenticated) {
+      logout(false);
+    }
+    navigate('/login?fresh=true');
   };
 
   return (
@@ -71,8 +74,8 @@ export function PublicLayout() {
       <PublicNavBar
         currentSection={currentSection}
         onNavigate={handleNavigate}
-        onLoginClick={handleLoginClick}
-        onDashboardClick={handleDashboardClick}
+        onLoginClick={handleInstitutionalAccess}
+        onDashboardClick={handleInstitutionalAccess}
         isAuthenticated={isAuthenticated}
       />
       <main
@@ -82,12 +85,12 @@ export function PublicLayout() {
         key={location.pathname}
       >
         <Suspense fallback={<PublicPageLoading />}>
-          <Outlet context={{ onNavigate: handleNavigate, onLoginClick: handleLoginClick, onDashboardClick: handleDashboardClick }} />
+          <Outlet context={{ onNavigate: handleNavigate, onLoginClick: handleInstitutionalAccess, onDashboardClick: handleInstitutionalAccess }} />
         </Suspense>
       </main>
       <PublicFooter
-        onLoginClick={handleLoginClick}
-        onDashboardClick={handleDashboardClick}
+        onLoginClick={handleInstitutionalAccess}
+        onDashboardClick={handleInstitutionalAccess}
         isAuthenticated={isAuthenticated}
         onNavigate={handleNavigate}
       />

@@ -14,7 +14,7 @@ const googleDriveService = require('../services/googleDriveService');
 // Allowed fields for regular placement updates
 const ALLOWED_PLACEMENT_FIELDS = [
   'studentId', 'studentName', 'batch', 'academicYear', 'course', 'company', 'role',
-  'package', 'placementType', 'placementDate', 'location',
+  'package', 'monthlyStipend', 'placementType', 'placementDate', 'location',
   'campus', 'school', 'offerLetterUrl', 'offerLetterFileName', 'offerLetterDriveId',
   'customFields'
 ];
@@ -40,6 +40,88 @@ function normalizeRegisterNumber(val) {
  */
 function normalizeCompKey(str) {
   return String(str || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Parses and validates monthly stipend for internship records.
+ * - Optional numeric amount in full INR (e.g. 15000)
+ * - blank / empty / undefined / null / '-' / 'N/A' / 'nil' / 'none' => null (formatted 'Not Provided')
+ * - explicit 0 => 0 (formatted 'Unpaid')
+ * - positive number => raw numeric value, formatted as '₹15,000/month'
+ * - negative or invalid characters => valid: false with descriptive error
+ */
+function parseMonthlyStipend(rawVal) {
+  if (
+    rawVal === undefined ||
+    rawVal === null ||
+    String(rawVal).trim() === '' ||
+    String(rawVal).trim() === '-' ||
+    String(rawVal).trim().toLowerCase() === 'n/a' ||
+    String(rawVal).trim().toLowerCase() === 'nil' ||
+    String(rawVal).trim().toLowerCase() === 'none'
+  ) {
+    return { valid: true, value: null, formatted: 'Not Provided', isNull: true };
+  }
+
+  const strVal = String(rawVal).trim();
+  if (strVal === '0' || strVal === '0.0' || strVal === '0.00' || strVal.toLowerCase() === 'unpaid') {
+    return {
+      valid: true,
+      value: 0,
+      formatted: 'Unpaid',
+      isZero: true
+    };
+  }
+
+  // Strip currency symbols, commas, or "inr" / "/mo" / "per month" / "/month" suffixes
+  const cleaned = strVal.replace(/[₹$,/a-zA-Z\s]/g, '');
+  const num = parseFloat(cleaned);
+
+  if (isNaN(num) || !isFinite(num) || num < 0) {
+    return { valid: false, error: `Invalid Monthly Stipend value "${rawVal}". Must be a non-negative number or left blank.` };
+  }
+
+  return {
+    valid: true,
+    value: num,
+    formatted: `₹${Number(num).toLocaleString('en-IN')}/month`
+  };
+}
+
+/**
+ * Validates optional Proof URL (e.g. Google Drive link or web URL).
+ */
+function parseProofUrl(rawVal) {
+  if (
+    rawVal === undefined ||
+    rawVal === null ||
+    String(rawVal).trim() === '' ||
+    String(rawVal).trim() === '-' ||
+    String(rawVal).trim().toLowerCase() === 'n/a' ||
+    String(rawVal).trim().toLowerCase() === 'nil' ||
+    String(rawVal).trim().toLowerCase() === 'none'
+  ) {
+    return { valid: true, url: null };
+  }
+
+  const strVal = String(rawVal).trim();
+  const lower = strVal.toLowerCase();
+
+  // Valid proof link must be an HTTP/HTTPS web link or Google Drive link
+  if (!lower.startsWith('http://') && !lower.startsWith('https://') && !lower.startsWith('drive.google.com')) {
+    return { valid: false, error: `Invalid Proof URL format "${rawVal}". Must be an HTTP/HTTPS or Google Drive link.` };
+  }
+
+  try {
+    const urlToCheck = lower.startsWith('drive.google.com') ? `https://${strVal}` : strVal;
+    const parsed = new URL(urlToCheck);
+    if (!parsed.hostname || !parsed.hostname.includes('.')) {
+      return { valid: false, error: `Invalid Proof URL "${rawVal}". Must be a valid web link or Google Drive URL.` };
+    }
+    return { valid: true, url: urlToCheck };
+  } catch (e) {
+    return { valid: false, error: `Invalid Proof URL format "${rawVal}". Must be a valid web link or Google Drive URL.` };
+  }
 }
 
 /**
@@ -165,14 +247,19 @@ async function verifyPlacementBatch(records, options = {}) {
     }
   }
 
-  // 2. Query existing Placements for duplicate offer detection
+  // 2. Query existing Placements / Internships for duplicate detection
   const dbOfferKeys = new Set();
   const mockPlacements = options.mockPlacements || (options.mockStudents ? [] : null);
   if (Array.isArray(mockPlacements)) {
     mockPlacements.forEach(p => {
-      const pkgStr = p.package !== null && p.package !== undefined ? String(Number(p.package)) : 'null';
-      const key = `${normalizeCompKey(p.studentId)}::${normalizeCompKey(p.company)}::${normalizeCompKey(p.role)}::${pkgStr}`;
-      dbOfferKeys.add(key);
+      if (targetType === 'internship') {
+        const key = `${normalizeCompKey(p.studentId)}::${normalizeCompKey(p.batch || targetAY)}::${normalizeCompKey(p.company)}::${normalizeCompKey(p.role)}`;
+        dbOfferKeys.add(key);
+      } else {
+        const pkgStr = p.package !== null && p.package !== undefined ? String(Number(p.package)) : 'null';
+        const key = `${normalizeCompKey(p.studentId)}::${normalizeCompKey(p.company)}::${normalizeCompKey(p.role)}::${pkgStr}`;
+        dbOfferKeys.add(key);
+      }
     });
   } else if (uniqueRegNos.length > 0) {
     try {
@@ -182,13 +269,18 @@ async function verifyPlacementBatch(records, options = {}) {
           batch: targetAY,
           placementType: targetType
         },
-        attributes: ['id', 'studentId', 'company', 'role', 'package', 'batch', 'placementType']
+        attributes: ['id', 'studentId', 'company', 'role', 'package', 'monthlyStipend', 'batch', 'placementType']
       });
 
       existingPlacements.forEach(p => {
-        const pkgStr = p.package !== null && p.package !== undefined ? String(Number(p.package)) : 'null';
-        const key = `${normalizeCompKey(p.studentId)}::${normalizeCompKey(p.company)}::${normalizeCompKey(p.role)}::${pkgStr}`;
-        dbOfferKeys.add(key);
+        if (targetType === 'internship') {
+          const key = `${normalizeCompKey(p.studentId)}::${normalizeCompKey(p.batch || targetAY)}::${normalizeCompKey(p.company)}::${normalizeCompKey(p.role)}`;
+          dbOfferKeys.add(key);
+        } else {
+          const pkgStr = p.package !== null && p.package !== undefined ? String(Number(p.package)) : 'null';
+          const key = `${normalizeCompKey(p.studentId)}::${normalizeCompKey(p.company)}::${normalizeCompKey(p.role)}::${pkgStr}`;
+          dbOfferKeys.add(key);
+        }
       });
     } catch (dbErr) {
       console.warn('[PlacementController] Existing placement lookup notice:', dbErr.message);
@@ -203,155 +295,322 @@ async function verifyPlacementBatch(records, options = {}) {
   let duplicateCount = 0;
   let withOfferLettersCount = 0;
 
+  // Granular breakdown counters (especially for Internship bulk upload)
+  let skippedUnknownRegister = 0;
+  let skippedMissingEnrollment = 0;
+  let skippedMissingRequired = 0;
+  let rejectedInvalidStipend = 0;
+  let rejectedInvalidProof = 0;
+  let skippedExactDuplicates = 0;
+
   for (let idx = 0; idx < records.length; idx++) {
     const r = records[idx];
     const issues = [];
     let rowStatus = 'ready';
 
-    // Extract exactly seven standardized fields
-    const studentId = normalizeRegisterNumber(
-      r['Register Number'] || r.studentId || r['Register No'] || r['RegisterNo'] || r['regNo']
-    );
-    const studentName = normalizeString(r['Name'] || r.studentName || r['Student Name']);
-    const department = normalizeString(r['Department'] || r.department);
-    const course = normalizeString(r['Program'] || r.course || r['Course'] || r['Degree']);
-    const role = normalizeString(r['Designation/Role'] || r.role || r['Role'] || r['Designation']);
-    const company = normalizeString(r['Company'] || r.company);
-    const rawPackage = r['Package'] !== undefined ? r['Package'] : r.package;
-    const tempId = r._tempId || r.tempId || `offer-${idx + 1}-${studentId || 'unassigned'}-${Date.now()}`;
-    const offerLetterUrl = r.offerLetterUrl || null;
-    const offerLetterFileName = r.offerLetterFileName || null;
+    if (targetType === 'internship') {
+      // =========================================================================
+      // INTERNSHIP WORKFLOW: 6 standardized columns
+      // 1. Name, 2. Register Number, 3. Designation/Role, 4. Company,
+      // 5. Monthly Stipend (INR), 6. Proof
+      // Academic Year, Department, Program, Course, Campus, School are NOT in file.
+      // =========================================================================
+      const studentId = normalizeRegisterNumber(
+        r['Register Number'] || r.studentId || r['Register No'] || r['RegisterNo'] || r['regNo']
+      );
+      const spreadsheetName = normalizeString(r['Name'] || r.studentName || r['Student Name'] || r['name']);
+      const role = normalizeString(r['Designation/Role'] || r.role || r['Role'] || r['Designation'] || r['role/designation']);
+      const company = normalizeString(r['Company'] || r.company || r['Host Company'] || r['Organization']);
+      const rawStipend = r['Monthly Stipend (INR)'] !== undefined ? r['Monthly Stipend (INR)']
+        : (r['Monthly Stipend'] !== undefined ? r['Monthly Stipend']
+        : (r.monthlyStipend !== undefined ? r.monthlyStipend
+        : (r.package !== undefined ? r.package : r['Package'])));
+      const rawProof = r['Proof'] !== undefined ? r['Proof']
+        : (r.proof !== undefined ? r.proof
+        : (r.offerLetterUrl !== undefined ? r.offerLetterUrl
+        : (r['Proof URL'] !== undefined ? r['Proof URL'] : r['Drive Link'])));
 
-    if (offerLetterUrl || r.offerLetterFile) {
-      withOfferLettersCount++;
-    }
+      const tempId = r._tempId || r.tempId || `internship-${idx + 1}-${studentId || 'unassigned'}-${Date.now()}`;
 
-    // Validate mandatory required fields
-    if (!studentId) {
-      issues.push('Missing mandatory field: Register Number.');
-      rowStatus = 'invalid';
-    }
-    if (!studentName) {
-      issues.push('Missing mandatory field: Student Name.');
-      rowStatus = 'invalid';
-    }
-    if (!department) {
-      issues.push('Missing mandatory field: Department.');
-      rowStatus = 'invalid';
-    }
+      // 1. Validate mandatory Register Number and Company
+      let hasMissingReq = false;
+      if (!studentId) {
+        issues.push('Missing mandatory field: Register Number.');
+        hasMissingReq = true;
+      }
+      if (!company) {
+        issues.push('Missing mandatory field: Company.');
+        hasMissingReq = true;
+      }
 
-    // Student Details existence verification
-    const studentRecord = studentId ? studentMap[normalizeCompKey(studentId)] : null;
-    if (studentId && !studentRecord) {
-      if (autoRegisterStudents === true) {
-        issues.push(`Student profile "${studentId}" will be auto-registered in Student Details upon import.`);
-      } else {
+      // 2. Student Details lookup (Authoritative)
+      const studentRecord = studentId ? studentMap[normalizeCompKey(studentId)] : null;
+      let resolvedDept = '';
+      let resolvedCourse = '';
+      let resolvedCampus = campus || null;
+      let resolvedSchool = school || null;
+      let resolvedName = '';
+
+      if (studentId && !studentRecord) {
         issues.push(`Register Number "${studentId}" does not exist in Student Details.`);
+        skippedUnknownRegister++;
+        rowStatus = 'invalid';
+      } else if (studentRecord) {
+        // Active enrollment in selected targetAY validation
+        const enrollments = studentRecord.enrollments || [];
+        const matchedEnrollment = enrollments.find(e => (e.academicYear || '').trim().toLowerCase() === targetAY.toLowerCase());
+        const hasAYInStudent = (studentRecord.academicYear || '').trim().toLowerCase() === targetAY.toLowerCase();
+
+        if (!matchedEnrollment && !hasAYInStudent) {
+          issues.push(`Student "${studentId}" has no active enrollment record in academic year "${targetAY}".`);
+          skippedMissingEnrollment++;
+          rowStatus = 'invalid';
+        }
+
+        // Derive Department, Program/Course, Campus, School from matched enrollment
+        resolvedDept = (matchedEnrollment && matchedEnrollment.department) || studentRecord.department || '';
+        resolvedCourse = (matchedEnrollment && (matchedEnrollment.course || matchedEnrollment.program)) || studentRecord.course || '';
+        resolvedCampus = (matchedEnrollment && matchedEnrollment.campus) || studentRecord.campus || campus || null;
+        resolvedSchool = (matchedEnrollment && matchedEnrollment.school) || studentRecord.school || school || null;
+
+        // Name resolution priority: 1. DB Name, 2. Spreadsheet Name fallback
+        if (studentRecord.name && studentRecord.name.trim()) {
+          resolvedName = studentRecord.name.trim();
+        } else if (spreadsheetName) {
+          resolvedName = spreadsheetName;
+        } else {
+          issues.push('Missing mandatory field: Name (not found in database or spreadsheet).');
+          hasMissingReq = true;
+        }
+      } else {
+        resolvedName = spreadsheetName || '';
+        if (!resolvedName) {
+          issues.push('Missing mandatory field: Name.');
+          hasMissingReq = true;
+        }
+      }
+
+      if (hasMissingReq) {
+        skippedMissingRequired++;
         rowStatus = 'invalid';
       }
-    }
 
-    let resolvedCourse = course || (studentRecord && studentRecord.course ? studentRecord.course : '');
-    if (!resolvedCourse) {
-      issues.push('Missing mandatory field: Program.');
-      rowStatus = 'invalid';
-    }
-    if (!company) {
-      issues.push('Missing mandatory field: Company.');
-      rowStatus = 'invalid';
-    }
-
-    // Compensation validation
-    const compResult = parseCompensation(rawPackage, targetType);
-    if (!compResult.valid) {
-      issues.push(compResult.error);
-      rowStatus = 'invalid';
-    }
-
-    if (studentRecord) {
-      // Identity matching verification
-      const normRegDept = normalizeCompKey(department);
-      const normStudentDept = normalizeCompKey(studentRecord.department);
-      if (normRegDept && normStudentDept && normRegDept !== normStudentDept && !normStudentDept.includes(normRegDept) && !normRegDept.includes(normStudentDept)) {
-        issues.push(`Department "${department}" differs from Student Details profile ("${studentRecord.department}").`);
-        if (rowStatus === 'ready') rowStatus = 'needs_review';
+      // 3. Monthly Stipend validation (INR)
+      const stipendResult = parseMonthlyStipend(rawStipend);
+      if (!stipendResult.valid) {
+        issues.push(stipendResult.error);
+        rejectedInvalidStipend++;
+        rowStatus = 'invalid';
       }
 
-      const normRegName = normalizeCompKey(studentName);
-      const normStudentName = normalizeCompKey(studentRecord.name);
-      if (normRegName && normStudentName && normRegName !== normStudentName && !normStudentName.includes(normRegName) && !normRegName.includes(normStudentName)) {
-        issues.push(`Student name "${studentName}" differs from Student Details profile ("${studentRecord.name}").`);
-        if (rowStatus === 'ready') rowStatus = 'needs_review';
+      // 4. Proof URL validation (Optional Google Drive link or web URL)
+      const proofResult = parseProofUrl(rawProof);
+      if (!proofResult.valid) {
+        issues.push(proofResult.error);
+        rejectedInvalidProof++;
+        rowStatus = 'invalid';
       }
 
-      // Exact Academic Year enrollment validation for internships
-      if (targetType === 'internship' && targetAY) {
-        const enrollments = studentRecord.enrollments || [];
-        const isEnrolledInAY = enrollments.some(e => (e.academicYear || '').trim().toLowerCase() === targetAY.toLowerCase()) ||
-          (studentRecord.academicYear || '').trim().toLowerCase() === targetAY.toLowerCase();
-        if (!isEnrolledInAY) {
-          issues.push(`Student "${studentId}" has no active enrollment record in academic year "${targetAY}".`);
+      if (proofResult.url) {
+        withOfferLettersCount++;
+      }
+
+      // 5. Authorization & department scope check
+      if (userDept && resolvedDept) {
+        const normUserDept = normalizeCompKey(userDept);
+        const normRecordDept = normalizeCompKey(resolvedDept);
+        if (normRecordDept !== normUserDept && !normRecordDept.includes(normUserDept)) {
+          issues.push(`Access denied: You are not authorized to upload internship records for department "${resolvedDept}".`);
           rowStatus = 'invalid';
         }
       }
-    }
 
-    // Authorization & department scope check
-    if (userDept && department) {
-      const normUserDept = normalizeCompKey(userDept);
-      const normRecordDept = normalizeCompKey(department);
-      if (normRecordDept !== normUserDept && !normRecordDept.includes(normUserDept)) {
-        issues.push(`Access denied: You are not authorized to upload placement records for department "${department}".`);
+      // 6. Duplicate detection (Exact duplicate only: studentId + targetAY + company + role)
+      const internOfferKey = `${normalizeCompKey(studentId)}::${normalizeCompKey(targetAY)}::${normalizeCompKey(company)}::${normalizeCompKey(role)}`;
+      if (rowStatus !== 'invalid') {
+        if (batchOfferKeys.has(internOfferKey)) {
+          issues.push(`Exact duplicate internship detected within this uploaded file for student "${studentId}" at "${company}".`);
+          skippedExactDuplicates++;
+          rowStatus = 'duplicate';
+        } else if (dbOfferKeys.has(internOfferKey)) {
+          issues.push(`Identical internship already recorded in the database for student "${studentId}" at "${company}" in ${targetAY}.`);
+          skippedExactDuplicates++;
+          rowStatus = 'duplicate';
+        } else {
+          batchOfferKeys.add(internOfferKey);
+        }
+      }
+
+      if (rowStatus === 'ready') readyCount++;
+      else if (rowStatus === 'needs_review') reviewCount++;
+      else if (rowStatus === 'duplicate') duplicateCount++;
+      else if (rowStatus === 'invalid') invalidCount++;
+
+      verifiedRecords.push({
+        _tempId: tempId,
+        _rowStatus: rowStatus,
+        _issues: issues,
+        studentId,
+        studentName: resolvedName,
+        department: resolvedDept,
+        course: resolvedCourse || null,
+        role: role || null,
+        company,
+        monthlyStipend: stipendResult.valid ? stipendResult.value : null,
+        package: stipendResult.valid ? stipendResult.value : null,
+        packageFormatted: stipendResult.valid ? stipendResult.formatted : String(rawStipend || 'Invalid'),
+        placementType: 'internship',
+        batch: targetAY,
+        campus: resolvedCampus,
+        school: resolvedSchool,
+        offerLetterUrl: proofResult.valid ? proofResult.url : null,
+        offerLetterFileName: null,
+        matchedStudent: studentRecord ? {
+          id: studentRecord.id,
+          name: studentRecord.name,
+          department: resolvedDept,
+          course: resolvedCourse
+        } : null
+      });
+
+    } else {
+      // =========================================================================
+      // PLACEMENT WORKFLOW: Standard 7 approved columns (Unmodified)
+      // =========================================================================
+      const studentId = normalizeRegisterNumber(
+        r['Register Number'] || r.studentId || r['Register No'] || r['RegisterNo'] || r['regNo']
+      );
+      const studentName = normalizeString(r['Name'] || r.studentName || r['Student Name']);
+      const department = normalizeString(r['Department'] || r.department);
+      const course = normalizeString(r['Program'] || r.course || r['Course'] || r['Degree']);
+      const role = normalizeString(r['Designation/Role'] || r.role || r['Role'] || r['Designation']);
+      const company = normalizeString(r['Company'] || r.company);
+      const rawPackage = r['Package'] !== undefined ? r['Package'] : r.package;
+      const tempId = r._tempId || r.tempId || `offer-${idx + 1}-${studentId || 'unassigned'}-${Date.now()}`;
+      const offerLetterUrl = r.offerLetterUrl || null;
+      const offerLetterFileName = r.offerLetterFileName || null;
+
+      if (offerLetterUrl || r.offerLetterFile) {
+        withOfferLettersCount++;
+      }
+
+      // Validate mandatory required fields
+      if (!studentId) {
+        issues.push('Missing mandatory field: Register Number.');
         rowStatus = 'invalid';
       }
-    }
-
-    // Duplicate offer detection
-    const pkgStr = compResult.valid && compResult.value !== null ? String(Number(compResult.value)) : 'null';
-    const offerKey = `${normalizeCompKey(studentId)}::${normalizeCompKey(company)}::${normalizeCompKey(role)}::${pkgStr}`;
-
-    if (rowStatus !== 'invalid') {
-      if (batchOfferKeys.has(offerKey)) {
-        issues.push(`Exact duplicate offer detected within this uploaded file for student "${studentId}" at "${company}".`);
-        rowStatus = 'duplicate';
-      } else if (dbOfferKeys.has(offerKey)) {
-        issues.push(`Identical offer already recorded in the database for student "${studentId}" at "${company}" in ${targetAY}.`);
-        rowStatus = 'duplicate';
-      } else {
-        batchOfferKeys.add(offerKey);
+      if (!studentName) {
+        issues.push('Missing mandatory field: Student Name.');
+        rowStatus = 'invalid';
       }
+      if (!department) {
+        issues.push('Missing mandatory field: Department.');
+        rowStatus = 'invalid';
+      }
+
+      // Student Details existence verification
+      const studentRecord = studentId ? studentMap[normalizeCompKey(studentId)] : null;
+      if (studentId && !studentRecord) {
+        if (autoRegisterStudents === true) {
+          issues.push(`Student profile "${studentId}" will be auto-registered in Student Details upon import.`);
+        } else {
+          issues.push(`Register Number "${studentId}" does not exist in Student Details.`);
+          rowStatus = 'invalid';
+        }
+      }
+
+      let resolvedCourse = course || (studentRecord && studentRecord.course ? studentRecord.course : '');
+      if (!resolvedCourse) {
+        issues.push('Missing mandatory field: Program.');
+        rowStatus = 'invalid';
+      }
+      if (!company) {
+        issues.push('Missing mandatory field: Company.');
+        rowStatus = 'invalid';
+      }
+
+      // Compensation validation (Annual LPA)
+      const compResult = parseCompensation(rawPackage, 'placement');
+      if (!compResult.valid) {
+        issues.push(compResult.error);
+        rowStatus = 'invalid';
+      }
+
+      if (studentRecord) {
+        // Identity matching verification
+        const normRegDept = normalizeCompKey(department);
+        const normStudentDept = normalizeCompKey(studentRecord.department);
+        if (normRegDept && normStudentDept && normRegDept !== normStudentDept && !normStudentDept.includes(normRegDept) && !normRegDept.includes(normStudentDept)) {
+          issues.push(`Department "${department}" differs from Student Details profile ("${studentRecord.department}").`);
+          if (rowStatus === 'ready') rowStatus = 'needs_review';
+        }
+
+        const normRegName = normalizeCompKey(studentName);
+        const normStudentName = normalizeCompKey(studentRecord.name);
+        if (normRegName && normStudentName && normRegName !== normStudentName && !normStudentName.includes(normRegName) && !normRegName.includes(normStudentName)) {
+          issues.push(`Student name "${studentName}" differs from Student Details profile ("${studentRecord.name}").`);
+          if (rowStatus === 'ready') rowStatus = 'needs_review';
+        }
+      }
+
+      // Authorization & department scope check
+      if (userDept && department) {
+        const normUserDept = normalizeCompKey(userDept);
+        const normRecordDept = normalizeCompKey(department);
+        if (normRecordDept !== normUserDept && !normRecordDept.includes(normUserDept)) {
+          issues.push(`Access denied: You are not authorized to upload placement records for department "${department}".`);
+          rowStatus = 'invalid';
+        }
+      }
+
+      // Duplicate offer detection
+      const pkgStr = compResult.valid && compResult.value !== null ? String(Number(compResult.value)) : 'null';
+      const offerKey = `${normalizeCompKey(studentId)}::${normalizeCompKey(company)}::${normalizeCompKey(role)}::${pkgStr}`;
+
+      if (rowStatus !== 'invalid') {
+        if (batchOfferKeys.has(offerKey)) {
+          issues.push(`Exact duplicate offer detected within this uploaded file for student "${studentId}" at "${company}".`);
+          rowStatus = 'duplicate';
+        } else if (dbOfferKeys.has(offerKey)) {
+          issues.push(`Identical offer already recorded in the database for student "${studentId}" at "${company}" in ${targetAY}.`);
+          rowStatus = 'duplicate';
+        } else {
+          batchOfferKeys.add(offerKey);
+        }
+      }
+
+      if (rowStatus === 'ready') readyCount++;
+      else if (rowStatus === 'needs_review') reviewCount++;
+      else if (rowStatus === 'duplicate') duplicateCount++;
+      else if (rowStatus === 'invalid') invalidCount++;
+
+      verifiedRecords.push({
+        _tempId: tempId,
+        _rowStatus: rowStatus,
+        _issues: issues,
+        studentId,
+        studentName,
+        department,
+        course: resolvedCourse || course || null,
+        role: role || null,
+        company,
+        package: compResult.valid ? compResult.value : null,
+        monthlyStipend: null,
+        packageFormatted: compResult.valid ? compResult.formatted : String(rawPackage || 'Invalid'),
+        placementType: 'placement',
+        batch: targetAY,
+        campus: campus || (studentRecord ? studentRecord.campus : null),
+        school: school || (studentRecord ? studentRecord.school : null),
+        offerLetterUrl,
+        offerLetterFileName,
+        matchedStudent: studentRecord ? {
+          id: studentRecord.id,
+          name: studentRecord.name,
+          department: studentRecord.department,
+          course: studentRecord.course
+        } : null
+      });
     }
-
-    if (rowStatus === 'ready') readyCount++;
-    else if (rowStatus === 'needs_review') reviewCount++;
-    else if (rowStatus === 'duplicate') duplicateCount++;
-    else if (rowStatus === 'invalid') invalidCount++;
-
-    verifiedRecords.push({
-      _tempId: tempId,
-      _rowStatus: rowStatus,
-      _issues: issues,
-      studentId,
-      studentName,
-      department,
-      course: resolvedCourse || course || null,
-      role: role || null,
-      company,
-      package: compResult.valid ? compResult.value : null,
-      packageFormatted: compResult.valid ? compResult.formatted : String(rawPackage || 'Invalid'),
-      placementType: targetType,
-      batch: targetAY,
-      campus: campus || (studentRecord ? studentRecord.campus : null),
-      school: school || (studentRecord ? studentRecord.school : null),
-      offerLetterUrl,
-      offerLetterFileName,
-      matchedStudent: studentRecord ? {
-        id: studentRecord.id,
-        name: studentRecord.name,
-        department: studentRecord.department,
-        course: studentRecord.course
-      } : null
-    });
   }
 
   return {
@@ -361,6 +620,12 @@ async function verifyPlacementBatch(records, options = {}) {
       needsReview: reviewCount,
       invalid: invalidCount,
       duplicates: duplicateCount,
+      skippedUnknownRegister,
+      skippedMissingEnrollment,
+      skippedMissingRequired,
+      rejectedInvalidStipend,
+      rejectedInvalidProof,
+      skippedExactDuplicates,
       withOfferLetters: withOfferLettersCount,
       withoutOfferLetters: records.length - withOfferLettersCount,
       academicYear: targetAY,
@@ -485,6 +750,14 @@ exports.createPlacement = async (req, res) => {
       record.batch = record.academicYear;
     }
 
+    if (record.placementType === 'internship') {
+      if (record.monthlyStipend !== undefined && record.monthlyStipend !== null && record.package === undefined) {
+        record.package = record.monthlyStipend;
+      } else if (record.package !== undefined && record.package !== null && record.monthlyStipend === undefined) {
+        record.monthlyStipend = record.package;
+      }
+    }
+
     // Exact Academic Year enrollment validation for internships
     if (record.placementType === 'internship' && record.studentId) {
       const targetAY = record.academicYear || record.batch;
@@ -562,6 +835,14 @@ exports.updatePlacement = async (req, res) => {
     }
     if (req.user.role === 'admin' && req.body.department !== undefined) {
       updateData.department = req.body.department;
+    }
+
+    if (placement.placementType === 'internship' || updateData.placementType === 'internship') {
+      if (updateData.monthlyStipend !== undefined && updateData.monthlyStipend !== null && updateData.package === undefined) {
+        updateData.package = updateData.monthlyStipend;
+      } else if (updateData.package !== undefined && updateData.package !== null && updateData.monthlyStipend === undefined) {
+        updateData.monthlyStipend = updateData.package;
+      }
     }
 
     delete updateData.id;
@@ -715,10 +996,11 @@ exports.bulkCreatePlacements = async (req, res) => {
 
     let createdRecords = [];
     await sequelize.transaction(async (t) => {
-      // 1. Auto-provision students if they do not yet exist in Student Details
+      // 1. Auto-provision students if they do not yet exist in Student Details (ONLY for Placements, strictly NOT for Internships)
       const targetAY = academicYear || '2023-2024';
+      const isInternship = (placementType === 'internship');
       const readyRegNos = Array.from(new Set(readyRecords.map(r => r.studentId).filter(Boolean)));
-      if (readyRegNos.length > 0) {
+      if (!isInternship && autoRegisterStudents !== false && readyRegNos.length > 0) {
         const existingStudents = await Student.findAll({
           where: { registerNumber: { [Op.in]: readyRegNos } },
           attributes: ['id', 'registerNumber'],
@@ -800,7 +1082,7 @@ exports.bulkCreatePlacements = async (req, res) => {
         }
       }
 
-      // 2. Insert placement records
+      // 2. Insert placement / internship records
       const recordsToInsert = readyRecords.map(r => ({
         studentName: r.studentName,
         studentId: r.studentId,
@@ -809,6 +1091,7 @@ exports.bulkCreatePlacements = async (req, res) => {
         role: r.role || null,
         company: r.company,
         package: r.package,
+        monthlyStipend: r.monthlyStipend !== undefined ? r.monthlyStipend : (r.placementType === 'internship' ? r.package : null),
         placementType: r.placementType,
         batch: r.batch,
         campus: r.campus || null,
@@ -1078,6 +1361,8 @@ exports.clearAllPlacements = async (req, res) => {
   }
 };
 
-// Export helper for unit testing
+// Export helpers for unit testing
 exports.verifyPlacementBatch = verifyPlacementBatch;
 exports.parseCompensation = parseCompensation;
+exports.parseMonthlyStipend = parseMonthlyStipend;
+exports.parseProofUrl = parseProofUrl;

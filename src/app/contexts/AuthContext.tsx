@@ -33,7 +33,7 @@ export interface LoginResult {
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string, role: UserRole) => Promise<LoginResult>;
-  logout: () => void;
+  logout: (redirectPath?: string | false | React.SyntheticEvent) => void;
   isAuthenticated: boolean;
 }
 
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   });
 
-  const logout = React.useCallback(() => {
+  const logout = React.useCallback((redirectPath?: string | false | React.SyntheticEvent) => {
     setUser(null);
     localStorage.removeItem('iqac_user');
     localStorage.removeItem('token');
@@ -64,10 +64,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('iqac-auth-logout'));
-      try {
-        window.history.pushState({}, '', '/');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      } catch (e) {}
+      if (redirectPath !== false) {
+        try {
+          const target = typeof redirectPath === 'string' ? redirectPath : '/';
+          window.history.pushState({}, '', target);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        } catch (e) {}
+      }
     }
   }, []);
 
